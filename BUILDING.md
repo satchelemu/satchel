@@ -76,6 +76,18 @@ xcrun devicectl device process launch --device YOUR_DEVICE_UDID com.dell.satchel
 Do not install over a running Prepare or import; the app's `Documents/prepare-progress.json`
 says whether one is active.
 
+## GPU diagnostic host
+
+`NativeApp/build.py --graphics-mac-host --unsigned` builds only the private Mac
+GPU host under `SATCHEL_OUT/gpu-mac`. It requires the maintainer's existing Mac
+libvpx and utility shader outputs in addition to the dependency snapshot. See
+[the graphics diagnostics](NativeHost/graphics/README.md#gpu-pass-cost-diagnostics)
+for prerequisites, paired counter analysis and synthetic checks.
+`SATCHEL_GRAPHICS_REPLAY=1` also builds the private captured-frame replayer, with
+strict runtime-profile, layout and shader-interface checks. It neither builds an
+installable phone app nor establishes phone performance. The unsigned app build
+also skips signing identity discovery when preparing its native host archives.
+
 ## Signing with your own team
 
 No Apple team ID is stored in the repository. `NativeApp/build_support.py` resolves the

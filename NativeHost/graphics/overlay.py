@@ -15,6 +15,17 @@ def prepare(source, destination):
         shutil.copyfile(neighbour, destination / neighbour.name)
     subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('pipeline.patch')],
                    cwd=destination, check=True)
+    subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('gpu-cost.patch')],
+                   cwd=destination, check=True)
+    metal = destination / 'nvn_mtl.m'
+    text = metal.read_text()
+    anchors = {}
+    anchors['if (!a || !b || b < a) continue;'] = 'if (!a || !b || b < a) {\n            const gp_lab *l = &lab[i];\n            MLOG("[gpuprof-invalid] F%llu %d kind %c size %ux%u colors %u depth %u fmt %u/%u end_site %u writes %u draws %u", (unsigned long long)frame, i, l->kind, l->w, l->h, l->nc, l->depth, l->cfmt, l->dfmt, l->end_site, l->write_stages, l->draws);\n            continue;\n        }'
+    for anchor, replacement in anchors.items():
+        if text.count(anchor) != 1:
+            raise RuntimeError('Invalid-counter diagnostic anchor is not unique')
+        text = text.replace(anchor, replacement, 1)
+    metal.write_text(text)
     runpy.run_path(str(Path(__file__).with_name('shader_builds.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     runpy.run_path(str(Path(__file__).with_name('shader_metrics.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     return destination / 'nvn_mtl.m'

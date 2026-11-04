@@ -105,8 +105,85 @@ The graphics profile also enables the engine's GPU wait ledger. Its timings do
 not include every guest wait or presentation wait. A small submit and GPU time
 does not imply that the rest of a frame is unused host CPU time.
 
-For Mac comparisons, reject runs with competing compilers or game hosts. Also
+For Mac comparisons, use adjacent interleaved trials with the same scene and build
+(or a single explicit candidate switch), and record shared load for each trial. Also
 check `front end: window covered`: an occluded CAMetalDisplayLink can fire once
 per second. `DM_WINDOW_TOP=1` helps but does not guarantee visibility across Spaces.
 Offscreen runs without `DM_WINDOW` isolate guest and host loading costs from that
 presentation issue; they cannot validate onscreen pacing or phone performance.
+
+## GPU pass cost diagnostics
+
+`gpu-cost.patch` extends the opt-in Metal counter records with the generated source
+line that ended each render pass and the union of its shader write stages (vertex 1,
+fragment 2, other 4). `-SatchelGraphicsProfile YES` enables sampling;
+`-SatchelGraphicsCounters NO` disables encoder sampling while retaining frame TSVs.
+Counters are off on a normal launch. The diagnostic Mac host uses
+`DM_NVN_GPUPROF=every:120` directly.
+
+`gpu-cost-summary.py LOG GENERATED_NVN_SOURCE` records the exact source hash, valid
+and declared timestamp counts, pass-ending sites and pass workloads grouped by
+attachment shape or compute/copy operation counts. Both render and compute/copy
+encoders participate in the workload ranking. Source lines change when overlays change, so retain the generated
+source with each build. A group is a measured workload, not a semantic game pass
+name or proof that the boundary can be removed. Encoder intervals may overlap;
+never equate their sum with whole-frame GPU busy time. The span includes idle gaps.
+Missing timestamps make per-frame workload means lower bounds, and frames with no valid
+counter results remain in the summary. Use `--first` and `--last` to exclude loading.
+
+Build the private Mac host with `NativeApp/build.py --graphics-mac-host --unsigned`,
+then run `gpu-check.py` and `gpu-summary-check.py` with the same `SATCHEL_OUT`.
+This host needs the existing graphics Mac libvpx and utility shader outputs under
+`SATCHEL_BUILD_ROOT/graphics/mac-engine/dm/host/gen`, plus the pinned engine,
+Zelda profile/toolchain metadata and the documented tool snapshot. It is a maintainer
+diagnostic, not a reproducible standalone distribution. It applies the current
+pipeline worker and metrics overlays before compilation. No game packages are copied.
+
+Gameplay timing uses paired, interleaved ABAB trials in one session, with at least
+five pairs per scene. A/A repeats establish attribution variability. Record load and
+process counts per trial; use Metal counters, a settled shader cache and scale 1.0.
+Adjacent pairs reduce shared-load drift, but do not guarantee equal instantaneous
+contention. Report median B minus A, quartiles, range and load differences. Do not
+wait for a quiet Mac for these measurements. The heavy-build exclusion still applies
+to compilation. Preparation runs and menu captures do not establish gameplay GPU cost.
+
+`gpu-paired-summary.py LOG SOURCE --first FRAME` pairs adjacent samples 120 frames
+apart. Add `--phase` with counters sampled inside `DM_AB=120` phases to discard each
+phase's first quarter and compare the remaining medians. Each accepted phase
+requires at least three samples, as with `every:30` and 120-frame phases. The log must prefix frame
+summaries with `[observed UNIX_SECONDS load1 VALUE]`. Unpaired trials are unused;
+fewer than five complete pairs fails. Missing timestamps reject whole-frame sums.
+`--shape 'ATTACHMENT LABEL'` can compare a complete target only when every missing
+encoder has a `gpuprof-invalid` label and none matches that target. Missing unrelated
+work stays explicit and no whole-frame span comparison is emitted. No missing value
+is converted to a zero duration. `gpu-paired-check.py` covers these boundaries.
+
+The summarizer also ranks individual occurrences within each shape and ending site,
+with sample counts. `gpu-paired-summary.py --shape LABEL --occurrence N` compares
+one such occurrence rather than the sum of its group. Add `--site LINE` when the
+same shape has several ending sites. The experiment selector counts all occurrences
+of its shape; the analysis identifies them by ending site too, so verify their
+correspondence in the sampled frame before attributing an effect. These are structural pass
+names; they do not assert an unverified semantic role in the game.
+
+Set `SATCHEL_GRAPHICS_REPLAY=1` during the Mac host build to also build
+`gpu-mac/tools/nvn-replay` from the pinned MIT engine. Its title check uses the same
+runtime profile as the host; record-layout and shader-interface checks remain strict.
+Keep captured frames outside the repository, use the same capture for both modes,
+and compare decoded pixel bytes with zero tolerance unless an existing reviewed
+allowance applies. Replay and capture times are not live-game performance results.
+The 2026-11-04 Mac trials do not establish a full-resolution phone speedup.
+Rejected clear and consumer-barrier experiments are excluded from this diagnostic
+patch. Their private source and evidence remain in the maintainer's graphics task
+folder. No rendering optimization is enabled by the diagnostic controls.
+
+For a selected target, every accepted sample must contain that shape, ending site
+and occurrence in both phases. An absent candidate target is rejected, never
+counted as zero time. Check a screenshot of the measured scene too: frame numbers
+alone do not prove that scripted menu input reached gameplay under shared load.
+
+Exact captured-frame bytes are the first image check. When the pinned engine's
+existing regression allowance is used instead, label it explicitly: eight fresh
+baseline replays set a fixed limit of twice the worst baseline differing-pixel
+count before any candidate validation. Passing that rule is not byte identity,
+a measured speedup, or phone acceptance.

@@ -23,7 +23,11 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--migration-bridge', action='store_true', help='Temporary Dev update, migration screen only')
 parser.add_argument('--unsigned', action='store_true', help='Compile only; not installable and no provisioning verification')
 parser.add_argument('--ui-tests-simulator', action='store_true', help='Run the synthetic navigation suite, with no native archives or phone actions')
+parser.add_argument('--graphics-mac-host', action='store_true', help='Build the diagnostic Mac GPU host, without phone actions')
 args = parser.parse_args()
+if args.graphics_mac_host:
+    run([sys.executable, '-B', ROOT / 'NativeHost/graphics/build-mac.py'], dict(os.environ, SATCHEL_OUT=str(OUT)))
+    sys.exit(0)
 if args.ui_tests_simulator:
     run([sys.executable, '-B', ROOT / 'Tests/UI/Navigation/run-simulator.py'], dict(os.environ, SATCHEL_OUT=str(OUT)))
     sys.exit(0)
@@ -45,7 +49,7 @@ session = ROOT / 'NativeHost/session'
 inputs += list(session.glob('Session*.c')) + list(session.glob('Session*.h'))
 inputs += list(session.glob('*.inc')) + list(session.glob('*overlay.py')) + list(session.glob('*.patch'))
 inputs += [ROOT / 'NativeHost/graphics' / name for name in
-           ['PipelineSettings.m', 'PipelineSettings.h', 'overlay.py', 'pipeline.patch', 'stalls.patch', 'host-time.patch', 'HostPause.h', 'loading.patch', 'RomFSRead.h']]
+           ['PipelineSettings.m', 'PipelineSettings.h', 'overlay.py', 'pipeline.patch', 'stalls.patch', 'host-time.patch', 'HostPause.h', 'loading.patch', 'RomFSRead.h', 'gpu-cost.patch']]
 inputs += [ROOT / 'NativeHost/memory' / name for name in ['overlay.py', 'SceneMemory.inc', 'GhostPool.inc']]
 # Reusable sessions are the canonical app path. An explicit zero is diagnostic only.
 os.environ.setdefault('SATCHEL_SESSION_BOUNDARY', '1')
