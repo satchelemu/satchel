@@ -166,20 +166,29 @@ physical hinge sensor, screen migration, cutout geometry or rotation.
 
 ## Player profile data and thermal reporting
 
-`NativeHost/PlayerProfiles.plist` is bundled with the app. Each game runs at the frame rate it
-expects and at full resolution; there are no Performance or Graphics modes and no frame cap or
-render scale choice. `titles.<uppercase title ID>` holds `DM_FPS_TARGET` and `DM_RENDER_SCALE`;
-the `default` entry (target 0: the game's own frame logic, render scale 1.0) covers every other
-game. Tears of the Kingdom uses 30 at 1.0: it expects 30, and its frame-step patch keeps game time
-equal to real time at that rate. A 30 target runs the display link at 30 Hz, so never give it to a
-game without a frame-step patch: a game that steps its clock once per tick would run at half
-speed (Super Mario Odyssey did). Speed comes from optimizing the host, not from rendering below the
-game's size. This is separate from the binary-rewrite registry.
+`NativeHost/PlayerProfiles.plist` supplies the defaults. `titles.<uppercase title ID>`
+holds title defaults; the global entry uses target 0 (the game's own frame logic) and
+render scale 1.0. Tears of the Kingdom defaults to 30 at 1.0. A forced target can change
+game speed without a compatible frame-step patch. This is separate from the binary-rewrite
+registry. There are no Performance or Graphics presets.
 
-The screen mode (fit or stretch) is the one saved player choice; all titles default to fit.
-Frame rates and scales saved by older builds are ignored and dropped from the saved settings.
-`-SatchelFPSTarget` and `-SatchelRenderScale` remain one-launch developer overrides and are never
-saved. `SatchelQueuePlayerSetting` accepts only `DM_SCREEN_MODE`; `SatchelSavePlayerSettings` saves only it.
+Game pages show FPS target, render scale, screen mode, haptics and pipeline mode, with
+both global and title defaults and an override marker. `SatchelSavedPlayerSettings` merges
+the defaults with validated per-title overrides. `SatchelPlayerOverrides` exposes only
+those overrides, and `SatchelResetPlayerSetting` removes one without changing other choices.
+`SatchelSavePlayerSettings` validates and merges a patch atomically. The existing screen
+and haptics menu commands use the same store. Old menu JSON is not authoritative for them.
+
+FPS accepts 0, 30 or 60; scale accepts finite decimal values from 0.5 through 1.0;
+screen accepts fit/stretch; haptics accepts on/off; pipeline accepts exact/hybrid/legacy.
+`SatchelQueuePlayerSetting` accepts these five keys. FPS, scale and pipeline changes affect
+only `nextLaunch` until the game is closed and launched again. Screen and haptics also update
+the live atomic state. No environment variable changes during a session. Adding menu
+selectors for the three launch-only choices remains separate from the game-page work.
+
+`-SatchelFPSTarget`, `-SatchelRenderScale`, `-SatchelScreenMode` and
+`-SatchelPipelineMode` remain validated one-launch developer overrides and are never saved.
+Pipeline startup reads the launch snapshot before configuring exact/hybrid/legacy behavior.
 
 Saved zoom is rewritten to fit. `-SatchelScreenMode zoom` resolves to fit without persisting
 any unrelated launch overrides. Live `screen zoom` is rejected and logs the allowed modes.

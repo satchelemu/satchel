@@ -4,13 +4,14 @@
 #include <stdio.h>
 
 NSNotificationName const SatchelScreenModeDidChange = @"SatchelScreenModeDidChange";
+NSNotificationName const SatchelPlayerSettingsDidChange = @"SatchelPlayerSettingsDidChange";
 static _Atomic int screenMode, playerHaptics = 1;
 static NSString *sessionTitle;
 static NSDictionary *launchSettings;
 static NSMutableDictionary *nextSettings;
 
 static NSString *settingsKey(NSString *titleID) {
-    return [@"SatchelPlayerSettings." stringByAppendingString:titleID];
+    return [@"SatchelPlayerSettings." stringByAppendingString:titleID.uppercaseString];
 }
 static NSArray<NSString *> *keys(void) {
     return @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE", @"DM_SCREEN_MODE"];
@@ -34,19 +35,32 @@ static NSString *validValue(NSString *key, id value) {
         if (end == start || *end || !isfinite(scale) || scale < 0.5 || scale > 1.0) return nil;
         return text;
     }
+    if ([key isEqualToString:@"DM_PIPELINE_MODE"])
+        return [@[@"exact", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
     return nil;
 }
-// Each game runs at the frame rate it expects and at its own full resolution (PlayerProfiles.plist): a
-// game without an entry keeps its own frame logic (target 0). Render scale stays 1.0; speed comes from
-// optimizing the host, not from rendering below the game's size. The player does not choose these.
-static NSDictionary *profile(NSString *titleID) {
-    static NSDictionary *profiles;
+// Bundled defaults remain the baseline; title entries are recommended defaults.
+static NSDictionary *profiles(void) {
+    static NSDictionary *data;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        profiles = [NSDictionary dictionaryWithContentsOfURL:[NSBundle.mainBundle URLForResource:@"PlayerProfiles" withExtension:@"plist"]];
-        NSCAssert(profiles[@"default"], @"PlayerProfiles.plist must be bundled");
+        data = [NSDictionary dictionaryWithContentsOfURL:[NSBundle.mainBundle URLForResource:@"PlayerProfiles" withExtension:@"plist"]];
+        NSCAssert(data[@"default"], @"PlayerProfiles.plist must be bundled");
     });
-    return profiles[@"titles"][titleID.uppercaseString] ?: profiles[@"default"];
+    return data;
+}
+NSDictionary<NSString *, NSString *> *SatchelPlayerGlobalDefaults(void) {
+    NSMutableDictionary *result = [profiles()[@"default"] mutableCopy];
+    result[@"DM_SCREEN_MODE"] = @"fit";
+    result[@"DM_PIPELINE_MODE"] = @"exact";
+    id legacy = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"SatchelLiveControls"][@"haptics"];
+    result[@"DM_HAPTICS"] = [legacy isKindOfClass:NSNumber.class] && ![legacy boolValue] ? @"off" : @"on";
+    return result;
+}
+NSDictionary<NSString *, NSString *> *SatchelPlayerDefaults(NSString *titleID) {
+    NSMutableDictionary *result = [SatchelPlayerGlobalDefaults() mutableCopy];
+    [result addEntriesFromDictionary:profiles()[@"titles"][titleID.uppercaseString] ?: @{}];
+    return result;
 }
 static NSString *migratedValue(NSString *key, id value) {
     if ([key isEqualToString:@"DM_SCREEN_MODE"] && [value isEqual:@"zoom"]) {
@@ -59,30 +73,29 @@ static void rejected(NSString *key, NSString *source) {
     fprintf(stderr, "Satchel settings: rejected %s%s\n", source.UTF8String,
         [key isEqualToString:@"DM_RENDER_SCALE"] ? "; allowed render scale range: 0.5 through 1.0" : "");
 }
-NSDictionary<NSString *, NSString *> *SatchelPlayerSettings(NSString *titleID) {
-    NSDictionary *data = profile(titleID);
+NSDictionary<NSString *, NSString *> *SatchelPlayerOverrides(NSString *titleID) {
+    NSDictionary *saved = [NSUserDefaults.standardUserDefaults dictionaryForKey:settingsKey(titleID)] ?: @{};
     NSMutableDictionary *result = [NSMutableDictionary dictionary];
-    for (NSString *key in @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE"]) {
-        NSString *value = validValue(key, data[key]);
-        NSCAssert(value, @"PlayerProfiles.plist has an invalid %@", key);
-        result[key] = value;
+    for (NSString *key in saved) {
+        NSString *value = migratedValue(key, saved[key]);
+        if (value) result[key] = value;
     }
-    result[@"DM_SCREEN_MODE"] = @"fit";
-    // Adopt the previous global haptics choice until a title saves its own value.
-    id legacy = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"SatchelLiveControls"][@"haptics"];
-    result[@"DM_HAPTICS"] = [legacy isKindOfClass:NSNumber.class] && ![legacy boolValue] ? @"off" : @"on";
-    // Frame rates and scales saved by older builds are ignored.
-    id saved = [NSUserDefaults.standardUserDefaults objectForKey:settingsKey(titleID)];
-    if ([saved isKindOfClass:NSDictionary.class]) {
-        NSString *value = migratedValue(@"DM_SCREEN_MODE", saved[@"DM_SCREEN_MODE"]);
-        if (value) result[@"DM_SCREEN_MODE"] = value;
-        NSString *rumble = validValue(@"DM_HAPTICS", saved[@"DM_HAPTICS"]);
-        if (rumble) result[@"DM_HAPTICS"] = rumble;
-        if (saved[@"DM_FPS_TARGET"] || saved[@"DM_RENDER_SCALE"] || [saved[@"DM_SCREEN_MODE"] isEqual:@"zoom"])
-            [NSUserDefaults.standardUserDefaults setObject:@{@"DM_SCREEN_MODE": result[@"DM_SCREEN_MODE"], @"DM_HAPTICS": result[@"DM_HAPTICS"]} forKey:settingsKey(titleID)];
+    if ([saved[@"DM_SCREEN_MODE"] isEqual:@"zoom"]) {
+        NSMutableDictionary *migrated = [saved mutableCopy];
+        migrated[@"DM_SCREEN_MODE"] = @"fit";
+        [NSUserDefaults.standardUserDefaults setObject:migrated forKey:settingsKey(titleID)];
     }
+    return result;
+}
+NSDictionary<NSString *, NSString *> *SatchelSavedPlayerSettings(NSString *titleID) {
+    NSMutableDictionary *result = [SatchelPlayerDefaults(titleID) mutableCopy];
+    [result addEntriesFromDictionary:SatchelPlayerOverrides(titleID)];
+    return result;
+}
+NSDictionary<NSString *, NSString *> *SatchelPlayerSettings(NSString *titleID) {
+    NSMutableDictionary *result = [SatchelSavedPlayerSettings(titleID) mutableCopy];
     // Developer overrides for one launch (devicectl ... -SatchelFPSTarget 60); never saved.
-    NSDictionary *arguments = @{@"-SatchelFPSTarget": @"DM_FPS_TARGET", @"-SatchelRenderScale": @"DM_RENDER_SCALE", @"-SatchelScreenMode": @"DM_SCREEN_MODE"};
+    NSDictionary *arguments = @{@"-SatchelFPSTarget": @"DM_FPS_TARGET", @"-SatchelRenderScale": @"DM_RENDER_SCALE", @"-SatchelScreenMode": @"DM_SCREEN_MODE", @"-SatchelPipelineMode": @"DM_PIPELINE_MODE"};
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     for (NSUInteger i = 1; i < args.count; i++) {
         NSString *key = arguments[args[i]];
@@ -93,20 +106,50 @@ NSDictionary<NSString *, NSString *> *SatchelPlayerSettings(NSString *titleID) {
     }
     return result;
 }
-BOOL SatchelSavePlayerSettings(NSString *titleID, NSDictionary<NSString *, NSString *> *values) {
-    NSString *mode = validValue(@"DM_SCREEN_MODE", values[@"DM_SCREEN_MODE"]);
-    if (!mode) { rejected(@"DM_SCREEN_MODE", @"DM_SCREEN_MODE"); return NO; }
-    NSString *rumble = values[@"DM_HAPTICS"] ? validValue(@"DM_HAPTICS", values[@"DM_HAPTICS"]) : SatchelPlayerSettings(titleID)[@"DM_HAPTICS"];
-    if (!rumble) return NO;
-    [NSUserDefaults.standardUserDefaults setObject:@{@"DM_SCREEN_MODE": mode, @"DM_HAPTICS": rumble} forKey:settingsKey(titleID)];
-    return YES;
-}
 static int modeNumber(NSString *mode) {
     return [mode isEqualToString:@"stretch"] ? 1 : 0;
 }
+static void settingsChanged(NSString *titleID, NSArray<NSString *> *changedKeys) {
+    if ([sessionTitle isEqualToString:titleID.uppercaseString]) {
+        // Keep unrelated one-launch choices. Only the edited fields change the
+        // queued snapshot, and only screen/haptics have live atomic state.
+        NSDictionary *saved = SatchelSavedPlayerSettings(titleID);
+        for (NSString *key in changedKeys) nextSettings[key] = saved[key];
+        if ([changedKeys containsObject:@"DM_SCREEN_MODE"]) {
+            atomic_store(&screenMode, modeNumber(nextSettings[@"DM_SCREEN_MODE"]));
+            [NSNotificationCenter.defaultCenter postNotificationName:SatchelScreenModeDidChange object:nil];
+        }
+        if ([changedKeys containsObject:@"DM_HAPTICS"])
+            atomic_store(&playerHaptics, [nextSettings[@"DM_HAPTICS"] isEqualToString:@"on"]);
+    }
+    [NSNotificationCenter.defaultCenter postNotificationName:SatchelPlayerSettingsDidChange object:titleID.uppercaseString];
+}
+BOOL SatchelSavePlayerSettings(NSString *titleID, NSDictionary<NSString *, NSString *> *values) {
+    NSCAssert(NSThread.isMainThread, @"Settings changes require the main thread");
+    if (!titleID.length || !values.count) return NO;
+    NSMutableDictionary *saved = [[NSUserDefaults.standardUserDefaults dictionaryForKey:settingsKey(titleID)] mutableCopy] ?: [NSMutableDictionary dictionary];
+    // Validate the whole patch before writing. Other keys and title overrides stay intact.
+    for (NSString *key in values) {
+        NSString *value = validValue(key, values[key]);
+        if (!value) { rejected(key, key); return NO; }
+        saved[key] = value;
+    }
+    [NSUserDefaults.standardUserDefaults setObject:saved forKey:settingsKey(titleID)];
+    settingsChanged(titleID, values.allKeys);
+    return YES;
+}
+BOOL SatchelResetPlayerSetting(NSString *titleID, NSString *key) {
+    NSCAssert(NSThread.isMainThread, @"Settings changes require the main thread");
+    if (!SatchelPlayerGlobalDefaults()[key]) return NO;
+    NSMutableDictionary *saved = [[NSUserDefaults.standardUserDefaults dictionaryForKey:settingsKey(titleID)] mutableCopy] ?: [NSMutableDictionary dictionary];
+    [saved removeObjectForKey:key];
+    [NSUserDefaults.standardUserDefaults setObject:saved forKey:settingsKey(titleID)];
+    settingsChanged(titleID, @[key]);
+    return YES;
+}
 void SatchelApplyPlayerSettings(NSString *titleID) {
     NSDictionary *values = SatchelPlayerSettings(titleID);
-    sessionTitle = [titleID copy];
+    sessionTitle = titleID.uppercaseString;
     launchSettings = [values copy]; nextSettings = [values mutableCopy];
     // Called once, after the manifest and before any guest, renderer or UI worker starts.
     for (NSString *key in keys()) setenv(key.UTF8String, [values[key] UTF8String], 1);
@@ -121,33 +164,19 @@ void SatchelClearPlayerSession(void) {
 }
 int SatchelScreenMode(void) { return atomic_load(&screenMode); }
 BOOL SatchelChangeScreenMode(NSString *mode) {
-    if (!sessionTitle || !validValue(@"DM_SCREEN_MODE", mode)) return NO;
-    // UIKit and DM_CTL both marshal live changes onto the main queue.
-    NSCAssert(NSThread.isMainThread, @"Screen changes require the main thread");
-    nextSettings[@"DM_SCREEN_MODE"] = mode;
-    SatchelSavePlayerSettings(sessionTitle, nextSettings);
-    atomic_store(&screenMode, modeNumber(mode));
-    // Keep runtime state atomic instead of changing the process environment while the engine reads it.
-    fprintf(stderr, "Satchel screen: mode=%s saved title=%s\n", mode.UTF8String, sessionTitle.UTF8String);
-    [NSNotificationCenter.defaultCenter postNotificationName:SatchelScreenModeDidChange object:nil];
-    return YES;
+    if (!sessionTitle) return NO;
+    return SatchelSavePlayerSettings(sessionTitle, @{@"DM_SCREEN_MODE": mode});
 }
 
 NSDictionary *SatchelCurrentPlayerSettings(void) { return launchSettings ?: @{}; }
 NSDictionary *SatchelNextPlayerSettings(void) { return [nextSettings copy] ?: @{}; }
 BOOL SatchelQueuePlayerSetting(NSString *key, NSString *value) {
-    NSCAssert(NSThread.isMainThread, @"Settings changes require the main thread");
-    // Frame rate and render scale follow the game; this command queues screen changes.
-    if (!sessionTitle || ![key isEqualToString:@"DM_SCREEN_MODE"] || !validValue(key, value)) { rejected(key, key); return NO; }
-    return SatchelChangeScreenMode(value);
+    if (!sessionTitle) return NO;
+    return SatchelSavePlayerSettings(sessionTitle, @{key: value});
 }
 
 BOOL SatchelPlayerHaptics(void) { return atomic_load(&playerHaptics); }
 BOOL SatchelChangePlayerHaptics(BOOL enabled) {
-    NSCAssert(NSThread.isMainThread, @"Settings changes require the main thread");
     if (!sessionTitle) return NO;
-    nextSettings[@"DM_HAPTICS"] = enabled ? @"on" : @"off";
-    if (!SatchelSavePlayerSettings(sessionTitle, nextSettings)) return NO;
-    atomic_store(&playerHaptics, enabled);
-    return YES;
+    return SatchelSavePlayerSettings(sessionTitle, @{@"DM_HAPTICS": enabled ? @"on" : @"off"});
 }

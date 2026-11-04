@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Choices made before a prepared game starts, in the pause menu's look. The game runs at its
-/// own frame rate and full resolution; the screen mode can also change while playing.
+/// saved title settings; the screen mode can also change while playing.
 struct PlayerSettingsView: View {
     let titleID: String
     /// The package folder being opened, shown so similar packages can be told apart.
@@ -67,7 +67,7 @@ struct PlayerSettingsView: View {
                 if !package.isEmpty { SatchelChip(text: package, systemImage: "shippingbox.fill") }
             }
         }
-        Text("Runs at the game's own frame rate and full resolution, \(mode == "stretch" ? "stretched" : "fit to the screen").")
+        Text("Uses this title's saved picture settings, \(mode == "stretch" ? "stretched" : "fit to the screen").")
             .font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 4)
@@ -139,6 +139,9 @@ struct PlayerSettingsView: View {
     }
 
     private func save() {
-        _ = SatchelSavePlayerSettings(titleID, ["DM_SCREEN_MODE": mode, "DM_HAPTICS": haptics ? "on" : "off"])
+        let current = SatchelSavedPlayerSettings(titleID)
+        let selected = ["DM_SCREEN_MODE": mode, "DM_HAPTICS": haptics ? "on" : "off"]
+        let changed = selected.filter { current[$0.key] != $0.value }
+        if !changed.isEmpty { _ = SatchelSavePlayerSettings(titleID, changed) }
     }
 }

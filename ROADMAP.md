@@ -22,7 +22,7 @@ with no computer involved.
 | Controllers and input | 80% | Xbox, DualSense and Pro Controller; touch controls; rumble. Controller mapping UI and a controller shortcut for the menu are missing. |
 | In-game menu | 75% | Pause, resume, library, quit, screen fit, FPS counter, DLC. Audio volume, touch control size and opacity, controller layout are missing. |
 | iPhone Duo postures (closed, open, half folded) | 60% | Open and closed screens work; half folded layout and live relayout while playing are built but not fully verified. |
-| Library and app UI | 85% | Redesigned library with real artwork, import flow that keeps going in the background with iCloud download progress, home cards for import, Prepare, warm-up and a paused game, shader warm-up on each game page, settings with the bundled install guide, signature expiry warnings, save export and import. |
+| Library and app UI | 85% | Redesigned library with real artwork, import flow that keeps going in the background with iCloud download progress, home cards for import, Prepare, warm-up and a paused game, shader warm-up on each game page, settings with the bundled install guide, signature expiry warnings, per-title settings and a dated save-backup list with restore, share-sheet export and import. The new settings and save journeys still need hardware validation. |
 | Build reproducibility | 45% | All 45 declared native artifacts rebuilt locally from pinned cached inputs. Five tool source pins added; clean-Mac tool setup and private shader-parity evidence still prevent full app reproduction. See BUILDING.md. |
 | Distribution (IPA, SideStore source, refresh) | 40% | Install guide and source generator exist; no published IPA or source URL yet. |
 | General importer (unknown games boot without a per-game profile) | 50% | A starter profile is generated from the game's own metadata; Castlevania ran on it with one memory rule. More games will find more gaps. |
@@ -83,10 +83,16 @@ pull request. Open an issue first if you want to claim one.
    and unknown entitlements, and the live simulator probe. Signed phone readings and
    other phones remain unverified. A measured limit alone cannot establish how much
    the entitlement increased it without a same-device baseline.
-9. **Per-game settings page.** FPS target, render scale, screen mode and haptics are
-   already kept per title in the player profiles. Show them on the game's own page with
-   the global defaults and an override marker, so a game can keep its own settings.
-10. **Save manager**: in-app backup rotation, import from other emulators, export.
+9. **Per-game settings, hardware validation remaining.** Game pages expose FPS target,
+   render scale, screen mode, haptics and pipeline mode. Each shows the global default,
+   any title default, an override marker and reset. Launch and existing menu screen/haptics
+   controls share the per-title store. FPS, scale and pipeline mode apply on next launch.
+   Menu controls for those three launch-only choices are follow-up work for the menu owner.
+10. **Save manager, hardware and other-emulator import remaining.** Game pages list save
+    dates and sizes and the newest three automatic backups, restore with confirmation
+    while the game is closed, export a ZIP through the share sheet and import through
+    Files. Title mismatch and archive errors leave the current save intact. Only Satchel's
+    title-bound ZIP format is supported; arbitrary emulator ZIPs remain unsupported.
 11. **Delete imports after a verified Prepare** (user option) so a game does not exist
     twice on the phone.
 12. **More games.** Any title you own, with a report. See COMPATIBILITY.md.

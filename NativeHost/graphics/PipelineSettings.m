@@ -1,4 +1,5 @@
 #import "PipelineSettings.h"
+#import "../PlayerSettings.h"
 #import "WarmupPipelines.h"
 #import <Metal/Metal.h>
 #include <sys/sysctl.h>
@@ -11,7 +12,7 @@ static NSString *argument(NSArray<NSString *> *args, NSString *name) {
 void SatchelApplyPipelineSettings(NSString *runtime) {
     // Package manifests can carry the old synchronous policy. The host owns compilation.
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
-    NSString *mode = argument(args, @"-SatchelPipelineMode") ?: @"exact";
+    NSString *mode = SatchelCurrentPlayerSettings()[@"DM_PIPELINE_MODE"] ?: argument(args, @"-SatchelPipelineMode") ?: @"exact";
     BOOL hybrid = [mode isEqualToString:@"hybrid"];
     BOOL modern = ![mode isEqualToString:@"legacy"];
     if (![mode isEqualToString:@"hybrid"] && ![mode isEqualToString:@"legacy"] && ![mode isEqualToString:@"exact"])

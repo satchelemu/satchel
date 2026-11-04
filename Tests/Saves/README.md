@@ -43,7 +43,7 @@ not lost. Backup failures are shown on the game's save panel and retried at the 
 Phone journey for the orchestrator, after building and installing through the normal flow:
 
 1. Open a game's page. Check the Save data time and size against a known in-game save.
-2. Export save. Choose an iCloud Drive folder in Files and confirm the game/date ZIP name.
+2. Export save. Choose Save to Files in the share sheet, then an iCloud Drive folder and confirm the game/date ZIP name.
 3. Start the game, pause and return to the library. Export, import and backup restore must
    remain unavailable until Quit to home succeeds.
 4. Make an in-game save, background Satchel, return, then Quit to home. The save panel should

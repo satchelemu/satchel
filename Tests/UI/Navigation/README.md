@@ -291,3 +291,12 @@ Manual hardware steps, performed by the orchestrator in a separate session:
 
 The worker performs no phone actions. Exact measured checks, failures and the remaining
 blocker are in `~/SatchelBuild/uitests3/report.md`.
+
+## Game settings and save manager
+
+The game-page settings journeys cover five per-title choices, default and override labels,
+reset, persistence across process launch, both landscape orientations and shared menu/page
+screen values. Save journeys inspect dated, sized backup rows, confirm or cancel restore,
+verify exported synthetic bytes, reject wrong-title/corrupt archives and gate save actions
+while paused. The system boundary journey opens Files for import and the share sheet for
+export. See `docs/testing.md` for hardware follow-up and the native storage checks.

@@ -149,7 +149,14 @@ phone. The unsigned option also skips signing-team lookup while generating the n
 host project. The navigation generator reads the pinned engine from
 `$SATCHEL_DEPS_ROOT/NX2Apple/engine`, applies this checkout's display patches under
 `SATCHEL_OUT`, and builds only the selected simulator architecture. It does not reuse
-another worker's display build. The app lands at
+another worker's display build. Per-title settings and the save manager add no dependencies.
+The simulator suite covers their game-page journeys using synthetic saves. Set
+`SATCHEL_UI_SIMULATOR` to a dedicated simulator UUID; `SATCHEL_UI_ONLY_TESTING` accepts
+comma-separated journey names for a targeted run. `Tests/PlayerSettings/run.py` checks
+the shared settings and real pipeline policy on the Mac, and `Tests/Saves/run.py` checks
+archive validation and backup rotation. Run both through `NativePrepare/guard.py` with
+`ANYGAME_OUT`, `SATCHEL_SETTINGS_TEST_OUT` and `SAVE_TEST_OUT` inside your build folder.
+The app lands at
 `<SATCHEL_OUT>/app/DerivedData/Build/Products/Release-iphoneos/Satchel.app`.
 
 Install and launch with Apple's `devicectl` (replace the UDID with your paired device):

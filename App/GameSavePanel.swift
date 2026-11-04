@@ -8,6 +8,7 @@ struct GameSavePanel: View {
     let gameName: String
     @State private var summary: SaveStore.Summary?
     @State private var busy = false
+    @State private var showBackups = false
     @State private var message: String?
     @State private var backupError: String?
     @State private var picker: SavePickerRequest?
@@ -31,11 +32,25 @@ struct GameSavePanel: View {
                         Label("Import save", systemImage: "square.and.arrow.down")
                     }.disabled(busy || running).accessibilityIdentifier("import-save")
                     if !summary.backups.isEmpty {
-                        Menu("Backups (\(summary.backups.count))") {
-                            ForEach(summary.backups) { backup in
-                                Button("Restore \(backup.date.formatted(date: .abbreviated, time: .standard))") { restoreBackup = backup }
+                        Button("Backups (\(summary.backups.count))") { showBackups.toggle() }
+                            .disabled(busy || running).accessibilityIdentifier("restore-save-backup")
+                    }
+                }
+                if showBackups {
+                    ForEach(Array(summary.backups.enumerated()), id: \.element.id) { index, backup in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(backup.date.formatted(date: .abbreviated, time: .standard))
+                                Text(satchelBytes(backup.bytes)).foregroundStyle(SatchelTheme.textDim)
                             }
-                        }.disabled(busy || running).accessibilityIdentifier("restore-save-backup")
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("save-backup-info-\(index)")
+                            Spacer()
+                            Button("Restore") { restoreBackup = backup; showBackups = false }
+                                .disabled(busy || running)
+                                .accessibilityLabel("Restore \(backup.date.formatted(date: .abbreviated, time: .standard))")
+                                .accessibilityIdentifier("save-backup-restore-\(index)")
+                        }
                     }
                 }
             } else { Text(message == nil ? "Reading save data…" : "Save data unavailable.") }
@@ -52,8 +67,8 @@ struct GameSavePanel: View {
         .onReceive(NotificationCenter.default.publisher(for: SaveLifecycle.changed)) { _ in Task { await refresh() } }
         .onReceive(NotificationCenter.default.publisher(for: .SatchelNativeSessionDidEnd)) { _ in Task { await refresh() } }
         .sheet(item: $picker, onDismiss: cleanupExport) { request in
-            SaveDocumentPicker(export: request.export) { url in
-                if request.export != nil { message = url == nil ? "Export cancelled." : "Save exported to Files." }
+            SaveFileSheet(export: request.export) { url in
+                if request.export != nil { message = url == nil ? "Export cancelled." : "Save shared." }
                 else if let url { restore(url) }
                 picker = nil
             }
@@ -63,7 +78,11 @@ struct GameSavePanel: View {
                 Button("Restore backup") { restore(backup.url); restoreBackup = nil }
                 Button("Cancel", role: .cancel) { restoreBackup = nil }
             }
-        } message: { Text("Your current save will be backed up before replacement. Only the latest 3 backups are kept.") }
+        } message: {
+            if let backup = restoreBackup {
+                Text("Restore the backup from \(backup.date.formatted(date: .abbreviated, time: .standard)) (\(satchelBytes(backup.bytes)))? Your current save will be backed up before replacement. Only the latest 3 backups are kept.")
+            }
+        }
     }
     private func refresh() async {
         backupError = SaveLifecycle.error(title: titleID)
@@ -114,13 +133,44 @@ private struct SavePickerRequest: Identifiable {
     let export: URL?
 }
 
-private struct SaveDocumentPicker: UIViewControllerRepresentable {
+private struct SaveFileSheet: View {
     let export: URL?
+    let completion: (URL?) -> Void
+    var body: some View {
+        if let export { SaveShareSheet(url: export, completion: completion) }
+        else {
+            // Keep an exit even when the remote provider omits its own toolbar.
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("Cancel import") { completion(nil) }
+                        .accessibilityIdentifier("cancel-save-import")
+                        .padding()
+                }
+                SaveDocumentPicker(completion: completion)
+            }
+        }
+    }
+}
+
+private struct SaveShareSheet: UIViewControllerRepresentable {
+    let url: URL
+    let completion: (URL?) -> Void
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let share = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        share.completionWithItemsHandler = { _, completed, _, error in
+            completion(completed && error == nil ? url : nil)
+        }
+        return share
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+private struct SaveDocumentPicker: UIViewControllerRepresentable {
     let completion: (URL?) -> Void
     func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = export.map { UIDocumentPickerViewController(forExporting: [$0], asCopy: true) }
-            ?? UIDocumentPickerViewController(forOpeningContentTypes: [.zip], asCopy: false)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.zip], asCopy: false)
         picker.allowsMultipleSelection = false; picker.delegate = context.coordinator
         return picker
     }
