@@ -10,7 +10,9 @@
 //   swift scripts/app_icon.swift                 regenerate App/Assets.xcassets icon sets
 //   swift scripts/app_icon.swift --check         fail if the committed PNGs differ from this source
 //   swift scripts/app_icon.swift --previews DIR  write home-screen previews (not committed)
+//   swift scripts/app_icon.swift --brand DIR     write the GitHub avatar, social preview and SVG mark
 
+import AppKit
 import CoreGraphics
 import CoreText
 import Foundation
@@ -282,9 +284,88 @@ func previews(_ dir: URL) {
 
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
 let catalog = root.appendingPathComponent("App/Assets.xcassets")
+
+/// The system font with the rounded design the app uses, as a CTFont.
+func roundedFont(_ size: CGFloat, _ weight: NSFont.Weight) -> CTFont {
+    let base = NSFont.systemFont(ofSize: size, weight: weight)
+    let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
+    return (NSFont(descriptor: descriptor, size: size) ?? base) as CTFont
+}
+
+/// Left-aligned text with its baseline at `origin` in a y-down context. Returns the advance.
+@discardableResult
+func label(_ ctx: CGContext, _ s: String, at origin: CGPoint, size: CGFloat, weight: NSFont.Weight, color: CGColor, tracking: CGFloat = 0) -> CGFloat {
+    let line = CTLineCreateWithAttributedString(NSAttributedString(string: s, attributes: [
+        NSAttributedString.Key(kCTFontAttributeName as String): roundedFont(size, weight),
+        NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
+        NSAttributedString.Key(kCTKernAttributeName as String): tracking]))
+    ctx.saveGState()
+    ctx.textMatrix = .identity
+    ctx.translateBy(x: origin.x, y: origin.y); ctx.scaleBy(x: 1, y: -1)
+    ctx.textPosition = .zero
+    CTLineDraw(line, ctx)
+    ctx.restoreGState()
+    return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+}
+
+/// The mark as a standalone SVG: the same geometry as `mark`, without glow or shadow.
+func markSVG() -> String {
+    let s = 1.08, h = 560 * s, w = 0.42 * h, gap = 0.13 * h, short = 0.72 * h
+    func hexString(_ c: CGColor) -> String {
+        let v = c.components!; return String(format: "#%02X%02X%02X", Int(v[0] * 255 + 0.5), Int(v[1] * 255 + 0.5), Int(v[2] * 255 + 0.5))
+    }
+    func pill(_ x: Double, _ y: Double, _ height: Double, _ color: CGColor, _ id: String) -> String {
+        let top = hexString(mix(color, white, 0.24)), bottom = hexString(mix(color, black, 0.12))
+        let gloss = String(format: "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"%.1f\" fill=\"#FFFFFF\" fill-opacity=\"0.24\"/>",
+                           x + 0.2 * w, y + 0.1 * w, 0.17 * w, height * 0.5, 0.085 * w)
+        return """
+            <linearGradient id="\(id)" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="\(top)"/><stop offset="1" stop-color="\(bottom)"/></linearGradient>
+            <rect x="\(String(format: "%.1f", x))" y="\(String(format: "%.1f", y))" width="\(String(format: "%.1f", w))" height="\(String(format: "%.1f", height))" rx="\(String(format: "%.1f", w / 2))" fill="url(#\(id))"/>
+            \(gloss)
+        """
+    }
+    return """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+      <title>Satchel</title>
+      <g transform="translate(512 512) rotate(-12)">
+    \(pill(-(w + gap / 2), -h / 2, h, ember, "ember"))
+    \(pill(gap / 2, -short / 2, short, tide, "tide"))
+      </g>
+    </svg>
+
+    """
+}
+
+/// GitHub assets: a square avatar, a transparent mark, a 1280 by 640 social preview and the SVG.
+func brand(_ dir: URL) {
+    try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    writePNG(render(.app, .light), dir.appendingPathComponent("satchel-avatar-1024.png"))
+    let alone = canvas(side)
+    mark(alone, center: CGPoint(x: 512, y: 512), scale: 1.08, look: .light, glow: false, shadow: nil)
+    writePNG(alone.makeImage()!, dir.appendingPathComponent("satchel-mark-1024.png"))
+    try! markSVG().write(to: dir.appendingPathComponent("satchel-mark.svg"), atomically: true, encoding: .utf8)
+
+    let width = 1280, height = 640
+    let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    ctx.translateBy(x: 0, y: CGFloat(height)); ctx.scaleBy(x: 1, y: -1)
+    ctx.drawLinearGradient(gradient([hex(0x2A2F38), hex(0x0B0D11)]), start: .zero, end: CGPoint(x: 0, y: CGFloat(height)), options: [])
+    mark(ctx, center: CGPoint(x: 290, y: 320), scale: 0.74, look: .light, glow: true, shadow: gray(0, 0.55))
+    let x: CGFloat = 540
+    label(ctx, "Satchel", at: CGPoint(x: x - 6, y: 318), size: 148, weight: .heavy, color: white, tracking: -4)
+    label(ctx, "Your own Switch games, prepared", at: CGPoint(x: x, y: 392), size: 38, weight: .semibold, color: gray(0.82))
+    label(ctx, "and played natively on iPhone.", at: CGPoint(x: x, y: 442), size: 38, weight: .semibold, color: gray(0.82))
+    label(ctx, "Open source, MIT. Bring your own dumps and keys.", at: CGPoint(x: x, y: 520), size: 26, weight: .medium, color: gray(0.52))
+    writePNG(ctx.makeImage()!, dir.appendingPathComponent("satchel-social-preview-1280x640.png"))
+    print("Wrote \(dir.path)")
+}
+
 let args = CommandLine.arguments.dropFirst()
 
-if let i = args.firstIndex(of: "--previews") {
+if let i = args.firstIndex(of: "--brand") {
+    guard args.index(after: i) < args.endIndex else { fatalError("--brand needs a directory") }
+    brand(URL(fileURLWithPath: args[args.index(after: i)]))
+} else if let i = args.firstIndex(of: "--previews") {
     guard args.index(after: i) < args.endIndex else { fatalError("--previews needs a directory") }
     previews(URL(fileURLWithPath: args[args.index(after: i)]))
 } else if args.contains("--check") {
