@@ -6,7 +6,10 @@ a [compatibility report](.github/ISSUE_TEMPLATE/compatibility_report.md) or a pu
 request.
 
 Simulator UI journeys use synthetic containers and sessions. They do not add gameplay
-or shader-performance evidence to this table.
+or shader-performance evidence to this table. Per-title FPS, render-scale and pipeline
+choices require a fresh game launch and do not establish that a title supports a forced
+frame rate. Reset restores its bundled title default. Save archive checks establish title
+binding and byte integrity, not gameplay correctness after a restore.
 
 Test hardware so far: one iPhone Duo (iPhone19,4, A20 Pro), iOS 27.1, landscape.
 

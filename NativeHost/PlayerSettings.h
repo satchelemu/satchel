@@ -1,11 +1,17 @@
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
-// Frame target and render scale come from PlayerProfiles.plist. Screen mode and vibration
-// are saved per game. Only picture settings override the verified manifest environment.
+// One per-title store shared by the game page, launch and the in-game menu.
+// FPS, render scale and pipeline mode take effect on the next game launch.
 NSDictionary<NSString *, NSString *> *SatchelPlayerSettings(NSString *titleID);
-/// Saves screen mode and game vibration (DM_HAPTICS); other keys are ignored.
+NSDictionary<NSString *, NSString *> *SatchelSavedPlayerSettings(NSString *titleID);
+NSDictionary<NSString *, NSString *> *SatchelPlayerGlobalDefaults(void);
+NSDictionary<NSString *, NSString *> *SatchelPlayerDefaults(NSString *titleID);
+NSDictionary<NSString *, NSString *> *SatchelPlayerOverrides(NSString *titleID);
+/// Atomically merges a validated patch, preserving all other per-title values.
 BOOL SatchelSavePlayerSettings(NSString *titleID, NSDictionary<NSString *, NSString *> *values);
+BOOL SatchelResetPlayerSetting(NSString *titleID, NSString *key);
+FOUNDATION_EXPORT NSNotificationName const SatchelPlayerSettingsDidChange;
 void SatchelApplyPlayerSettings(NSString *titleID);
 void SatchelClearPlayerSession(void);
 int SatchelScreenMode(void);

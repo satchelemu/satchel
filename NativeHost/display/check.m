@@ -4,8 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static NSString *const title = @"display-fixture-A";
-static NSString *const otherTitle = @"display-fixture-B";
+static NSString *const title = @"DISPLAY-FIXTURE-A";
+static NSString *const otherTitle = @"DISPLAY-FIXTURE-B";
 static void near(double a, double b) { assert(fabs(a - b) < 0.00001); }
 static void geometry(void) {
     CGRect cover = CGRectMake(0, 0, 874, 402);
@@ -52,42 +52,44 @@ int main(int argc, const char **argv) {
         NSString *phase = @(argv[1]);
         NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
         if ([phase isEqualToString:@"setup"]) {
-            [defaults removeObjectForKey:@"SatchelPlayerSettings.display-fixture-A"];
-            [defaults removeObjectForKey:@"SatchelPlayerSettings.display-fixture-B"];
+            [defaults removeObjectForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-A"];
+            [defaults removeObjectForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
             // A game without a profile entry keeps its own frame logic at full scale.
-            assert(([SatchelPlayerSettings(title) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on"}]));
+            assert(([SatchelPlayerSettings(title) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact"}]));
             // Tears of the Kingdom expects 30 (its frame-step patch keeps game time real), at full scale.
             [defaults removeObjectForKey:@"SatchelPlayerSettings.0100F2C0115B6000"];
             assert([SatchelPlayerSettings(@"0100F2C0115B6000")[@"DM_FPS_TARGET"] isEqual:@"30"]);
             assert([SatchelPlayerSettings(@"0100F2C0115B6000")[@"DM_RENDER_SCALE"] isEqual:@"1.0"]);
-            // Frame rates and scales saved by older builds are ignored and dropped; the screen mode stays.
-            [defaults setObject:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"} forKey:@"SatchelPlayerSettings.display-fixture-B"];
-            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}]));
-            assert(([[defaults dictionaryForKey:@"SatchelPlayerSettings.display-fixture-B"] isEqual:@{@"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}]));
-            [defaults setObject:@{@"DM_SCREEN_MODE": @"zoom"} forKey:@"SatchelPlayerSettings.display-fixture-B"];
+            // All validated per-title choices are read by both the page and launch.
+            [defaults setObject:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
+            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact"}]));
+            assert(([SatchelPlayerOverrides(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}]));
+            [defaults setObject:@{@"DM_SCREEN_MODE": @"zoom"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
             assert([SatchelPlayerSettings(otherTitle)[@"DM_SCREEN_MODE"] isEqual:@"fit"]);
-            assert([[defaults dictionaryForKey:@"SatchelPlayerSettings.display-fixture-B"][@"DM_SCREEN_MODE"] isEqual:@"fit"]);
-            [defaults setObject:@{@"DM_FPS_TARGET": @120, @"DM_RENDER_SCALE": @"nan", @"DM_SCREEN_MODE": @"bad", @"DM_SAVE": @"bad"} forKey:@"SatchelPlayerSettings.display-fixture-B"];
-            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on"}]));
-            // Frame rate and scale stay in the profile. Screen and vibration are saved.
+            assert([[defaults dictionaryForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"][@"DM_SCREEN_MODE"] isEqual:@"fit"]);
+            [defaults setObject:@{@"DM_FPS_TARGET": @120, @"DM_RENDER_SCALE": @"nan", @"DM_SCREEN_MODE": @"bad", @"DM_SAVE": @"bad"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
+            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact"}]));
+            // Queue frame rate and scale for the next launch without changing the running environment.
             SatchelApplyPlayerSettings(otherTitle);
             assert(!strcmp(getenv("DM_FPS_TARGET"), "0") && !strcmp(getenv("DM_RENDER_SCALE"), "1.0"));
-            assert(!SatchelQueuePlayerSetting(@"DM_FPS_TARGET", @"60"));
-            assert(!SatchelQueuePlayerSetting(@"DM_RENDER_SCALE", @"0.5"));
+            assert(SatchelQueuePlayerSetting(@"DM_FPS_TARGET", @"60"));
+            assert(SatchelQueuePlayerSetting(@"DM_RENDER_SCALE", @"0.5"));
             assert(!SatchelQueuePlayerSetting(@"DM_SAVE", @"bad"));
-            assert([SatchelNextPlayerSettings()[@"DM_FPS_TARGET"] isEqual:@"0"]);
+            assert([SatchelNextPlayerSettings()[@"DM_FPS_TARGET"] isEqual:@"60"]);
+            assert([SatchelCurrentPlayerSettings()[@"DM_FPS_TARGET"] isEqual:@"0"]);
+            assert(!strcmp(getenv("DM_FPS_TARGET"), "0") && !strcmp(getenv("DM_RENDER_SCALE"), "1.0"));
             assert(SatchelSavePlayerSettings(title, @{@"DM_FPS_TARGET": @"60", @"DM_RENDER_SCALE": @"0.75", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}));
-            assert(([[defaults dictionaryForKey:@"SatchelPlayerSettings.display-fixture-A"] isEqual:@{@"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}]));
+            assert(([SatchelPlayerOverrides(title) isEqual:@{@"DM_FPS_TARGET": @"60", @"DM_RENDER_SCALE": @"0.75", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}]));
             assert(!SatchelSavePlayerSettings(title, @{@"DM_SCREEN_MODE": @"wide"}));
             assert(!SatchelSavePlayerSettings(title, @{}));
             setenv("DM_SAVE", "untouched", 1); setenv("DM_SHOW_FPS", "1", 1);
             SatchelApplyPlayerSettings(title);
-            assert(!strcmp(getenv("DM_FPS_TARGET"), "0") && SatchelScreenMode() == 1);
+            assert(!strcmp(getenv("DM_FPS_TARGET"), "60") && SatchelScreenMode() == 1);
             assert(!strcmp(getenv("DM_SAVE"), "untouched") && !strcmp(getenv("DM_SHOW_FPS"), "1"));
             assert(!SatchelChangeScreenMode(@"zoom")); assert(!SatchelChangeScreenMode(@"bad")); assert(SatchelScreenMode() == 1);
             assert(SatchelChangeScreenMode(@"fit")); assert(SatchelScreenMode() == 0);
             assert(SatchelQueuePlayerSetting(@"DM_SCREEN_MODE", @"fit"));
-            assert([SatchelPlayerSettings(title)[@"DM_RENDER_SCALE"] isEqual:@"1.0"]);
+            assert([SatchelPlayerSettings(title)[@"DM_RENDER_SCALE"] isEqual:@"0.75"]);
             assert(SatchelPlayerHaptics());
             assert(SatchelChangePlayerHaptics(NO));
             assert(!SatchelPlayerHaptics());
@@ -100,15 +102,50 @@ int main(int argc, const char **argv) {
             assert(!SatchelChangePlayerHaptics(YES));
             SatchelApplyPlayerSettings(otherTitle); assert(SatchelPlayerHaptics());
             SatchelApplyPlayerSettings(title); assert(!SatchelPlayerHaptics());
+            assert(SatchelSavePlayerSettings(title.lowercaseString, @{@"DM_PIPELINE_MODE": @"hybrid"}));
+            assert([SatchelPlayerOverrides(title)[@"DM_PIPELINE_MODE"] isEqual:@"hybrid"]);
+            assert([SatchelNextPlayerSettings()[@"DM_PIPELINE_MODE"] isEqual:@"hybrid"]);
+            assert([SatchelCurrentPlayerSettings()[@"DM_PIPELINE_MODE"] isEqual:@"exact"]);
+            NSDictionary *before = SatchelPlayerOverrides(title);
+            assert(!SatchelSavePlayerSettings(title, @{@"DM_PIPELINE_MODE": @"bad", @"DM_SCREEN_MODE": @"stretch"}));
+            assert([SatchelPlayerOverrides(title) isEqual:before]);
+            assert(!SatchelResetPlayerSetting(title, @"DM_SAVE"));
+            assert([SatchelPlayerOverrides(otherTitle)[@"DM_FPS_TARGET"] isEqual:@"60"]);
+            assert([SatchelPlayerOverrides(otherTitle)[@"DM_RENDER_SCALE"] isEqual:@"0.5"]);
+            assert([SatchelSavedPlayerSettings(otherTitle)[@"DM_PIPELINE_MODE"] isEqual:@"exact"]);
+            for (NSString *key in @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE", @"DM_PIPELINE_MODE"]) {
+                assert(SatchelResetPlayerSetting(title.lowercaseString, key));
+                assert(!SatchelPlayerOverrides(title)[key]);
+                assert([SatchelSavedPlayerSettings(title)[key] isEqual:SatchelPlayerDefaults(title)[key]]);
+            }
+            assert([SatchelCurrentPlayerSettings()[@"DM_FPS_TARGET"] isEqual:@"60"]);
+            assert(!strcmp(getenv("DM_FPS_TARGET"), "60"));
+            assert([SatchelNextPlayerSettings()[@"DM_FPS_TARGET"] isEqual:@"0"]);
+            assert([SatchelPlayerOverrides(title)[@"DM_HAPTICS"] isEqual:@"off"]);
+            assert(SatchelSavePlayerSettings(@"0100F2C0115B6000", @{@"DM_FPS_TARGET": @"60"}));
+            assert(SatchelResetPlayerSetting(@"0100F2C0115B6000", @"DM_FPS_TARGET"));
+            assert([SatchelSavedPlayerSettings(@"0100F2C0115B6000")[@"DM_FPS_TARGET"] isEqual:@"30"]);
+            assert([SatchelPlayerGlobalDefaults()[@"DM_FPS_TARGET"] isEqual:@"0"]);
+
         } else {
             NSDictionary *values = SatchelPlayerSettings(title);
             assert([values[@"DM_HAPTICS"] isEqual:@"off"]);
             assert([values[@"DM_FPS_TARGET"] isEqual:@(getenv("EXPECT_FPS"))]);
             assert([values[@"DM_RENDER_SCALE"] isEqual:@(getenv("EXPECT_SCALE"))]);
             assert([values[@"DM_SCREEN_MODE"] isEqual:@(getenv("EXPECT_MODE"))]);
+            const char *pipeline = getenv("EXPECT_PIPELINE");
+            assert([values[@"DM_PIPELINE_MODE"] isEqual:@(pipeline ?: "exact")]);
             SatchelApplyPlayerSettings(title);
             assert(!strcmp(getenv("DM_FPS_TARGET"), getenv("EXPECT_FPS")));
             assert(!strcmp(getenv("DM_RENDER_SCALE"), getenv("EXPECT_SCALE")));
+            // Editing another field must not reset a one-launch picture override.
+            assert(SatchelQueuePlayerSetting(@"DM_PIPELINE_MODE", @"hybrid"));
+            for (NSString *key in @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE", @"DM_SCREEN_MODE"])
+                assert([SatchelNextPlayerSettings()[key] isEqual:values[key]]);
+            assert(SatchelScreenMode() == ([values[@"DM_SCREEN_MODE"] isEqual:@"stretch"] ? 1 : 0));
+            assert(!strcmp(getenv("DM_FPS_TARGET"), getenv("EXPECT_FPS")));
+            assert(!strcmp(getenv("DM_RENDER_SCALE"), getenv("EXPECT_SCALE")));
+            assert(SatchelResetPlayerSetting(title, @"DM_PIPELINE_MODE"));
         }
         [defaults synchronize];
         printf("PASS: settings %s and picture/touch geometry\n", argv[1]);

@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave"]
+        let fixtureFamilies = ["testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -460,7 +460,8 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertTrue(control.waitForExistence(timeout: 8))
         // Full swipes can pass small actions. Move toward its frame in
         // bounded steps, retaining the final hittability requirement.
-        for _ in 0..<18 where !control.isHittable {
+        // The game page includes per-title settings below the save manager.
+        for _ in 0..<32 where !control.isHittable {
             let step: CGFloat = control.frame.midY > column.frame.midY ? -80 : 80
             let start = column.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: step)))
@@ -774,6 +775,8 @@ final class NavigationJourneyTests: XCTestCase {
     }
 
     private func savePickerCancelControl() throws -> XCUIElement {
+        let owned = app.buttons["cancel-save-import"]
+        if owned.exists { return try button("cancel-save-import") }
         let direct = app.buttons.matching(identifier: "Cancel").allElementsBoundByIndex.first { $0.isHittable }
         if let direct { XCTAssertTrue(direct.isEnabled); return direct }
         // The Duo document picker puts Cancel in its visible overflow menu.
@@ -783,6 +786,8 @@ final class NavigationJourneyTests: XCTestCase {
     }
 
     private func savePickerCancellationMarker() throws -> XCUIElement {
+        let owned = app.buttons["cancel-save-import"]
+        if owned.exists { return try button("cancel-save-import") }
         let cancel = app.buttons["Cancel"].firstMatch
         let overflow = app.buttons["BottomOverflowBarButtonItem"].firstMatch
         // The remote picker can expose its content before its toolbar. Require
@@ -1471,6 +1476,93 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertEqual(app.staticTexts["fixture-imported-formats"].label, format)
     }
 
+    private func openSettingsDetail() throws {
+        _ = try button("import-homebrew")
+        // This journey owns a known synthetic title. Select its real shelf tile
+        // instead of depending on scroll snapping to change the focused game.
+        try tap("homebrew-Lantern Drift [Base]", scroll: app.scrollViews["collection-panel"])
+        if !app.buttons["close-game-detail"].waitForExistence(timeout: 1) { try tap("open-focused") }
+        _ = try button("close-game-detail")
+        XCTAssertEqual(app.staticTexts["detail-game-title"].label, "Lantern Drift")
+    }
+
+    private func chooseGameSetting(_ key: String, _ label: String, value: String) throws {
+        let scroll = app.scrollViews["detail-scroll"]
+        revealDeviceCheckControl(app.buttons["game-setting-" + key], in: scroll)
+        try tap("game-setting-" + key)
+        try tap(label)
+        XCTAssertEqual(app.buttons["game-setting-" + key].value as? String, value)
+        XCTAssertEqual(app.staticTexts["game-override-" + key].label, "Override")
+    }
+
+    func testGameSettingsPersistResetAndBothLandscapes() throws {
+        app.launch()
+        try openSettingsDetail()
+        let choices = [("DM_FPS_TARGET", "60 FPS", "60"), ("DM_RENDER_SCALE", "75%", "0.75"),
+                       ("DM_SCREEN_MODE", "Stretch", "stretch"), ("DM_HAPTICS", "Off", "off"),
+                       ("DM_PIPELINE_MODE", "Hybrid", "hybrid")]
+        for (key, label, value) in choices {
+            try chooseGameSetting(key, label, value: value)
+            XCTAssertTrue(app.staticTexts["game-default-" + key].label.hasPrefix("Global default:"))
+        }
+        backgroundAndReturn(app.buttons["close-game-detail"].firstMatch)
+        app.terminate(); app.launch()
+        try openSettingsDetail()
+        XCUIDevice.shared.orientation = .landscapeRight
+        for (key, _, value) in choices {
+            let scroll = app.scrollViews["detail-scroll"]
+            revealDeviceCheckControl(app.buttons["game-setting-" + key], in: scroll)
+            XCTAssertEqual(app.buttons["game-setting-" + key].value as? String, value)
+            revealDeviceCheckControl(app.buttons["game-reset-" + key], in: scroll)
+            try tap("game-reset-" + key)
+            XCTAssertEqual(app.staticTexts["game-override-" + key].label, "Using default")
+            XCTAssertFalse(app.buttons["game-reset-" + key].exists)
+        }
+        let expected = ["DM_FPS_TARGET": "0", "DM_RENDER_SCALE": "1.0", "DM_SCREEN_MODE": "fit",
+                        "DM_HAPTICS": "on", "DM_PIPELINE_MODE": "exact"]
+        app.terminate(); app.launch()
+        try openSettingsDetail()
+        for (key, value) in expected {
+            revealDeviceCheckControl(app.buttons["game-setting-" + key], in: app.scrollViews["detail-scroll"])
+            XCTAssertEqual(app.buttons["game-setting-" + key].value as? String, value)
+        }
+    }
+
+    func testGameSettingsShareMenuValues() throws {
+        app.launchArguments += ["-SatchelPreviewSessionTests", "YES"]
+        app.launch()
+        try openSettingsDetail()
+        try chooseGameSetting("DM_SCREEN_MODE", "Stretch", value: "stretch")
+        try chooseGameSetting("DM_HAPTICS", "Off", value: "off")
+        try tap("close-game-detail")
+        try tap("play-focused")
+        try button("player-play").tap()
+        try tap("game.pause")
+        XCTAssertTrue(app.buttons["Stretch: Fills the screen"].isSelected)
+        try tap("Fit: 16:9, whole picture", scroll: app.scrollViews.containing(.button, identifier: "Fit: 16:9, whole picture").firstMatch)
+        let haptics = app.switches["Haptics"]
+        revealDeviceCheckControl(haptics, in: app.scrollViews.containing(.switch, identifier: "Haptics").firstMatch)
+        XCTAssertEqual(haptics.value as? String, "0", "The menu reads the game page's haptics choice")
+        haptics.tap()
+        XCTAssertEqual(haptics.value as? String, "1")
+        try tap("menu-library")
+        try openSettingsDetail()
+        revealDeviceCheckControl(app.buttons["game-setting-DM_SCREEN_MODE"], in: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(app.buttons["game-setting-DM_SCREEN_MODE"].value as? String, "fit")
+        XCTAssertEqual(app.buttons["game-setting-DM_HAPTICS"].value as? String, "on")
+        try chooseGameSetting("DM_SCREEN_MODE", "Stretch", value: "stretch")
+        try tap("close-game-detail")
+        try tap("play-focused")
+        XCTAssertTrue(app.buttons["Stretch: Fills the screen"].isSelected, "Resuming a paused session reloads the shared title settings")
+        try tap("menu-quit")
+        try tap("Quit game")
+        try openSettingsDetail()
+        for key in ["DM_SCREEN_MODE", "DM_HAPTICS"] {
+            revealDeviceCheckControl(app.buttons["game-reset-" + key], in: app.scrollViews["detail-scroll"])
+            try tap("game-reset-" + key)
+        }
+    }
+
     private func openSaveDetail(running: Bool = false) throws {
         try focus(where: { self.app.buttons["open-focused"].exists && self.app.buttons["play-focused"].exists },
                   reason: "synthetic game with save data")
@@ -1522,7 +1614,7 @@ final class NavigationJourneyTests: XCTestCase {
         saveState("payload=checkpoint-current backups=1 export=none")
         try tap("export-save", scroll: app.scrollViews["detail-scroll"])
         try tap("fixture-save-export")
-        saveMessage("Save exported to Files.")
+        saveMessage("Save shared.")
         saveState("payload=checkpoint-current backups=1 export=verified")
         try tap("import-save", scroll: app.scrollViews["detail-scroll"])
         try tap("fixture-save-import")
@@ -1531,9 +1623,8 @@ final class NavigationJourneyTests: XCTestCase {
         // The most recent backup holds the pre-import checkpoint. Cancel first.
         for confirm in [false, true] {
             try tap("restore-save-backup", scroll: app.scrollViews["detail-scroll"])
-            let restore = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Restore ")).firstMatch
-            XCTAssertTrue(restore.waitForExistence(timeout: 5))
-            XCTAssertTrue(restore.isHittable)
+            let restore = try button("save-backup-restore-0", scroll: app.scrollViews["detail-scroll"])
+            XCTAssertTrue(app.staticTexts["save-backup-info-0"].exists, "Backup rows include their date and size")
             restore.tap()
             _ = try button("Restore backup")
             if confirm { try button("Restore backup").tap() }
@@ -1573,10 +1664,17 @@ final class NavigationJourneyTests: XCTestCase {
 
     func testSaveSystemPickerCancellation() throws {
         try launchSaveFixture(provider: false)
-        for id in ["import-save", "export-save"] {
-            try savePickerCycle(open: id)
-            saveState("payload=checkpoint-current backups=1 export=none")
-        }
+        try savePickerCycle(open: "import-save")
+        try tap("export-save", scroll: app.scrollViews["detail-scroll"])
+        let saveToFiles = app.cells["Save to Files"]
+        XCTAssertTrue(saveToFiles.waitForExistence(timeout: 8), "Export opens the system share sheet")
+        XCTAssertTrue(saveToFiles.isHittable)
+        XCTAssertTrue(app.otherElements["LP.CaptionBar.BottomCaption"].label.hasPrefix("ZIP Archive"))
+        let close = app.buttons["Close"].firstMatch
+        XCTAssertTrue(close.exists && close.isHittable)
+        close.tap()
+        _ = try button("close-game-detail")
+        saveState("payload=checkpoint-current backups=1 export=none")
     }
 
     func testSaveBackupOnQuit() throws {

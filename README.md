@@ -54,6 +54,12 @@ Measured on one iPhone Duo (A20 Pro, iOS 27.1). Dates are in the compatibility l
 - Xbox, DualSense and Pro Controller support. Touch controls hide when a controller is
   connected.
 
+Game-page additions awaiting hardware validation: per-title FPS target, render scale,
+screen mode, haptics and pipeline mode with defaults, override markers and reset. The
+save manager lists dated, sized backups, keeps the newest three, restores with
+confirmation and exports through the share sheet. Import accepts title-bound Satchel
+ZIPs, not arbitrary emulator archives. See [the test guide](docs/testing.md).
+
 ## What does not work yet
 
 - Only four games have been tried. Any other game may fail at import, Prepare or boot.
@@ -67,8 +73,7 @@ Measured on one iPhone Duo (A20 Pro, iOS 27.1). Dates are in the compatibility l
 - First play of a game stutters while shaders are translated and compiled on the phone.
   Translation and caching happen in the background, but a brand new shader still costs a
   frame.
-- No audio or video settings beyond the pause menu, no save manager beyond export and
-  import, no cheats, no multiplayer, no App Store release (and none planned).
+- No cheats, no multiplayer, no App Store release (and none planned).
 - The phone's hardware matters. The app requests the increased memory limit and extended
   virtual addressing entitlements; those capabilities, the free developer account limits
   and prepared game loading have not been verified together on other phones.

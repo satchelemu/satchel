@@ -134,6 +134,7 @@ struct GameDetailView: View {
                     if !updates.isEmpty || !extras.isEmpty { updatesPanel }
                     addOnPanel
                     savePanel
+                    playerSettingsPanel
                     detailsPanel
                     if !originalRemoved { diagnostics }
                 }
@@ -165,6 +166,15 @@ struct GameDetailView: View {
         if info?.kind != .update, info?.kind != .addOnContent,
            let id = info?.applicationID ?? artwork.preparedPackage(for: item)?.applicationID {
             GameSavePanel(titleID: String(format: "%016llX", id), gameName: title)
+        }
+#endif
+    }
+
+    @ViewBuilder private var playerSettingsPanel: some View {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        if info?.kind != .update, info?.kind != .addOnContent,
+           let id = info?.applicationID ?? artwork.preparedPackage(for: item)?.applicationID {
+            GamePlayerSettingsPanel(titleID: String(format: "%016llX", id))
         }
 #endif
     }
@@ -234,6 +244,7 @@ struct GameDetailView: View {
             StateBadge(state: state)
             Text(title).font(SatchelTheme.display(30)).foregroundStyle(SatchelTheme.text)
                 .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                .accessibilityIdentifier("detail-game-title")
             Text(artwork.subtitle(item, updates: updates)).font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(SatchelTheme.textDim)
         }

@@ -62,6 +62,48 @@ python3 -B NativeApp/build.py --ui-tests-simulator
 `Tests/UI/Navigation/README.md` lists the journeys. Use a dedicated simulator for this
 suite; sharing one with other work stalls it.
 
+### Game settings and save manager
+
+`Tests/PlayerSettings/run.py` compiles the production Objective-C title store and pipeline
+policy for macOS. It checks title isolation, defaults, case-normalized IDs, invalid patches,
+reset without losing other overrides, launch-only settings, unchanged live environment,
+argument overrides and exact/hybrid/legacy pipeline selection. Display geometry assertions
+are retained. `Tests/Saves/run.py` checks the production archive/store over synthetic bytes,
+including wrong-title rejection, corruption, atomic restore and bounded three-backup rotation.
+
+Simulator journeys `testGameSettingsPersistResetAndBothLandscapes` and
+`testGameSettingsShareMenuValues` cover all five settings, background/relaunch persistence,
+reset, both landscape orientations and the page/menu shared screen setting. Save journeys
+cover archive export/import, restore confirmation and cancellation, dated backup rows,
+wrong titles, corrupt ZIPs, automatic backups on quit/background and paused-session gates.
+`testSaveSystemPickerCancellation` opens the real Files picker and export share sheet.
+The import sheet also has an app-owned Cancel import button, so a missing system toolbar
+cannot trap the user in the document picker.
+Other save journeys replace only document-provider selection with synthetic fixture URLs.
+They do not contact iCloud or prove a game can load restored progress.
+
+The existing menu exposes screen mode and haptics. Its reads now use the shared title store.
+FPS, render scale and pipeline selection are on the game page and take effect after Quit
+and a fresh launch. Adding these three selectors to the menu remains with the menu owner.
+The shared `SatchelQueuePlayerSetting` API is available for that integration.
+
+Phone follow-up for the orchestrator:
+
+1. On a game's page, change all five settings. Confirm global/title defaults and override
+   markers, close/reopen and restart the app, then reset each setting. A second title must
+   keep its own settings. Check both landscape orientations and Duo postures.
+2. Launch, change screen/haptics in the menu, return to the page and confirm the same
+   values. Change them on the page while paused and resume; the menu must reflect them.
+   FPS, scale and pipeline changes must wait for Quit and launch, with the engine log
+   showing the chosen launch values. A frame target may need a compatible game patch.
+3. Export a known save using Save to Files in the share sheet. Quit the game, import that
+   title's ZIP and check the game loads its progress. Cancel a backup restore, then confirm
+   one; verify current data was backed up first. Dates and sizes must match the archives.
+4. Make four distinct saves with background/quit between them. Only the newest three
+   backups remain. While paused, export/import/restore stay disabled. A wrong-title or
+   corrupt ZIP must show an error and preserve the existing save. Arbitrary emulator ZIPs
+   are unsupported; the imported archive needs Satchel's title-bound inventory.
+
 ### Device check
 
 Settings > Device check reads the running task's signature through Security's SecTask

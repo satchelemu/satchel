@@ -26,8 +26,8 @@ struct InGameSettings: Codable, Equatable {
     init() {}
 
     init(from decoder: Decoder) throws {
-        // Every field is optional so settings saved by older builds still load; their play mode,
-        // frame cap and render scale are ignored (each game runs as it expects, at full scale).
+        // Every field is optional so older settings still load. Legacy frame/render fields
+        // in this menu JSON are ignored; those choices belong to the native title profile.
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let base = InGameSettings()
         screenMode = (try? c.decodeIfPresent(ScreenMode.self, forKey: .screenMode)) ?? base.screenMode
@@ -40,9 +40,16 @@ struct InGameSettings: Codable, Equatable {
 
     /// Saved settings for a title, or the defaults on a first run.
     static func load(titleID: String) -> InGameSettings {
+        var settings = InGameSettings()
         if let data = UserDefaults.standard.data(forKey: key(titleID)),
-           let settings = try? JSONDecoder().decode(InGameSettings.self, from: data) { return settings }
-        return InGameSettings()
+           let saved = try? JSONDecoder().decode(InGameSettings.self, from: data) { settings = saved }
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        // The title profile is authoritative for values also edited on the game page.
+        let shared = SatchelSavedPlayerSettings(titleID)
+        settings.screenMode = ScreenMode(rawValue: shared["DM_SCREEN_MODE"] ?? "fit") ?? .fit
+        settings.haptics = shared["DM_HAPTICS"] != "off"
+#endif
+        return settings
     }
 
     func save(titleID: String) {
@@ -92,6 +99,7 @@ struct InGameSettings: Codable, Equatable {
     }
 
     func startUpdating() {
+        settings = InGameSettings.load(titleID: session.titleID)
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {

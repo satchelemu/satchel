@@ -140,10 +140,10 @@ def generate(mode, out):
         # is set. Production save actions, lifecycle, validation and IO stay intact.
         save_source = ROOT / 'App/GameSavePanel.swift'
         save_original = save_source.read_text()
-        boundary = 'SaveDocumentPicker(export: request.export)'
+        boundary = 'SaveFileSheet(export: request.export)'
         assert save_original.count(boundary) == 1
         save_content = save_original.replace(boundary, 'PreviewSaveDocumentPicker(export: request.export)')
-        save_content = save_content.replace('private struct SaveDocumentPicker:', 'struct SaveDocumentPicker:')
+        save_content = save_content.replace('private struct SaveFileSheet:', 'struct SaveFileSheet:')
         save_staged = out / 'GameSavePanel.swift'
         if not save_staged.exists() or save_staged.read_text() != save_content:
             save_staged.write_text(save_content)

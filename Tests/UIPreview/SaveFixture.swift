@@ -89,7 +89,7 @@ struct PreviewSaveDocumentPicker: View {
                 if let failure { Text(failure).accessibilityIdentifier("fixture-save-error") }
             }
         } else {
-            SaveDocumentPicker(export: export, completion: completion)
+            SaveFileSheet(export: export, completion: completion)
         }
     }
 }
