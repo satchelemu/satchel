@@ -5,8 +5,9 @@ sessions render, stop, release their guest reservations and restart in one Mac
 process. The canonical app enables the boundary by default. Phone execution and
 the signed-dylib reload path require the orchestrator's device test.
 
-Current work: `quit-to-home`, fast-forwarded to `one-app` at `edc4df9`, including
-DLC, graphics policy, any-game and navigation changes. Runtime pin:
+Round 4 harness: `soak-4`, based on public `main` at `cd6fbf9`, which already
+contains the ownership and cancellation fixes. Historical round 2 work was based
+on `0856739`. The earlier `soak` changes were renamed in isolated throwaway worktrees before porting. Runtime pin:
 `bbc3b73784751d2a706932dc69fd67627e3445d4`, including the canonical build's
 34 materialized patches. `overlay.py` applies the two lifetime patches with zero
 fuzz, then exact-anchor overlays. Generated copies change, the shared engine does
@@ -294,3 +295,275 @@ settled RSS within 32 MiB of the warm baseline after both titles have run.
 Thread and FD counts are also bounded. Cold-process RSS is not the warm Metal
 baseline. Synthetic saves, rather than gameplay progress, establish transactional
 readback across cycles. The report records the exact evidence and phone steps.
+
+## Long-session soaks
+
+`soak.py` runs the real Mac host with only the three authorized existing private
+packages. It uses private save copies, appends button/stick commands to `DM_CTL`,
+and requests a screenshot every minute. The first 90 seconds send confirmations;
+subsequent commands exercise movement, camera, jump and action. Zelda pairs
+opposite movement before camera turns to limit route drift. Do not overlap an
+independent movement script with that loop. Screenshots need visual review before
+calling a run gameplay; a frame counter can keep advancing on a Game Over screen. Audio uses the null sink.
+
+Build through the resource guard with
+`SATCHEL_OUT=~/SatchelBuild/session/round4 NativeApp/build.py --session-mac-host --unsigned`
+(using `python3 -B` to invoke the driver). Set
+`SESSION_MAC_OUT=~/SatchelBuild/session/round4/session-mac` for the runner. `mac-stop-probe dispatch-check` is a no-game
+regression: five state-reset/lookup cycles must preserve all 537 constructor-built
+NVN dispatch entries. Repeat with `DM_NVN_PROF=1` to cover profiling wrappers.
+The initializer guard is process-owned. Resetting it drops the large-stack and
+empty-function wrappers on the next title.
+
+`check_crash_timeout.py` reproduces a crash alarm delivered to a non-owner thread
+and verifies bounded exit. `check_state_caches.py` exercises
+scalar reset and ARC retirement when a function's first declaration is static.
+`check_prebuild_stop.py` runs the actual pipeline worker loop and completion
+prefix with synthetic pairs: cancellation must admit no further pairs, leave no
+completed stamp, and release a guest warmup wait. In-flight compiler calls still
+return normally, and the real graphics join deadline remains unchanged.
+
+Run these commands from the worktree, each through `NativePrepare/guard.py` with
+`ANYGAME_OUT=~/SatchelBuild/session/soak-guard`:
+
+```sh
+python3 -B NativeHost/session/soak.py --seconds 1800 --titles Castlevania Odyssey TOTK --label long --require-ready
+python3 -B NativeHost/session/soak.py --seconds 300 --titles Castlevania Odyssey TOTK Castlevania Odyssey TOTK Castlevania Odyssey TOTK Castlevania Odyssey TOTK --label switch --fixed-slots
+```
+
+Both use one process for their whole title sequence and the production session
+stop/prepare path between titles. Five-second samples include RSS, task footprint,
+compressed bytes, malloc usage, Metal allocated bytes, file descriptors, threads,
+guest mappings and Mach port names. The runner discards raw guest output at the
+pipe and retains numeric measurements plus a bounded symbolic error allowlist.
+It fails on missing teardown, fatal diagnostics, save commit errors, changed
+source-save hashes, absent rendered frames, or a frame-progress gap of 60 seconds.
+A separate 90-second telemetry watchdog bounds a host that hangs in a crash handler.
+Each run holds an idle-sleep assertion only for its host process. Wall time and
+active monotonic time are both recorded; a five-second discrepancy rejects
+uninterrupted-soak acceptance. Lid closure can still suspend the Mac.
+
+The long run first emits `warming` samples. Inspect its private screenshots and
+use DM_CTL to reach controllable gameplay, then create `TITLE/play.ready` inside
+the printed run folder. That starts the full 1,800-second measured interval,
+marked `play-start`. Failure to reach gameplay within 900 seconds fails the run.
+Do not create the marker for a menu, loading screen or black picture. The switch
+run anchors stop requests to the process's five-minute boundaries. Each next slot
+includes the preceding teardown and its own loading. The final teardown follows
+the 60-minute stop request. Private save seeds come from
+existing allowed backups; `--seed <previous-run>` copies committed saves from a
+previous private run for reload checks. Original save manifests must stay equal.
+
+The Mac-only probe compiles missing Metal libraries into
+`~/SatchelBuild/session/soak-mac/libraries`. It uses the pinned MIT shader variant
+generators and the installed Mac compiler, one compiler at a time. Existing source
+caches remain read-only. Cold compilation is preparation, not play-soak evidence.
+Queued helper work cancels when the session stops. An active compiler finishes
+and is reaped before its helper acknowledges cancellation. Cancelled demand loads
+propagate as cancellation through their callers; missing shaders during gameplay
+still fail acceptance. `check_mac_cache_stop.py` verifies queued cancellation and
+that an active compiler child cannot outlive its helper.
+The canonical iPhone app does not contain this NSTask-based test helper. Mac audio
+uses the null sink, so real audio playback and phone thermal behavior remain device
+checks. Screenshot review is required in addition to numeric frame progress.
+The probe also leaves recorded warmup and background bulk prebuild enabled. This
+stresses their cancellation and resource lifetime. Ordinary app launch disables
+those features in `PipelineSettings.m` unless explicitly requested, so the soak's
+startup time and prebuild memory curve are not the default phone launch policy.
+
+`soak_curves.py <run-folder>` writes SVG curves and JSON trends from `metrics.csv`.
+Slopes omit the first five minutes of each session. They are measurements, not
+leak acceptance by themselves. Compare repeated post-stop baselines, identify
+cache warmup, and inspect scene changes before attributing growth to a leak.
+Metal allocated bytes do not enumerate every driver resource. Game-save hashes
+are evidence of preservation, not a substitute for successfully loading the save
+in the game and passing the existing transactional filesystem checks.
+
+Pending and amplified pipeline arrays contain strong Objective-C fields. Their
+typed retirement clears those fields before restoring scalar keys and counters.
+`check_pipeline_retire.py` uses the pinned struct declarations and production
+retirement helper to verify release across five resets, and reproduces the leak
+when only the old byte restoration runs.
+
+Dirty-range growth retains replaced state and generation arrays for fault readers.
+The session reset frees those retired arrays only after guest quiescence, closed
+fault admission and zero active readers. `check_dirty_retire.py` exercises the
+pinned tracker through five growth/reset cycles, verifies both reclamation guards,
+and reproduces the old lost allocations.
+
+Use `--leak-check` for an allocation scan after the final settled sample. The Mac
+probe holds for 45 seconds after that sample; the runner gives the installed
+`leaks --noContent --nostacks --groupByType --quiet` command 30 seconds. It
+retains the numeric summary and, on failure, allocation type/count metadata.
+Allocation contents, addresses and stacks are not retained.
+Missing summaries, timeouts, nonzero exits or detected leaks fail that check.
+The hold follows the measured play interval and does not alter switch deadlines.
+
+
+## Round 2 ownership and stall diagnostics
+
+Set `SESSION_MAC_OUT` for both the builder and runner to keep new runs separate.
+`--allocation-stacks` enables in-memory malloc stack logging and retains only
+symbolic host/system allocation stacks with addresses removed. It supplements
+`--leak-check`; no allocation category is excluded. A frame counter unchanged
+for 20 seconds triggers a bounded host stack sample on a separate reader thread.
+The 60-second stall failure threshold and five-minute switch deadlines are unchanged.
+Private compiler telemetry distinguishes cache-lock, heavy-build and compiler waits.
+RED diagnostic categories come from engine format literals, without runtime arguments.
+
+Round 2 reproduced a Zelda render stall at `lib_from_file`, waiting for the private
+Mac shader helper. Host samples show the shader-load call chain; helper samples
+show the cache-lock owner sleeping while other helpers wait in `flock` and an
+unrelated shader harness is active. The source path leads to the shared heavy-build
+wait. This narrows a new reproduction, not the unsampled historical 115-second gap.
+Do not bypass the shared wait or remove the stalled interval from acceptance.
+The phone does not use this private Mac helper.
+
+`check_specialization_lifetime.py` runs the real two-lane pipeline helper with
+synthetic Metal shaders. The original helper reproduces an AGX dynamic-library
+leak after 100 cycles while all public weak owners are nil. Serializing the Metal
+specialization call inside the worker passes the same zero-leak scan. Other
+pipeline compilation still uses two lanes. This Mac evidence does not establish
+phone performance or resolve the previous run's autorelease-pool roots.
+
+`--capture-shaders` writes executed shader inputs to each title's private capture
+folder, using the app's existing capture-lifetime overlays. Nothing is captured
+unless requested. `--shader-inputs` accepts a private JSON object mapping an
+authorized title to `tables` and `cache` folders under the session output root.
+This permits a captured offline translation to be checked without changing the
+source package or its caches. Captures and shader outputs never belong in git or logs.
+
+Deferred shader keys must retain their control bytes when the code area is not
+mapped at registration. The caller can release those controls before `prog_key`
+runs. The capture-lifetime overlay now keeps that snapshot even when capture and
+phone translation are disabled, and releases it on replacement or finalization.
+`check_deferred_shader_key.py` exercises the actual registration and hash code
+with synthetic controls overwritten immediately after registration. It compares
+the original and modified overlays across five replacement cycles.
+
+The corrected round 2 fixed-slot loop completed all 12 stops in 60 minutes, with
+zero detected leaks, shader/fatal/save errors and changed source-save hashes.
+All 12 visits have visual movement/action checks. The historical five pool roots
+did not reproduce, so their old ownership is not inferred from this pass. Settled
+footprint varies with driver/cache retention and is recorded separately from the
+allocation scan. One separate long Zelda run failed guest join after five seconds;
+a deliberately blocked private-cache fixture cancelled cleanly and did not reproduce
+that timeout. Stop-failure stack sampling remains enabled for the long-run retry.
+
+Castlevania's reproduced late intro failure contained 16 missing map entries and
+one missing-vertex diagnostic. Executed capture confirms those 16 shaders were
+absent from the original 198-entry offline map/cache. The first expanded private pack
+contains 214 translations and passes the same transition with capture disabled.
+A later indoor area exposed 40 more absent entries. Executed captures validate
+as a 254-entry union, and the pinned translator compiles all 254 without failure.
+This repairs observed route coverage in the private Mac input; it does not establish
+whole-game coverage or a phone result.
+The deferred-key ownership regression is a separate defect, not the cause assigned
+to these missing translations.
+
+The final paired-control Zelda interval completed 1800.019 uninterrupted seconds,
+with all visual checks, a successful stop and zero detected leaks. It averaged
+25.214 FPS. The combined run still fails because system sleep interrupted its
+Castlevania interval. Repeated Castlevania attempts were interrupted by system
+sleep, so acceptance was still open at that point. The awake round 3 run below
+passed. Zelda live footprint peaked at 14.3 GiB and Metal allocation at 12.2 GiB before retiring on stop. A zero-leak
+result does not establish a bounded live cache or a fit within phone memory.
+
+A subsequent capture-disabled sewers entry produced two missing-map diagnostics
+and one missing-vertex diagnostic. The attempt was aborted before its play gate.
+A short capture replay passed, validated 182 shaders already in the 254-entry pack,
+and found no additional entries. That isolated failure remains unassigned; neither
+a new coverage gap nor a capture-dependent defect is inferred from one comparison.
+
+## Round 3 baseline comparison
+
+The pre-merge main baseline (`da5830f`) and fixed host reproduced the same street-to-indoor entry
+failure with the retained private Castlevania inputs: twelve missing-map diagnostics
+and one missing-vertex diagnostic. Both runs reach the indoor scene. This establishes
+a pre-existing entry failure, with no increase in diagnostic count or categories on
+the matched route. The older three-report attempt did not retain shader identities,
+so an exact identity match to that attempt cannot be established.
+
+Stop-failure sampling also records owned helper processes and their host/system
+stacks. Process arguments, paths, guest frames and addresses are excluded. This
+supplements the host stack without retrying the failed stop or changing its deadline.
+
+The awake Castlevania rerun passes the unchanged gated acceptance: 1801.115 measured
+seconds, 0.003 seconds of clock drift, zero shader/fatal/save errors, unchanged source
+saves, full guest-resource retirement and zero detected leaks. Guest join takes
+1.377 seconds. The interval averages 27.219 FPS, with a maximum frame-progress gap
+of 5.844 seconds, on the shared Mac. Other workers and diagnostic hosts overlapped
+this run, so these frame rates are not an isolated performance comparison.
+
+The matched entry replay still fails shader acceptance in both hosts. The pre-merge baseline reports
+399 leaked allocations (307248 bytes); the fixed host reports zero. Both retire all
+tracked guest resources and preserve source saves. This separates a mergeable
+ownership improvement from the pre-existing entry diagnostic follow-up.
+
+A short Zelda diagnostic reproduces the private helper stall for 284.971 seconds,
+but guest join succeeds in 0.458 seconds, both helpers cancel, and the leak scan
+reports zero. Its frame-progress acceptance fails. It does not prove the earlier
+five-second guest-join timeout fixed.
+
+Two longer Zelda attempts were killed by the unchanged disk-reserve guard during
+warmup, at 341.809 and 100.609 seconds. Neither opened its gameplay gate or attempted
+stop. The second reused retained libraries through read-only per-file symlinks.
+These are external resource failures, not guest-join failures or successful soaks.
+They do not prevent merging the independently validated ownership fixes.
+
+The specialization, deferred-key and dirty-retirement fixtures verify the current
+implementation by default. To reproduce the old defect too, pass `--baseline-ref`
+with an unfixed revision. The cache-state fixture uses the same convention. Avoid
+using a moving `HEAD` as an implicit unfixed baseline after the fix has been merged.
+
+
+The round 4 harness also samples a launch that produces no numeric telemetry for
+90 seconds before terminating it. `watchdog-host-stacks.json` and
+`watchdog-helper-stacks.json` use the same symbol-only filter as failed stops.
+A sampling timeout is recorded and does not discard the other process sample.
+The watchdog still fails the run; it is not a retry or an extended launch allowance.
+`check_soak_diagnostics.py` covers the filters, owned-descendant selection and
+sample-timeout path. `check_build_wait.py` covers conservative build admission.
+
+`check_soak_watchdog.py` also runs a silent synthetic host through the actual
+90-second watchdog. It requires a failed run, process termination, preserved
+synthetic saves and both stack reports. It reads no game package or user save.
+
+
+## Round 4 retained-cache Zelda
+
+The new host built from main `cd6fbf9` completes 1800.006 uninterrupted gameplay
+seconds with the retained private libraries. Visual checks cover movement and
+jumping on Great Sky Island and the five-minute checkpoints through the final
+minute, without a menu, death or loading interruption. The unchanged acceptance
+passes: zero shader/fatal/save errors, original saves unchanged, zero detected
+leaks and full guest-resource retirement. Guest join takes 0.521 seconds and stop
+to settled takes 5.376 seconds. The interval averages 27.387 FPS, with a maximum
+frame-progress gap of 5.077 seconds, on the shared Mac.
+
+Five-second telemetry peaks are 11.605 GiB footprint and 1.360 GiB RSS. The
+higher-frequency guard observes 1.528 GiB peak RSS and at least 50.942 GiB free
+disk space. These are distinct counters; the guard caps RSS, while phone memory
+acceptance still needs device measurement.
+The run starts above 45 GiB free and the reserve guard does not fire. The earlier
+guest-join timeout does not reproduce in this retained-cache run. No cause fix
+is inferred from that absence. The live-memory and phone checks remain open.
+
+
+## Round 4 same-process launch matrix
+
+The same new host passes nine 120-second visits, ordered Castlevania, Castlevania,
+Odyssey, Odyssey, TOTK, TOTK, Castlevania, Odyssey, TOTK. This covers three immediate
+same-title relaunches and five cross-title transitions in one process. All nine
+reach visible gameplay, stop and retire every tracked guest thread and mapping.
+The final leak scan reports zero. Shader/fatal/save errors remain zero and original
+save hashes are unchanged. Guest join ranges from 0.002 to 0.037 seconds; stop to
+settled ranges from 2.478 to 7.436 seconds. The maximum frame-progress gap is
+15.040 seconds during the first Odyssey visit, below the unchanged 60-second gate.
+
+The matrix does not reproduce the post-session launch hang on main `cd6fbf9`'s
+native code. The six merged core files and seven fixtures also remain unchanged
+on the subsequently observed main `619fb28`. This is bounded Mac evidence, not a
+universal absence proof or a signed-dylib/phone result. The visits include startup;
+the late-visit screenshot for each title confirms gameplay separately. No speculative
+production fix or weakened deadline is included in this harness split.

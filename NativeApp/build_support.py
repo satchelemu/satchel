@@ -2,7 +2,26 @@
 from pathlib import Path
 import os
 import subprocess
+import shlex
 import time
+
+
+def xcode_is_building(pid):
+    result = subprocess.run(['ps', '-p', str(pid), '-o', 'args='], text=True, capture_output=True)
+    if result.returncode:
+        return False
+    try:
+        arguments = shlex.split(result.stdout)
+    except ValueError:
+        return True
+    actions = {'build', 'test', 'archive', 'analyze', 'build-for-testing', 'clean'}
+    # A scheme or option value can be named like an action. Be conservative
+    # after every flag, including flags that might actually take no value.
+    positional = {value for index, value in enumerate(arguments) if index > 0 and
+                  not arguments[index - 1].startswith('-')}
+    # This action only runs already-built tests. Actual compiler processes are
+    # still checked independently, including any other Xcode invocation.
+    return 'test-without-building' not in positional or bool(actions.intersection(arguments))
 
 
 def wait():
@@ -18,7 +37,7 @@ def wait():
             pid, executable = row.strip().split(None, 1)
             name = Path(executable).name
             if name in {'xcodebuild', 'clang', 'clang++', 'swift-frontend', 'metal', 'metalfe', 'metallib', 'shader-harness', 'ninja'}:
-                active = True
+                active |= name != 'xcodebuild' or xcode_is_building(pid)
             if name.lower().startswith('python'):
                 python.append(pid)
         if python:

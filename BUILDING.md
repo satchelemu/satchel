@@ -218,3 +218,29 @@ signing and no team set simply asks you to pick one.
   reboot). Use `~/SatchelBuild/<task>/`.
 - Experiments use their own bundle IDs (`com.dell.satchel.<name>`) so the installed app
   and its library stay untouched.
+
+## Session diagnostics on the Mac
+
+The [session harness](NativeHost/session/README.md) builds a private Mac host with
+`NativeApp/build.py --session-mac-host --unsigned`. Set `SATCHEL_OUT` to a private
+folder and `SESSION_MAC_OUT` to its `session-mac` subfolder when running `soak.py`.
+Packages remain external and read-only.
+Run through `NativePrepare/guard.py` with a private `ANYGAME_OUT`, two compiler jobs
+and the existing disk/RSS watchdog. `--leak-check --allocation-stacks` records only
+allocation counts, types and symbolic host/system frames. It never stores allocation
+contents. The zero-leak requirement is unchanged. These runs do not install or launch
+the iPhone app; use `NativeApp/build.py --unsigned` for the separate app build check.
+
+The private Mac helper waits for shared heavy builds before compiling a missing
+library. That wait can stall a running game and is retained in acceptance results.
+For captured offline translations, use an isolated tools directory whose
+`bin/xcrun` points to the current `scripts/native_xcrun.py`, and verify the pinned
+compiler with the unchanged upstream tool lock. Pre-rename tool symlinks may be stale.
+
+For gated long runs, verify control before creating each private `play.ready` file.
+Keep the Mac awake: the harness records wall and active time and rejects a run
+with five seconds or more of inactive time, including sleep during warmup. Keep
+failed run results intact when separately reporting a later gameplay interval.
+`--diagnostic-stop` samples the host and its owned compiler helpers after a failed
+stop. It omits arguments, paths, guest frames and addresses and does not retry stop
+or change the five-second guest-join deadline.
