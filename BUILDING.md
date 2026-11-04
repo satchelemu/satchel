@@ -1,16 +1,16 @@
 # Building Satchel from source
 
-Settings > Device check adds no dependency. Its native probe builds with the iOS SDK;
-the running-signature query resolves Security SPI dynamically and reports Unknown if
-unavailable. The simulator harness exercises the probe and synthetic report journeys.
-Signed device readings still require the checks in [docs/testing.md](docs/testing.md).
-
 As of 2026-11-04, a clean Mac still cannot reproduce the complete app. The dependency
 bootstrap below reconstructs pinned source inputs and reuses the native recipes in a
 fresh root. Five tool source archives now have exact URLs and SHA-256 pins, but their
 standalone recipes, two remaining distribution pins and the app's private shader-parity
 prerequisite are not yet reproducible. It fails closed instead of downloading unpinned
 tools or claiming that an incomplete root is usable. Signing is account-neutral.
+
+Settings > Device check adds no dependency. Its native probe builds with the iOS SDK;
+the running-signature query resolves Security SPI dynamically and reports Unknown if
+unavailable. The simulator harness exercises the probe and synthetic report journeys.
+Signed device readings still require the checks in [docs/testing.md](docs/testing.md).
 
 ## Dependency bootstrap (incomplete)
 
