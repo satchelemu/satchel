@@ -1,4 +1,5 @@
 #include "Interpreter.h"
+#include "DeviceCheckProbe.h"
 
 #include "HomebrewFormat.h"
 #include "SwitchCrypto.h"

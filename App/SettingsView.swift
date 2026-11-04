@@ -52,13 +52,14 @@ final class KeyStore: ObservableObject {
 
 struct SettingsView: View {
     enum Page: String, CaseIterable, Identifiable {
-        case keys = "Console keys", storage = "Storage", prepared = "Prepared games", about = "About"
+        case keys = "Console keys", storage = "Storage", prepared = "Prepared games", device = "Device check", about = "About"
         var id: String { rawValue }
         var icon: String {
             switch self {
             case .keys: return "key.fill"
             case .storage: return "internaldrive.fill"
             case .prepared: return "hammer.fill"
+            case .device: return "checkmark.shield.fill"
             case .about: return "info.circle.fill"
             }
         }
@@ -67,6 +68,7 @@ struct SettingsView: View {
             case .keys: return SatchelTheme.spark
             case .storage: return SatchelTheme.tide
             case .prepared: return SatchelTheme.leaf
+            case .device: return SatchelTheme.tide
             case .about: return SatchelTheme.violet
             }
         }
@@ -132,6 +134,7 @@ struct SettingsView: View {
                 case .keys: keysPage
                 case .storage: storagePage
                 case .prepared: preparedPage
+                case .device: DeviceCheckView()
                 case .about: aboutPage
                 }
             }
@@ -381,6 +384,7 @@ struct SettingsView: View {
     // MARK: Measuring
 
     private func measure() async {
+        guard page == .storage || page == .prepared else { return }
         let folders = artwork.prepared.map(\.folder)
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let (free, sizes) = await Task.detached(priority: .utility) { () -> (Int64?, [String: Int64]) in

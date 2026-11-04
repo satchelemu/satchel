@@ -62,6 +62,60 @@ python3 -B NativeApp/build.py --ui-tests-simulator
 `Tests/UI/Navigation/README.md` lists the journeys. Use a dedicated simulator for this
 suite; sharing one with other work stalls it.
 
+### Device check
+
+Settings > Device check reads the running task's signature through Security's SecTask
+SPI, resolved at runtime. Missing or false entitlements and unavailable queries have
+different labels. It never substitutes the profile's allowed entitlements for the
+running signature. The embedded profile is used only for `ExpirationDate`, through
+the existing bounded CMS reader. Missing or unreadable profiles show Unknown.
+
+The memory snapshot uses `os_proc_available_memory` and `TASK_VM_INFO`. The process
+limit is footprint plus positive remaining allowance from the same task-info result;
+zero remaining allowance cannot establish a limit and is shown as unknown. The virtual
+address span is the kernel's map bounds, not free memory. At most seven `vm_map`
+attempts try 64, 32, 16, 8, 4, 2 and 1 GiB with no access and no physical pages touched.
+Each successful mapping is immediately released. The result is a contiguous lower
+bound, never total free VM or physical RAM. Measurements run off the main thread,
+without enumerating games. Refresh takes a new snapshot. A same-device baseline is
+needed to attribute an increased memory limit to an entitlement.
+
+The installed iOS SDK's `os/proc.h` and `mach/task_info.h` define the memory APIs.
+The runtime Security ABI follows Apple's
+[SecTask header](https://github.com/apple-oss-distributions/Security/blob/main/sectask/SecTask.h).
+No new dependency is required. Security SPI availability and signed readings must
+still be checked on hardware.
+
+The full suite includes `testDeviceCheckBothLandscapes`,
+`testDeviceCheckCopiesReportWithAndWithoutTeam`, `testDeviceCheckMissingEntitlement`,
+`testDeviceCheckUnknownEntitlement` and `testDeviceCheckLiveSimulatorProbe`.
+The first four use explicit synthetic data and a non-account team sentinel. The
+clipboard fixture reads the actual pasteboard after the production action. Tests
+check all report fields, default redaction, opt-in inclusion, switching back to
+redaction and reset on reopen. The live probe uses simulator host limits, not phone
+capabilities. Fixtures are absent from the phone target. Clipboard copies are local
+to the device and expire after five minutes.
+
+Orchestrator hardware checks, in a separate authorized phone session:
+
+1. Open Settings > Device check in both landscape orientations. Confirm it opens
+   promptly, scrolls to every field and returns to the library. Background and return,
+   then check Refresh updates the sample time.
+2. Compare the entitlement labels with the installed app's signed entitlements.
+   Inspect memory allowance, process limit and reservation independently. Do not
+   interpret a large address span as physical memory. An unavailable API must show
+   Unknown, not a positive result.
+3. Compare the team and embedded profile expiry privately. Do not attach team IDs,
+   profile contents or screenshots containing the team to logs. Compare free space
+   with the app container's volume, allowing for changes over time.
+4. Copy into a local note with the switch off and confirm no signing-team line. Enable
+   it and verify the team privately, then disable it and copy again. Close and reopen
+   Settings and confirm the switch defaults off. Do not send the report automatically.
+
+These checks need no game, keys, identity import or library changes. A separately
+provisioned experiment is needed for a same-device baseline with an entitlement absent;
+do not replace the user's app to manufacture it.
+
 ## The Mac harness: run a game on the Mac
 
 The engine also builds for macOS, so most bring-up happens on the Mac. The capture

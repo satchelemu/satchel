@@ -70,10 +70,15 @@ pull request. Open an issue first if you want to claim one.
    opens the pause menu without reaching the game. Then a small navigator that turns
    d-pad and stick edges into focus moves, so the library and the pause menu work
    without touching the screen. The per-title player profiles plist is the storage.
-8. **Entitlement and memory self-check.** A settings screen that shows whether the
-   increased memory limit and extended virtual addressing were granted, how much memory
-   the process may use, the signing team and the signature expiry. Other phones are
-   unverified; this gives a user a report to attach to an issue.
+8. **Entitlement and memory self-check, hardware validation remaining.** Settings >
+   Device check queries both entitlements in the running signature and measures
+   remaining memory, the current process limit, address span and a bounded contiguous
+   VM reservation. It also shows model, iOS version, team, profile expiry and container
+   volume free space. Copy report omits the team by default. Simulator journeys cover
+   both landscape orientations, clipboard contents with and without the team, missing
+   and unknown entitlements, and the live simulator probe. Signed phone readings and
+   other phones remain unverified. A measured limit alone cannot establish how much
+   the entitlement increased it without a same-device baseline.
 9. **Per-game settings page.** FPS target, render scale, screen mode and haptics are
    already kept per title in the player profiles. Show them on the game's own page with
    the global defaults and an override marker, so a game can keep its own settings.

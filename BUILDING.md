@@ -1,5 +1,10 @@
 # Building Satchel from source
 
+Settings > Device check adds no dependency. Its native probe builds with the iOS SDK;
+the running-signature query resolves Security SPI dynamically and reports Unknown if
+unavailable. The simulator harness exercises the probe and synthetic report journeys.
+Signed device readings still require the checks in [docs/testing.md](docs/testing.md).
+
 Honest summary first: as of 2026-11-03 the app builds on the maintainer's Mac and nowhere
 else, because it links about twenty prebuilt native libraries that live in a dependency
 snapshot outside the repository. Making this reproducible is the first item on the

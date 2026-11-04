@@ -72,6 +72,10 @@ Measured on one iPhone Duo (A20 Pro, iOS 27.1). Dates are in the compatibility l
 - The phone's hardware matters. The app requests the increased memory limit and extended
   virtual addressing entitlements; those capabilities, the free developer account limits
   and prepared game loading have not been verified together on other phones.
+  Settings > Device check shows the running signature's entitlements, live memory
+  allowance, a bounded virtual address reservation, model, iOS version, profile expiry
+  and container volume free space. Copy report omits the signing team unless enabled.
+  This screen has simulator coverage; its signed hardware readings still need validation.
 
 ## How it works
 
