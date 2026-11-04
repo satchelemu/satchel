@@ -129,6 +129,7 @@ struct GameDetailView: View {
                     compatibility
                 } else {
                     journey
+                    shadersPanel
                     if info?.kind == .update || info?.kind == .addOnContent { updateTarget }
                     if !updates.isEmpty || !extras.isEmpty { updatesPanel }
                     addOnPanel
@@ -148,6 +149,15 @@ struct GameDetailView: View {
     private var importedAddOns: [SwitchAddOnInfo] {
         guard let id = info?.applicationID ?? artwork.preparedPackage(for: item)?.applicationID else { return [] }
         return GameInfo.addOns(for: id, in: library.items.filter(library.hasOriginal).compactMap { artwork.info($0) })
+    }
+
+    /// Shader warm-up for the package Play starts, so it stays reachable after the first play.
+    @ViewBuilder private var shadersPanel: some View {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        if info?.kind != .update, info?.kind != .addOnContent, let game = artwork.preparedPackage(for: currentItem) {
+            WarmupPanel(package: game.folder, title: title)
+        }
+#endif
     }
 
     @ViewBuilder private var savePanel: some View {
@@ -247,7 +257,7 @@ struct GameDetailView: View {
             }
         } else if state == .ready, let onPlay {
             Button { Haptics.click(); onPlay() } label: {
-                SatchelButtonLabel(title: "Play", systemImage: "play.fill", kind: .accent(SatchelTheme.ember), height: 52, fill: true)
+                SatchelButtonLabel(title: resumes ? "Resume" : "Play", systemImage: "play.fill", kind: .accent(SatchelTheme.ember), height: 52, fill: true)
             }.buttonStyle(PressableStyle()).accessibilityIdentifier("play-game")
         } else if state == .needsKeys, let onOpenSettings {
             Button { onOpenSettings() } label: {
@@ -264,6 +274,16 @@ struct GameDetailView: View {
                 .opacity(0.8)
                 .accessibilityElement(children: .combine)
         }
+    }
+
+    /// Play returns to this game while it is paused in the background.
+    private var resumes: Bool {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        guard let current = PreparedLaunch.current else { return false }
+        return artwork.preparedPackage(for: currentItem)?.folder == current
+#else
+        return false
+#endif
     }
 
     // MARK: Journey
@@ -349,7 +369,7 @@ struct GameDetailView: View {
         if info?.kind == .addOnContent { return "Open the matching game page and choose Add DLC if it is already prepared, or Prepare to include it for the first time." }
         if prepared { return "Everything is ready. Press Play to start the game." }
         if NativePlay.available {
-            return "Next: prepare the game on this iPhone. \(AppBrand.name) rewrites the game's code for iPhone, signs it and builds its shaders. Keep the app open while it works."
+            return "Next: prepare the game on this iPhone. \(AppBrand.name) rewrites the game's code for iPhone, signs it and builds its shaders. It keeps going in the background if you switch apps."
         }
         return "Stored safely on this iPhone. Preparing games on the phone is still being built; once it lands, this game will be ready to prepare with one tap."
     }
@@ -462,6 +482,19 @@ struct GameDetailView: View {
         }
     }
 
+    /// Why Remove cannot be used right now, shown under it before any tap.
+    private var removeBlocked: String? {
+        if library.importing { return "Remove is available once the import finishes." }
+        if library.runningID != nil { return "Remove is available once the game stops." }
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        // The engine runs one game per app launch, so its prepared copy stays in use until then.
+        if PrepareJob.gameSessionOpen, artwork.isPrepared(currentItem) {
+            return "A game was played since \(AppBrand.name) opened. Close and reopen the app, then remove this game."
+        }
+#endif
+        return nil
+    }
+
     @ViewBuilder private var removeButton: some View {
         Button { removeTarget = item } label: {
             Label("Remove from this iPhone", systemImage: "trash")
@@ -470,11 +503,11 @@ struct GameDetailView: View {
                 .frame(minHeight: 44)
         }
         .buttonStyle(PressableStyle(scale: 0.97))
-        .disabled(library.runningID != nil || library.importing)
+        .disabled(removeBlocked != nil)
         .accessibilityIdentifier("detail-remove-import")
         .padding(.top, 4)
-        if library.runningID != nil || library.importing {
-            SatchelDisabledReason(text: library.importing ? "Remove is available once the import finishes." : "Remove is available once the game stops.")
+        if let removeBlocked {
+            SatchelDisabledReason(text: removeBlocked).accessibilityIdentifier("detail-remove-reason")
         }
     }
 

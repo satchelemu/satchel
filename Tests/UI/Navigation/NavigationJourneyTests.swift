@@ -24,14 +24,6 @@ final class NavigationJourneyTests: XCTestCase {
         if name.contains("testSimulatorSignatureExpiry") {
             app.launchArguments += ["-SatchelPreviewSignatureDays", "2"]
         }
-        if name.contains("testSimulatorOnboarding") {
-            let demo = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewDemo"))
-            app.launchArguments[demo + 1] = "empty"
-            app.launchArguments += ["-SatchelOnboardingFinished", "NO", "-SatchelPreviewKeys", "NO"]
-            app.launch()
-            _ = try button("onboarding-skip")
-            return
-        }
         if name.contains("testSimulatorPanelControls") {
             let screen = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewScreen"))
             app.launchArguments[screen + 1] = "settings"
@@ -44,12 +36,13 @@ final class NavigationJourneyTests: XCTestCase {
         _ = try button("import-homebrew")
     }
 
-    func testSimulatorOnboardingInstallHelpBothLandscapes() throws {
-#if NAVIGATION_PREVIEW
+    /// The bundled install guide lives in Settings > About (the first-launch guide is gone).
+    func testSettingsInstallHelpBothLandscapes() throws {
         for orientation in [UIDeviceOrientation.landscapeLeft, .landscapeRight] {
             XCUIDevice.shared.orientation = orientation
-            XCTAssertEqual(app.staticTexts["onboarding-title"].label, "Welcome to Satchel")
-            try tap("onboarding-install-help", scroll: app.scrollViews.firstMatch)
+            try tap("open-settings")
+            try tap("settings-About")
+            try tap("settings-install-help", scroll: app.scrollViews.containing(.button, identifier: "settings-install-help").firstMatch)
             let content = app.scrollViews["install-help-content"]
             XCTAssertTrue(content.waitForExistence(timeout: 8))
             XCTAssertGreaterThan(app.windows.firstMatch.frame.width, app.windows.firstMatch.frame.height)
@@ -63,14 +56,10 @@ final class NavigationJourneyTests: XCTestCase {
             shot.name = "Install help landscape \(orientation.rawValue)"; shot.lifetime = .keepAlways; add(shot)
             try tap("install-help-close")
             absent(content)
-            XCTAssertEqual(app.staticTexts["onboarding-title"].label, "Welcome to Satchel")
-            _ = try button("onboarding-next", scroll: app.scrollViews.firstMatch)
+            try tap("close-settings")
+            absent(app.buttons["close-settings"])
+            _ = try button("import-homebrew")
         }
-        try tap("onboarding-skip")
-        _ = try button("import-homebrew")
-#else
-        throw XCTSkip("First-run install help uses the isolated simulator app.")
-#endif
     }
 
 #if NAVIGATION_PREVIEW && NAVIGATION_NATIVE
@@ -119,49 +108,6 @@ final class NavigationJourneyTests: XCTestCase {
     func testPrepareDiagnosticsMalformedFile() throws { try checkPrepareDiagnostics("malformed") }
     func testPrepareDiagnosticsOversizedFile() throws { try checkPrepareDiagnostics("oversized") }
 #endif
-
-    func testSimulatorOnboardingSkipAndReopen() throws {
-#if NAVIGATION_PREVIEW
-        XCTAssertEqual(app.staticTexts["onboarding-title"].label, "Welcome to Satchel")
-        XCTAssertFalse(app.scrollViews["collection-panel"].exists, "First run starts with no imported or prepared games")
-        try tap("onboarding-install-help", scroll: app.scrollViews.firstMatch)
-        XCTAssertTrue(app.staticTexts["Install and keep Satchel installed"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.scrollViews["install-help-content"].exists)
-        let installShot = XCTAttachment(screenshot: app.screenshot())
-        installShot.name = "Bundled install and refresh help"; installShot.lifetime = .keepAlways; add(installShot)
-        for (index, screen) in XCUIScreen.screens.enumerated() {
-            let shot = XCTAttachment(screenshot: screen.screenshot())
-            shot.name = "Bundled install and refresh help screen \(index)"; shot.lifetime = .keepAlways; add(shot)
-        }
-        try tap("install-help-close")
-        XCTAssertEqual(app.staticTexts["onboarding-title"].label, "Welcome to Satchel")
-        try tap("onboarding-next", scroll: app.scrollViews.firstMatch)
-        _ = try button("onboarding-import-keys", scroll: app.scrollViews.firstMatch)
-        XCTAssertFalse(app.buttons["onboarding-next"].isEnabled)
-        let guideShot = XCTAttachment(screenshot: app.screenshot())
-        guideShot.name = "Synthetic first-run keys step"; guideShot.lifetime = .keepAlways; add(guideShot)
-        XCUIDevice.shared.orientation = .landscapeRight
-        try tap("onboarding-back", scroll: app.scrollViews.firstMatch)
-        try tap("onboarding-skip")
-        _ = try button("import-homebrew")
-        // Relaunch without overriding the stored completion flag.
-        app.terminate()
-        let flag = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelOnboardingFinished"))
-        app.launchArguments.removeSubrange(flag...(flag + 1))
-        app.launch()
-        _ = try button("import-homebrew")
-        XCTAssertFalse(app.buttons["onboarding-skip"].exists)
-        try tap("open-settings")
-        try tap("settings-About")
-        try tap("settings-onboarding", scroll: app.scrollViews.firstMatch)
-        _ = try button("onboarding-next")
-        XCTAssertEqual(app.staticTexts["onboarding-title"].label, "Welcome to Satchel")
-        try tap("onboarding-skip")
-        _ = try button("import-homebrew")
-#else
-        throw XCTSkip("Synthetic onboarding uses the isolated simulator app.")
-#endif
-    }
 
 #if NAVIGATION_PREVIEW && NAVIGATION_NATIVE
     private func launchDLCFixture(_ mode: String = "pending", keys: Bool = true) throws {
@@ -280,38 +226,18 @@ final class NavigationJourneyTests: XCTestCase {
         fixtureText("fixture-removal-state", equals: "base=1 update=1 dlc=2 files=4 packages=2 other=5 save=kept")
     }
 
-    func testGuidedOnboardingSelectsBaseInPrepare() throws {
-        app.terminate()
-        app.launchArguments += ["-SatchelPreviewDLC", "unprepared", "-SatchelPreviewKeys", "YES"]
-        app.launch()
-        try tap("open-settings")
-        try tap("settings-About")
-        try tap("settings-onboarding", scroll: app.scrollViews.firstMatch)
-        fixtureText("onboarding-title", equals: "Welcome to Satchel")
-        try tap("onboarding-next", scroll: app.scrollViews.firstMatch)
-        fixtureText("onboarding-title", equals: "Bring your console keys")
-        XCTAssertTrue(app.staticTexts["Your keys are set up. You can continue or replace them."].exists)
-        try tap("onboarding-next", scroll: app.scrollViews.firstMatch)
-        fixtureText("onboarding-title", equals: "Import your first game")
-        _ = try button("onboarding-import-game", scroll: app.scrollViews.firstMatch)
-        XCTAssertTrue(app.staticTexts["In your library: Lantern Drift"].exists)
-        try tap("onboarding-next", scroll: app.scrollViews.firstMatch)
-        fixtureText("onboarding-title", equals: "Prepare it on this iPhone")
-        backgroundAndReturn(app.buttons["onboarding-skip"].firstMatch)
-        try tap("onboarding-prepare", scroll: app.scrollViews.firstMatch)
+    /// The game page's Prepare opens Prepare with that game already chosen.
+    func testGamePagePrepareSelectsBase() throws {
+        try launchDLCFixture("unprepared")
+        try tap("prepare-game")
         _ = try button("close-prepare")
-        XCTAssertEqual(app.buttons["prepare-base"].value as? String, "Lantern Drift [Base]", "The guided route must preselect its imported base")
-        XCTAssertFalse(app.buttons["onboarding-skip"].exists)
+        XCTAssertEqual(app.buttons["prepare-base"].value as? String, "Lantern Drift [Base]", "The game page must preselect its imported base")
+        backgroundAndReturn(app.buttons["close-prepare"].firstMatch)
+        XCTAssertEqual(app.buttons["prepare-base"].value as? String, "Lantern Drift [Base]")
+        // The home screen's single cover swaps the game page for Prepare, so closing returns to the library.
         try tap("close-prepare")
+        absent(app.buttons["close-prepare"])
         _ = try button("import-homebrew")
-        app.terminate()
-        let demo = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewDemo"))
-        app.launchArguments.removeSubrange(demo...(demo + 1))
-        let fixture = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewDLC"))
-        app.launchArguments.removeSubrange(fixture...(fixture + 1))
-        app.launch()
-        _ = try button("import-homebrew")
-        XCTAssertFalse(app.buttons["onboarding-skip"].exists)
     }
 
     func testPrepareKeyAndStorageRecoveryMessages() throws {
@@ -1053,6 +979,56 @@ final class NavigationJourneyTests: XCTestCase {
         }
     }
 
+    private func launchHomeImport(_ mode: String) throws -> XCUIElement {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewHomeImport", mode]
+        app.launch()
+        _ = try button("import-homebrew")
+        let card = app.buttons["import-job-card"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 15), "The home screen shows the import's card")
+        return card
+    }
+
+    private func cardLabel(_ card: XCUIElement, contains text: String) {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in card.exists && card.label.contains(text) }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed,
+                       "Expected the card to say \(text); actual: \(card.exists ? card.label : "missing")")
+    }
+
+    /// An import from home ends on a card that stays until dismissed; nothing opens by itself.
+    func testHomeImportCardAddedOpensGame() throws {
+        let card = try launchHomeImport("nsz")
+        cardLabel(card, contains: "Added")
+        XCTAssertFalse(app.buttons["close-game-detail"].exists, "A finished import must not open the game page by itself")
+        backgroundAndReturn(card)
+        cardLabel(card, contains: "Added")
+        try tap("import-job-open")
+        _ = try button("close-game-detail")
+        try tap("close-game-detail")
+        cardLabel(app.buttons["import-job-card"].firstMatch, contains: "Added")
+        try tap("import-job-dismiss")
+        absent(app.buttons["import-job-card"])
+        // A + entry point starts fresh: the import screen shows its intro, not the old result.
+        try tap("import-homebrew")
+        _ = try button("choose-files", scroll: app.scrollViews.firstMatch)
+        try tap("close-import")
+    }
+
+    /// A failed import keeps its reason on the card; Details shows the full result.
+    func testHomeImportCardFailureShowsDetails() throws {
+        let card = try launchHomeImport("broken")
+        cardLabel(card, contains: "Couldn't add Broken Fixture")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "Import results use the card, not an alert")
+        try tap("import-job-details")
+        _ = try button("close-import")
+        XCTAssertTrue(app.staticTexts["Couldn't add Broken Fixture"].waitForExistence(timeout: 8),
+                      "Details opens the import screen with the result still showing")
+        try tap("close-import")
+        cardLabel(app.buttons["import-job-card"].firstMatch, contains: "Couldn't add Broken Fixture")
+        try tap("import-job-dismiss")
+        absent(app.buttons["import-job-card"])
+    }
+
     private func fixtureText(_ id: String, equals expected: String) {
         let marker = app.staticTexts[id]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
@@ -1191,14 +1167,41 @@ final class NavigationJourneyTests: XCTestCase {
 
     func testWarmupPausedCardCanBeDismissed() throws {
         try startWarmupFixture()
+        // The card opens the game page, which owns warm-up (not the Prepare screen).
         try tap("warmup-home-card")
-        try tap("warmup-pause", scroll: app.scrollViews.firstMatch)
-        try tap("close-prepare")
+        _ = try button("close-game-detail")
+        try tap("warmup-pause", scroll: app.scrollViews["detail-scroll"])
         fixtureText("fixture-warmup-state", equals: "idle:paused")
+        revealControl(app.buttons["warmup-start"], in: app.scrollViews["detail-scroll"])
+        XCTAssertTrue(app.buttons["warmup-start"].label.contains("Resume"), app.buttons["warmup-start"].label)
+        XCTAssertTrue(app.buttons["warmup-start"].isEnabled)
+        try tap("close-game-detail")
         _ = try button("warmup-home-card")
         try tap("warmup-home-dismiss")
         fixtureText("fixture-warmup-state", equals: "idle:none")
         absent(app.buttons["warmup-home-card"])
+    }
+
+    /// After a finished warm-up the home card leaves, but the game page still shows the
+    /// result and offers it again (the warm-up used to vanish after the first play).
+    func testWarmupStaysOnGamePageAfterFinish() throws {
+        try startWarmupFixture()
+        try tap("fixture-warmup-finish")
+        fixtureText("fixture-warmup-state", equals: "idle:complete")
+        absent(app.buttons["warmup-home-card"])
+        try focus(where: { self.app.buttons["open-focused"].exists && self.app.buttons["play-focused"].exists },
+                  reason: "synthetic prepared game with a finished warm-up")
+        try tap("open-focused")
+        let status = app.descendants(matching: .any)["warmup-status"]
+        revealControl(status, in: app.scrollViews["detail-scroll"])
+        XCTAssertTrue(status.label.contains("Known shaders are warmed up"), status.label)
+        revealControl(app.buttons["warmup-start"], in: app.scrollViews["detail-scroll"])
+        XCTAssertTrue(app.buttons["warmup-start"].label.contains("Warm up again"), app.buttons["warmup-start"].label)
+        XCTAssertTrue(app.buttons["warmup-start"].isEnabled)
+        backgroundAndReturn(app.buttons["close-game-detail"].firstMatch)
+        XCTAssertTrue(app.descendants(matching: .any)["warmup-status"].label.contains("Known shaders are warmed up"))
+        try tap("close-game-detail")
+        _ = try button("import-homebrew")
     }
 
     func testWarmupFailedCardCanBeDismissed() throws {
@@ -1539,6 +1542,32 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("game.pause")
         try tap("menu-library")
         sessionState("started=1 paused=1 package=LanternDrift-1.2.0 events=start:LanternDrift-1.2.0", exact: true)
+    }
+
+    /// Menu > Library leaves a card on the home header; Play reads Resume for that game.
+    func testPausedGameCardResumes() throws {
+        try startSessionFixture()
+        try tap("game.pause")
+        try tap("menu-library")
+        _ = try button("import-homebrew")
+        let card = try button("paused-game-card")
+        XCTAssertTrue(card.label.contains("Resume"), card.label)
+        XCTAssertTrue(try button("play-focused").label.contains("Resume"), "Play must read Resume for the paused game")
+        backgroundAndReturn(app.buttons["paused-game-card"].firstMatch)
+        try tap("paused-game-card")
+        _ = try button("menu-resume")
+        try tap("menu-resume")
+        _ = try button("game.pause")
+        try tap("game.pause")
+        try tap("menu-library")
+        _ = try button("paused-game-card")
+        sessionState("started=1 paused=1 package=LanternDrift-1.2.0 events=start:LanternDrift-1.2.0", exact: true)
+        // Prepare waits for the open game, and says why.
+        try tap("workshop")
+        let prepare = app.buttons["workshop-prepare"]
+        XCTAssertTrue(prepare.waitForExistence(timeout: 8))
+        XCTAssertFalse(prepare.isEnabled, "Prepare must not start beside a paused game")
+        XCTAssertTrue(prepare.label.contains("Quit the game before preparing another."), prepare.label)
     }
 
     func testSwitchingGameStopsFirst() throws {

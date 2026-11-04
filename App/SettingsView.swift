@@ -74,12 +74,12 @@ struct SettingsView: View {
 
     @ObservedObject var library: HomebrewLibrary
     @ObservedObject var artwork: GameArtworkStore
-    var openOnboarding: (() -> Void)? = nil
     @StateObject private var keys = KeyStore()
     @State var page: Page = .keys
     @AppStorage("SatchelDeveloperControls") private var developerControls = false
     @AppStorage(PreparedImportCleanup.settingKey) private var removeOriginals = true
     @State private var showDeveloperControls = false
+    @State private var showingInstallGuide = false
     @State private var pickingKeys = false
     @State private var freeBytes: Int64?
     @State private var preparedBytes: [String: Int64] = [:]
@@ -118,6 +118,9 @@ struct SettingsView: View {
             }
         }
         .task(id: page) { await measure() }
+        .sheet(isPresented: $showingInstallGuide) {
+            InstallGuideView { showingInstallGuide = false }
+        }
     }
 
     private func pageScroll(compact: Bool, reserve: CGFloat) -> some View {
@@ -355,11 +358,9 @@ struct SettingsView: View {
                     .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if let openOnboarding {
-                Button(action: openOnboarding) {
-                    SatchelButtonLabel(title: "Getting started", systemImage: "sparkles", kind: .secondary, height: 44)
-                }.buttonStyle(PressableStyle()).accessibilityIdentifier("settings-onboarding")
-            }
+            Button { showingInstallGuide = true } label: {
+                SatchelButtonLabel(title: "Install and refresh help", systemImage: "questionmark.circle.fill", kind: .secondary, height: 44)
+            }.buttonStyle(PressableStyle()).accessibilityIdentifier("settings-install-help")
             if showDeveloperControls || developerControls {
                 Toggle("Developer controls", isOn: $developerControls)
                     .accessibilityIdentifier("developer-controls")
@@ -398,5 +399,42 @@ struct SettingsView: View {
             return (values?.volumeAvailableCapacityForImportantUsage, sizes)
         }.value
         freeBytes = free; preparedBytes = sizes; cacheBytes = artwork.cacheBytes
+    }
+}
+
+/// The same guide as docs/install.md, bundled so help works without a hosted site.
+private struct InstallGuideView: View {
+    let close: () -> Void
+    private let paragraphs: [String] = {
+        guard let url = Bundle.main.url(forResource: "install", withExtension: "md"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return ["Install help is missing from this build. Ask the build owner for docs/install.md."]
+        }
+        return text.components(separatedBy: "\n\n").filter { !$0.isEmpty }
+    }()
+
+    var body: some View {
+        PanelChrome(closeTitle: "Close help", identifier: "install-help-close", close: close) {
+            ScreenReader { cut, _ in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                            if paragraph.hasPrefix("#") {
+                                Text(paragraph.drop(while: { $0 == "#" || $0 == " " }))
+                                    .font(SatchelTheme.display(22))
+                            } else {
+                                Text(.init(paragraph))
+                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: 680, alignment: .leading).frame(maxWidth: .infinity)
+                    .padding(.vertical, 18).padding(.trailing, cut.bar == .top ? 56 : 0)
+                    .cutoutPadding(cut, leading: 20, trailing: 20)
+                }.accessibilityIdentifier("install-help-content")
+            }
+            .background { SatchelBackdrop(glow: SatchelTheme.tide) }.satchelMenuStatus()
+        }
     }
 }

@@ -75,6 +75,8 @@ import SwiftUI
     func start(base: HomebrewItem, update: HomebrewItem?, title: String, library: HomebrewLibrary,
                artwork: GameArtworkStore, applicationID: UInt64? = nil) {
         guard !running, !WarmupJob.shared.running, !AddOnJob.shared.running else { return }
+        // A paused game holds gigabytes of memory and its package; Prepare is untested beside it.
+        guard !Self.gameSessionOpen else { message = Self.sessionBlocked; return }
         baseID = base.id; updateID = update?.id ?? ""; self.title = title
         selectedTitleID = applicationID
         guard artwork.keysAvailable else { message = FirstRunHelp.noKeys; return }
@@ -118,6 +120,10 @@ import SwiftUI
         start(base: base, update: library.items.first { $0.id == updateID }, title: title(base), library: library,
               artwork: artwork, applicationID: selectedTitleID)
     }
+
+    /// Prepare is refused while a game session exists, even paused in the background.
+    static let sessionBlocked = "Quit the game before preparing another."
+    static var gameSessionOpen: Bool { SatchelNativeSessionStarted() || PreparedLaunch.current != nil }
 
     /// A note on the Prepare screen when no job runs (for example why auto prepare did not start).
     func note(_ text: String) { if !running { message = text } }
@@ -231,7 +237,9 @@ import SwiftUI
                               let warmup = WarmupJob.shared.begin(package: destination, title: self.title, keepAlive: task == nil) else { finish(); return }
                         self.message = "Ready to play. Warming up known shaders…"
                         self.fraction = 1
-                        task?.expirationHandler = { lifetime.cancel(); warmup.token.cancel() }
+                        // An expiration here is iOS stopping the warm-up: it resumes when the app is active again.
+                        let warmupJob = WarmupJob.shared
+                        task?.expirationHandler = { lifetime.cancel(); warmupJob.expire(warmup) }
                         // Expiration may race the handler replacement. Cleanup still commits,
                         // but an expired task must not admit optional work afterward.
                         if lifetime.cancelled { warmup.token.cancel() }

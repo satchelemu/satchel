@@ -36,9 +36,12 @@ final class HomebrewLibrary: ObservableObject {
     @Published private(set) var importing = false
     @Published private(set) var reclaimingOriginals = false
     @Published private(set) var importProgress: Double?
+    /// iCloud download progress (0 to 1) while Files fetches the selection, before the copy
+    /// starts; nil when the provider reports none.
+    @Published private(set) var downloadFraction: Double?
+    @Published private(set) var importStartedAt: Date?
     @Published private(set) var runningID: String?
     @Published private(set) var lastRun: HomebrewRun?
-    @Published var selected: HomebrewItem?
     @Published var error: String?
     @Published var notice: String?
     @Published private(set) var sampleURL: URL?
@@ -46,14 +49,17 @@ final class HomebrewLibrary: ObservableObject {
     @Published private(set) var importName: String?
     @Published private(set) var importBytes: UInt64?
     @Published private(set) var queuedImports = 0
+    /// How the last import ended. Kept until dismissed (the home card or the import screen)
+    /// or until the next import starts.
     @Published private(set) var lastOutcome: ImportOutcome?
-    /// When the import screen is showing, it presents results itself.
-    var importScreenVisible = false
     private var importQueue: [SwitchDumpSelection] = []
     private let queue = DispatchQueue(label: "com.dell.satchel.homebrew", qos: .userInitiated)
     private var cancellation: Cancellation?
     private var importCancellation: Cancellation?
     private var importCoordinator: NSFileCoordinator?
+#if os(iOS)
+    private var downloadWatch: ImportDownloadWatch?
+#endif
     private let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     private var directory: URL { documents.appendingPathComponent("Homebrew", isDirectory: true) }
     private var indexURL: URL { directory.appendingPathComponent("library.json") }
@@ -98,12 +104,21 @@ final class HomebrewLibrary: ObservableObject {
         guard !importing else { return }
         guard !reclaimingOriginals else { importQueue.append(selection); queuedImports = importQueue.count; return }
         let displayName = String(selection.name.prefix(100))
-        importing = true; importProgress = nil; error = nil; notice = "Waiting for Files to download and open the selected file…"
+        importing = true; importProgress = nil; downloadFraction = nil; importStartedAt = Date(); error = nil
+        notice = "Waiting for Files to download and open the selected file…"
         importName = displayName; importBytes = nil; lastOutcome = nil; queuedImports = importQueue.count
         let token = Cancellation(); importCancellation = token
         let coordinator = NSFileCoordinator(); importCoordinator = coordinator
         let folder = directory
-        queue.async {
+#if os(iOS)
+        downloadWatch = ImportDownloadWatch(urls: selection.urls) { [weak self] fraction in
+            guard let self, self.importing, self.importProgress == nil else { return }
+            self.downloadFraction = fraction
+        }
+#endif
+        // Reports to the system's progress display when the import runs as a continued task.
+        let work = { (report: @escaping (Double?, String) -> Void) -> Bool in
+            report(nil, "Waiting for Files")
             let scoped = selection.urls.filter { $0.startAccessingSecurityScopedResource() }
             defer { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
             let result: Result<HomebrewItem, Error> = Result {
@@ -120,7 +135,9 @@ final class HomebrewLibrary: ObservableObject {
                             let now = ProcessInfo.processInfo.systemUptime
                             if now - lastProgress >= 0.1 || copied == total {
                                 lastProgress = now
+                                report(Double(copied) / Double(total), copied == total ? "Verifying" : "Copying")
                                 DispatchQueue.main.async {
+                                    self.stopDownloadWatch()
                                     self.importProgress = Double(copied) / Double(total)
                                     self.importBytes = total
                                     self.notice = copied == total ? "Verifying the local package…" : "Copying to this iPhone…"
@@ -160,9 +177,12 @@ final class HomebrewLibrary: ObservableObject {
                                         bssBytes: info.bss_size, importedAt: Date())
                 }
             }
+            let succeeded: Bool
+            if case .success = result { succeeded = true } else { succeeded = false }
             DispatchQueue.main.async {
+                self.stopDownloadWatch()
                 self.importing = false; self.importProgress = nil; self.importCancellation = nil; self.importCoordinator = nil
-                self.importName = nil
+                self.importName = nil; self.downloadFraction = nil; self.importStartedAt = nil
                 defer {
                     if !self.importQueue.isEmpty { self.importFile(self.importQueue.removeFirst()) }
                     else { self.queuedImports = 0 }
@@ -175,17 +195,16 @@ final class HomebrewLibrary: ObservableObject {
                     do {
                         try JSONEncoder().encode(updated).write(to: self.indexURL, options: .atomic)
                         self.items = updated
+                        // The result shows on the home card and the import screen; nothing opens by itself.
                         self.lastOutcome = .added(id: item.id, duplicate: duplicate != nil)
-                        if !self.importScreenVisible { self.selected = item }
                         if item.package != nil {
-                            self.notice = duplicate == nil ? "Added to your library." : "Already in your library. Opened the existing copy."
+                            self.notice = duplicate == nil ? "Added to your library." : "Already in your library."
                         } else {
-                            self.notice = duplicate == nil ? "Imported a local copy. Ready to try." : "Already in your library. Opened the existing copy."
+                            self.notice = duplicate == nil ? "Imported a local copy. Ready to try." : "Already in your library."
                         }
                     } catch {
                         let message = "The file was copied, but the library index could not be saved: \(error.localizedDescription)"
                         self.lastOutcome = .failed(name: displayName, message: message)
-                        if !self.importScreenVisible { self.error = message }
                         self.notice = nil
                     }
                 case .failure(let error):
@@ -195,12 +214,26 @@ final class HomebrewLibrary: ObservableObject {
                         self.importQueue.removeAll()
                     } else {
                         self.lastOutcome = .failed(name: displayName, message: FirstRunHelp.message(error))
-                        if !self.importScreenVisible { self.error = FirstRunHelp.message(error) }
                         self.notice = nil
                     }
                 }
             }
+            return succeeded
         }
+        let stop = { token.cancel(); coordinator.cancel() }
+#if os(iOS)
+        ImportLifetime.run(name: displayName, queue: queue, stop: stop) { reporter in
+            work { fraction, stage in reporter.update(fraction: fraction, stage: stage) }
+        }
+#else
+        queue.async { _ = work { _, _ in } }
+#endif
+    }
+
+    private func stopDownloadWatch() {
+#if os(iOS)
+        downloadWatch?.stop(); downloadWatch = nil
+#endif
     }
 
     func cancelImport() {
@@ -242,7 +275,6 @@ final class HomebrewLibrary: ObservableObject {
             try JSONEncoder().encode(updated).write(to: indexURL, options: .atomic)
             items = updated
             try? FileManager.default.removeItem(at: localFile(item))
-            if selected?.id == item.id { selected = nil }
             notice = "Removed \(item.name) from this iPhone."
         } catch { self.error = "Could not update the library: \(error.localizedDescription)" }
     }

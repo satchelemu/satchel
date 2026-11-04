@@ -37,8 +37,8 @@ struct ImportFlowView: View {
             .background { SatchelBackdrop(glow: SatchelTheme.tide) }
             .satchelMenuStatus()
         }
-        .onAppear { library.importScreenVisible = true; if !library.importing { library.clearOutcome() } }
-        .onDisappear { library.importScreenVisible = false }
+        // The + entry points clear the last result; the home card's Details opens this screen
+        // with the result still showing.
         .onChange(of: library.lastOutcome) { _, outcome in
             switch outcome {
             case .added: Haptics.success()
@@ -117,7 +117,7 @@ struct ImportFlowView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("choose-files")
-                Text("Big games take a few minutes to copy. Keep \(AppBrand.name) open.")
+                Text("Big games take a few minutes to copy. The import keeps going in the background if you switch apps.")
                     .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -145,7 +145,11 @@ struct ImportFlowView: View {
 
     private var stage: (title: String, detail: String) {
         guard let progress = library.importProgress else {
-            return ("Getting the file", "Waiting for Files. Items stored only in iCloud download first, which can take a while on a slow connection.")
+            if let download = library.downloadFraction {
+                return ("Downloading from iCloud · \(Int((download * 100).rounded(.down)))%",
+                        "iCloud Drive is downloading the file to this iPhone. \(AppBrand.name) copies it as soon as it arrives.")
+            }
+            return ("Waiting for Files", "Items stored only in iCloud download first, which can take a while on a slow connection.")
         }
         if progress >= 1 { return ("Checking the package", "Making sure the copy is complete and the package is intact.") }
         return ("Copying to this iPhone", "\(AppBrand.name) copies the game into its own library. Your original stays where it is.")
@@ -156,10 +160,19 @@ struct ImportFlowView: View {
             SatchelEyebrow(text: library.queuedImports > 0 ? "Importing · \(library.queuedImports) more waiting" : "Importing", tint: SatchelTheme.tide)
             Text(library.importName ?? "Your file").font(SatchelTheme.display(26)).lineLimit(2)
             VStack(alignment: .leading, spacing: 8) {
-                SatchelProgressBar(value: library.importProgress, tint: SatchelTheme.tide, height: 16)
+                SatchelProgressBar(value: library.importProgress ?? library.downloadFraction, tint: SatchelTheme.tide, height: 16)
+                    .accessibilityIdentifier("import-progress")
                 Text(stage.title).font(.system(size: 15, weight: .bold, design: .rounded))
+                    .accessibilityIdentifier("import-stage")
                 if let progress = library.importProgress {
                     Text(progressText(progress)).font(SatchelTheme.mono(12)).foregroundStyle(SatchelTheme.tide)
+                } else if let started = library.importStartedAt {
+                    // Elapsed time while Files works, so a stalled download is visible.
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text("\(importDuration(context.date.timeIntervalSince(started))) so far")
+                            .font(SatchelTheme.mono(12)).monospacedDigit().foregroundStyle(SatchelTheme.tide)
+                    }
+                    .accessibilityIdentifier("import-elapsed")
                 }
                 Text(stage.detail).font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(SatchelTheme.textDim).fixedSize(horizontal: false, vertical: true)
@@ -173,10 +186,15 @@ struct ImportFlowView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("cancel-import")
-                Text("You can close this screen; the import keeps going.")
+                Text("You can close this screen or switch apps; the import keeps going in the background.")
                     .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
             }
         }
+    }
+
+    private func importDuration(_ seconds: Double) -> String {
+        let value = max(0, Int(seconds))
+        return value < 60 ? "\(value)s" : "\(value / 60)m \(value % 60)s"
     }
 
     private func progressText(_ progress: Double) -> String {

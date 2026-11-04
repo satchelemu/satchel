@@ -46,6 +46,15 @@ enum CompressedImportFixture {
     }
 
 
+    /// -SatchelPreviewHomeImport nsz|xcz|broken: the home screen imports this once at launch,
+    /// so its import card can be checked. "broken" is a small file that is not a package.
+    static func homeSources(_ mode: String) throws -> [URL] {
+        guard mode == "broken" else { return try sources(format: mode) }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Broken Fixture.nsp")
+        try Data("Synthetic file that is not a game package".utf8).write(to: url)
+        return [url]
+    }
+
     static func sources(format: String) throws -> [URL] {
         let whole = try source(format: format)
         guard UserDefaults.standard.bool(forKey: "SatchelPreviewSplitImport") else { return [whole] }

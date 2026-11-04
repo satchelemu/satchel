@@ -12,7 +12,8 @@ SOURCES = [Path(p).stem for p in json.loads((Path(__file__).resolve().parents[1]
 def stage(root, output, platform='iphoneos'):
     default = root if (root/'NativeShaders/ShaderAPI.swift').exists() else Path.home()/'SatchelBuild/m5/wt'
     source = Path(os.environ.get('SATCHEL_SHADER_SOURCE', default))
-    products = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home()/'SatchelBuild/m5'))
+    # The renamed shader products live in the dependency root since the 2026-11-03 rename.
+    products = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home()/'SatchelDeps/m5'))
     proof = json.loads((products/'pipeline-full/result.json').read_text())
     assert proof.get('complete') is True, 'M5 native translation parity is incomplete'
     assert proof.get('differences') in (0, []), 'M5 native translation parity has differences'

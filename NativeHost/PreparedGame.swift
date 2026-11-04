@@ -248,6 +248,14 @@ enum PreparedLaunch {
     }
 }
 
+/// The background time around the package check, ended once. Main thread only.
+private final class CheckKeepalive: @unchecked Sendable {
+    var identifier: UIBackgroundTaskIdentifier = .invalid
+    func end() {
+        if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier); identifier = .invalid }
+    }
+}
+
 struct PreparedGameView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -296,6 +304,11 @@ struct PreparedGameView: View {
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .task(id: launchRequested) {
             guard launchRequested, !ready, failure == nil else { return }
+            // The first check reads the whole package and can take minutes; keep it running
+            // for the time iOS gives a backgrounded app instead of suspending at once.
+            let keepalive = CheckKeepalive()
+            keepalive.identifier = UIApplication.shared.beginBackgroundTask(withName: "Check prepared game") { keepalive.end() }
+            defer { keepalive.end() }
             do {
                 guard !AddOnJob.shared.running else { throw PrepareFailure(message: "Wait for Add DLC to finish, or cancel it before playing.") }
                 try PreparedPackageAccess.begin(); defer { PreparedPackageAccess.end() }

@@ -37,7 +37,8 @@ parity copies were deleted (47 GB free) and a guard watches disk and memory.
 - [~] Switch-inspired design system with personality (original, no Nintendo assets): `redesign`
 - [~] Library with each game's real artwork, read from the user's own game files: `redesign`
 - [~] Import flow from iCloud/Files with progress and plain-language errors: `redesign`
-- [~] Settings and onboarding (keys, storage) restyled: `redesign`
+- [~] Settings (keys, storage, install help) restyled. The first-launch guide screen was
+  removed (app audit, 2026-11-03): first launch lands on the home screen's three steps: `redesign`
 - [~] No right-side gutter on any screen, both rotations, front and inner screen: `redesign`
 - [x] Redesign merged into main (4c1ba73) with the display and multi-game work; the SwiftUI pause
   menu is wired to the native bridge; Satchel installed on the phone over Satchel (library kept)
@@ -183,8 +184,8 @@ rendering smaller. A manual frame setting may come back later.
   synthetic cycles)
 - [ ] Saves: import from the Mac-built Zelda app done by hand; in-app save import/export and
   backup: later
-- [ ] Onboarding and distribution: keys import, install guide, SideStore source,
-  signature-expiry warnings: later
+- [ ] Distribution: SideStore source; keys import, the install guide (Settings > About) and
+  signature-expiry warnings exist; the separate first-launch guide screen is gone: later
 
 ### G9. Stability and housekeeping
 - [x] Builds no longer depend on `/tmp` (durable snapshot)

@@ -1,54 +1,153 @@
 import SwiftUI
 
+/// Shader warm-up for one prepared package (the game page, the play screen), or for the
+/// journal's package when `package` is nil (the Prepare screen).
 struct WarmupPanel: View {
     var package: String? = nil
     var title = "Prepared game"
     var play: ((String) -> Void)? = nil
     @ObservedObject private var job = WarmupJob.shared
     @ObservedObject private var prepare = PrepareJob.shared
+    @ObservedObject private var addOns = AddOnJob.shared
+
     var body: some View {
         if let package {
-            SatchelPanel(title: "Warm up shaders", tint: SatchelTheme.tide) { content(package, title: title) }
+            SatchelPanel(title: "Shaders", tint: SatchelTheme.tide) { content(package, title: title) }
         } else if let journal = job.journal {
             SatchelPanel(title: "Warm up " + journal.title, tint: SatchelTheme.tide) { content(journal.package, title: journal.title) }
         }
     }
-    @ViewBuilder private func content(_ package: String, title: String) -> some View {
-        let journal = job.journal?.package == package ? job.journal : nil
-        if let state = journal?.progress {
-            Text(state.stage).font(.system(size: 13, weight: .semibold, design: .rounded))
-            Text("\(state.shaders) shaders · \(state.pipelines + state.archiveHits) pipelines · \(state.failed) failed · \(state.deferred) deferred")
-                .font(SatchelTheme.mono(10)).foregroundStyle(SatchelTheme.textDim)
-            if job.running {
-                if let fraction = state.fraction { SatchelProgressBar(value: fraction, tint: SatchelTheme.tide) }
-                Text("\(state.completed) of \(state.total) · \(Int(state.seconds)) seconds")
-                    .font(SatchelTheme.mono(11)).accessibilityIdentifier("warmup-progress")
-            }
-        } else {
-            Text("Reduce shader pauses by warming known shaders for this device. You can play at any time; new shaders build as needed.")
-                .font(.system(size: 12)).foregroundStyle(SatchelTheme.textDim)
+
+    private enum Phase { case notStarted, running, paused, complete, partial, failed }
+
+    private func currentPhase(_ status: WarmupJob.Status?, package: String) -> Phase {
+        if job.running && job.journal?.package == package { return .running }
+        switch status?.progress.state {
+        case "paused", "running": return .paused
+        case "complete": return .complete
+        case "partial": return .partial
+        case "failed": return .failed
+        default: return .notStarted
         }
-        HStack {
-            if job.running && journal != nil {
-                Button("Pause warm-up") { job.cancel() }.accessibilityIdentifier("warmup-pause")
-            } else {
-                Button(journal?.progress.state == "paused" ? "Resume warm-up" : "Warm up") { job.start(package: package, title: title) }
-                    .disabled(job.running || prepare.running || job.playRequested || SatchelNativeSessionStarted()).accessibilityIdentifier("warmup-start")
+    }
+
+    /// Why the button cannot be used right now, in words.
+    private func blocked(_ package: String) -> String? {
+        if job.running && job.journal?.package == package { return nil }
+        if SatchelNativeSessionStarted() || job.playRequested { return "Quit the game to warm up shaders" }
+        if prepare.running { return "Available after preparation finishes" }
+        if job.running { return "Another warm-up is running" }
+        if addOns.running { return "Available after Add DLC finishes" }
+        return nil
+    }
+
+    @ViewBuilder private func content(_ package: String, title: String) -> some View {
+        let status = job.status(for: package)
+        let phase = currentPhase(status, package: package)
+        let progress = status?.progress
+        VStack(alignment: .leading, spacing: 8) {
+            switch phase {
+            case .notStarted:
+                line("Builds this game's known shaders ahead of time, so play pauses less. Optional: you can play at any time.")
+            case .running:
+                if let progress {
+                    line(progress.stage)
+                    if let fraction = progress.fraction { SatchelProgressBar(value: fraction, tint: SatchelTheme.tide, height: 8) }
+                    Text("\(progress.completed) of \(progress.total) · \(warmupDuration(progress.seconds))")
+                        .font(SatchelTheme.mono(11)).monospacedDigit().accessibilityIdentifier("warmup-progress")
+                }
+            case .paused:
+                line(status?.interrupted == true
+                     ? "Stopped by iOS while \(AppBrand.name) was in the background. It resumes when you come back."
+                     : "Paused. Resume reuses the work already cached.")
+                if let progress, progress.total > 0 {
+                    Text("\(progress.completed) of \(progress.total) done").font(SatchelTheme.mono(11)).foregroundStyle(SatchelTheme.textDim)
+                }
+            case .complete:
+                Label("Known shaders are warmed up", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(SatchelTheme.leaf)
+                if let progress { counts(progress) }
+                line("New shaders still build the first time they appear in play.")
+            case .partial:
+                line("Finished with some shaders left to build while playing.")
+                if let progress { counts(progress) }
+            case .failed:
+                line(progress.map { $0.firstFailure.map { "Warm-up stopped: \($0)" } ?? $0.stage } ?? "Warm-up stopped.")
+                line("Play is still ready.")
             }
-            if let play { Button("Play now", systemImage: "play.fill") { job.cancel(); play(package) }.accessibilityIdentifier("warmup-play") }
-            if self.package == nil && !job.running { Button("Dismiss") { job.dismiss() } }
-        }.font(.system(size: 13, weight: .semibold))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("warmup-status")
+        let reason = blocked(package)
+        HStack(spacing: 10) {
+            if phase == .running {
+                Button { Haptics.click(); job.cancel() } label: {
+                    SatchelButtonLabel(title: "Pause", systemImage: "pause.fill", kind: .secondary, height: 38)
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityIdentifier("warmup-pause")
+            } else {
+                Button { Haptics.click(); job.start(package: package, title: title) } label: {
+                    SatchelButtonLabel(title: startTitle(phase), systemImage: phase == .complete ? nil : "flame.fill",
+                                      kind: phase == .complete ? .quiet : .accent(SatchelTheme.tide), height: 38)
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(reason != nil)
+                .satchelDimmedWhenDisabled()
+                .accessibilityHint(reason ?? "")
+                .accessibilityIdentifier("warmup-start")
+            }
+            if let play {
+                Button { job.cancel(); play(package) } label: {
+                    SatchelButtonLabel(title: "Play now", systemImage: "play.fill", kind: .secondary, height: 38)
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityIdentifier("warmup-play")
+            }
+            if self.package == nil && !job.running {
+                Button("Dismiss") { job.dismiss() }.font(.system(size: 13, weight: .semibold))
+            }
+        }
+        if phase != .running, let reason { SatchelDisabledReason(text: reason).accessibilityIdentifier("warmup-start-reason") }
+    }
+
+    private func startTitle(_ phase: Phase) -> String {
+        switch phase {
+        case .notStarted, .running: return "Warm up"
+        case .paused: return "Resume"
+        case .complete, .partial: return "Warm up again"
+        case .failed: return "Try again"
+        }
+    }
+
+    private func line(_ text: String) -> some View {
+        Text(text).font(.system(size: 13, weight: .semibold, design: .rounded))
+            .foregroundStyle(SatchelTheme.text).fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func counts(_ progress: WarmupProgress) -> some View {
+        var parts = ["\(progress.shaders) shaders", "\(progress.pipelines + progress.archiveHits) pipelines"]
+        if progress.deferred > 0 { parts.append("\(progress.deferred) left to gameplay") }
+        if progress.failed > 0 { parts.append("\(progress.failed) failed") }
+        parts.append(warmupDuration(progress.seconds))
+        return Text(parts.joined(separator: " · ")).font(SatchelTheme.mono(10)).foregroundStyle(SatchelTheme.textDim)
     }
 }
 
+private func warmupDuration(_ seconds: Double) -> String {
+    let value = max(0, Int(seconds))
+    return value < 60 ? "\(value)s" : "\(value / 60)m \(value % 60)s"
+}
+
 struct WarmupHomeCard: View {
-    let open: () -> Void
+    /// Opens the game page for the warming package (or its play screen).
+    let open: (String) -> Void
     let play: (String) -> Void
     @ObservedObject private var job = WarmupJob.shared
     var body: some View {
         if let journal = job.journal {
             HStack(spacing: 12) {
-                Button(action: open) {
+                Button { open(journal.package) } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Warm up " + journal.title).font(.system(size: 13, weight: .bold))
                         Text(job.running ? "\(journal.progress.stage) · \(journal.progress.completed)/\(journal.progress.total)" : journal.progress.stage)

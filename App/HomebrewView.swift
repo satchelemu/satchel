@@ -16,7 +16,6 @@ enum HomeRoute: Equatable {
     case detail(String)
     case importer
     case settings
-    case onboarding
     case demo
 #if !SATCHEL_UI_PREVIEW_MINIMAL
     /// A prepared package (its folder name): its play screen, or the running game.
@@ -36,7 +35,6 @@ struct HomebrewView: View {
     @StateObject private var library = HomebrewLibrary()
     @StateObject private var artwork = GameArtworkStore()
     @AppStorage("SatchelDeveloperControls") private var developerControls = false
-    @AppStorage(OnboardingView.finishedKey) private var onboardingFinished = false
     @State private var signatureWarnings: [SignatureExpiry.Warning] = []
     @State private var signatureCheckDate = Date()
     @State private var reportPackage: String?
@@ -54,11 +52,17 @@ struct HomebrewView: View {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
     /// A prepared package waiting for the Remove confirmation.
     @State private var pendingRemoval: PreparedGame?
+    /// The package of a game paused in the background (`PreparedLaunch.current`), which
+    /// is not observable, so it is read again whenever the home screen comes back.
+    @State private var pausedPackage: String?
 #endif
     @State private var scrolledID: String?
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
     private static let addTileID = "add-games-tile"
+#if PREVIEW_GAME
+    private static var previewImportUsed = false
+#endif
 
     /// Imported games plus prepared games whose file is not in the library.
     private var shelfItems: [HomebrewItem] {
@@ -97,6 +101,14 @@ struct HomebrewView: View {
         return nil
     }
 
+    /// Prepare also waits for a game that is open, even paused in the background.
+    private var prepareBusyReason: String? {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        if busyReason == nil, PrepareJob.gameSessionOpen { return PrepareJob.sessionBlocked }
+#endif
+        return busyReason
+    }
+
     private var workshopMenu: some View {
         Menu {
             let supplements = library.items.filter { $0.package != nil && artwork.info($0)?.kind != .application }
@@ -121,10 +133,10 @@ struct HomebrewView: View {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
             Button { open(.prepare) } label: {
                 Text("Prepare game")
-                if let busyReason { Text(busyReason) }
+                if let prepareBusyReason { Text(prepareBusyReason) }
             }
             .accessibilityIdentifier("workshop-prepare")
-            .disabled(busyReason != nil)
+            .disabled(prepareBusyReason != nil)
 #endif
             if developerControls {
                 Button { open(.demo) } label: { Label("Open interpreter demo", systemImage: "arcade.stick.console") }
@@ -201,18 +213,26 @@ struct HomebrewView: View {
             if phase != .active { library.stop() } else {
                 artwork.refreshPrepared()
                 signatureCheckDate = Date()
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+                refreshPaused()
+                // A warm-up iOS stopped in the background picks up where it left off.
+                WarmupJob.shared.resumeIfInterrupted()
+#endif
                 // An interruption (a call) during a cover transition can leave SwiftUI and
                 // UIKit disagreeing about what is presented. Check once things settle.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { reconcilePresentation(reason: "scene active") }
             }
         }
-        .onChange(of: library.selected?.id) { _, _ in
-            // The library asks for a game page after a single-file import.
-            guard let item = library.selected else { return }
-            library.selected = nil
-            if presentation == nil { open(.detail(item.id)) }
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        .onReceive(NotificationCenter.default.publisher(for: .SatchelNativeSessionDidEnd)) { _ in
+            // The play screen clears the package in its own observer; read it after that.
+            DispatchQueue.main.async { refreshPaused() }
         }
+#endif
         .onAppear {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+            refreshPaused()
+#endif
             artwork.sync(library.items, fileURL: library.localFile)
 #if SATCHEL_UI_PREVIEW_MINIMAL || PREVIEW_GAME
             // Preview-only dates exercise the real home banner without a signing identity.
@@ -221,11 +241,15 @@ struct HomebrewView: View {
                     games: [], now: signatureCheckDate)
             }
 #endif
-            if developerControls { library.removeRequested() }
-            if !onboardingFinished && presentation == nil {
-                if library.items.isEmpty && artwork.prepared.isEmpty { open(.onboarding) }
-                else { onboardingFinished = true }
+#if PREVIEW_GAME
+            // Preview-only: an import started from home, so the import card can be checked.
+            if !Self.previewImportUsed, let mode = UserDefaults.standard.string(forKey: "SatchelPreviewHomeImport") {
+                Self.previewImportUsed = true
+                do { library.importFiles(try CompressedImportFixture.homeSources(mode)) }
+                catch { preconditionFailure("Could not create the synthetic home import: \(error)") }
             }
+#endif
+            if developerControls { library.removeRequested() }
         }
 #if !SATCHEL_UI_PREVIEW_MINIMAL && !PREVIEW_GAME
         .task(id: "\(signatureCheckDate)-" + artwork.prepared.map(\.folder).joined(separator: ",")) {
@@ -263,7 +287,20 @@ struct HomebrewView: View {
     private func presentationEnded() {
         library.stop()
         artwork.refreshPrepared()
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        refreshPaused()
+#endif
     }
+
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+    private func refreshPaused() { pausedPackage = PreparedLaunch.current }
+
+    /// True when Play for this item returns to the game paused in the background.
+    private func resumes(_ item: HomebrewItem) -> Bool {
+        guard let pausedPackage else { return false }
+        return artwork.preparedPackage(for: item)?.folder == pausedPackage
+    }
+#endif
 
     /// Brings SwiftUI's idea of the cover back in line with what UIKit shows.
     private func reconcilePresentation(reason: String) {
@@ -298,7 +335,7 @@ struct HomebrewView: View {
                 if let item = library.items.first(where: { $0.id == id }) {
                     let entry = artwork.shelf(library.items).first { $0.id == item.id }
                     GameDetailView(library: library, artwork: artwork, item: item, updates: entry?.updates ?? [],
-                                   onPlay: playAction(for: item), onPrepare: prepareAction,
+                                   onPlay: playAction(for: item), onPrepare: prepareAction(for: item),
                                    onOpenSettings: { open(.settings) })
                 } else {
                     // The game was removed while its page was up.
@@ -309,11 +346,7 @@ struct HomebrewView: View {
                                openItem: { item in open(.detail(item.id)) },
                                openSettings: { open(.settings) })
             case .settings:
-                SettingsView(library: library, artwork: artwork, openOnboarding: { open(.onboarding) })
-            case .onboarding:
-                OnboardingView(library: library, artwork: artwork, finish: {
-                    onboardingFinished = true; close()
-                }, prepare: guidedPrepareAction)
+                SettingsView(library: library, artwork: artwork)
             case .demo:
                 InterpreterDemoView { close() }
 #if !SATCHEL_UI_PREVIEW_MINIMAL
@@ -329,6 +362,14 @@ struct HomebrewView: View {
         }
         .transition(.opacity)
         .id("\(route)")
+    }
+
+    /// "Resume" when Play returns to this game paused in the background.
+    private func playTitle(_ item: HomebrewItem) -> String {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        if resumes(item) { return "Resume" }
+#endif
+        return "Play"
     }
 
     /// Play starts the newest package prepared for this game (Play shows only when one exists).
@@ -362,17 +403,10 @@ struct HomebrewView: View {
         open(.detail(id))
     }
 
-    private var guidedPrepareAction: ((String) -> Void)? {
+    /// The game page's Prepare opens the Prepare screen with this game already chosen.
+    private func prepareAction(for item: HomebrewItem) -> (() -> Void)? {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
-        return { id in onboardingFinished = true; open(.guidedPrepare(id)) }
-#else
-        return nil
-#endif
-    }
-
-    private var prepareAction: (() -> Void)? {
-#if !SATCHEL_UI_PREVIEW_MINIMAL
-        return { open(.prepare) }
+        return { open(.guidedPrepare(item.id)) }
 #else
         return NativePlay.available ? {} : nil
 #endif
@@ -443,7 +477,7 @@ struct HomebrewView: View {
     }
 
     private var addButton: some View {
-        Button { Haptics.click(); open(.importer) } label: { Label("Add games", systemImage: "plus") }
+        Button { Haptics.click(); openImporter() } label: { Label("Add games", systemImage: "plus") }
             .disabled(library.runningID != nil)
             .accessibilityIdentifier("import-homebrew")
     }
@@ -459,10 +493,11 @@ struct HomebrewView: View {
                 statusChips(compact: compact).transition(.opacity)
             }
 #if !SATCHEL_UI_PREVIEW_MINIMAL
+            pausedGameCard
             prepareJobSlot
 #endif
+            if route != .importer { importJobCard }
             Spacer(minLength: 8)
-            if library.importing && route != .importer { importPill }
             if cut.bar == .top { inlineActions }
         }
         .frame(height: 52)
@@ -471,7 +506,49 @@ struct HomebrewView: View {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
     /// The Prepare job's card: live progress while it runs, then its result until dismissed.
     private var prepareJobSlot: some View {
-        PrepareJobSlot(library: library, artwork: artwork, open: { open(.prepare) }, play: { open(.preparedPackage($0)) })
+        PrepareJobSlot(library: library, artwork: artwork, open: { open(.prepare) }, play: { open(.preparedPackage($0)) },
+                       openWarmup: openWarmup)
+    }
+
+    /// A warm-up card opens the game page of its package, or its play screen when the
+    /// package has no imported game here.
+    private func openWarmup(_ package: String) {
+        if let item = library.items.first(where: { artwork.preparedPackage(for: $0)?.folder == package }) {
+            open(.detail(item.id))
+        } else {
+            open(.preparedPackage(package))
+        }
+    }
+
+    /// "Paused · <game> · Resume" while a game waits in the background and no cover is up.
+    @ViewBuilder private var pausedGameCard: some View {
+        if let package = pausedPackage, presentation == nil {
+            let game = artwork.prepared.first { $0.folder == package }
+            let name = game.flatMap { artwork.titleInfo($0.applicationID)?.title }
+                ?? game.flatMap { NativeGameProfile.find(titleID: String(format: "%016llX", $0.applicationID))?.name } ?? package
+            Button { Haptics.click(); open(.preparedPackage(package)) } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "pause.fill").font(.system(size: 14, weight: .black)).foregroundStyle(SatchelTheme.shell)
+                        .frame(width: 32, height: 32).background(SatchelTheme.ember, in: Circle())
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Paused").font(SatchelTheme.label(10)).tracking(1.2).foregroundStyle(SatchelTheme.textDim)
+                        Text(name).font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(SatchelTheme.text)
+                            .lineLimit(1)
+                    }
+                    SatchelButtonLabel(title: "Resume", systemImage: "play.fill", kind: .accent(SatchelTheme.ember), height: 32)
+                }
+                .padding(.leading, 9).padding(.trailing, 10)
+                .frame(height: 52)
+                .frame(maxWidth: 300, alignment: .leading)
+                .background(SatchelTheme.surface.opacity(0.94), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(SatchelTheme.ember.opacity(0.45)) }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.98, haptic: false))
+            .accessibilityLabel("Paused, \(name), Resume")
+            .accessibilityIdentifier("paused-game-card")
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 #endif
 
@@ -508,6 +585,7 @@ struct HomebrewView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) { brand; Spacer(minLength: 4); statusChips(compact: true) }.frame(height: 52)
 #if !SATCHEL_UI_PREVIEW_MINIMAL
+                pausedGameCard
                 prepareJobSlot
 #endif
                 Spacer(minLength: 0)
@@ -536,7 +614,7 @@ struct HomebrewView: View {
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
                     if searching { searchField } else { Spacer(minLength: 0) }
-                    if library.importing && route != .importer { importPill }
+                    if route != .importer { importJobCard }
                     if cut.bar == .top { inlineActions }
                 }
                 .frame(height: 52)
@@ -562,7 +640,7 @@ struct HomebrewView: View {
                     .accessibilityIdentifier("homebrew-\(entry.item.name)")
                     .accessibilityLabel("\(artwork.title(entry.item)), \(artwork.state(entry.item).label)")
                 }
-                Button { open(.importer) } label: { AddGameTile(side: max(60, side), focused: false) }
+                Button { openImporter() } label: { AddGameTile(side: max(60, side), focused: false) }
                     .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                     .accessibilityLabel("Add games").accessibilityIdentifier("add-games-tile")
             }
@@ -590,19 +668,15 @@ struct HomebrewView: View {
         .fixedSize()
     }
 
-    private var importPill: some View {
-        Button { open(.importer) } label: {
-            HStack(spacing: 8) {
-                ProgressView(value: library.importProgress ?? 0).progressViewStyle(.circular).tint(SatchelTheme.tide)
-                    .scaleEffect(0.8)
-                Text(library.importProgress.map { "Importing \(Int($0 * 100))%" } ?? "Importing…")
-                    .font(SatchelTheme.label(12)).foregroundStyle(SatchelTheme.text)
-            }
-            .padding(.horizontal, 12).frame(height: 36)
-            .background(SatchelTheme.tide.opacity(0.18), in: Capsule())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityIdentifier("import-progress-pill")
+    /// The import's card: live progress while it runs, then its result until dismissed.
+    private var importJobCard: some View {
+        ImportJobCard(library: library, artwork: artwork, open: { open(.detail($0)) }, details: { open(.importer) })
+    }
+
+    /// Every + entry point: a fresh import screen, so the last result is cleared first.
+    private func openImporter() {
+        if !library.importing { library.clearOutcome() }
+        open(.importer)
     }
 
     // MARK: Shelf
@@ -646,6 +720,9 @@ struct HomebrewView: View {
             .padding(.vertical, 14)
         }
         .scrollIndicators(.hidden)
+        // The focused tile's glow reaches past the shelf; let it bleed behind the title
+        // below instead of ending in a hard edge at the scroll view's bounds.
+        .scrollClipDisabled()
 #if !SATCHEL_UI_PREVIEW_MINIMAL
         // On the shelf, not the root: a confirmationDialog beside the root's alert left the
         // NavigationStack without its content on iOS 27.1 (a black home screen).
@@ -683,7 +760,7 @@ struct HomebrewView: View {
         let current = focusedEntry?.id ?? (focusedID == Self.addTileID ? Self.addTileID : nil)
         if id == current {
             Haptics.click()
-            if id == Self.addTileID { open(.importer) }
+            if id == Self.addTileID { openImporter() }
             else if shelfItems.contains(where: { $0.id == id }) { openEntry(id) }
         } else {
             Haptics.tick()
@@ -704,7 +781,7 @@ struct HomebrewView: View {
                         .font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 }
                 Spacer()
-                Button { open(.importer) } label: {
+                Button { openImporter() } label: {
                     SatchelButtonLabel(title: "Choose files", systemImage: "plus", kind: .accent(SatchelTheme.ember), height: 50)
                 }.buttonStyle(PressableStyle()).accessibilityIdentifier("choose-focused-files")
             }
@@ -738,7 +815,7 @@ struct HomebrewView: View {
         let buttons = HStack(spacing: 12) {
             if state == .ready, let play = playAction(for: entry.item) {
                 Button { Haptics.click(); play() } label: {
-                    SatchelButtonLabel(title: "Play", systemImage: "play.fill", kind: .accent(SatchelTheme.ember), height: 50).fixedSize()
+                    SatchelButtonLabel(title: playTitle(entry.item), systemImage: "play.fill", kind: .accent(SatchelTheme.ember), height: 50).fixedSize()
                 }.buttonStyle(PressableStyle()).accessibilityIdentifier("play-focused")
             }
             // A prepared game without an imported file has no game page: Play is its only action.
@@ -772,14 +849,13 @@ struct HomebrewView: View {
                 Text("Three steps and you're playing. Everything happens on this iPhone.")
                     .font(.system(size: 15, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
-                if library.importing { importPill.padding(.top, 6) }
             }
             .frame(maxWidth: compact ? 200 : 300, alignment: .leading)
             HStack(spacing: compact ? 10 : 14) {
                 welcomeStep(compact, 1, "Add keys", "Import prod.keys from your console.", "key.fill", SatchelTheme.spark,
                             done: artwork.keysAvailable, button: artwork.keysAvailable ? "Keys ready" : "Import keys") { open(.settings) }
                 welcomeStep(compact, 2, "Add a game", "XCI, NSP, XCZ or NSZ, plus its update.", "plus", SatchelTheme.ember,
-                            done: false, button: "Choose files") { open(.importer) }
+                            done: false, button: "Choose files") { openImporter() }
                 welcomeStep(compact, 3, "Prepare and play", "\(AppBrand.name) readies it for iPhone.", "play.fill", SatchelTheme.leaf,
                             done: false, button: nil) {}
             }

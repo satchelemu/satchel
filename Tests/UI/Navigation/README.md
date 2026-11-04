@@ -56,19 +56,28 @@ one-app scheme.
   Add DLC for a newer imported version or additional DLC, and the Prepare explanation
   without a package. Running work disables Add DLC, can be cancelled through the real
   job, preserves imports and packages, and refuses Play and confirmed removal.
-- Simulator only: empty-library first-run gating, skip persistence, Settings > About >
-  Getting started, all four guide steps with preseeded synthetic keys and a local base,
-  and Open Prepare selecting that base. Key and direct/nested storage errors from a
-  synthetic discovery worker pass through the real Prepare job and recovery UI.
+- Simulator only: the game page's Prepare opens Prepare with the game's imported base
+  already selected, also after background and return. Key and direct/nested storage
+  errors from a synthetic discovery worker pass through the real Prepare job and
+  recovery UI.
+- Simulator only: an import started from the home screen shows its card while it runs,
+  then "Added" with Open (nothing opens by itself) or "Couldn't add" with Details, which
+  opens the import screen with the result. The card stays until dismissed; + starts fresh.
+- Simulator only: Library from the pause menu leaves a "Paused · Resume" card on the home
+  header that reopens the paused game; Play reads Resume; Workshop > Prepare is disabled
+  with "Quit the game before preparing another."
+- Simulator only: shader warm-up lives on the game page. The home card opens that page;
+  Pause there leaves Resume; a finished warm-up leaves the home header but the game page
+  keeps showing it as warmed up, with Warm up again.
 - Simulator only: upcoming, absent and expired signature reminders with synthetic dates.
 
 - Simulator only: Prepare > Game diagnostics renders two sanitized missing-service rows
   with command, optional method, first-seen frame and count. Zero-byte, empty-array,
   malformed and oversized JSON must leave the sheet responsive with no service rows
   or raw payload. Each case closes and reopens the real sheet, then returns to the library.
-- Simulator only: first-run install help opens in both landscape orientations, scrolls
-  through the bundled installation and refresh sections, and closes back to the same
-  onboarding step without completing it.
+- Settings > About > Install and refresh help opens in both landscape orientations,
+  scrolls through the bundled installation and refresh sections, and closes back to
+  Settings. First launch lands on the home screen; there is no separate guide.
 - Simulator only: Quit from the SwiftUI pause menu returns to a usable library in the
   same process, then a different prepared title starts, pauses and resumes. The exact
   host event sequence requires stop completion before the second start.
@@ -233,18 +242,17 @@ Manual hardware steps, performed by the orchestrator in a separate session:
    With suitable permitted inputs, start Add DLC, attempt Play and Remove, then cancel.
    Require refusal messages and unchanged package/imports. Real transactional integrity
    and publication require separate device validation by the owning orchestrator.
-9. In a fresh isolated app container, follow first-run onboarding, check the keys gate,
-   skip and reopen Getting started from Settings > About. After the user imports their
-   own keys and a permitted base, follow Open Prepare and check the selected base.
-   Inspect signature reminders without changing device time or certificate contents.
-   Do not clear the installed Satchel library to manufacture a first-run condition.
+9. After the user imports their own keys and a permitted base, open its game page and
+   press Prepare: check the selected base. Inspect signature reminders without changing
+   device time or certificate contents. Do not clear the installed Satchel library to
+   manufacture a first-run condition.
 
 10. Open Prepare after a permitted preparation attempt, choose Game diagnostics, and
     check safe service rows and Done in both rotations. Malformed and oversized file
     scenarios require an isolated synthetic test container, never editing user reports.
-11. Open Getting started, then install help in each landscape orientation. Scroll through
-    SideStore, AltStore Classic, refresh guidance and First launch. Close help and require
-    the same onboarding step. Do not alter accounts or signing identities.
+11. Open Settings > About > Install and refresh help in each landscape orientation. Scroll
+    through SideStore, AltStore Classic, refresh guidance and First launch. Close help and
+    require Settings again. Do not alter accounts or signing identities.
 12. Play an allowed prepared game, pause, Quit and confirm. Require the library without
     process exit, then launch a different allowed prepared game and verify pause/resume.
     This hardware check is needed to establish real native teardown and restart.

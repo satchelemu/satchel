@@ -98,6 +98,7 @@ struct PrepareGameView: View {
     /// Why Prepare cannot start yet, or nil when it can.
     private var startBlocked: String? {
         if job.running { return lockedReason }
+        if PrepareJob.gameSessionOpen { return PrepareJob.sessionBlocked }
         if warmup.running { return "Pause shader warm-up before preparing another game." }
         if !artwork.keysAvailable { return FirstRunHelp.noKeys }
         if bases.isEmpty { return "Import a base game (XCI or NSP) first." }
@@ -131,7 +132,7 @@ struct PrepareGameView: View {
             TextField("Title ID (optional for multi-title dumps)", text: $applicationID)
                 .textInputAutocapitalization(.characters).autocorrectionDisabled().disabled(job.running)
                 .accessibilityIdentifier("prepare-title-id")
-            Text("New titles use experimental settings. Unsupported features are explained in the game report. Matching reviewed settings and shader packs are reused when available. Known shaders warm up after verification. You can play before warm-up finishes; new shaders still build on first use and can cause pauses. Preparation keeps going when you close this screen or switch apps.")
+            Text("Preparation keeps going when you close this screen or switch apps. Known shaders warm up afterwards; the game page shows their progress. New titles use experimental settings, explained in the game report.")
                 .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
@@ -355,13 +356,15 @@ struct PrepareJobSlot: View {
     let open: () -> Void
     /// Opens a finished package (its folder name) in the prepared games list.
     let play: (String) -> Void
+    /// Opens the game page (or play screen) of the package a warm-up is for.
+    let openWarmup: (String) -> Void
     @ObservedObject private var job = PrepareJob.shared
     @ObservedObject private var warmup = WarmupJob.shared
 
     var body: some View {
         // A finished warm-up leaves the header: only running, paused or failed work stays.
         if let journal = warmup.journal, warmup.running || (!job.running && ["paused", "failed"].contains(journal.progress.state)) {
-            WarmupHomeCard(open: open, play: play)
+            WarmupHomeCard(open: openWarmup, play: play)
         } else if job.running || job.outcome != nil {
             PrepareJobCard(job: job, art: library.items.first { $0.id == job.baseID }.flatMap(artwork.image),
                            retry: { job.retry(library: library, artwork: artwork, title: artwork.title) }, open: open, play: play)

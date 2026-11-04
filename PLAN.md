@@ -115,6 +115,7 @@ Device owner: the orchestrator only. Workers report "ready to install" with exac
 | Fill-screen modes with in-game toggle, 30/60 FPS and render scale settings, controller check | `display` (Codex) | running |
 | Switch-inspired redesign: artwork library, import flow, settings | `redesign` (Opus 5.5 session, branch `app-redesign`) | running |
 | More games: Super Mario Odyssey 1.4.1 (profile exists), Castlevania: Belmont's Curse (new profile), multi-game dev app | `games` (Codex, branch `more-games`) | running |
+| App shell audit (first launch, import, Prepare, warm-up, game page, leaving a game): findings and fixes in `docs/app-audit-2026-11-03.md` | Opus 5.5 session | items 1 to 10 implemented; both simulator previews build and the targeted suite passes; signed Release build installed on the phone 2026-11-04 and the user checked the new import (iCloud progress, background, home card), warm-up and paused-game flows there |
 | Rename to Satchel, part 2 | orchestrator | tracked-tree names updated; external relocation, dependency rebuilds and phone reinstall require separate validation |
 
 ## Rename to Satchel (clean-break decision 2026-11-03)

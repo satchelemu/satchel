@@ -468,6 +468,7 @@ struct PrepareJobSlot: View {
     @ObservedObject var artwork: GameArtworkStore
     let open: () -> Void
     let play: (String) -> Void
+    let openWarmup: (String) -> Void
     var body: some View { EmptyView() }
 }
 

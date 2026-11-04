@@ -48,7 +48,8 @@ The SideStore source generator.
 `SatchelNavigation` runs every app screen against synthetic library data in the iOS
 Simulator: home, search, import (including split and compressed containers), Prepare,
 settings, identity, saves, DLC rows, quit and relaunch, signature reminders, game
-diagnostics, onboarding. It is read-only on a phone and mutating only on the simulator.
+diagnostics, install help, the import, warm-up and paused-game cards. It is read-only on a
+phone and mutating only on the simulator.
 
 ```bash
 python3 -B NativeApp/build.py --ui-tests-simulator

@@ -22,7 +22,7 @@ with no computer involved.
 | Controllers and input | 80% | Xbox, DualSense and Pro Controller; touch controls; rumble. Controller mapping UI and a controller shortcut for the menu are missing. |
 | In-game menu | 75% | Pause, resume, library, quit, screen fit, FPS counter, DLC. Audio volume, touch control size and opacity, controller layout are missing. |
 | iPhone Duo postures (closed, open, half folded) | 60% | Open and closed screens work; half folded layout and live relayout while playing are built but not fully verified. |
-| Library and app UI | 85% | Redesigned library with real artwork, import flow, settings, onboarding, signature expiry warnings, save export and import. |
+| Library and app UI | 85% | Redesigned library with real artwork, import flow that keeps going in the background with iCloud download progress, home cards for import, Prepare, warm-up and a paused game, shader warm-up on each game page, settings with the bundled install guide, signature expiry warnings, save export and import. |
 | Build reproducibility | 25% | Builds only on the maintainer's Mac with a dependency snapshot. See BUILDING.md. |
 | Distribution (IPA, SideStore source, refresh) | 40% | Install guide and source generator exist; no published IPA or source URL yet. |
 | General importer (unknown games boot without a per-game profile) | 50% | A starter profile is generated from the game's own metadata; Castlevania ran on it with one memory rule. More games will find more gaps. |
