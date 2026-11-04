@@ -2,7 +2,7 @@
 
 Where Satchel stands and what is left, with a rough completion percentage per area. The
 percentages are the maintainer's judgment of how much of the end state is done and
-verified on the phone, not a count of tasks. Updated 2026-11-03.
+verified on the phone, not a count of tasks. Updated 2026-11-04.
 
 The end state: one sideloaded app. Import any Switch game you own from iCloud, prepare it
 on the phone, and play it with a controller or touch at the frame rate the game expects,
@@ -13,10 +13,10 @@ with no computer involved.
 | Area | Done | Status |
 |---|---|---|
 | Import (XCI, XCZ, NSP, NSZ, split dumps, updates, DLC, artwork) | 90% | Works for the four tested games. Compressed PartitionFS, newer encryption layouts and some bucket tree layouts still fail explicitly. |
-| Prepare on the phone (compose, RomFS image, ARM64 rewrite, dylib, sign) | 85% | Byte-identical to the Mac pipeline for Zelda; runs end to end as a background task. Speed (the 17 GB file is read more than once) and plain progress for every step are open. |
+| Prepare on the phone (compose, RomFS image, ARM64 rewrite, dylib, sign) | 88% | Byte-identical to the Mac pipeline for Zelda; runs end to end as a background task. After a clean reinstall on 2026-11-04, Zelda, Odyssey and Castlevania were all prepared on the phone with no Mac step and each booted from its phone-made package. Speed (the 17 GB file is read more than once) and plain progress for every step are open. |
 | Code signing on the phone | 90% | Works with the user's Apple Development identity. The app derives the accepted team from its own signature, so any developer account works; verified so far only with the maintainer's. |
-| Shaders on the phone (translate, compile, cache) | 70% | All of Zelda's 71,621 shaders translate and compile on the phone; first use is cached per game. Builds still happen on the frame thread in places, so first play stutters. Geometry and tessellation stages are not translated. |
-| Horizon services | 60% | Eight IPC rounds plus a measured SDK file-flush correction from NX2Apple and Ryujinx (fs, hid, time, settings, account, applet, audio, parental control, friends, network stubs, play reports, DLC). Each new game reports what it still misses. |
+| Shaders on the phone (translate, compile, cache) | 70% | All of Zelda's 71,621 shaders translate and compile on the phone; first use is cached per game. Builds still happen on the frame thread in places, so first play stutters. The optional warm-up for a phone-prepared game translates every shader on the phone and is slow (about 1.5 seconds per shader for Odyssey's 25,316, so many hours); play is available while it runs. Geometry and tessellation stages are not translated. |
+| Horizon services | 60% | Eight IPC rounds plus a measured SDK file-flush correction from NX2Apple and Ryujinx (fs, hid, time, settings, account, applet, audio, parental control, friends, network stubs, play reports, DLC). Each new game reports what it still misses; all three phone-prepared games reported none on 2026-11-04. |
 | Graphics (NVN on Metal) | 65% | Zelda, Odyssey, Castlevania and Mario Kart render correctly. Zelda at 100% render scale does not hold 30 FPS yet; anti-aliasing at low render scale is rough. |
 | Performance and stability | 60% | Two hour Zelda session without a crash. Memory growth between scenes and one post-session launch hang are open. |
 | Controllers and input | 80% | Xbox, DualSense and Pro Controller; touch controls; rumble. Controller mapping UI and a controller shortcut for the menu are missing. |
