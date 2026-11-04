@@ -82,11 +82,15 @@ def prepare_fs(source, destination):
     text = re.sub(r'\bmount_t\b', 'satchel_fs_mount_t', text)
     text = re.sub(r'\bmount(?=\s*\()', 'satchel_fs_mount', text)
     text = (HERE / 'Round8Trace.inc').read_text() + '\n' + text
-    text = replace(text, '#include "save_sync.h"', '#include "save_sync.h"\nstatic uint32_t satchel_fs_sdk_free_space(int64_t *, const char *);')
+    text = replace(text, '#include "save_sync.h"', '#include "save_sync.h"\nstatic uint32_t satchel_fs_sdk_free_space(int64_t *, const char *);\nstatic uint32_t satchel_fs_sdk_flush(uint64_t);')
     text = replace(text, '(void)path; if (out) *out = 256 << 20; return RES_OK;',
                    'return satchel_fs_sdk_free_space(out, path);')
     text = replace(text, 'fsp-srv; free space of a mount: 256 MB (the host directory has no size limit of its own)',
                    'fsp-srv; available bytes on a registered mount filesystem')
+    text = replace(text, 'h_fs_FlushFile, uint64_t h) { (void)h; return RES_OK; }',
+                   'h_fs_FlushFile, uint64_t h) { return satchel_fs_sdk_flush(h); }')
+    text = replace(text, 'host writes are already in the page cache, flushing is a no-op',
+                   'flush the backing file and propagate failure')
     text = replace(text, 'if (g_nmnt >= MAX_MOUNT) die("mount table full");',
                    'if (g_nmnt >= MAX_MOUNT) { pthread_mutex_unlock(&g_lock); return ((105u << 9) | 1u); }')
     text += '\n' + (HERE / 'FileQueries.inc').read_text()

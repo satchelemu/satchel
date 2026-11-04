@@ -56,7 +56,7 @@ archives = [host / 'DerivedData/Build/Products/Release-iphoneos' / ('lib' + name
             for name in ['SatchelNativeHost', 'SatchelNativeGraphics', 'SatchelNativeMedia']]
 env = dict(os.environ, SATCHEL_HOST_OUT=str(host), PYTHONDONTWRITEBYTECODE='1')
 if not stamp.exists() or json.loads(stamp.read_text()) != fingerprint or not all(p.is_file() for p in archives):
-    run(['nice', '-n', '10', sys.executable, '-B', ROOT / 'NativeHost/build.py', '--archives-only'], env)
+    run(['nice', '-n', '10', sys.executable, '-B', ROOT / 'NativeHost/build.py', '--archives-only'] + (['--unsigned'] if args.unsigned else []), env)
     stamp.write_text(json.dumps(fingerprint) + '\n')
 env['SATCHEL_PREPARE_OUT'] = str(OUT / ('bridge' if args.migration_bridge else 'app'))
 run(['nice', '-n', '10', sys.executable, '-B', ROOT / 'NativePrepare/build-dev.py',

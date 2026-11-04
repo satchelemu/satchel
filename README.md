@@ -139,6 +139,8 @@ Contributions are welcome, from compatibility reports to engine work. Start with
 1. Make the build reproducible on a clean Mac, and try the build with a second Apple account.
 2. Try more games and file compatibility reports with the app's game report attached.
 3. Horizon services: port missing commands from Ryujinx (MIT) when a game reports them.
+   The [service harness](NativeHost/services/README.md) records Mac SDK call counts and
+   tests save behavior with private copies.
 4. Shader stalls: asynchronous pipeline builds and a better first-play warm-up.
 5. Memory: keep long sessions and scene changes inside the phone's limits.
 

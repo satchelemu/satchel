@@ -36,6 +36,38 @@ Frame rates are measured with the in-game FPS counter or the host's own frame lo
 
 ## Homebrew and diagnostics
 
+### Mac service regression, 2026-11-04
+
+Three 330-second baseline runs used existing packages and private save copies.
+Castlevania reached its opening area after the boat dialogue. Odyssey reached
+Cap Kingdom, saved to a second slot and reloaded it. Zelda reached Great Sky
+Island and saved; its baseline reload was started too late to verify before the
+time limit. All three runs had zero missing IPC entries, unresolved SDK calls,
+aborts or crashes. SDK counters recorded 10 no-op `FlushFile` calls in Odyssey
+and eight in Zelda, which motivated the round 9 backing-file flush correction.
+
+After the correction, all three repeated 330-second runs passed with zero missing
+IPC entries, unresolved SDK calls, aborts or crashes. Castlevania made four save
+commits, Odyssey 12 and Zelda four. Odyssey's six and Zelda's eight `FlushFile`
+calls all reached the new implementation and succeeded. All three private save
+seeds retained their original hashes.
+
+Visual checks confirmed Castlevania's boat-to-opening-area transition, Odyssey's
+new File 2 marked as playing after reload, and Zelda's loading screen followed by
+Great Sky Island gameplay. Movement worked after both reloads. The Odyssey and
+Zelda checks cover reloading the same area, not travel to another kingdom or
+region. Missing IPC entries were already zero before the correction, so these
+runs demonstrate removal of an exercised SDK no-op, not fewer missing IPC rows.
+
+These are Mac observations, not new phone ratings. The diagnostic renderer used
+existing compiled shaders for Castlevania and an optional in-memory compiler for
+the retained Odyssey and Zelda Metal source caches. An earlier fresh-save Odyssey
+run exited with signal 11 before that option was enabled; its cause is not
+established. Seeded runs with the option reached visible gameplay. Frame-gate
+success alone is not evidence of gameplay or scene coverage.
+
+### Interpreter diagnostics
+
 The interpreter route (`Core/`, `Tools/CPUProbe`) still runs the MIT-licensed
 [TicTacToeNX](https://github.com/sh3rlock97/tictactoe) NRO at about 0.8 FPS and the
 original brick-breaker demo. These are diagnostics, not the way games run. They are
