@@ -24,13 +24,18 @@ final class NavigationJourneyTests: XCTestCase {
         if name.contains("testSimulatorSignatureExpiry") {
             app.launchArguments += ["-SatchelPreviewSignatureDays", "2"]
         }
-        if name.contains("testSimulatorPanelControls") {
-            let screen = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewScreen"))
-            app.launchArguments[screen + 1] = "settings"
-            app.launch()
-            _ = try button("close-settings")
-            return
-        }
+        // These journeys launch their own fixture and assert its entry screen.
+        // Avoid launching and immediately terminating an unrelated default library.
+        let fixtureFamilies = ["testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave"]
+        let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
+            "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
+            "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
+            "testGamePagePrepareSelectsBase", "testPrepareKeyAndStorageRecoveryMessages",
+            "testRemovePreparedGameRemovesAllContentAndTile", "testRemoveOnlyUpdateKeepsPreparedGameAndDLC",
+            "testPrepareDLCRowTracksBaseSelection", "testControllerRumblePersistsPerGame",
+            "testQuitReturnsHomeAndCanLaunchAgain", "testQuitThenStartDifferentPreparedGame",
+            "testPlainMenuQuitReturnsHome", "testLibraryPausesAndResumes", "testPausedGameCardResumes", "testSwitchingGameStopsFirst"]
+        if (fixtureFamilies + fixtureJourneys).contains(where: { name.contains($0) }) { return }
 #endif
         app.launch()
         _ = try button("import-homebrew")
@@ -333,12 +338,14 @@ final class NavigationJourneyTests: XCTestCase {
         if let scroll, !matches.allElementsBoundByIndex.contains(where: { $0.isHittable }) {
             revealControl(matches.firstMatch, in: scroll)
         }
-        var readyControl: XCUIElement?
-        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            readyControl = matches.allElementsBoundByIndex.first { $0.isHittable }
-            return readyControl != nil
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed, "Control is covered: \(id)")
+        var readyControl = matches.allElementsBoundByIndex.first { $0.isHittable }
+        if readyControl == nil {
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                readyControl = matches.allElementsBoundByIndex.first { $0.isHittable }
+                return readyControl != nil
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed, "Control is covered: \(id)")
+        }
         let control = try XCTUnwrap(readyControl, "Control is covered: \(id)")
         XCTAssertTrue(control.isEnabled, "Control must be enabled: \(id)")
         return control
@@ -979,6 +986,26 @@ final class NavigationJourneyTests: XCTestCase {
         }
     }
 
+    func testImportCancelledThenRestarted() throws {
+        app.terminate()
+        app.launchArguments = ["-SatchelDeveloperControls", "NO", "-SatchelPreviewDemo", "empty",
+            "-SatchelPreviewScreen", "compressed-import", "-SatchelPreviewKeys", "NO",
+            "-SatchelPreviewCompressedFormat", "nsz", "-SatchelPreviewImportCancellation", "YES"]
+        app.launch()
+        try tap("fixture-import-package")
+        fixtureText("fixture-import-cancellation", equals: "items=0 partial=1 source=unchanged")
+        try tap("cancel-import", scroll: app.scrollViews.firstMatch)
+        XCTAssertTrue(app.staticTexts["Stopped importing Synthetic import"].waitForExistence(timeout: 8))
+        fixtureText("fixture-import-cancellation", equals: "items=0 partial=0 source=unchanged")
+        backgroundAndReturn(app.buttons["close-import"].firstMatch)
+        try tap("fixture-import-package")
+        XCTAssertTrue(app.staticTexts["ADDED TO YOUR LIBRARY"].waitForExistence(timeout: 15))
+        fixtureText("fixture-import-cancellation", equals: "items=1 partial=0 source=unchanged")
+        fixtureText("fixture-import-integrity", equals: "one complete byte-identical container")
+        XCTAssertEqual(app.staticTexts["fixture-imported-formats"].label, "nsz")
+        XCTAssertFalse(app.buttons["cancel-import"].exists)
+    }
+
     private func launchHomeImport(_ mode: String) throws -> XCUIElement {
         app.terminate()
         app.launchArguments += ["-SatchelPreviewHomeImport", mode]
@@ -1153,6 +1180,55 @@ final class NavigationJourneyTests: XCTestCase {
         fixtureText("fixture-warmup-state", equals: "running:running")
         _ = try button("warmup-home-card")
         XCTAssertFalse(app.buttons["warmup-home-dismiss"].exists)
+    }
+
+    func testGamePageWithoutWarmupRecord() throws {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewWarmupTests", "YES"]
+        app.launch()
+        fixtureText("fixture-warmup-state", equals: "idle:none")
+        try focus(where: { self.app.buttons["open-focused"].exists && self.app.buttons["play-focused"].exists },
+                  reason: "prepared game with no warm-up record")
+        try tap("open-focused")
+        let status = app.descendants(matching: .any)["warmup-status"]
+        revealControl(status, in: app.scrollViews["detail-scroll"])
+        XCTAssertTrue(status.label.contains("Builds this game's known shaders ahead of time"), status.label)
+        let start = try button("warmup-start", scroll: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(start.label, "Warm up")
+        XCTAssertFalse(app.buttons["warmup-play"].exists, "The game page already has its own Play action")
+        start.tap()
+        _ = try button("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        try tap("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        backgroundAndReturn(app.buttons["close-game-detail"].firstMatch)
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        XCTAssertTrue(try button("warmup-start", scroll: app.scrollViews["detail-scroll"]).label.contains("Resume"))
+        XCTAssertFalse(app.descendants(matching: .any)["warmup-status"].label.contains("Stopped by iOS"),
+                       "A user pause must not auto-resume on activation")
+    }
+
+    private func interruptedWarmup(lateAcknowledgement: Bool) throws {
+        app.launchArguments += ["-SatchelPreviewWarmupExpire", "YES",
+            "-SatchelPreviewWarmupHoldCancellation", lateAcknowledgement ? "YES" : "NO"]
+        try startWarmupFixture()
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        if lateAcknowledgement { try tap("fixture-warmup-release") }
+        fixtureText("fixture-warmup-lifecycle", equals: "starts=2 interrupted=1")
+        fixtureText("fixture-warmup-state", equals: "running:running")
+        try tap("warmup-home-card")
+        _ = try button("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        let status = app.descendants(matching: .any)["warmup-status"]
+        XCTAssertTrue(status.label.contains("Synthetic shader work"), status.label)
+        try tap("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+    }
+
+    func testWarmupSystemStopResumesOnReturn() throws {
+        try interruptedWarmup(lateAcknowledgement: false)
+    }
+
+    func testWarmupSystemStopAcknowledgedAfterReturnResumes() throws {
+        try interruptedWarmup(lateAcknowledgement: true)
     }
 
     func testWarmupHomeCardDisappearsWhenFinished() throws {
@@ -1546,6 +1622,7 @@ final class NavigationJourneyTests: XCTestCase {
 
     /// Menu > Library leaves a card on the home header; Play reads Resume for that game.
     func testPausedGameCardResumes() throws {
+        app.launchArguments += ["-SatchelPreviewDLC", "included", "-SatchelPreviewKeys", "YES"]
         try startSessionFixture()
         try tap("game.pause")
         try tap("menu-library")
@@ -1568,6 +1645,26 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertTrue(prepare.waitForExistence(timeout: 8))
         XCTAssertFalse(prepare.isEnabled, "Prepare must not start beside a paused game")
         XCTAssertTrue(prepare.label.contains("Quit the game before preparing another."), prepare.label)
+        // UIKit dismisses the toolbar menu when the app backgrounds. Reuse the
+        // lifecycle route, retaining the paused session and requiring a usable home.
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        absent(prepare)
+        try tap("paused-game-card")
+        try tap("menu-quit")
+        try tap("Quit game")
+        _ = try button("import-homebrew")
+        sessionState("started=0 paused=0 package=none")
+        absent(app.buttons["paused-game-card"])
+        XCTAssertFalse(try button("play-focused").label.contains("Resume"))
+        try workshop("workshop-prepare")
+        try tap("prepare-base")
+        try tap("Lantern Drift [Base]")
+        _ = try button("prepare-start", scroll: app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch)
+        try tap("close-prepare")
+        try tap("open-focused")
+        _ = try button("warmup-start", scroll: app.scrollViews["detail-scroll"])
+        XCTAssertFalse(app.staticTexts["warmup-start-reason"].exists,
+                       "Quitting the session must also release the warm-up gate")
     }
 
     func testSwitchingGameStopsFirst() throws {

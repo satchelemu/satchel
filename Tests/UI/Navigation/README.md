@@ -4,7 +4,9 @@ The `SatchelNavigation` suite targets the single Satchel app. Phone tests stay r
 no game launch, Prepare, removal, file selection, identity changes or sample imports.
 Launch preferences disable automatic Prepare/play and legacy cleanup, and hide developer
 controls. Missing phone-library prerequisites produce explicit skips. Every invoked control
-must exist, be enabled and hittable. Synthetic Simulator prerequisites fail if missing.
+must exist, be enabled and hittable. A control that is already hittable proceeds
+immediately; otherwise the same bounded readiness wait applies. Fixture journeys launch
+their own prerequisites directly instead of first opening an unused default library. Synthetic Simulator prerequisites fail if missing.
 
 The full suite is this navigation target. The older `Tests/UI/*JourneyTests.swift` target
 uses retired interpreter screens and mutates content, so it is not part of the canonical
@@ -69,6 +71,14 @@ one-app scheme.
 - Simulator only: shader warm-up lives on the game page. The home card opens that page;
   Pause there leaves Resume; a finished warm-up leaves the home header but the game page
   keeps showing it as warmed up, with Warm up again.
+- Simulator only: cancel a partially copied 2 MiB synthetic import, require no library
+  entry or temporary copy and unchanged source bytes, then restart and require one
+  byte-identical container. The production importer performs cancellation and cleanup.
+- Simulator only: a game with no warm-up record offers Warm up; a user pause survives
+  background and return. System expiration resumes on return, including cancellation
+  acknowledged only after the app is active again.
+- Simulator only: Prepare is disabled beside a paused game, then enabled after Quit
+  with a selected local base and synthetic keys. The game's warm-up also becomes available.
 - Simulator only: upcoming, absent and expired signature reminders with synthetic dates.
 
 - Simulator only: Prepare > Game diagnostics renders two sanitized missing-service rows
@@ -102,7 +112,7 @@ with synthetic library records, artwork, manifests, host and signer. It loads no
 The compression fixture refuses decoder creation; import checks stop at container validation.
 The project generator stages `PreparedGame.swift` outside the checkout and replaces only the
 call to the device package verifier with `PreviewPackage.verify`. The view's actual
-stop-before-switch, notification and dismissal logic is unchanged. The fixture verifier
+stop-before-switch, notification and dismissal logic is unchanged. The fixture session verifier
 accepts only its two named synthetic packages and requires an explicit launch flag.
 `GameFixture.m` records start, stop request and asynchronous stop completion for ordering
 assertions. These assertions establish UI routing against a host stand-in, not native
@@ -123,10 +133,18 @@ The harness includes the production warm-up job, panel and home slot. With the e
 `SatchelPreviewWarmupTests` flag, its runner emits controlled synthetic progress and
 completion, cancellation or failure. Other runner requests still fail explicitly. The
 fixture starts the real job with `verified: true` because its manifests contain no game
-code. It performs no package verification, shader translation or compilation. The progress
+code. The generator also stages `WarmupJob.swift` with only the verifier call replaced
+by a flag-gated synthetic verifier, allowing Resume and the game page's Warm up to
+exercise the real job. A fixture context receives the production expiration callback
+when the app backgrounds; another case withholds cancellation acknowledgement until
+return. This tests recovery routing, not the operating system's expiration schedule.
+It performs no real package verification, shader translation or compilation. The progress
 model is staged from production source. The preview requires iOS 26 APIs; validation uses
 iOS 27.1. `NavigationFixFixture` exposes persisted synthetic records and file counts to
-verify removal beyond the visible tile. No production sources are changed.
+verify removal beyond the visible tile. The import cancellation case stages `SwitchPackageImport.swift` with a single hold
+callback after a copied chunk. The hold applies once under an explicit fixture flag;
+all cancellation checks, file cleanup and publication remain production code. It uses
+2 MiB of synthetic bytes, not large sparse files or real games.
 
 `OnboardingDLCFixture` replaces the preview target's `AddOnUpdate` transaction only.
 `AddOnJob`, the game page and the Play/Remove guards remain production source. The worker
@@ -164,22 +182,27 @@ session tests invoke that button directly within their Simulator-only code.
 
 Run from the checkout containing the changes. `NativeApp/build.py --ui-tests-simulator`
 selects the isolated UI harness without building device archives. The existing native
-build remains the default. The fixture uses display overlay headers already provisioned
-under `~/SatchelBuild/display2`.
+build remains the default. The generator applies the current display patches to the
+pinned engine under
+`$SATCHEL_DEPS_ROOT/NX2Apple/engine` (default `~/SatchelDeps/NX2Apple/engine`).
+Its overlay lives under the selected output folder; it does not reuse another
+worker's generated gamepad source.
 
 ```zsh
-cd "$HOME/SatchelBuild/uitests3/wt6"
-SATCHEL_OUT="$HOME/SatchelBuild/uitests3/run8" \
-ANYGAME_OUT="$HOME/SatchelBuild/uitests3/run8" \
+cd "$HOME/SatchelBuild/uitests3/wt-ui-tests-9"
+SATCHEL_OUT="$HOME/SatchelBuild/uitests3/run9" \
+ANYGAME_OUT="$HOME/SatchelBuild/uitests3/run9" \
+SATCHEL_BUILD_ROOT="$HOME/SatchelBuild" SATCHEL_DEPS_ROOT="$HOME/SatchelDeps" \
 SATCHEL_UI_SIMULATOR=B1F54F54-BA40-4A62-86E7-2E9E6AF666C0 \
 nice -n 10 python3 -B NativePrepare/guard.py \
-  python3 -B NativeApp/build.py --ui-tests-simulator \
-  > "$HOME/SatchelBuild/uitests3/full-8.log" 2>&1
+  python3 -B NativeApp/build.py --unsigned --ui-tests-simulator \
+  > "$HOME/SatchelBuild/uitests3/full-9.log" 2>&1
 ```
 
 The shared guard waits for heavy compilers and shader drivers, enforces a stricter 9 GiB
 per-process RSS limit and stops before free disk reaches 35 GiB. Xcode uses two jobs and
-serial testing. Each run writes a timestamped xcresult under `SATCHEL_OUT`. The default
+serial testing, building only the selected simulator architecture. Each run writes a
+timestamped xcresult under `SATCHEL_OUT`. The default
 Simulator is the task-owned `Satchel uitests3`, Duo iOS 27.1,
 `B1F54F54-BA40-4A62-86E7-2E9E6AF666C0`. Override with `SATCHEL_UI_SIMULATOR`. Targeted
 investigations can set `SATCHEL_UI_ONLY_TESTING` to comma-separated method names; omit it

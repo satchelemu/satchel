@@ -160,9 +160,17 @@ private struct PreviewRoot: View {
                     VStack {
                         Button("Import synthetic package") {
                             let format = UserDefaults.standard.string(forKey: "SatchelPreviewCompressedFormat") ?? "nsz"
-                            do { library.importFiles(try CompressedImportFixture.sources(format: format)) }
+                            do {
+                                let sources = try CompressedImportFixture.sources(format: format)
+                                try ImportCancellationFixture.selected(sources)
+                                library.importFiles(sources)
+                            }
                             catch { preconditionFailure("Could not create synthetic container: \(error)") }
                         }.accessibilityIdentifier("fixture-import-package")
+                        if UserDefaults.standard.bool(forKey: "SatchelPreviewImportCancellation") {
+                            Text(ImportCancellationFixture.state(library))
+                                .accessibilityIdentifier("fixture-import-cancellation")
+                        }
                         Text(CompressedImportFixture.integrity(library))
                             .accessibilityIdentifier("fixture-import-integrity")
                         Text(library.items.map { $0.fileExtension }.joined(separator: ","))

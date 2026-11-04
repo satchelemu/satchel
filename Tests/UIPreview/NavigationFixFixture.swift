@@ -17,6 +17,8 @@ enum NavigationFixFixture {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "SatchelWarmupJob")
         defaults.removeObject(forKey: "SatchelPreviewWarmupFinish")
+        defaults.removeObject(forKey: "SatchelPreviewWarmupRelease")
+        defaults.removeObject(forKey: "SatchelPreviewWarmupStarts")
         guard defaults.bool(forKey: "SatchelPreviewFixTests"), defaults.string(forKey: "SatchelPreviewDemo") == "library" else { return }
         do {
             let fm = FileManager.default
@@ -68,6 +70,8 @@ enum NavigationFixFixture {
 
 struct NavigationWarmupControls: View {
     @ObservedObject private var job = WarmupJob.shared
+    @State private var context: WarmupJob.Context?
+    @State private var interrupted = false
     var body: some View {
         VStack {
             Button("Start synthetic warm-up") {
@@ -75,12 +79,25 @@ struct NavigationWarmupControls: View {
                 guard let context = job.begin(package: package, title: "Lantern Drift", keepAlive: false) else {
                     preconditionFailure("Synthetic warm-up could not begin")
                 }
+                self.context = context
                 DispatchQueue.global(qos: .utility).async { WarmupJob.perform(context, verified: true) }
             }.accessibilityIdentifier("fixture-warmup-start").disabled(job.running)
             Button("Finish synthetic work") { UserDefaults.standard.set(true, forKey: "SatchelPreviewWarmupFinish") }
                 .accessibilityIdentifier("fixture-warmup-finish")
             Text("\(job.running ? "running" : "idle"):\(job.journal?.progress.state ?? "none")")
                 .accessibilityIdentifier("fixture-warmup-state")
+            if UserDefaults.standard.bool(forKey: "SatchelPreviewWarmupHoldCancellation") {
+                Button("Release cancellation acknowledgement") { UserDefaults.standard.set(true, forKey: "SatchelPreviewWarmupRelease") }
+                    .accessibilityIdentifier("fixture-warmup-release")
+            }
+            Text("starts=\(UserDefaults.standard.integer(forKey: "SatchelPreviewWarmupStarts")) interrupted=\(interrupted ? 1 : 0)")
+                .accessibilityIdentifier("fixture-warmup-lifecycle")
         }.font(.system(size: 10))
+        .onReceive(job.$journal) { value in if value?.interrupted == true { interrupted = true } }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            if UserDefaults.standard.bool(forKey: "SatchelPreviewWarmupExpire"), let context {
+                job.expire(context)
+            }
+        }
     }
 }

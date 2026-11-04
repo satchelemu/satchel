@@ -52,7 +52,10 @@ The generated `Satchel.xcodeproj` is not tracked (run `xcodegen generate` to ope
 library target in Xcode). Options: `--unsigned` compiles only (no provisioning check, not installable);
 `--ui-tests-simulator` runs the synthetic navigation suite instead of building for the
 phone. The unsigned option also skips signing-team lookup while generating the native
-host project. The app lands at
+host project. The navigation generator reads the pinned engine from
+`$SATCHEL_DEPS_ROOT/NX2Apple/engine`, applies this checkout's display patches under
+`SATCHEL_OUT`, and builds only the selected simulator architecture. It does not reuse
+another worker's display build. The app lands at
 `<SATCHEL_OUT>/app/DerivedData/Build/Products/Release-iphoneos/Satchel.app`.
 
 Install and launch with Apple's `devicectl` (replace the UDID with your paired device):

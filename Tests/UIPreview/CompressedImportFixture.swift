@@ -88,7 +88,9 @@ enum CompressedImportFixture {
     static func source(format: String) throws -> URL {
         let cartridge = format.hasPrefix("xc")
         let member = format.hasSuffix("z") ? "fixture.ncz" : "fixture.nca"
-        let payload = Data("synthetic container payload, not executable content".utf8)
+        let payload = UserDefaults.standard.bool(forKey: "SatchelPreviewImportCancellation")
+            ? Data(repeating: 0x5a, count: 2 * 1024 * 1024)
+            : Data("synthetic container payload, not executable content".utf8)
         let secure = directory([member], payloads: [payload], hashed: cartridge)
         let data = cartridge ? xci(secure) : secure
         let source = FileManager.default.temporaryDirectory.appendingPathComponent("Synthetic import." + format)

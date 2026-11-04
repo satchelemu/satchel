@@ -28,6 +28,11 @@ with no computer involved.
 | General importer (unknown games boot without a per-game profile) | 50% | A starter profile is generated from the game's own metadata; Castlevania ran on it with one memory rule. More games will find more gaps. |
 | Compatibility | 4 games | See COMPATIBILITY.md. |
 
+The simulator UI suite covers import cancellation and restart, system-interrupted
+warm-up, paused-game Resume after backgrounding, and Prepare availability after Quit.
+These synthetic journeys do not replace phone checks of iCloud delivery, native session
+teardown or shader cache reuse. See [the test guide](docs/testing.md).
+
 ## Help wanted
 
 In the order the maintainer would pick them up. Each is self-contained enough to be a

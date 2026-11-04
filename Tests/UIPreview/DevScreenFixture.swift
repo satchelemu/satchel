@@ -139,6 +139,16 @@ enum DevScreenFixture {
 
 
 enum PreviewPackage {
+    static func verifyWarmup(root: URL, cancelled: () -> Bool) throws -> URL {
+        if cancelled() { throw CancellationError() }
+        guard UserDefaults.standard.bool(forKey: "SatchelPreviewWarmupTests"),
+              root.lastPathComponent == "LanternDrift-1.2.0",
+              root.deletingLastPathComponent() == NavigationFixFixture.documents.appendingPathComponent("PreparedGames") else {
+            throw PrepareFailure(message: "Only the named synthetic warm-up package can be checked in this fixture.")
+        }
+        return root
+    }
+
     static func verify(root: URL) throws -> URL {
         guard UserDefaults.standard.bool(forKey: "SatchelPreviewSessionTests"),
               ["LanternDrift-1.2.0", "Navigation-Orphan"].contains(root.lastPathComponent),
@@ -178,11 +188,19 @@ enum WarmupRunner {
         guard UserDefaults.standard.bool(forKey: "SatchelPreviewWarmupTests") else {
             throw PrepareFailure(message: "Shader warm-up cannot run in the navigation fixture.")
         }
+        let defaults = UserDefaults.standard
+        defaults.set(defaults.integer(forKey: "SatchelPreviewWarmupStarts") + 1, forKey: "SatchelPreviewWarmupStarts")
         var state = WarmupProgress(stage: "Synthetic shader work", completed: 1, total: 2)
         progress(state)
         let deadline = Date().addingTimeInterval(60)
         while !UserDefaults.standard.bool(forKey: "SatchelPreviewWarmupFinish") {
-            if cancelled() { throw CancellationError() }
+            if cancelled() {
+                while defaults.bool(forKey: "SatchelPreviewWarmupHoldCancellation") && !defaults.bool(forKey: "SatchelPreviewWarmupRelease") {
+                    guard Date() < deadline else { throw PrepareFailure(message: "Synthetic cancellation acknowledgement timed out.") }
+                    Thread.sleep(forTimeInterval: 0.02)
+                }
+                throw CancellationError()
+            }
             guard Date() < deadline else { throw PrepareFailure(message: "Synthetic warm-up timed out.") }
             Thread.sleep(forTimeInterval: 0.05)
         }

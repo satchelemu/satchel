@@ -5,6 +5,9 @@ entry is a real test on a real phone unless the row says otherwise. Add a row by
 a [compatibility report](.github/ISSUE_TEMPLATE/compatibility_report.md) or a pull
 request.
 
+Simulator UI journeys use synthetic containers and sessions. They do not add gameplay
+or shader-performance evidence to this table.
+
 Test hardware so far: one iPhone Duo (iPhone19,4, A20 Pro), iOS 27.1, landscape.
 
 ## Ratings
