@@ -313,6 +313,7 @@ struct PreparedGameView: View {
                 guard !AddOnJob.shared.running else { throw PrepareFailure(message: "Wait for Add DLC to finish, or cancel it before playing.") }
                 try PreparedPackageAccess.begin(); defer { PreparedPackageAccess.end() }
                 WarmupJob.shared.prepareForPlay()
+                defer { WarmupJob.shared.playRequestFinished() }
                 if SatchelNativeSessionStarted() && PreparedLaunch.current != packageURL.lastPathComponent {
                     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                         SatchelStopNativeSession { error in
@@ -335,7 +336,6 @@ struct PreparedGameView: View {
                 SatchelMenuBeginSession()
                 ready = true
             } catch {
-                WarmupJob.shared.playRequestFailed()
                 failure = error.localizedDescription
                 var report = NativeGameReport.load(package: packageURL.lastPathComponent, titleID: titleID)
                 report.result = "failed"; report.message = error.localizedDescription; try? report.save()

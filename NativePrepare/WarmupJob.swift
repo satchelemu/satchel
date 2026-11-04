@@ -113,7 +113,9 @@ final class WarmupCancellation: @unchecked Sendable {
         start(package: journal.package, title: journal.title)
     }
     func prepareForPlay() { playRequested = true; cancel() }
-    func playRequestFailed() { if !SatchelNativeSessionStarted() { playRequested = false } }
+    // The request gate covers verification and launch only. A live session has
+    // its own gate, which clears on Quit without leaving warm-up blocked.
+    func playRequestFinished() { playRequested = false }
     func dismiss() { guard !running else { return }; journal = nil; UserDefaults.standard.removeObject(forKey: "SatchelWarmupJob") }
     func begin(package: URL, title: String, keepAlive: Bool = true) -> Context? {
         guard !running, !playRequested, !AddOnJob.shared.running, !SatchelNativeSessionStarted() else { return nil }
@@ -162,6 +164,9 @@ final class WarmupCancellation: @unchecked Sendable {
         running = false; context = nil
         if !playRequested, !SatchelNativeSessionStarted(), !PrepareJob.shared.running { UIApplication.shared.isIdleTimerDisabled = false }
         endBackgroundTask()
+        // Cancellation may finish after the scene's active callback already ran.
+        // Retry here too so a system-expired run cannot remain stranded on return.
+        if UIApplication.shared.applicationState == .active { resumeIfInterrupted() }
     }
     private func endBackgroundTask() {
         if background != .invalid { UIApplication.shared.endBackgroundTask(background); background = .invalid }

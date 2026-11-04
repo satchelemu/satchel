@@ -125,8 +125,9 @@ that automated workers follow in this repository.
   SideStore, AltStore Classic or Xcode, the seven day limit, first launch.
 - [BUILDING.md](BUILDING.md): building from source, the native dependencies, and the
   known gaps in reproducibility.
-- [docs/testing.md](docs/testing.md): the Mac test scripts, the simulator UI suite, how to
-  read a game's report and logs on the phone, and how to try a new game.
+- [docs/testing.md](docs/testing.md): the Mac test scripts, simulator journeys for
+  import cancellation, warm-up recovery and paused games, how to read a game's report
+  and logs on the phone, and how to try a new game.
 - [COMPATIBILITY.md](COMPATIBILITY.md): what has been tried, how well it runs, and how to
   add a game to the list.
 

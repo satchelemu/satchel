@@ -4,10 +4,17 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def write_changed(path, content):
+    # Avoid recompiling every Swift source when a targeted run only changes tests.
+    if not path.exists() or path.read_text() != content:
+        path.write_text(content)
 
 
 def quoted(path):
@@ -74,8 +81,13 @@ def generate(mode, out):
     else:
         dev = mode != 'sim-minimal'
         project = read_yaml(ROOT / ('Tests/UIPreview/project-game.yml' if dev else 'Tests/UIPreview/project.yml'))
+        engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+        if dev:
+            sys.path.insert(0, str(ROOT / 'NativeHost'))
+            from display_overlay import apply
+            apply(ROOT, engine, out, {'SatchelNativeHost': [], 'SatchelNativeGraphics': []})
         project = json.loads(json.dumps(project).replace('__REPO__', str(ROOT)).replace(
-            '__DISPLAY__', str(Path.home() / 'SatchelBuild/display2')))
+            '__DISPLAY__/engine', str(engine)).replace('__DISPLAY__', str(out)))
         app = 'SatchelPreview'
         settings = project['targets'][app]['settings']['base']
         settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.dell.satchel.uitestpreview' + ('.dev' if dev else '')
@@ -94,11 +106,35 @@ def generate(mode, out):
             staged.write_text(content)
         for row in project['targets'][app]['sources']:
             if row['path'] == str(source): row['path'] = str(staged)
+        # Preserve the warm-up lifecycle and cancellation code, replacing only the
+        # device verifier for the explicitly enabled synthetic package.
+        warmup_source = ROOT / 'NativePrepare/WarmupJob.swift'
+        warmup_original = warmup_source.read_text()
+        boundary = 'try PreparedPackage.verify(root: context.package, cancelled: { context.token.cancelled })'
+        assert warmup_original.count(boundary) == 1
+        warmup_staged = out / 'WarmupJob.swift'
+        write_changed(warmup_staged, warmup_original.replace(boundary,
+            'try PreviewPackage.verifyWarmup(root: context.package, cancelled: { context.token.cancelled })'))
+        for row in project['targets'][app]['sources']:
+            if row['path'] == str(warmup_source): row['path'] = str(warmup_staged)
+        # Hold one real copy after its first chunk, without large files or timing
+        # assumptions. The production cancellation and deferred cleanup stay intact.
+        import_source = ROOT / 'App/SwitchPackageImport.swift'
+        import_original = import_source.read_text()
+        boundary = '            progress(copied, size)'
+        assert import_original.count(boundary) == 1
+        import_staged = out / 'SwitchPackageImport.swift'
+        write_changed(import_staged, import_original.replace(boundary, boundary +
+            '\n            try ImportCancellationFixture.afterChunk(cancelled: cancelled)'))
+        for row in project['targets'][app]['sources']:
+            if row['path'] == str(ROOT / 'App'):
+                row.setdefault('excludes', []).append('SwitchPackageImport.swift')
+        project['targets'][app]['sources'].append({'path': str(import_staged)})
         progress_source = (ROOT / 'NativePrepare/WarmupRunner.swift').read_text()
         progress_boundary = '\nenum WarmupRunner {'
         assert progress_source.count(progress_boundary) == 1
         progress = out / 'WarmupProgress.swift'
-        progress.write_text(progress_source.split(progress_boundary)[0])
+        write_changed(progress, progress_source.split(progress_boundary)[0])
         project['targets'][app]['sources'].append({'path': str(progress)})
         # Substitute only document selection when the explicit synthetic-save flag
         # is set. Production save actions, lifecycle, validation and IO stay intact.

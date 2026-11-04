@@ -35,6 +35,7 @@ targets:
       - path: __REPO__/Tests/UIPreview/CompressionFixture.c
       - path: __REPO__/Tests/UIPreview/PreviewStubs.swift
       - path: __REPO__/Tests/UIPreview/GameFixture.m
+      - path: __REPO__/Tests/UIPreview/ImportCancellationFixture.swift
       - path: __REPO__/Tests/UIPreview/CompressedImportFixture.swift
       - path: __REPO__/Tests/UIPreview/SaveFixture.swift
       - path: __REPO__/Tests/UIPreview/NavigationFixFixture.swift
