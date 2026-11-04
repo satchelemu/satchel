@@ -35,6 +35,30 @@ def wrap_blocks(text, selector, wrapper):
 def metal(text):
     text = replace(text, '#include <objc/runtime.h>',
                    '#include <objc/runtime.h>\n#include "SessionGraphicsAsync.h"\n#include "SessionState.h"\n#include "SessionGraphicsLocal.h"')
+    # Optional prebuilding can contain thousands of pairs. Finish any compiler
+    # call already in flight, then leave the unbuilt work for the next session.
+    text = replace(text, '            int i = atomic_fetch_add(&g_pre_next, 1);',
+                   '            if (atomic_load(&satchel_present_stop)) break;\n            int i = atomic_fetch_add(&g_pre_next, 1);')
+    text = replace(text, '    dispatch_block_t done = ^{\n        arch_flush_wait();',
+                   '''    dispatch_block_t done = ^{
+        arch_flush_wait();
+        // Never mark a cancelled prebuild complete. Captured pipelines remain
+        // useful, but the missing pairs must be retried on the next launch.
+        if (atomic_load(&satchel_present_stop)) { g_pre_running = 0; return; }''')
+    text = replace(text, 'static int pso_prebuild(int threads, int wait, dispatch_qos_class_t qos) {\n',
+                   'static int pso_prebuild(int threads, int wait, dispatch_qos_class_t qos) {\n    if (atomic_load(&satchel_present_stop)) return -1;\n')
+    text = replace(text, 'static void warm_task(WarmTask *t) {\n',
+                   'static void warm_task(WarmTask *t) {\n    if (atomic_load(&satchel_present_stop)) return;\n')
+    text = replace(text, '        for (NSData *row in t->rs) {\n',
+                   '        for (NSData *row in t->rs) {\n            if (atomic_load(&satchel_present_stop)) break;\n')
+    text = replace(text, 'for (;;) { long i = atomic_fetch_add(&next, 1); if (i >= n) break; warm_task(tasks[(NSUInteger)i]); }',
+                   'for (;;) { if (atomic_load(&satchel_present_stop)) break; long i = atomic_fetch_add(&next, 1); if (i >= n) break; warm_task(tasks[(NSUInteger)i]); }')
+    text = replace(text, 'for (WarmTask *t in warm_parse(paths, &lines)) warm_task(t);',
+                   'for (WarmTask *t in warm_parse(paths, &lines)) { if (atomic_load(&satchel_present_stop)) break; warm_task(t); }')
+    text = replace(text, 'while (atomic_load(&g_warm_running) && (bp_now() - t0)',
+                   'while (!atomic_load(&satchel_present_stop) && atomic_load(&g_warm_running) && (bp_now() - t0)')
+    text = replace(text, 'while (atomic_load(&g_pre_running) && atomic_load(&g_pre_next) < n)',
+                   'while (!atomic_load(&satchel_present_stop) && atomic_load(&g_pre_running) && atomic_load(&g_pre_next) < n)')
     for selector, wrapper in [('addCompletedHandler:', 'satchel_mtl_completed'),
                               ('addFeedbackHandler:', 'satchel_mtl_feedback'),
                               ('block:', 'satchel_mtl_event')]:

@@ -16,6 +16,20 @@ def prepare(source, destination):
     return result;
 }
 // Unprotect pages p..q of a range''')
+    text = replace(text, 'void nvn_dirty_add_range(const void *mem, size_t size) {', '''typedef struct SatchelDirtyRetired {
+    void *state, *gen;
+    struct SatchelDirtyRetired *next;
+} SatchelDirtyRetired;
+static SatchelDirtyRetired *satchel_dirty_retired;
+void nvn_dirty_add_range(const void *mem, size_t size) {''')
+    text = replace(text, '        // The old array is not freed: the signal handler may still have a very brief stale reader; leak = 9 bytes per page.', '''        // Keep replaced arrays alive for stale fault readers. The session
+        // coordinator frees them only after all readers and workers retire.
+        if (r->state || r->gen) {
+            SatchelDirtyRetired *old = malloc(sizeof *old);
+            if (!old) die("dirty-page retired table allocation failed");
+            *old = (SatchelDirtyRetired){(void *)r->state, (void *)r->gen, satchel_dirty_retired};
+            satchel_dirty_retired = old;
+        }''')
     text += '''
 int satchel_dirty_session_reset(void) {
     if (!satchel_session_quiescent()) return EBUSY;
@@ -34,6 +48,11 @@ int satchel_dirty_session_reset(void) {
         range_t *block = atomic_load(&g_blk[b]); if (!block) continue;
         for (int i = 0; i < BLK; i++) { free(block[i].state); free(block[i].gen); }
         free(block); atomic_store(&g_blk[b], NULL);
+    }
+    while (satchel_dirty_retired) {
+        SatchelDirtyRetired *old = satchel_dirty_retired;
+        satchel_dirty_retired = old->next;
+        free(old->state); free(old->gen); free(old);
     }
     g_nr = g_live = g_live_peak = g_overflow_logged = g_busy_red = 0;
     atomic_fetch_add(&g_now, 1);

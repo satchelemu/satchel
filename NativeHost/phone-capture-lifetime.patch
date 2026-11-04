@@ -38,8 +38,9 @@
              }
          }
 -        // DM_NVN_SHDUMP (debugging): keep a copy of the control section so the replay layer can save shaders missing from the map (never freed)
-+        // The replay layer owns a control snapshot until replacement or finalization.
-         if (dump && sd[i].control) {
++        // Deferred keys also need controls after the registration call returns.
+-        if (dump && sd[i].control) {
++        if ((dump || !(k->ok & (1u << i))) && sd[i].control) {
              uint32_t own; memcpy(&own, (const uint8_t *)sd[i].control + 0x20, 4);
              uint32_t count = own >= 0x760 && own < 0x880 ? own : 0x880;
              void *c = calloc(1, 0x880); if (!c) abort();

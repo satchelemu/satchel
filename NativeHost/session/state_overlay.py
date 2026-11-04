@@ -6,7 +6,9 @@ function pointers and allocations require their explicit typed owner.
 import re
 
 TOKENS = re.compile(r'//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|[{}]')
-DECL = re.compile(r'\bstatic\s+((?:_Atomic\s+)?(?:int(?:8|16|32|64)_t|uint(?:8|16|32|64)_t|int|unsigned|size_t|long|double|float))\s+([^;\n]+);')
+# Parentheses belong to a function declarator here. Consuming that signature
+# would also consume its first same-line static variable before scope filtering.
+DECL = re.compile(r'\bstatic\s+((?:_Atomic\s+)?(?:int(?:8|16|32|64)_t|uint(?:8|16|32|64)_t|int|unsigned|size_t|long|double|float))\s+([^;\n()]+);')
 
 
 def scalar_caches(text, owner):
@@ -46,7 +48,7 @@ def scalar_caches(text, owner):
 def arc_caches(text):
     # These local caches have no once token. Setting the owner to nil makes
     # their existing lazy initializer build resources for the next session.
-    pattern = re.compile(r'\bstatic\s+(?:__strong\s+)?(?:id(?:<[^;]+?>)?|NvProg\s*\*|(?:NSMutableDictionary|NSMutableSet|NSMutableArray)<[^;]+>\s*\*)\s*([a-zA-Z_]\w*(?:\[\w+\])*(?:,\s*\*?\s*[a-zA-Z_]\w*(?:\[\w+\])*)*);')
+    pattern = re.compile(r'\bstatic\s+(?:__strong\s+)?(?:id(?:<[^;{}()\n]+?>)?|NvProg\s*\*|(?:NSMutableDictionary|NSMutableSet|NSMutableArray)<[^;{}()\n]+>\s*\*)\s*([a-zA-Z_]\w*(?:\[\w+\])*(?:,\s*\*?\s*[a-zA-Z_]\w*(?:\[\w+\])*)*);')
     # Runtime capture has a file-global satchel_phone_retired owner too.
     # Register only declarations inside a function body.
     spans=[]; depth=0; begin=None
