@@ -17,7 +17,7 @@ def wait_for_xcode():
     runpy.run_path(str(ROOT/'NativeApp/build_support.py'))['wait']()
 wait_for_xcode()
 if os.statvfs(OUT).f_bavail*os.statvfs(OUT).f_frsize < 15*1024**3: raise SystemExit('Build blocked: less than 15 GiB free')
-run(['nice','-n','10','cmake','-S',ROOT/'Tools/NativeRewriter','-B',OUT/'rewriter-ios','-DCMAKE_SYSTEM_NAME=iOS','-DCMAKE_SYSTEM_PROCESSOR=arm64','-DCMAKE_OSX_SYSROOT=iphoneos','-DCMAKE_OSX_ARCHITECTURES=arm64','-DCMAKE_OSX_DEPLOYMENT_TARGET=26.0','-DCMAKE_BUILD_TYPE=Release','-DNR_BUILD_SHARED=OFF','-DBUILD_TESTING=OFF','-DFETCHCONTENT_SOURCE_DIR_CAPSTONE='+str(Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'rewriter/capstone-src')])
+run(['nice','-n','10','cmake','-S',ROOT/'Tools/NativeRewriter','-B',OUT/'rewriter-ios','-DCMAKE_SYSTEM_NAME=iOS','-DCMAKE_SYSTEM_PROCESSOR=arm64','-DCMAKE_OSX_SYSROOT=iphoneos','-DCMAKE_OSX_ARCHITECTURES=arm64','-DCMAKE_OSX_DEPLOYMENT_TARGET=26.0','-DCMAKE_BUILD_TYPE=Release','-DNR_BUILD_SHARED=OFF','-DBUILD_TESTING=OFF','-DFETCHCONTENT_SOURCE_DIR_CAPSTONE='+str(Path(os.environ.get('SATCHEL_CAPSTONE_SOURCE', Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'rewriter/capstone-src')))])
 wait_for_xcode()
 run(['nice','-n','10','cmake','--build',OUT/'rewriter-ios','-j2'])
 (OUT/'core').mkdir(exist_ok=True)

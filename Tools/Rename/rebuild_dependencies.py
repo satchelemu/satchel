@@ -28,8 +28,8 @@ def clone(source, destination):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True, help='Already renamed repository')
-    parser.add_argument('--inputs', type=Path, required=True, help='Existing dependency root, read only')
-    parser.add_argument('--build-inputs', type=Path, required=True, help='Existing build root, read only')
+    parser.add_argument('--inputs', type=Path, help='Existing dependency root, read only')
+    parser.add_argument('--build-inputs', type=Path, help='Existing build root, read only')
     parser.add_argument('--destination', type=Path, required=True)
     parser.add_argument('--nativeaot-packages', type=Path, help='Existing offline NativeAOT cache')
     parser.add_argument('--moltenvk-inputs', type=Path, help='Existing MoltenVK source, release tar files and extracted releases')
@@ -37,11 +37,18 @@ def main():
     parser.add_argument('--framework', action='append', choices=['fixture-aot','game-aot','captured','vulkan'], help='Resume selected framework recipes after a specific fix')
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--step', choices=['stage', 'cpu', 'archives', 'scalar', 'cross', 'archive', 'shader-bridge', 'frameworks', 'parity', 'all'], default='all')
+    parser.add_argument('--prepared-inputs', action='store_true', help='Use freshly staged inputs in destination, without snapshot copies')
     args = parser.parse_args()
-    root, inputs, build, dest = (x.resolve() for x in (args.source, args.inputs, args.build_inputs, args.destination))
+    root, dest = args.source.resolve(), args.destination.resolve()
+    if not args.prepared_inputs and (args.inputs is None or args.build_inputs is None):
+        parser.error('Legacy staging requires --inputs and --build-inputs')
+    inputs = args.inputs.resolve() if args.inputs else dest / 'unused-inputs'
+    build = args.build_inputs.resolve() if args.build_inputs else dest / 'build'
+    if args.prepared_inputs and args.step in ('stage', 'all'):
+        parser.error('Prepared inputs require explicit recipe steps')
     if dest == inputs or inputs in dest.parents or dest == root or root in dest.parents:
         parser.error('Destination must be separate from both source and original dependencies')
-    if not (root/'Satchel.xcodeproj').is_dir(): parser.error('Apply the tracked-tree rename first')
+    if not (root/'project.yml').is_file(): parser.error('Missing Satchel project specification')
     print('Dependency destination:', dest, flush=True)
     if not args.apply:
         print('Dry run: stage third-party inputs and rebuild selected dependencies. Run inside NativePrepare/guard.py.')
