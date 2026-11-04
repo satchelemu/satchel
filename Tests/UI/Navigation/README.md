@@ -17,6 +17,15 @@ one-app scheme.
 - Home content, search, sort, Add, prepared-only shelves with zero imported records,
   cached artwork, retained records after original removal and empty-library entry points.
 - Both landscape rotations and portrait requests while home and Settings remain landscape.
+- Simulator only: Device check opens in both landscape orientations, refreshes and
+  survives background/return. Synthetic present, missing and unknown entitlements
+  have distinct labels. Copy report is read from the real clipboard and checked with
+  team inclusion off, on and off again, then reset on reopen. A separate live simulator
+  journey runs the native memory/signature probe with host limits, not phone claims.
+  Its reveal helper scrolls by geometry before querying activation points, because
+  iOS 27.1 XCTest can throw for offscreen controls. It still requires real hittability
+  before every action. The clipboard journey closes with inclusion enabled and requires
+  it to reset off when Settings reopens.
 - Settings, Prepare, identity controls, player settings, detail, picker cancellation,
   background/return, close/reopen and prepared removal cancellation.
 - Absence of Performance/Graphics modes, frame cap and render scale controls.

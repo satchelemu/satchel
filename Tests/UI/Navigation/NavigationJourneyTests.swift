@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave"]
+        let fixtureFamilies = ["testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -40,6 +40,144 @@ final class NavigationJourneyTests: XCTestCase {
         app.launch()
         _ = try button("import-homebrew")
     }
+
+#if NAVIGATION_PREVIEW && NAVIGATION_NATIVE
+    // XCTest on iOS 27.1 can throw while asking for an offscreen element's
+    // activation point. Reveal by geometry first, then require real hittability.
+    private func revealDeviceCheckControl(_ control: XCUIElement, in scroll: XCUIElement) {
+        XCTAssertTrue(control.waitForExistence(timeout: 8))
+        for _ in 0..<24 {
+            let viewport = scroll.frame.intersection(app.windows.firstMatch.frame).insetBy(dx: 0, dy: 12)
+            let frame = control.frame
+            if frame.minY >= viewport.minY && frame.maxY <= viewport.maxY { break }
+            let step: CGFloat = frame.midY > viewport.midY ? -80 : 80
+            let start = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: step)))
+        }
+        XCTAssertTrue(control.isHittable, "Device check control must be hittable: \(control.identifier)")
+    }
+
+    private func tapDeviceCheck(_ id: String, scroll: XCUIElement) throws {
+        revealDeviceCheckControl(app.buttons[id], in: scroll)
+        try tap(id)
+    }
+
+    private func openDeviceCheck(_ fixture: String) throws {
+        app.launchArguments += ["-SatchelPreviewDeviceCheck", fixture]
+        app.launch()
+        _ = try button("import-homebrew")
+        try tap("open-settings")
+        try tap("settings-Device check")
+        _ = try button("device-check-copy", scroll: app.scrollViews.firstMatch)
+        XCTAssertGreaterThan(app.windows.firstMatch.frame.width, app.windows.firstMatch.frame.height)
+    }
+
+    func testDeviceCheckBothLandscapes() throws {
+        for orientation in [UIDeviceOrientation.landscapeLeft, .landscapeRight] {
+            app.terminate()
+            XCUIDevice.shared.orientation = orientation
+            try openDeviceCheck("present")
+            let scroll = app.scrollViews.containing(.button, identifier: "device-check-copy").firstMatch
+            for id in ["environment", "model", "os", "memory-entitlement", "address-entitlement", "available",
+                       "limit", "footprint", "address-span", "reservation", "expiry", "free", "team"] {
+                revealDeviceCheckControl(app.staticTexts["device-check-" + id], in: scroll)
+            }
+            XCTAssertEqual(app.staticTexts["device-check-memory-entitlement"].label, "Present in running signature")
+            XCTAssertEqual(app.staticTexts["device-check-limit"].label, "6.00 GiB (6442450944 bytes)")
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = "Device check synthetic landscape \(orientation.rawValue)"; shot.lifetime = .keepAlways; add(shot)
+            try tapDeviceCheck("device-check-refresh", scroll: scroll)
+            _ = try button("device-check-copy", scroll: scroll)
+            backgroundAndReturn(app.buttons["close-settings"].firstMatch)
+            XCTAssertGreaterThan(app.windows.firstMatch.frame.width, app.windows.firstMatch.frame.height)
+            try tap("close-settings")
+            _ = try button("import-homebrew")
+        }
+    }
+
+    func testDeviceCheckCopiesReportWithAndWithoutTeam() throws {
+        try openDeviceCheck("present")
+        let scroll = app.scrollViews.containing(.button, identifier: "device-check-copy").firstMatch
+        let toggle = app.switches["device-check-include-team"]
+        XCTAssertEqual(toggle.value as? String, "0")
+        func copyReport() throws -> String {
+            try tapDeviceCheck("device-check-copy", scroll: scroll)
+            XCTAssertEqual(app.buttons["device-check-copy"].label, "Copied")
+            try tapDeviceCheck("device-check-inspect-clipboard", scroll: scroll)
+            let value = app.staticTexts["device-check-clipboard"].label
+            XCTAssertTrue(value.hasPrefix("Satchel Device check\nSampled: "))
+            for line in ["Device model: Synthetic phone", "iOS version: 27.1.0 (synthetic)",
+                         "Increased memory limit: Present in running signature",
+                         "Extended virtual addressing: Present in running signature",
+                         "os_proc_available_memory: 5.00 GiB (5368709120 bytes)",
+                         "Current process memory limit: 6.00 GiB (6442450944 bytes)",
+                         "Contiguous VM reserve tested: At least 64.00 GiB (68719476736 bytes)",
+                         "Signature expiry (embedded profile): 2030-01-01T00:00:00Z",
+                         "Container volume free space: 40.00 GiB (42949672960 bytes)"] {
+                XCTAssertTrue(value.contains(line), "Missing report field: \(line)")
+            }
+            return value
+        }
+        let redacted = try copyReport()
+        XCTAssertFalse(redacted.contains("SYNTHETIC-TEAM"))
+        XCTAssertFalse(redacted.contains("Signing team:"))
+        revealDeviceCheckControl(toggle, in: scroll); toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertTrue(try copyReport().contains("Signing team: SYNTHETIC-TEAM"))
+        revealDeviceCheckControl(toggle, in: scroll); toggle.tap()
+        XCTAssertEqual(try copyReport(), redacted)
+        revealDeviceCheckControl(toggle, in: scroll)
+        XCTAssertTrue(toggle.isEnabled)
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        try tap("close-settings")
+        try tap("open-settings")
+        try tap("settings-Device check")
+        XCTAssertEqual(app.switches["device-check-include-team"].value as? String, "0")
+        try tap("close-settings")
+    }
+
+    func testDeviceCheckMissingEntitlement() throws {
+        try openDeviceCheck("missing")
+        let scroll = app.scrollViews.containing(.button, identifier: "device-check-copy").firstMatch
+        for id in ["memory-entitlement", "address-entitlement"] {
+            revealDeviceCheckControl(app.staticTexts["device-check-" + id], in: scroll)
+            XCTAssertEqual(app.staticTexts["device-check-" + id].label, "Missing or disabled in running signature")
+        }
+        try tapDeviceCheck("device-check-copy", scroll: scroll)
+        try tapDeviceCheck("device-check-inspect-clipboard", scroll: scroll)
+        let report = app.staticTexts["device-check-clipboard"].label
+        XCTAssertTrue(report.contains("Increased memory limit: Missing or disabled in running signature"))
+        XCTAssertFalse(report.contains("Present in running signature"))
+        XCTAssertFalse(report.contains("SYNTHETIC-TEAM"))
+        try tap("close-settings")
+    }
+
+    func testDeviceCheckUnknownEntitlement() throws {
+        try openDeviceCheck("unknown")
+        let scroll = app.scrollViews.containing(.button, identifier: "device-check-copy").firstMatch
+        revealDeviceCheckControl(app.staticTexts["device-check-memory-entitlement"], in: scroll)
+        XCTAssertEqual(app.staticTexts["device-check-memory-entitlement"].label, "Unknown (signature query unavailable)")
+        try tap("close-settings")
+    }
+
+    func testDeviceCheckLiveSimulatorProbe() throws {
+        try openDeviceCheck("live")
+        let scroll = app.scrollViews.containing(.button, identifier: "device-check-copy").firstMatch
+        revealDeviceCheckControl(app.staticTexts["device-check-environment"], in: scroll)
+        XCTAssertEqual(app.staticTexts["device-check-environment"].label, "Simulator (host limits, not phone capabilities)")
+        revealDeviceCheckControl(app.staticTexts["device-check-reservation"], in: scroll)
+        XCTAssertTrue(app.staticTexts["device-check-reservation"].label.hasPrefix("At least "))
+        XCTAssertTrue(app.staticTexts["device-check-footprint"].label.hasSuffix(" bytes)"))
+        revealDeviceCheckControl(app.staticTexts["device-check-expiry"], in: scroll)
+        XCTAssertEqual(app.staticTexts["device-check-expiry"].label, "Unknown (profile absent or unreadable)")
+        revealDeviceCheckControl(app.staticTexts["device-check-free"], in: scroll)
+        XCTAssertTrue(app.staticTexts["device-check-free"].label.hasSuffix(" bytes)"))
+        revealDeviceCheckControl(app.staticTexts["device-check-team"], in: scroll)
+        XCTAssertEqual(app.staticTexts["device-check-team"].label, "Unknown")
+        try tap("close-settings")
+    }
+#endif
 
     /// The bundled install guide lives in Settings > About (the first-launch guide is gone).
     func testSettingsInstallHelpBothLandscapes() throws {

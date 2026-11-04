@@ -175,7 +175,6 @@ static bool trustedAppleChain(X509 *cert, STACK_OF(X509) *chain, bool checkDates
                 if (looksLikeTeam(candidate)) team = candidate;
             }
         }
-        NSLog(@"Satchel signing team: %@", team ?: @"unknown");
     });
     return team;
 }
