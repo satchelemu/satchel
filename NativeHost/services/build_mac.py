@@ -2,12 +2,16 @@
 """Build baseline and service-overlay Mac hosts from the existing allowed baseline snapshot."""
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import argparse
 import hashlib
 import json
 import os
 import runpy
 import subprocess
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--source-shaders', action='store_true', help='Mac diagnostic: compile retained Metal sources when libraries are absent')
+args = parser.parse_args()
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 OUT = Path(os.environ.get('SATCHEL_OUT', Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'anygame/services')) / 'mac'
@@ -29,9 +33,18 @@ sources += sorted(HOST.glob('hle_*.c'))
 for directory, suffixes in [('gfx',('.c',)), ('gfx/nvn',('.c','.m','.S')), ('gfx/tex',('.c','.m')), ('gfx/vk',('.m',)), ('gfx/gl',('.m',))]:
     sources += sorted(p for p in (ENGINE / 'dm' / directory).iterdir() if p.suffix in suffixes)
 sources = list(dict.fromkeys(sources))
+if args.source_shaders:
+    original = ENGINE / 'dm/gfx/nvn/nvn_mtl.m'
+    text = original.read_text()
+    anchor = 'static id<MTLLibrary> lib_from_file(NSString *path, NSError **err) {'
+    assert text.count(anchor) == 1
+    text = text.replace(anchor, anchor + '\n' + (HERE / 'MacSourceShaders.inc').read_text())
+    generated = OUT / 'source-shaders'; generated.mkdir(exist_ok=True)
+    target = generated / original.name; target.write_text(text)
+    sources = [target if p == original else p for p in sources]
 support = runpy.run_path(str(HERE / 'overlay.py'))['prepare_support']
 sources = [support(p, OUT / 'services') if p.name in ('hle_thread.c', 'hle_misc.c') else p for p in sources]
-includes = [HOST, ENGINE / 'dm/gfx/nvn/include', HOST / 'gen/msl-macosx',
+includes = [ENGINE / 'dm/gfx/nvn', HOST, ENGINE / 'dm/gfx/nvn/include', HOST / 'gen/msl-macosx',
             ENGINE / 'dm/third_party/vulkan-headers/include', HOST / 'gen/0100BA4026E94000',
             ENGINE / 'dm/third_party/libvpx', ENGINE / 'dm/third_party/stb_vorbis']
 base = ['nice','-n','10','xcrun','clang','-O1','-g','-Wall','-Wno-unused-function','-mmacosx-version-min=26.0'] + ['-I'+str(p) for p in includes]

@@ -71,3 +71,8 @@ reset_summary = json.loads(Path(str(report) + '.reset.json').read_text())
 assert len(reset_summary) == 1 and reset_summary[0]['count'] == 1 and reset_summary[0]['firstSeenFrame'] == 99
 print('PASS: persisted summary has one row per command, repeat counts, first frame, reference names and no payload fields')
 print('PASS: synthetic commands, Swift report and actual engine adapter checks')
+
+run(['nice', '-n', '10', 'xcrun', 'clang', '-fobjc-arc', '-Wall', '-Wextra', '-Werror',
+     '-Wno-unused-parameter', '-I' + str(HERE), HERE / 'test_mac_shaders.m',
+     '-framework', 'Foundation', '-framework', 'Metal', '-o', OUT / 'test-mac-shaders'])
+run([OUT / 'test-mac-shaders', OUT / 'synthetic-metal'])

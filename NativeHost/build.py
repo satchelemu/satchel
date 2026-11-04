@@ -26,7 +26,7 @@ def heavy_guard():
         raise SystemExit('Heavy build blocked: less than 35 GiB free')
     print('Heavy build guard: no Zelda build process; state=' + state['stage'], flush=True)
 
-def prepare():
+def prepare(unsigned=False):
     source = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'NX2Apple/engine'
     material = json.loads((ZELDA / 'engine-materialization.json').read_text())
     assert material['pin'] == PIN and len(material['patches']) == 34
@@ -126,7 +126,7 @@ def prepare():
             assert Path(dep['framework']).exists(), 'Missing durable dependency: ' + dep['framework']
     settings = target['settings']['base']
     settings.pop('DEVELOPMENT_TEAM', None)
-    team = runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['signing_team'](ROOT, required=False)
+    team = None if unsigned else runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['signing_team'](ROOT, required=False)
     if team: settings['DEVELOPMENT_TEAM'] = team
     settings.update(PRODUCT_BUNDLE_IDENTIFIER='com.dell.satchel.dev', PRODUCT_NAME='SatchelDev',
         ASSETCATALOG_COMPILER_APPICON_NAME='AppIconDev',
@@ -182,12 +182,12 @@ def prepare():
     return env
 
 def main():
-    parser = argparse.ArgumentParser(); parser.add_argument('--prepare-only', action='store_true'); parser.add_argument('--archives-only', action='store_true'); args = parser.parse_args()
+    parser = argparse.ArgumentParser(); parser.add_argument('--prepare-only', action='store_true'); parser.add_argument('--archives-only', action='store_true'); parser.add_argument('--unsigned', action='store_true'); args = parser.parse_args()
     if not args.prepare_only and not args.archives_only:
-        run(['python3', '-B', ROOT / 'NativeApp/build.py'])
+        run(['python3', '-B', ROOT / 'NativeApp/build.py'] + (['--unsigned'] if args.unsigned else []))
         return
     OUT.mkdir(exist_ok=True, parents=True)
-    env = prepare()
+    env = prepare(unsigned=args.unsigned)
     if args.prepare_only: return
     heavy_guard()
     # Generic host utility shaders only. No game shader compiler is started here.

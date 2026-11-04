@@ -1,4 +1,4 @@
-// Filesystem query behavior adapted from Ryujinx 1.3.3, MIT.
+// Filesystem behavior adapted from Ryujinx 1.3.3, MIT.
 // See RYUJINX-LICENSE.txt. Uses the existing SDK mounts and save transactions.
 #include <sys/mount.h>
 static uint32_t satchel_fs_error(void) {
@@ -106,4 +106,39 @@ uint32_t satchel_host_fs_query(uint32_t index, unsigned command, const char *pat
       if (snprintf(full, sizeof full, "%s:%s", g_mnt[index].name, path) >= (int)sizeof full) return ((6001u << 9) | 2u);
     }
     return satchel_fs_query_path(command, full, out);
+}
+
+// IFile command 2 delegates Flush and returns its failure in Ryujinx 1.3.3.
+// The SDK takeover shares the pinned host's file handles and transaction locks.
+// Flushing a file does not publish the save transaction; Commit still owns that.
+static uint32_t satchel_fs_flush_backing(uint64_t handle) {
+    uint64_t h = FH_IN(handle);
+    if (!h) return RES_FAIL;
+    if (IMG_H(h)) {
+        PATH_LOCK();
+        unsigned mi = IMG_M(h), entry = IMG_K(h);
+        if (mi >= (unsigned)g_nmnt || !g_mnt[mi].img ||
+            entry >= g_mnt[mi].img->n || !g_mnt[mi].img->e[entry].type) return RES_FAIL;
+        // Immutable image entries have no pending writes. Never sync game inputs.
+        return RES_OK;
+    }
+    if (h >= sizeof g_fmode || !g_fmode[h]) return RES_FAIL;
+    int fd = (int)h;
+    if (!(g_fmode[fd] & (MODE_WRITE | MODE_APPEND))) return RES_OK;
+    uint16_t token = atomic_load(&g_ftxn[fd]); int txn = token ? token - 1 : -1;
+    if (txn >= MAX_MOUNT) return RES_FAIL;
+    pthread_rwlock_t *txn_guard __attribute__((cleanup(txn_unlock))) = NULL;
+    if (txn >= 0) { txn_guard = &g_txn_lock[txn]; pthread_rwlock_rdlock(txn_guard); }
+    int result;
+    do { result = fsync(fd); } while (result && errno == EINTR);
+    if (!result) return RES_OK;
+    // As with failed writes, refuse the later commit even if the guest ignores
+    // this Result. Preserve the previously committed save and allow recovery.
+    if (txn >= 0) save_poison_txn(txn, errno);
+    return RES_FAIL;
+}
+static uint32_t satchel_fs_sdk_flush(uint64_t handle) {
+    uint32_t result = satchel_fs_flush_backing(handle);
+    satchel_service_trace(9, "SDK.FlushFile", 2, result);
+    return result;
 }

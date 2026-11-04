@@ -476,3 +476,59 @@ phone diagnostic run, the device owner can set this existing switch in LLDB at
 `satchel_host_session_enter`, after environment setup and before the game starts.
 Normal phone validation does not require tracing. Exact steps and the current
 validation state are in `~/SatchelBuild/anygame/report.md`.
+
+## Round 9 measured SDK file flush
+
+The 2026-11-04 inventory of retained reports found 43 allowed-game reports with
+no missing IPC entries; seven synthetic reports were excluded. Three 330-second
+Mac runs with private save copies also had no missing IPC entries or unresolved
+SDK calls. Mac SDK counters measured `FlushFile` 10 times in Odyssey and eight
+times in Zelda. Castlevania did not call it on this route. Higher-frequency rows
+in the broad inventory include functioning audio, video and file-read code;
+that heuristic classification is not proof of a stub. Clock initialization and
+CPU boost policies remain unchanged. CPU boost has no SDK return value; whether
+the games inspect FlushFile's Result is not established by the call counters.
+
+The SDK `FlushFile` takeover now follows the backing-call/result propagation of
+Ryujinx 1.3.3 `Fs/FileSystemProxy/IFile.cs`, command 2. Writable host files use
+`fsync`, retry `EINTR`, and return the existing host failure Result on an error.
+Null, closed, oversized and invalid image handles fail. Immutable image entries
+and read-only files have no pending writes, so their game inputs are not synced.
+A failed flush poisons the same save transaction as a failed write. Its later
+Commit is refused even if the caller ignored the flush failure. A new complete
+transaction can recover. Flush itself does not publish a save transaction.
+This is one corrected SDK command, not a new raw IFile IPC object or a claim of
+complete LibHac errno parity. The MIT notice remains in `RYUJINX-LICENSE.txt`.
+
+`DM_SF_TRACE=1` emits payload-free `Round9 service=SDK.FlushFile command=2 result=...`
+rows. Host tests exercise actual backing-file flushing, interrupted and failed
+calls, invalid and read-only handles, preservation of the prior committed save,
+and a subsequent successful transaction. No power-loss durability test is claimed.
+
+The Mac harness can use `build_mac.py --source-shaders` when the retained cache
+contains Metal source and reflection but no compiled libraries. It compiles that
+source in memory with the options used by `NativeShaders/ShaderCompiler.swift`.
+Compiler diagnostics retain numeric codes only. This optional Mac adapter is not
+part of the iOS host and does not translate shaders or copy packages. The Mac
+renderer remains the retained reference snapshot; the canonical unsigned app
+build checks integration with the complete current overlay chain.
+
+`run_mac.py --count-sdk` writes SDK counts at graceful exit. `--save-seed DIR`
+copies `DIR/TITLE/save` into each private run and checks that the seed hashes did
+not change. `--shots` can add required captures, but cannot remove frames 300,
+1200 or 3000. `--keys` overrides the route for one explicitly selected title.
+Every run writes its own result file, and later titles still run after one fails.
+A passing frame gate requires separate visual review before claiming gameplay or
+scene coverage. A missing-service count of zero cannot demonstrate a reduction;
+round 9 removes the observed FlushFile no-op while retaining zero missing entries.
+
+The after-change 330-second runs passed for all three games. The SDK call counts
+matched six successful flush traces in Odyssey and eight in Zelda; Castlevania
+did not call FlushFile. Save commits were four, 12 and four respectively. All
+private seeds were unchanged. Visual checks confirmed the Castlevania opening
+area, Odyssey's newly saved File 2 loaded as the active slot, and Zelda's loading
+screen followed by gameplay and movement. The latter two are same-area reloads.
+The host suite, Mac rebuild and canonical unsigned Release app build passed.
+Xcode printed a Swift compile diagnostic reporting failure with exit code zero;
+the driver exited zero, its artifact checks passed, and the new native flush
+symbols were verified in the freshly linked app. No phone run is claimed.

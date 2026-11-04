@@ -236,6 +236,8 @@ for c in classes:
                     state = 'ported via time:u/a/r, missing firmware and reference permissions'
                 elif matches and state == 'unchanged':
                     state = 'skipped round 8, reviewed SDK takeover; raw IPC unchanged'
+            if category == 'Fs' and c['name'] == 'IFile' and x['command'] == 2:
+                state = 'round 9 SDK FlushFile delegates backing flush; raw IPC unchanged'
             rows.append(dict(rank=rank_command(category, service, c['name'], x['command']), service=service, interface=c['name'], command=x['command'], method=x['method'],
                 pinned_ipc='zero-success wildcard' if service=='olsc:u' else 'no raw IPC implementation',
                 overlay_ipc=state,
