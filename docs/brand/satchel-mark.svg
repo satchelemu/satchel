@@ -1,10 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <title>Satchel</title>
-  <g transform="translate(512 512) rotate(-12)">
+  <defs>
     <linearGradient id="ember" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF757D"/><stop offset="1" stop-color="#E0414A"/></linearGradient>
+    <linearGradient id="tide" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56C7FF"/><stop offset="1" stop-color="#1D9FE0"/></linearGradient>
+  </defs>
+  <g transform="translate(512 512) rotate(-12)">
     <rect x="-293.3" y="-302.4" width="254.0" height="604.8" rx="127.0" fill="url(#ember)"/>
     <rect x="-242.5" y="-277.0" width="43.2" height="302.4" rx="21.6" fill="#FFFFFF" fill-opacity="0.24"/>
-    <linearGradient id="tide" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56C7FF"/><stop offset="1" stop-color="#1D9FE0"/></linearGradient>
     <rect x="39.3" y="-217.7" width="254.0" height="435.5" rx="127.0" fill="url(#tide)"/>
     <rect x="90.1" y="-192.3" width="43.2" height="217.7" rx="21.6" fill="#FFFFFF" fill-opacity="0.24"/>
   </g>

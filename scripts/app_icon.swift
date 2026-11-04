@@ -314,22 +314,26 @@ func markSVG() -> String {
     func hexString(_ c: CGColor) -> String {
         let v = c.components!; return String(format: "#%02X%02X%02X", Int(v[0] * 255 + 0.5), Int(v[1] * 255 + 0.5), Int(v[2] * 255 + 0.5))
     }
-    func pill(_ x: Double, _ y: Double, _ height: Double, _ color: CGColor, _ id: String) -> String {
+    func gradientDef(_ color: CGColor, _ id: String) -> String {
         let top = hexString(mix(color, white, 0.24)), bottom = hexString(mix(color, black, 0.12))
+        return "<linearGradient id=\"\(id)\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"\(top)\"/><stop offset=\"1\" stop-color=\"\(bottom)\"/></linearGradient>"
+    }
+    func pill(_ x: Double, _ y: Double, _ height: Double, _ id: String) -> String {
+        let body = String(format: "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"%.1f\" fill=\"url(#%@)\"/>", x, y, w, height, w / 2, id)
         let gloss = String(format: "<rect x=\"%.1f\" y=\"%.1f\" width=\"%.1f\" height=\"%.1f\" rx=\"%.1f\" fill=\"#FFFFFF\" fill-opacity=\"0.24\"/>",
                            x + 0.2 * w, y + 0.1 * w, 0.17 * w, height * 0.5, 0.085 * w)
-        return """
-            <linearGradient id="\(id)" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="\(top)"/><stop offset="1" stop-color="\(bottom)"/></linearGradient>
-            <rect x="\(String(format: "%.1f", x))" y="\(String(format: "%.1f", y))" width="\(String(format: "%.1f", w))" height="\(String(format: "%.1f", height))" rx="\(String(format: "%.1f", w / 2))" fill="url(#\(id))"/>
-            \(gloss)
-        """
+        return "    " + body + "\n    " + gloss
     }
     return """
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
       <title>Satchel</title>
+      <defs>
+        \(gradientDef(ember, "ember"))
+        \(gradientDef(tide, "tide"))
+      </defs>
       <g transform="translate(512 512) rotate(-12)">
-    \(pill(-(w + gap / 2), -h / 2, h, ember, "ember"))
-    \(pill(gap / 2, -short / 2, short, tide, "tide"))
+    \(pill(-(w + gap / 2), -h / 2, h, "ember"))
+    \(pill(gap / 2, -short / 2, short, "tide"))
       </g>
     </svg>
 
