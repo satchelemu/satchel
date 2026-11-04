@@ -6,7 +6,7 @@ import argparse, hashlib, json, os, re, runpy, shlex, shutil, subprocess
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ.get('SATCHEL_HOST_OUT', str(Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'host')))
 ENGINE = OUT / 'engine'
-ZELDA = Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'zelda'
+ZELDA = Path(os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS', Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'zelda'))
 TOOLS = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 GAME = '0100F2C0115B6000'
 PIN = 'bbc3b73784751d2a706932dc69fd67627e3445d4'
@@ -156,6 +156,15 @@ def prepare(unsigned=False):
                 'IPHONEOS_DEPLOYMENT_TARGET': '26.0'}}}
     resources = OUT / 'NativeAssets'; resources.mkdir(exist_ok=True)
     font = resources / 'font'; font.mkdir(exist_ok=True)
+    # A fresh bootstrap supplies verified/generated fonts without a network fetch.
+    for name in ['standard.ttf', 'nintendo_ext.ttf']:
+        cached = ZELDA / 'fonts' / name
+        if os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS') and not cached.is_file():
+            raise RuntimeError('Missing bootstrap font: ' + name)
+        if os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS') and not (font / name).exists():
+            if name == 'standard.ttf':
+                assert hashlib.sha256(cached.read_bytes()).hexdigest() == '478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823', 'Bootstrap font hash mismatch'
+            shutil.copyfile(cached, font / name)
     if not (font / 'standard.ttf').exists():
         run(['python3', ENGINE / 'dm/tools/compact_font.py', font / 'standard.ttf'], env=env)
     shutil.copyfile(font / 'standard.ttf', font / 'standard_small.ttf')

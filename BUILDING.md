@@ -5,17 +5,106 @@ the running-signature query resolves Security SPI dynamically and reports Unknow
 unavailable. The simulator harness exercises the probe and synthetic report journeys.
 Signed device readings still require the checks in [docs/testing.md](docs/testing.md).
 
-Honest summary first: as of 2026-11-03 the app builds on the maintainer's Mac and nowhere
-else, because it links about twenty prebuilt native libraries that live in a dependency
-snapshot outside the repository. Making this reproducible is the first item on the
-[roadmap](ROADMAP.md). Signing is no longer tied to one account: the build reads your
-team from your Mac, and the app reads its own team at run time. This page documents what the build expects so that work can
-start, and so that you can build the parts that do not need the snapshot.
+As of 2026-11-04, a clean Mac still cannot reproduce the complete app. The dependency
+bootstrap below reconstructs pinned source inputs and reuses the native recipes in a
+fresh root. Five tool source archives now have exact URLs and SHA-256 pins, but their
+standalone recipes, two remaining distribution pins and the app's private shader-parity
+prerequisite are not yet reproducible. It fails closed instead of downloading unpinned
+tools or claiming that an incomplete root is usable. Signing is account-neutral.
+
+## Dependency bootstrap (incomplete)
+
+The entry point is:
+
+```sh
+python3 -B scripts/bootstrap_deps.py --root "$HOME/SatchelBuild/deps"
+```
+
+It currently exits 2 with the missing clean-Mac input pins. The tracked inventory is
+[scripts/deps/inputs.lock.json](scripts/deps/inputs.lock.json): source URL, revision or
+version, license, SHA-256 and explicit gaps. File hashes cover the downloaded bytes.
+Git hashes cover `git archive --format=tar COMMIT`, verified after fetching the pinned
+commit and before checking it out. The separate `tool_sources` list records upstream
+source archives pinned from installed package metadata, not downloaded or rebuilt tools.
+Each metadata file has its own provenance hash. Dirty source-cache files and prebuilt libraries are
+never used as Git inputs. The two NX2Apple pins have distinct roles: the current
+engine and patch queue, and the older translator reference required by its source lock.
+
+`--fetch --stage-only` fetches only those inputs that already have hashes, then exits 2
+while the inventory has pin or recipe gaps. This stages the tool source archives too,
+but does not build or install them. This network path has not been exercised in this round.
+No URL or hash is silently learned from a download. Without `--fetch`, outbound IP connections
+are denied for the bootstrap and its build children with macOS `sandbox-exec`; local
+MSBuild IPC remains available.
+
+The local diagnostic path uses installed tools and an explicit SDK. It does not qualify
+as a clean-Mac build. For the maintainer's read-only caches:
+
+```sh
+SATCHEL_BUILD_ROOT="$HOME/SatchelBuild" SATCHEL_DEPS_ROOT="$HOME/SatchelDeps" \
+  nice -n 10 python3 -B scripts/bootstrap_deps.py \
+  --root "$HOME/SatchelBuild/anygame/deps-part2" \
+  --cache "$HOME/SatchelBuild/rename/inputs" \
+  --cache "$HOME/SatchelBuild/rewriter" \
+  --cache "$HOME/SatchelBuild/spike" \
+  --cache "$HOME/SatchelBuild/rename/final-app/host/NativeAssets/font" \
+  --source-cache "$HOME/SatchelDeps" \
+  --dotnet "$HOME/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/dotnet/dotnet" \
+  --compare "$HOME/SatchelDeps" --local-validation
+```
+
+These paths are explicit cache arguments, not bootstrap defaults. Use a new empty root
+for each attempt. The bootstrap retains `bootstrap-manifest.json`, `output-manifest.json`
+and per-step logs, including failures and missing outputs. Exit 2 means incomplete, even
+if individual recipes pass. The existing heavy-build guard waits for active builds,
+limits each process to less than 9 GiB RSS and protects a 35 GiB disk reserve. Recipes
+use two jobs. The dependency layout retains the historical `tmp-snapshot-2026-11-01`
+subdirectory because the app still references it; its libraries are built afresh.
+
+The captured compiler README checkpoint has been reconciled against the exact reviewed
+bytes from the archived history: only the title separator changed during the public
+release. Its lock now includes that punctuation change and the review note. All 249
+source files match their checkpoints; compiler and validation code are unchanged.
+The local fresh-root rebuild produced all 45 declared dependency artifacts, with
+zero missing outputs. The CPU suite passed 5,837,760 checks; scalar gates passed
+853,611 compiler and 20,365,499 admission assertions; captured compilation passed
+its cold, mutation, typed-schema and 696-module SPIR-V gates. These are Mac synthetic
+executions and iOS compilation, not phone execution. Output comparison found 78
+identical files, 44 differing files and three archives absent from the reference root.
+The observed differences are archive metadata, build paths, managed module identifiers
+and reviewed notice/checkpoint changes. This is not bit-for-bit reproducibility.
+
+Remaining closure requirements:
+
+- Obtain matching .NET SDK 10.0.403 and fontTools 4.68.0 distribution hashes. Their
+  installed files are diagnostic inputs, not substitutes for archive pins.
+- Verify the five pinned tool source archives when downloads are authorized and finish
+  their standalone recipes: Python 3.14.4, CMake 4.4.4, XcodeGen 2.45.3 and matching
+  SPIRV-Tools/SPIRV-Headers Vulkan SDK 1.4.363.0 sources. Python's required native
+  dependencies and XcodeGen's Swift package closure also need pins. No Homebrew bottle
+  is a build input. See [the tool pin notes](scripts/deps/README.md).
+- Pin the font environment used to generate app fonts. Local validation generates
+  host metadata and fonts inside the new root, using an explicitly supplied local
+  Python environment. The 34 recorded engine patches apply without commits; 1,106
+  runtime source files matched the existing engine byte for byte.
+- Replace the dependency on a private `m5/pipeline-full/result.json` through a reviewed
+  public validation design. `NativeHost/shader_dependency.py` still requires this
+  game-derived parity evidence. The bootstrap neither copies it nor bypasses its check.
+- Complete `NativeApp/build.py --unsigned` with the fresh root. The local attempt
+  compiled all three native host archives and the rewriter, then stopped at the
+  unchanged `m5/pipeline-full/result.json` prerequisite. No unsigned app was produced.
+  Use a new `SATCHEL_OUT` for validation so an existing host-archive cache is not reused.
+  Set
+  `SATCHEL_NATIVE_BUILD_INPUTS=<root>/build-inputs`,
+  `SATCHEL_CAPSTONE_SOURCE=<root>/sources/capstone-d2e5739cbb43df93d589a3a726c8f878b95beccb`,
+  `SATCHEL_OPENSSL_IOS=<root>/openssl-ios` and `SATCHEL_SHADER_DEPS=<root>/m5`,
+  alongside `SATCHEL_DEPS_ROOT=<root>`. No phone readiness is implied.
 
 ## Tools
 
-- macOS with Xcode 27.2 (iOS 27.1 SDK) and command line tools
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.45 or newer (`brew install xcodegen`)
+- macOS with Xcode 27.2 (iOS 27.2 SDK) and command line tools
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.45 or newer (2.45.3 used locally)
+- CMake 3.24 or newer (4.4.4 used locally) and a Vulkan 1.1 capable `spirv-val`
 - Python 3.12 or newer (no third-party packages)
 - .NET SDK 10.0.403 with the pinned NativeAOT 10.0.14 packages, for the shader translator
 - An Apple developer account, and a device with Developer Mode on
@@ -28,8 +117,8 @@ named next to it. The pins are the ones the maintainer validated against.
 | Dependency | Pin | Expected location | Override |
 |---|---|---|---|
 | NX2Apple / nxnative engine source | commit `bbc3b73784751d2a706932dc69fd67627e3445d4` plus the 34 recorded integration patches | `~/SatchelDeps/NX2Apple/engine` | `SATCHEL_DEPS_ROOT` |
-| Interpreter-era libraries (VIXL CPU probe, shader bridge, Vulkan backend, guest graphics) | see each `Tools/*/README.md` | `~/SatchelDeps/tmp-snapshot-2026-11-01/...`, referenced from `project.yml` | edit `project.yml` |
-| Capstone | 5.0.7 | `~/SatchelBuild/rewriter/capstone-src` | `SATCHEL_BUILD_ROOT` |
+| Interpreter-era libraries (VIXL CPU probe, shader bridge, Vulkan backend, guest graphics) | see each `Tools/*/README.md` | `~/SatchelDeps/tmp-snapshot-2026-11-01/...`, referenced from `project.yml` | `SATCHEL_DEPS_ROOT` through `NativeApp/build.py` |
+| Capstone | 5.0.7 | `~/SatchelBuild/rewriter/capstone-src` | `SATCHEL_CAPSTONE_SOURCE` (otherwise `SATCHEL_BUILD_ROOT`) |
 | OpenSSL for iOS | 3.6.3, static | `~/SatchelBuild/spike/openssl-ios` | `SATCHEL_OPENSSL_IOS` |
 | MoltenVK | v1.4.2 | built by `Tools/VulkanBackend` scripts | see that README |
 | SPIRV-Cross, SPIRV-Tools, SPIRV-Headers | pinned in `Tools/ShaderBridge` and `Tools/VulkanBackend` | same | same |
@@ -38,8 +127,8 @@ named next to it. The pins are the ones the maintainer validated against.
 
 The per-component READMEs under `Tools/` describe how each library was fetched and built
 (`Tools/CPUProbe/README.md`, `Tools/MaxwellShaderCompiler/README.md`,
-`Tools/ShaderBridge/README.md`, `Tools/VulkanBackend/README.md`). Those are the scripts
-to turn into one fetch-and-build step.
+`Tools/ShaderBridge/README.md`, `Tools/VulkanBackend/README.md`). The bootstrap wraps those recipes rather than duplicating their compiler commands.
+The legacy rename staging mode remains available for historical workflows.
 
 ## The app build
 

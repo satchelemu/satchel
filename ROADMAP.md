@@ -23,7 +23,7 @@ with no computer involved.
 | In-game menu | 75% | Pause, resume, library, quit, screen fit, FPS counter, DLC. Audio volume, touch control size and opacity, controller layout are missing. |
 | iPhone Duo postures (closed, open, half folded) | 60% | Open and closed screens work; half folded layout and live relayout while playing are built but not fully verified. |
 | Library and app UI | 85% | Redesigned library with real artwork, import flow that keeps going in the background with iCloud download progress, home cards for import, Prepare, warm-up and a paused game, shader warm-up on each game page, settings with the bundled install guide, signature expiry warnings, save export and import. |
-| Build reproducibility | 25% | Builds only on the maintainer's Mac with a dependency snapshot. See BUILDING.md. |
+| Build reproducibility | 45% | All 45 declared native artifacts rebuilt locally from pinned cached inputs. Five tool source pins added; clean-Mac tool setup and private shader-parity evidence still prevent full app reproduction. See BUILDING.md. |
 | Distribution (IPA, SideStore source, refresh) | 40% | Install guide and source generator exist; no published IPA or source URL yet. |
 | General importer (unknown games boot without a per-game profile) | 50% | A starter profile is generated from the game's own metadata; Castlevania ran on it with one memory rule. More games will find more gaps. |
 | Compatibility | 4 games | See COMPATIBILITY.md. |
@@ -38,11 +38,11 @@ teardown or shader cache reuse. See [the test guide](docs/testing.md).
 In the order the maintainer would pick them up. Each is self-contained enough to be a
 pull request. Open an issue first if you want to claim one.
 
-1. **Reproducible build on a clean Mac.** Script the native dependency builds (NX2Apple
-   at the pinned commit with the recorded patches, Capstone, OpenSSL for iOS, MoltenVK,
-   SPIRV-Cross, the .NET NativeAOT shader translator) into one fetch-and-build step with
-   pinned hashes, replacing the `~/SatchelDeps` snapshot. `BUILDING.md` lists what the
-   build expects today.
+1. **Reproducible build on a clean Mac.** `scripts/bootstrap_deps.py` stages hashed
+   inputs and wraps the existing native recipes. Five tool source archives have exact
+   URLs and hashes. Finish the two missing distribution pins, validate standalone tool
+   recipes, and provide public shader validation without bypassing the private parity
+   check. The local diagnostic path is not a clean-Mac build. See `BUILDING.md` and `scripts/deps/inputs.lock.json`.
 2. **Second-account verification.** The team is now read from the build and the signed
    app (done 2026-11-03), but only the maintainer's account has exercised it. Build and
    sign with a different account, import an identity, prepare and launch a game, and

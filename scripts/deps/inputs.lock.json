@@ -1,0 +1,343 @@
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "id": "nxnative",
+      "kind": "git",
+      "url": "https://github.com/seedds/nxnative.git",
+      "version": "bbc3b73784751d2a706932dc69fd67627e3445d4",
+      "license": "MIT",
+      "sha256": "62c053fd0d7508221327e037acb2143574d7bc2160efc0036d8a13444fa0c060",
+      "hash_format": "git archive --format=tar COMMIT",
+      "source_cache": "NX2Apple/engine",
+      "cache": null,
+      "destination": "NX2Apple/engine"
+    },
+    {
+      "id": "nx2apple-patches",
+      "kind": "git",
+      "url": "https://github.com/LNPANDY/NX2Apple.git",
+      "version": "98f395215b7fa55b770cc1f6df7b7e40b484512d",
+      "license": "MIT",
+      "sha256": "81e34104c88a05dfb1493ab04ac0b2858b8551870564a411d31803a8a9185333",
+      "hash_format": "git archive --format=tar COMMIT",
+      "source_cache": "NX2Apple",
+      "cache": null,
+      "destination": "sources/nx2apple-patches"
+    },
+    {
+      "id": "nx2apple-translator",
+      "kind": "git",
+      "url": "https://github.com/LNPANDY/NX2Apple.git",
+      "version": "8227f80f9b381c680611303319656c4e0c806a50",
+      "license": "MIT",
+      "sha256": "d012d7bec65171fec6af54d4075459d13dd9b84fdfadaa0d43974744fec6fe0f",
+      "hash_format": "git archive --format=tar COMMIT",
+      "source_cache": "tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/NX2Apple",
+      "cache": null,
+      "destination": "tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/NX2Apple"
+    },
+    {
+      "id": "vixl",
+      "kind": "git",
+      "url": "https://github.com/Linaro/vixl.git",
+      "version": "7b792dcee6250db405f7f692d3853786b4d2a92d",
+      "license": "BSD-3-Clause",
+      "sha256": "27bd06a19859c101f83c310bdd6eb7fb1f72e89056a2efe0413406b3b75ab852",
+      "hash_format": "git archive --format=tar COMMIT",
+      "source_cache": "tmp-snapshot-2026-11-01/tmp/satchel-vixl-probe/vixl",
+      "cache": null,
+      "destination": "tmp-snapshot-2026-11-01/tmp/satchel-vixl-probe/vixl"
+    },
+    {
+      "id": "spirv-cross",
+      "kind": "git",
+      "url": "https://github.com/KhronosGroup/SPIRV-Cross.git",
+      "version": "f11ba9f0b21ba8fc15153d50a2a1ae31ab1cf8f7",
+      "license": "Apache-2.0",
+      "sha256": "1a7aaa83f76a93e14c4ba8ec027d009739f9e62b4ec25dd3f245d32bc7a11325",
+      "hash_format": "git archive --format=tar COMMIT",
+      "source_cache": "m5/spirv-cross",
+      "cache": null,
+      "destination": "m5/spirv-cross"
+    },
+    {
+      "id": "zstd",
+      "kind": "git",
+      "url": "https://github.com/facebook/zstd.git",
+      "version": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+      "license": "BSD-3-Clause",
+      "sha256": "e43521ef6e50b3c0f42612f6147c2f74c1c3af18e1c2d56fb91b8ddcb590c699",
+      "hash_format": "git archive --format=tar COMMIT",
+      "source_cache": "m5/zstd",
+      "cache": null,
+      "destination": "m5/zstd"
+    },
+    {
+      "id": "moltenvk-source",
+      "kind": "git",
+      "url": "https://github.com/KhronosGroup/MoltenVK.git",
+      "version": "db66022459ffb663aa2b50f6b018bc2e124f5edf",
+      "license": "Apache-2.0",
+      "sha256": "bd4a1bba4b10f857c072452cd1902deded60470791f2c128fd790237a56cff1c",
+      "hash_format": "git archive --format=tar COMMIT",
+      "source_cache": null,
+      "cache": "moltenvk/MoltenVK-source",
+      "destination": "tmp-snapshot-2026-11-01/tmp/satchel-vulkan-backend/MoltenVK-source"
+    },
+    {
+      "id": "microsoft.netcore.app.runtime.nativeaot.ios-arm64.10.0.14.nupkg",
+      "kind": "file",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.nativeaot.ios-arm64/10.0.14/microsoft.netcore.app.runtime.nativeaot.ios-arm64.10.0.14.nupkg",
+      "version": "10.0.14",
+      "license": "MIT",
+      "sha256": "1ec79b28497045a108dce8e9293935f6838e0abec0fd836aa01564c86daea7eb",
+      "cache": "feed/microsoft.netcore.app.runtime.nativeaot.ios-arm64.10.0.14.nupkg",
+      "destination": "inputs/feed/microsoft.netcore.app.runtime.nativeaot.ios-arm64.10.0.14.nupkg"
+    },
+    {
+      "id": "runtime.osx-arm64.microsoft.dotnet.ilcompiler.10.0.14.nupkg",
+      "kind": "file",
+      "url": "https://api.nuget.org/v3-flatcontainer/runtime.osx-arm64.microsoft.dotnet.ilcompiler/10.0.14/runtime.osx-arm64.microsoft.dotnet.ilcompiler.10.0.14.nupkg",
+      "version": "10.0.14",
+      "license": "MIT",
+      "sha256": "624d4b876961279e75d8456f179b6ded1235c504fde4230abebf0dd2f56bc6a3",
+      "cache": "feed/runtime.osx-arm64.microsoft.dotnet.ilcompiler.10.0.14.nupkg",
+      "destination": "inputs/feed/runtime.osx-arm64.microsoft.dotnet.ilcompiler.10.0.14.nupkg"
+    },
+    {
+      "id": "microsoft.dotnet.ilcompiler.10.0.14.nupkg",
+      "kind": "file",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.dotnet.ilcompiler/10.0.14/microsoft.dotnet.ilcompiler.10.0.14.nupkg",
+      "version": "10.0.14",
+      "license": "MIT",
+      "sha256": "6744a4a82b31a8568df48e927baaa85378a848966d5712323956f63528ed38b9",
+      "cache": "feed/microsoft.dotnet.ilcompiler.10.0.14.nupkg",
+      "destination": "inputs/feed/microsoft.dotnet.ilcompiler.10.0.14.nupkg"
+    },
+    {
+      "id": "microsoft.net.illink.tasks.10.0.14.nupkg",
+      "kind": "file",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.net.illink.tasks/10.0.14/microsoft.net.illink.tasks.10.0.14.nupkg",
+      "version": "10.0.14",
+      "license": "MIT",
+      "sha256": "e2a71b32b5c135dc2b0c87ea8fba6c9e677332e00bf959fbcdced239b825b75c",
+      "cache": "feed/microsoft.net.illink.tasks.10.0.14.nupkg",
+      "destination": "inputs/feed/microsoft.net.illink.tasks.10.0.14.nupkg"
+    },
+    {
+      "id": "microsoft.netcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "kind": "file",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.osx-arm64/10.0.14/microsoft.netcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "version": "10.0.14",
+      "license": "MIT",
+      "sha256": "9c15146d70feb23de1b6d27074539380f87706cf293aac173190105a55bdaee7",
+      "cache": "feed/microsoft.netcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "destination": "inputs/feed/microsoft.netcore.app.runtime.osx-arm64.10.0.14.nupkg"
+    },
+    {
+      "id": "microsoft.aspnetcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "kind": "file",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.app.runtime.osx-arm64/10.0.14/microsoft.aspnetcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "version": "10.0.14",
+      "license": "MIT",
+      "sha256": "0c4e1d231a927ce21d99cc91b54bcc9f283a92c2e409f48d4781f8e83deeb09c",
+      "cache": "feed/microsoft.aspnetcore.app.runtime.osx-arm64.10.0.14.nupkg",
+      "destination": "inputs/feed/microsoft.aspnetcore.app.runtime.osx-arm64.10.0.14.nupkg"
+    },
+    {
+      "id": "MoltenVK-ios.tar",
+      "kind": "file",
+      "url": "https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.2/MoltenVK-ios.tar",
+      "version": "1.4.2",
+      "license": "Apache-2.0",
+      "sha256": "b5d947b1660e6e9fed40b9cd2387e160aaab9e80b775c0cef7e14059405178c1",
+      "cache": "moltenvk/MoltenVK-ios.tar",
+      "destination": "inputs/moltenvk/MoltenVK-ios.tar"
+    },
+    {
+      "id": "MoltenVK-macos.tar",
+      "kind": "file",
+      "url": "https://github.com/KhronosGroup/MoltenVK/releases/download/v1.4.2/MoltenVK-macos.tar",
+      "version": "1.4.2",
+      "license": "Apache-2.0",
+      "sha256": "f95765a6229cb7b915990a2890ce12ebe36a730b021545d3d52ae69ce4c4024e",
+      "cache": "moltenvk/MoltenVK-macos.tar",
+      "destination": "inputs/moltenvk/MoltenVK-macos.tar"
+    },
+    {
+      "id": "microsoft.netcore.app.runtime.nativeaot.osx-arm64.10.0.14.nupkg",
+      "kind": "file",
+      "url": "https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.nativeaot.osx-arm64/10.0.14/microsoft.netcore.app.runtime.nativeaot.osx-arm64.10.0.14.nupkg",
+      "version": "10.0.14",
+      "license": "MIT",
+      "sha256": "83a556599c0391e42735b62b5eb8afd4ade27c7437995056cc6e0f9110f966a1",
+      "cache": "feed/microsoft.netcore.app.runtime.nativeaot.osx-arm64.10.0.14.nupkg",
+      "destination": "inputs/feed/microsoft.netcore.app.runtime.nativeaot.osx-arm64.10.0.14.nupkg"
+    },
+    {
+      "id": "capstone",
+      "kind": "file",
+      "url": "https://github.com/capstone-engine/capstone/archive/d2e5739cbb43df93d589a3a726c8f878b95beccb.tar.gz",
+      "version": "5.0.7 (d2e5739cbb43df93d589a3a726c8f878b95beccb)",
+      "license": "BSD-3-Clause",
+      "sha256": "cc7a1542ded0424e47ef2ae275ca8050ec2ebfe870255ebd4375147f17ee88b0",
+      "cache": "capstone.tar.gz",
+      "destination": "inputs/capstone.tar.gz"
+    },
+    {
+      "id": "openssl",
+      "kind": "file",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.6.3/openssl-3.6.3.tar.gz",
+      "version": "3.6.3",
+      "license": "Apache-2.0",
+      "sha256": "243a86649cf6f23eeb6a2ff2456e09e5d77dd9018a54d3d96b0c6bdd6ba6c7f1",
+      "cache": "openssl-3.6.3.tar.gz",
+      "destination": "inputs/openssl-3.6.3.tar.gz"
+    },
+    {
+      "id": "noto-sans",
+      "kind": "file",
+      "url": "https://raw.githubusercontent.com/notofonts/notofonts.github.io/412a7edb2c8c535d1066157e5b17e661fd5591fe/fonts/NotoSans/hinted/ttf/NotoSans-Regular.ttf",
+      "version": "412a7edb2c8c535d1066157e5b17e661fd5591fe",
+      "license": "OFL-1.1",
+      "sha256": "478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823",
+      "cache": "NotoSans-Regular.ttf",
+      "destination": "inputs/NotoSans-Regular.ttf",
+      "cache_aliases": [
+        "standard.ttf"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "id": "dotnet-sdk",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.403/dotnet-sdk-10.0.403-osx-arm64.tar.gz",
+      "version": "10.0.403",
+      "license": "MIT and bundled third-party notices",
+      "sha256": null,
+      "reason": "SDK archive absent in supplied cache; installed SDK is usable only for local validation."
+    },
+    {
+      "id": "fonttools",
+      "url": "https://pypi.org/project/fonttools/4.68.0/",
+      "version": "4.68.0",
+      "license": "MIT",
+      "sha256": null,
+      "reason": "Installed module only; no wheel or sdist in supplied cache."
+    }
+  ],
+  "notes": [
+    "Git hashes cover the deterministic tar stream produced by git archive at the pinned commit, before applying recorded patches. They are not GitHub tarball hashes.",
+    "NuGet and MoltenVK archive hashes come from the previously verified offline inputs. No network was used to create this lock.",
+    "MoltenVK release archives supply SPIRV-Tools, SPIRV-Headers, Vulkan-Headers and cereal internally; notices and revisions are in Tools/VulkanBackend/Notices/manifest.json.",
+    "Missing hashes are explicit blockers, never trust-on-first-use pins.",
+    "Ryujinx 1.3.3 is a reference only, not a build input. The translator vendors the MIT 1.3.2 source at the NX2Apple pin.",
+    "NX2Apple repositories include bundled dependencies with their own retained notices, including libvpx (BSD), stb_vorbis (MIT/public domain), bcdec (MIT) and Ryujinx (MIT). The bootstrap does not fetch separate copies.",
+    "Tool source pins use upstream source URLs, not Homebrew bottles. They are separated from exercised inputs: source archive verification and standalone tool recipes remain unvalidated. The local diagnostic route still uses installed executables."
+  ],
+  "tool_sources": [
+    {
+      "id": "cmake",
+      "kind": "file",
+      "url": "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4.tar.gz",
+      "version": "4.4.4",
+      "license": "BSD-3-Clause",
+      "sha256": "bd24c30d80a7744ae84b845ff080cc8453b06c622ef01066564108e9cefc44cf",
+      "cache": "cmake-4.4.4.tar.gz",
+      "destination": "inputs/tool-sources/cmake/cmake-4.4.4.tar.gz",
+      "provenance": {
+        "type": "installed-formula-source-pin",
+        "path": "cmake/4.4.4/.brew/cmake.rb",
+        "metadata_sha256": "8afc6e3054549acfe454224bff2234cf1c523d1ef7826215488bcef8c74706b2"
+      },
+      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+    },
+    {
+      "id": "xcodegen",
+      "kind": "file",
+      "url": "https://github.com/yonaskolb/XcodeGen/archive/refs/tags/2.45.3.tar.gz",
+      "version": "2.45.3",
+      "license": "MIT",
+      "sha256": "b8df8b3cffc65621838133fcc168afe4f444dbe9dc74cd32d1445d93380b4389",
+      "cache": "2.45.3.tar.gz",
+      "destination": "inputs/tool-sources/xcodegen/2.45.3.tar.gz",
+      "provenance": {
+        "type": "installed-formula-source-pin",
+        "path": "xcodegen/2.45.3/.brew/xcodegen.rb",
+        "metadata_sha256": "c0a5915c5ecf7130eedc17c7f80f234480151c869134d0d5637cc0f33ba2655c"
+      },
+      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+    },
+    {
+      "id": "python",
+      "kind": "file",
+      "url": "https://www.python.org/ftp/python/3.14.4/Python-3.14.4.tgz",
+      "version": "3.14.4",
+      "license": "PSF-2.0",
+      "sha256": "b4c059d5895f030e7df9663894ce3732bfa1b32cd3ab2883980266a45ce3cb3b",
+      "cache": "Python-3.14.4.tgz",
+      "destination": "inputs/tool-sources/python/Python-3.14.4.tgz",
+      "provenance": {
+        "type": "installed-formula-source-pin",
+        "path": "python@3.14/3.14.4/.brew/python@3.14.rb",
+        "metadata_sha256": "1cbbebf565f36051bd7d712c9665829f91d20545667d1268560377693039632f"
+      },
+      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+    },
+    {
+      "id": "spirv-tools",
+      "kind": "file",
+      "url": "https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz",
+      "version": "1.4.363.0",
+      "license": "Apache-2.0",
+      "sha256": "e6c83a215538fbfd265ccf398d3877985055df1273dbed73912bd05307664688",
+      "cache": "spirv-tools-vulkan-sdk-1.4.363.0.tar.gz",
+      "destination": "inputs/tool-sources/spirv-tools/vulkan-sdk-1.4.363.0.tar.gz",
+      "provenance": {
+        "type": "installed-formula-source-pin",
+        "path": "spirv-tools/1.4.363.0/.brew/spirv-tools.rb",
+        "metadata_sha256": "cc5bacb855ffc30e0a025db49fb4b7fab755096b829261d23ddcfa906ee2dcde"
+      },
+      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+    },
+    {
+      "id": "spirv-headers",
+      "kind": "file",
+      "url": "https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz",
+      "version": "1.4.363.0",
+      "license": "MIT",
+      "sha256": "5b3a0d099f5c7649e29c0938476c462e71d66ad89a0bde42fa1ba3eb476956c9",
+      "cache": "spirv-headers-vulkan-sdk-1.4.363.0.tar.gz",
+      "destination": "inputs/tool-sources/spirv-headers/vulkan-sdk-1.4.363.0.tar.gz",
+      "provenance": {
+        "type": "installed-formula-source-pin",
+        "path": "spirv-headers/1.4.363.0/.brew/spirv-headers.rb",
+        "metadata_sha256": "9013989f82adb40c48ebf0d31b7214aaf78033dd2fcae3317174582ae130d154"
+      },
+      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+    }
+  ],
+  "tool_recipe_gaps": [
+    {
+      "id": "cmake",
+      "reason": "Build the pinned source with Xcode and bundled libraries, then validate the resulting executable without Homebrew."
+    },
+    {
+      "id": "xcodegen",
+      "reason": "Pin the Swift Package.resolved dependency closure and validate an offline release build from the source archive."
+    },
+    {
+      "id": "python",
+      "reason": "Pin the required standard-library dependency sources and validate an isolated interpreter with TLS, zlib and tar extraction support."
+    },
+    {
+      "id": "spirv-tools",
+      "reason": "Build the pinned source with the matching pinned headers, tests disabled only for optional upstream test dependencies; run the existing Satchel SPIR-V validation gates."
+    },
+    {
+      "id": "spirv-headers",
+      "reason": "Stage the matching header source for the standalone SPIRV-Tools build."
+    }
+  ]
+}

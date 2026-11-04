@@ -153,3 +153,15 @@ a guessed false fact; v1/v2 retain their complete known255/extra4095 requirement
 The framework now exports three production entries plus the .NET debug header.
 See `../GuestGraphics/CAPTURED_PROGRAMS.md` for exact guest-pool ownership, state
 blockers, source provenance and original real-GPU validation.
+
+## Documentation checkpoint reconciliation (2026-11-04)
+
+The reviewed `history:Tools/CapturedFlatCompiler/README.md` has SHA-256
+`0a2b0335e6a0f58eee42c2db42c4569d1efb77364b88674cf9c99c7688e20de0`.
+The public-release README before this note has SHA-256
+`10db20bf2298a20542175b94cfdb2f546ac891e21d58404d068301c5435df01e`.
+A read-only byte comparison found exactly one change: the title separator changed
+from an em dash to a colon. There were no other text or semantic changes. The
+README entry in `source-lock.json` now covers the public-release punctuation and
+this reconciliation note. No compiler, fixture, admission rule, renderer reference
+or validation assertion changed; every other source checkpoint remains enforced.

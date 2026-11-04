@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tarfile
@@ -30,6 +31,32 @@ def digest(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
+def obtain_pinned(path, url, pin, cached=None, fetch=False):
+    """Copy or fetch a file only with a previously recorded SHA-256 pin."""
+    if not isinstance(pin, str) or len(pin) != 64 or any(c not in '0123456789abcdef' for c in pin):
+        raise RuntimeError('Missing SHA-256 pin: ' + path.name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        if cached is not None:
+            if digest(cached) != pin:
+                raise RuntimeError('Pinned SHA-256 mismatch: ' + path.name)
+            shutil.copyfile(cached, path)
+        elif fetch:
+            temporary = path.with_name(path.name + '.partial')
+            try:
+                subprocess.run(['curl', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https',
+                                '--max-time', '600', '--silent', '--show-error', url, '--output', str(temporary)], check=True)
+                if digest(temporary) != pin:
+                    raise RuntimeError('Pinned SHA-256 mismatch: ' + path.name)
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+        else:
+            raise RuntimeError('Missing offline input: ' + path.name)
+    if digest(path) != pin:
+        raise RuntimeError('Pinned SHA-256 mismatch: ' + path.name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
@@ -52,20 +79,23 @@ def main():
     env = dict(os.environ, DOTNET_CLI_HOME=str(out/'cli'), NUGET_PACKAGES=str(out/'packages'),
                DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_GENERATE_ASPNET_CERTIFICATE='false',
                DOTNET_SKIP_FIRST_TIME_EXPERIENCE='1')
+    pins = {row['cache']: row['sha256'] for row in json.loads((root/'scripts/deps/inputs.lock.json').read_text())['inputs'] if row['kind'] == 'file'}
+    pins['moltenvk/MoltenVK-source.tar'] = next(row['sha256'] for row in json.loads((root/'scripts/deps/inputs.lock.json').read_text())['inputs'] if row['id'] == 'moltenvk-source')
     manifest['complete'] = False
     def save():
         manifest_path.write_text(json.dumps(manifest, indent=2)+'\n')
     def run(command, log=None):
         result = subprocess.run(list(map(str, command)), env=env, text=True, capture_output=True)
-        if log: (logs/log).write_text(result.stdout+result.stderr)
+        # Keep verification status, without certificate subject or issuer names.
+        diagnostic = '\n'.join('[certificate name omitted]' if 'CN=' in line else line
+                               for line in (result.stdout+result.stderr).splitlines()) + '\n'
+        if log: (logs/log).write_text(diagnostic)
         if result.returncode:
-            raise RuntimeError('Command failed: '+str(command)+'\n'+result.stdout+result.stderr)
+            raise RuntimeError('Command failed: '+str(command)+'\n'+diagnostic)
         return result.stdout
     def obtain(path, url, pin=None):
         key = path.relative_to(out).as_posix()
-        if not path.exists():
-            if not args.fetch: raise RuntimeError('Missing offline input: '+key)
-            run(['curl','--fail','--location','--proto','=https','--max-time','600','--silent','--show-error',url,'--output',path])
+        obtain_pinned(path, url, pin or pins.get(key), fetch=args.fetch)
         actual = digest(path)
         previous = manifest['files'].get(key)
         if pin and actual != pin: raise RuntimeError('Pinned SHA-256 mismatch: '+key)
