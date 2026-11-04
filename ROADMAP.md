@@ -17,7 +17,7 @@ with no computer involved.
 | Code signing on the phone | 90% | Works with the user's Apple Development identity. The app derives the accepted team from its own signature, so any developer account works; verified so far only with the maintainer's. |
 | Shaders on the phone (translate, compile, cache) | 70% | All of Zelda's 71,621 shaders translate and compile on the phone; first use is cached per game. Builds still happen on the frame thread in places, so first play stutters. The optional warm-up for a phone-prepared game translates every shader on the phone and is slow (about 1.5 seconds per shader for Odyssey's 25,316, so many hours); play is available while it runs. Geometry and tessellation stages are not translated. |
 | Horizon services | 60% | Eight IPC rounds plus a measured SDK file-flush correction from NX2Apple and Ryujinx (fs, hid, time, settings, account, applet, audio, parental control, friends, network stubs, play reports, DLC). Each new game reports what it still misses; all three phone-prepared games reported none on 2026-11-04. |
-| Graphics (NVN on Metal) | 65% | Zelda, Odyssey, Castlevania and Mario Kart render correctly. Zelda at 100% render scale does not hold 30 FPS yet; anti-aliasing at low render scale is rough. |
+| Graphics (NVN on Metal) | 65% | Zelda, Odyssey, Castlevania and Mario Kart render correctly. Zelda at 100% render scale does not hold 30 FPS yet; anti-aliasing at low render scale is rough. Opt-in Mac pass attribution is validated; no new full-resolution speedup is established. |
 | Performance and stability | 60% | Two hour Zelda session without a crash. Memory growth between scenes and one post-session launch hang are open. |
 | Controllers and input | 80% | Xbox, DualSense and Pro Controller; touch controls; rumble. Controller mapping UI and a controller shortcut for the menu are missing. |
 | In-game menu | 75% | Pause, resume, library, quit, screen fit, FPS counter, DLC. Audio volume, touch control size and opacity, controller layout are missing. |
@@ -63,7 +63,11 @@ pull request. Open an issue first if you want to claim one.
    extension is a second target with its own bundle ID, so check signing with a free
    account first.
 6. **Zelda at 100% render scale.** Profile the GPU cost per pass and find the 30 FPS
-   budget at full resolution; no render scale tricks.
+   budget at full resolution; no render scale tricks. The opt-in pass counters and
+   workload and paired-trial summaries are in `NativeHost/graphics`. Rejected
+   experiments are excluded. Mac gameplay attribution is available for
+   Zelda and Odyssey; no full-resolution phone speedup is established. Validate
+   matched pixels and GPU cost before promoting a candidate.
 7. **Controller remapping and controller navigation.** A physical input list keyed to
    GameController input names, one JSON profile per controller product category, a
    settings page with a stick visualizer and dead zone, and a button combination that

@@ -42,13 +42,16 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
             setenv("DM_PSO_USER", [candidate stringByAppendingPathComponent:@"pso_user.tsv"].fileSystemRepresentation, 1);
         } else fprintf(stderr, "Satchel graphics: trial directory failed: %s\n", error.localizedDescription.UTF8String);
     } else if (trial) fprintf(stderr, "Satchel graphics: invalid trial name ignored\n");
+    unsetenv("DM_NVN_GPUPROF");
     if ([argument(args, @"-SatchelGraphicsProfile") isEqualToString:@"YES"]) {
         setenv("DM_SHADER_EVENTS", [[cacheRoot stringByAppendingPathComponent:@"shader-events.tsv"] fileSystemRepresentation], 1);
         setenv("DM_BOOTPROF", "1", 1);
         setenv("DM_SLOWFRAME", "1", 1);
         setenv("DM_PSO_WAITLOG", "1", 1);
         setenv("DM_NVN_WAITS", "1", 1);
-        setenv("DM_NVN_GPUPROF", "every:300", 1);
+        if ([argument(args, @"-SatchelGraphicsCounters") isEqualToString:@"NO"])
+            unsetenv("DM_NVN_GPUPROF");
+        else setenv("DM_NVN_GPUPROF", "every:300", 1);
         setenv("DM_NVN_TSV_CALLS", "0", 1);
         setenv("DM_NVN_TSV", [[cacheRoot stringByAppendingPathComponent:@"graphics-frames.tsv"] fileSystemRepresentation], 1);
     }

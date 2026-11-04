@@ -135,6 +135,10 @@ that automated workers follow in this repository.
 - [COMPATIBILITY.md](COMPATIBILITY.md): what has been tried, how well it runs, and how to
   add a game to the list.
 
+Opt-in GPU pass attribution and paired analysis are available in the
+[graphics diagnostics](NativeHost/graphics/README.md#gpu-pass-cost-diagnostics).
+They do not establish a full-resolution speedup or change the compatibility claims.
+
 ## Contributing
 
 Contributions are welcome, from compatibility reports to engine work. Start with

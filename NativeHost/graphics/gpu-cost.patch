@@ -1,0 +1,42 @@
+--- a/nvn_mtl.m
++++ b/nvn_mtl.m
+@@ -875,7 +875,7 @@
+ // A render pass line also gives what it loaded and stored of its attachments (KB, the bandwidth ledger's view: DontCare stores are not counted) and the Metal pixel formats of
+ // colour attachment 0 and of the depth / stencil attachment (0: none)
+ enum { GP_MAX = 4096 };   // the largest timestamp heap Metal makes
+-typedef struct { char kind; uint16_t w, h; uint8_t nc, depth, loads; uint32_t draws, seg; uint64_t pass; uint32_t ld_kb, st_kb; uint16_t cfmt, dfmt; } gp_lab;   // seg: the command buffer (segment) of the submission it is in
++typedef struct { char kind; uint16_t w, h; uint8_t nc, depth, loads; uint32_t draws, seg; uint64_t pass; uint32_t ld_kb, st_kb; uint16_t cfmt, dfmt; uint32_t end_site, write_stages; } gp_lab;   // seg: the command buffer (segment) of the submission it is in
+ static id<MTL4CounterHeap> g_gp_heap; static gp_lab g_gp_lab[GP_MAX / 2]; static int g_gp_n, g_gp_state, g_gp_cur = -1; static long g_gp_f0 = -2, g_gp_f1, g_gp_every; static uint64_t g_gp_frame;
+ static const void *g_gp_e;   // the encoder g_gp_cur belongs to: m4_end also ends the upload / diagnostics / present encoders, which may end while a profiled pass is open (#531)
+ static _Atomic int g_gp_busy;   // a periodic profile's report has not been printed yet: the heap is still being read
+@@ -934,7 +934,7 @@
+         double us = (b - a) * tick_ns / 1e3; const gp_lab *l = &lab[i]; tot[l->kind != 'R'] += us;
+         if (!t0 || a < t0) t0 = a; if (b > t1) t1 = b;
+         if (l->kind == 'R') { np++; ld += l->ld_kb; st += l->st_kb;
+-            MLOG("[gpuprof] F%llu %4d %8.1f us render pass %llu %ux%u colors %u depth %u loads %u draws %u start %+.1f seg %u load %u KB store %u KB fmt %u/%u", (unsigned long long)frame, i, us, (unsigned long long)l->pass, l->w, l->h, l->nc, l->depth, l->loads, l->draws, (a - t[0]) * tick_ns / 1e3, l->seg, l->ld_kb, l->st_kb, l->cfmt, l->dfmt); }
++            MLOG("[gpuprof] F%llu %4d %8.1f us render pass %llu %ux%u colors %u depth %u loads %u draws %u start %+.1f seg %u load %u KB store %u KB fmt %u/%u end_site %u writes %u", (unsigned long long)frame, i, us, (unsigned long long)l->pass, l->w, l->h, l->nc, l->depth, l->loads, l->draws, (a - t[0]) * tick_ns / 1e3, l->seg, l->ld_kb, l->st_kb, l->cfmt, l->dfmt, l->end_site, l->write_stages); }
+         else MLOG("[gpuprof] F%llu %4d %8.1f us compute / copy after pass %llu start %+.1f seg %u copies %u (uniform updates %u) dispatches %u", (unsigned long long)frame, i, us, (unsigned long long)l->pass, (a - t[0]) * tick_ns / 1e3, l->seg, l->draws, l->h, l->w); }
+     span = (t1 - t0) * tick_ns / 1e3;
+     MLOG("[gpuprof] frame %llu: render %.2f ms, compute / copy %.2f ms over %d encoders (%d render passes, attachments load %.1f MB store %.1f MB), first start to last end %.2f ms", (unsigned long long)frame, tot[0] / 1e3, tot[1] / 1e3, n, np, ld / 1024.0, st / 1024.0, span / 1e3);
+@@ -3282,5 +3282,12 @@
+ #endif
+     AP_E(0);
+ } }
++// A source line identifies why a sampled draw pass ended, without dumping commands.
++static void gpu_rp_end_at(unsigned line) {
++    if (g_enc && g_gp_cur >= 0 && g_gp_e == (__bridge const void *)g_enc)
++        g_gp_lab[g_gp_cur].end_site = line;
++    rp_end();
++}
++#define rp_end() gpu_rp_end_at(__LINE__)
+ void pg_sub_begin_ext(uint64_t fence) { pg_sub_begin(fence); }
+ void pg_commit_ext(id<MTLCommandBuffer> cb) { pg_commit(cb); }
+@@ -4918,6 +4925,8 @@
+     PD("M %llu a draw with shader writes after an ordering barrier; split here", g_stat_pass); rp_end();
+ }
+ static void swrite_note(NvProg *pr) {
++    if (g_gp_cur >= 0 && g_gp_e == (__bridge const void *)g_enc)
++        g_gp_lab[g_gp_cur].write_stages |= (uint32_t)prog_swrites(pr);
+     if (!pr) return;
+     if (g_pass_swrite) { g_vbuf_write_epoch++; return; }   // further shader writes also invalidate aligned vertex snapshots
+     if (prog_swrites(pr)) { g_pass_swrite = 1; g_vbuf_write_epoch++; }
