@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "app_files": {
+    "SwitchRuntimeWindow.swift": "8231988075d4d5da22b639415a89894bf8d93d93df77c72bfce3024f6721da34",
+    "SwitchWindowReport.swift": "57c2ab4b4b5539e1963258a6c439fd6d614a961f3b3547d96b04b0f4e17dcbeb",
+    "SwitchRuntimeFrame.swift": "89977c52e51f634ab86315828adef939da19136572e03cf6d8a7454e4131c2f7",
+    "SwitchRuntimeSurfaceState.swift": "d46bec23057eba427ba88a1827299b838adc674cceae9002f76a9c010c845d22"
+  },
+  "worker": {
+    "start": "    private struct FrameLease {",
+    "end": "    // Called on this queue after graphics handoff",
+    "sha256": "f4a6c7a15e3d5d0b1601b7c04fbc5e7907ef227c59b4dba25c0988bbbe75ff07",
+    "prefix": "import Foundation\n\nenum RuntimeGraphicsWorker {\n    private static let queue = DispatchQueue(label: \"com.dell.satchel.graphics\", qos: .userInitiated)\n",
+    "suffix": "    // Test-only access to the unchanged private production collector.\n    static func fixtureCollect() { collectFrameLeases() }\n}\n"
+  },
+  "error_type": {
+    "start": "struct SwitchImportFailure: LocalizedError {",
+    "end": "\n}\n",
+    "sha256": "12db74e605b286704194ce2578c64a07aa0510b15781f8830112b26a1a09566b"
+  },
+  "fixtures": {
+    "Tools/RuntimeWindow/Bridge.h": "bb8eca06da6882ef7e0300f07d64388c014d9b551422624b7d6bc3c25432e7d0",
+    "Tools/RuntimeWindow/Test.swift": "cacf3e4b533f26085f2deb7bb38c5ec0e53ec48790b4b16fdd7afcea685d54ba",
+    "Tools/RuntimeWindow/Fixture.h": "86dba12f4d4f65dbc8b4c7ffea8ec6dcb391a3bc5686547d842261239f001281",
+    "Tools/RuntimeWindow/Fixture.c": "76eab1ab8b6990c145467b6dee240073909fc81d9f5cc39e040c220121ef0a13",
+    "Tools/RuntimeWindowFrame/Test.swift": "258ae10a51263860054ebb97909dc9ce90d50c79493031ae11571b2574a92c64",
+    "Tools/RuntimeWindowFrame/ReleaseShim.c": "63c2cde8e2a7dfbabaaaca70bc85eeb58bb23b0dfeba9419d2e8488f9d87baf2",
+    "Tools/RuntimeWindowFrame/TestBridge.h": "397092ff67a790fa46d91bb9e4d26ab5189b3aa7b0936feed6eac5f251640665"
+  }
+}

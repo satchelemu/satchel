@@ -1,0 +1,33 @@
+{
+  "status": "read-only review clear after initial-clock failure fix",
+  "reviewer": "core_options",
+  "files": {
+    "/tmp/satchel-guest-captured-diagnostic-staging/GuestCapturedProgramDiagnostic.c": "7ed5041ffbc66e43342f4c4b715d3e665c2e29b07edff87700946fcd63c0b70e",
+    "/tmp/satchel-guest-captured-diagnostic-staging/GuestCapturedProgramDiagnostic.h": "e79878487c4b7b995575462384f073828fc325a23dbc2c32036b540abd5fb450",
+    "/tmp/satchel-guest-captured-diagnostic-staging/Test.c": "6f80050227f0af42057424ef2557121709220ce9d18f76a60dbf73dc68fbd8dd",
+    "/tmp/satchel-guest-captured-diagnostic-staging/FaultTest.c": "4b9a3ef86357889d2ab8a621610491d0d98869e19b6c29cca03b44953fc0719e",
+    "/tmp/satchel-guest-captured-diagnostic-staging/build.py": "ce7638f4af1559334a24ca249da24d56d47e33b0bc3cfb137f284fb2dec90d16",
+    "/tmp/satchel-guest-captured-diagnostic-staging/build/validation-manifest.json": "2f3abef4d6d2ccaf74866e9847e0b126672a68716a3f3b2b4493b6f84b24aeea",
+    "/tmp/satchel-guest-captured-diagnostic-staging/build/test.log": "71b20815be82263b19199d1bf78013a117e3daa861faa6c11762afd1b495d429",
+    "/tmp/satchel-guest-captured-diagnostic-staging/build/fault-test.log": "af2e0e6bf22ce846f39070f346846d5985e0edc1bf78d5b9947610f6be4938b4"
+  },
+  "finding_resolved": "Initial monotonic clock failure could set UINT64_MAX deadline and recover into an effectively unlimited run; production now latches cancellation before allocations, with first-read-fails/second-recovers test-only coverage.",
+  "findings": [
+    "Status0 is success enum, not a boolean; header and callers agree. Invalid alignment/reentrant BUSY leave caller output untouched; owned run publishes one local report exactly once.",
+    "Atomic active flag serializes static owner. Borrowed cancel/context live only in stack Poll; documented pure callback, no retained CPU/provider references.",
+    "Each nonzero device/job/buffer/pipeline/reference is stored before checking status. Cleanup waits/reaps job before dependent destruction, then releases capture references/owners/pools/device, preserving each token on failure.",
+    "Private CPU never executes or escapes and is destroyed before retained GPU cleanup. Later calls drain prior CPU-free ownership before new allocation, with refreshed baseline after successful drain.",
+    "Fixed original checked RAM260KiB, pool64KiB, vertex96B/readback1408B/16x16 target; captures and compiler calls use existing bounded owner/admission work and1s caps. Overall10s cooperative cap and2.5s fence bound documented; synchronous driver calls not preemptible.",
+    "Explicit original known raster state and source-unused proofs remain distinct; source admission is not claimed as compile or draw. Actual typed generated pairs drive real GPU and verified outputs; no guest-game/NVN/display claim."
+  ],
+  "validation_observed_not_rerun": {
+    "normal_assertions": 94,
+    "fault_assertions": 28,
+    "ios17": "manifest reports compile and one public diagnostic export"
+  },
+  "limits": [
+    "Review did not build or run tests. Read existing owner/compiler/backend contracts and producer logs.",
+    "Caller must honor serial graphics worker and pure cancellation contract; deliberately hostile reentry tests are test-only.",
+    "This is an original synthetic diagnostic, not actual game rendering."
+  ]
+}

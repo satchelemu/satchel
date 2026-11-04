@@ -1,0 +1,62 @@
+[
+  {
+    "file": "StrictSource.cs",
+    "line": 20,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "StrictSource.cs",
+    "line": 23,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "StrictSource.cs",
+    "line": 29,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "StrictSource.cs",
+    "line": 38,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "StrictSource.cs",
+    "line": 51,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "StrictSource.cs",
+    "line": 56,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "SpirvProof.cs",
+    "line": 11,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "SpirvProof.cs",
+    "line": 17,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "SpirvProof.cs",
+    "line": 28,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "SpirvProof.cs",
+    "line": 38,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "SpirvProof.cs",
+    "line": 45,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "SpirvProof.cs",
+    "line": 58,
+    "syntax": "ForEachStatement"
+  }
+]

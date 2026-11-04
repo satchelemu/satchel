@@ -1,0 +1,23 @@
+{
+  "result": "Passed",
+  "passedTests": 1,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "runtimeWarnings": [],
+  "testFailures": [],
+  "device": "Physical iPhone Duo, unfolded (iPhone19,4)",
+  "os": "iOS 27.1",
+  "gameWindowPoints": "951 x 669 landscape",
+  "gameImagePoints": "951 x 535 aspect fit",
+  "date": "2026-10-31",
+  "testBundle": "/tmp/satchel-game/Gameplay5.xcresult",
+  "regression": {
+    "result": "Passed",
+    "passedTests": 4,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "runtimeWarnings": [],
+    "testFailures": [],
+    "testBundle": "/tmp/satchel-game/Regression.xcresult"
+  }
+}

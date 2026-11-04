@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/LNPANDY/NX2Apple",
+  "commit": "8227f80f9b381c680611303319656c4e0c806a50",
+  "source_file_count": 216,
+  "source_sha256": "545befda25b199d6f1110e0dd00656689ead57faf8c371258d1d97e78fa0db4c",
+  "common_sources": [
+    "Memory/StructArrayHelpers.cs",
+    "Memory/IArray.cs",
+    "Utilities/BitUtils.cs",
+    "Utilities/BitfieldExtensions.cs",
+    "Pools/ObjectPool.cs"
+  ],
+  "dotnet_sdk": "10.0.403",
+  "runtime_version": "10.0.14"
+}

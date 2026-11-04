@@ -1,0 +1,15 @@
+frame=1 reference=0 instructions=1527118 rgb=a04a09c0d4b5e325 seconds=0.023
+frame=2 reference=0 instructions=1531384 rgb=a04a09c0d4b5e325 seconds=0.030
+frame=3 reference=0 instructions=243660579 rgb=dea936ab7b2addfe seconds=1.786
+frame=4 reference=1 instructions=485851142 rgb=feda1d38a31da472 seconds=3.539
+frame=5 reference=2 instructions=728041695 rgb=feda1d38a31da472 seconds=5.223
+frame=6 reference=3 instructions=970232246 rgb=f96ae1ade4055426 seconds=6.916
+frame=7 reference=4 instructions=1212422799 rgb=f96ae1ade4055426 seconds=8.590
+frame=8 reference=5 instructions=1454654256 rgb=fb62bc9c4a553f88 seconds=10.267
+frame=9 reference=6 instructions=1696885703 rgb=fb62bc9c4a553f88 seconds=11.952
+frame=10 reference=7 instructions=1939117158 rgb=01c4be008ce1b48c seconds=13.626
+frame=11 reference=8 instructions=2181348605 rgb=01c4be008ce1b48c seconds=15.327
+frame=12 reference=9 instructions=2423641409 rgb=0a6b077d6d2faed8 seconds=16.991
+frame=13 reference=10 instructions=2665934203 rgb=0a6b077d6d2faed8 seconds=18.710
+frame=14 reference=11 instructions=2908226997 rgb=0a6b077d6d2faed8 seconds=20.422
+PASS: original downloaded game matches all RGB bytes across12native-referenceframes, includingcontroller moves, bothplayers and clean Plus-button exit

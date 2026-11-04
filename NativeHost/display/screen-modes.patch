@@ -1,0 +1,239 @@
+--- a/dm/ios/Sources/front_ios.m
++++ b/dm/ios/Sources/front_ios.m
+@@ -12,6 +12,7 @@
+ #include "haptics_apple.h"
+ #include "save_sync.h"
+ #import "CloudSaves.h"
++#import "DisplayControls.h"
+
+ UIView *dm_gamepad_view(CGRect frame);
+ void dm_gamepad_reset(void);
+@@ -116,6 +117,7 @@
+     [self.view addSubview:self.pad];
+     self.fps = front_ios_fps_label();   // above the pad, which hides while a controller is connected
+     if (self.fps) [self.view addSubview:self.fps];
++    SatchelInstallDisplayControls(self.view, self.game, self.pad, self.fps);
+     [self.view setNeedsLayout]; [self.view layoutIfNeeded];
+     UIApplication.sharedApplication.idleTimerDisabled = YES;
+     tv_attach();   // a TV connected while the launcher showed
+@@ -124,9 +126,10 @@
+ - (void)viewDidLayoutSubviews {
+     [super viewDidLayoutSubviews];
+     CGRect b = self.view.bounds; if (!self.game) return;
+-    if (self.game.superview == self.view) self.game.frame = fit_16_9(b);   // on a TV the TV's view lays it out
++    SatchelDisplayDidLayout();
++    if (self.game.superview == self.view) SatchelLayoutGameView(self.game, b);   // on a TV the TV's view lays it out
+     if (self.fps) {   // the top row's free stretch: right of DmGamepad.m's L3 key (102 + 17 of its units from the safe edge), level with − / + (22 units down); u is its unit
+-        CGRect s = UIEdgeInsetsInsetRect(b, self.view.safeAreaInsets); CGFloat u = MIN(b.size.height / 430.0, 1.3);
++        CGRect s = SatchelInteractiveBounds(self.view, b); CGFloat u = MIN(b.size.height / 430.0, 1.3);
+         self.fps.frame = CGRectMake(floor(CGRectGetMinX(s) + 130 * u), floor(CGRectGetMinY(s) + 22 * u - 11), 64, 22);
+     }
+ }
+@@ -160,6 +163,7 @@
+ static UIWindow *g_tv; static int g_tv_mode_was = -1;
+ static void tv_attach(void) {
+     DmGameView *v = g_root.game; if (!g_tv || !v || v.superview == g_tv.rootViewController.view) return;
++    v.transform = CGAffineTransformIdentity; v.layer.mask = nil;
+     [g_tv.rootViewController.view addSubview:v]; [g_tv.rootViewController.view setNeedsLayout];
+     // at most 1080p: the game renders 1080p docked, and a 4K drawable only adds an upscale and a 4K stream (an AirPlay TV showed black, the GPU went from 15 to 60 ms a frame).
+     // Taken from the 16:9 picture, not the screen, so a display of another shape still gets the full 1920 pixels across the picture
+--- a/dm/ios/Sources/DmGamepad.m
++++ b/dm/ios/Sources/DmGamepad.m
+@@ -27,6 +27,8 @@
+ #include "motion_fusion.h"
+ #include "pad_apple.h"
+ #include "pad_slots.h"
++#import "DisplayControls.h"
++#import "InGameMenu.h"
+ #include <stdatomic.h>
+
+ enum { B_A = 0, B_B, B_X, B_Y, B_LS, B_RS, B_L, B_R, B_ZL, B_ZR, B_PLUS, B_MINUS, B_LEFT, B_UP, B_RIGHT, B_DOWN, B_N };
+@@ -37,7 +39,8 @@
+ static int32_t g_touch_lx, g_touch_ly, g_touch_rx, g_touch_ry;
+ static void publish(void) {   // the touch gamepad and the shake; the host ORs them with player 1's controller and takes whichever stick is deflected more (hle_hid.c)
+     pthread_mutex_lock(&g_mu);
+-    dm_input_set(g_touch_btn | g_shake_btn, g_touch_lx, g_touch_ly, g_touch_rx, g_touch_ry);
++    if (SatchelMenuBlocksInput()) dm_input_set(0, 0, 0, 0, 0);
++    else dm_input_set(g_touch_btn | g_shake_btn, g_touch_lx, g_touch_ly, g_touch_rx, g_touch_ry);
+     pthread_mutex_unlock(&g_mu);
+ }
+
+@@ -109,7 +112,6 @@
+     K_ZL_X = 44, K_ZL_Y = 40, K_ZL_R = 26,          // ZL / ZR: centre from the outer edge and the top, radius
+     K_L_X = 44, K_L_Y = 108, K_L_R = 24,            // L / R: same column as ZL / ZR
+     K_DROP_TIP = 1.45,                              // teardrop tip distance from the centre (times the radius)
+-    K_CORNER_IN = 0.5,                              // how far the bottom-corner controls reach into the side safe-area inset (in landscape there is only the rounded screen corner there; the Dynamic Island is mid-edge)
+     K_FACE_X = 81, K_PAD_Y = 82,                    // diamond centre from the outer edge; diamond and stick centre from the bottom (B's lower edge about 5 above it)
+     K_FACE_GAP = 50, K_FACE_R = 27,                 // diamond: key distance from the centre, key radius
+     K_PILL_DX = 52, K_PILL_Y = 22, K_PILL_W = 50, K_PILL_H = 28,   // − / +: centre from the screen's midline (the middle goes to the layout button) and from the top, size
+@@ -223,9 +225,11 @@
+ }
+
+ // ---- Layout (points; computed inside the safe area) ----
+-- (CGRect)safe { return UIEdgeInsetsInsetRect(self.bounds, self.safeAreaInsets); }
+-- (CGRect)corner { UIEdgeInsets i = self.safeAreaInsets; i.left *= K_CORNER_IN; i.right *= K_CORNER_IN; return UIEdgeInsetsInsetRect(self.bounds, i); }   // the rectangle the bottom-corner controls use
+-- (CGFloat)u { return MIN(self.bounds.size.height / 430.0, 1.3); }   // 1 = 430 points tall (iPhone Pro Max landscape)
++- (CGRect)safe {
++    return CGRectInset(SatchelInteractiveBounds(self, SatchelControlBounds(self.bounds)), 8, 0);
++}
++- (CGRect)corner { return self.safe; }   // the rectangle the bottom-corner controls use
++- (CGFloat)u { CGRect b = self.safe; return MIN(MIN(b.size.height / 430.0, 1.3) * SatchelTouchSize(), MIN(b.size.height / 330.0, b.size.width / 650.0)); }   // 1 = 430 points tall (iPhone Pro Max landscape)
+ static CGPoint side(CGRect s, int right, CGFloat dx, CGFloat y) { return CGPointMake(right ? CGRectGetMaxX(s) - dx : CGRectGetMinX(s) + dx, y); }
+ - (CGPoint)faceCenter { CGRect s = self.corner; CGFloat u = self.u; return side(s, 1, K_FACE_X * u, CGRectGetMaxY(s) - K_PAD_Y * u); }
+ - (CGFloat)faceGap { return K_FACE_GAP * self.u; }
+@@ -235,7 +239,7 @@
+ - (CGPoint)stickHome { CGRect s = self.corner; return side(s, 0, K_STICK_X * self.u, CGRectGetMaxY(s) - K_PAD_Y * self.u); }   // the left stick's ring centre
+ - (CGPoint)stickCentre:(int)i { return i ? _rCentre : self.stickHome; }
+ - (CGFloat)stickR:(int)i { return (i ? K_RSTICK_R : K_STICK_R) * self.u; }
+-- (BOOL)inRightArea:(CGPoint)p { CGRect b = self.bounds; return p.x >= CGRectGetMaxX(b) - b.size.width * K_RSWIPE; }
++- (BOOL)inRightArea:(CGPoint)p { CGRect b = SatchelControlBounds(self.bounds); return CGRectContainsPoint(b, p) && p.x >= CGRectGetMaxX(b) - b.size.width * K_RSWIPE; }
+ - (CGPoint)dpadCenter { CGRect s = self.corner; CGFloat u = self.u; return side(s, 0, K_LOW_X * u, CGRectGetMaxY(s) - K_LOW_Y * u); }
+ - (CGFloat)dpadR { return K_DPAD_R * self.u; }
+ static BOOL isDrop(int b) { return b == B_ZL || b == B_L || b == B_ZR || b == B_R; }
+@@ -301,7 +305,7 @@
+     BOOL changed = face != _faceBits || dpad != _dpadBits || btn != _btnBits || swap != _swapHeld;
+     uint64_t pressed = (face | dpad | btn) & ~(_faceBits | _dpadBits | _btnBits);
+     unsigned gripping = (_stick[0] ? 1u : 0) | (_stick[1] ? 2u : 0);
+-    if (pressed || (swap && !_swapHeld) || (gripping & ~_hapticSticks)) {
++    if (SatchelMenuHaptics() && (pressed || (swap && !_swapHeld) || (gripping & ~_hapticSticks))) {
+         [_touchFeedback impactOccurredWithIntensity:0.6]; [_touchFeedback prepare];
+     }
+     _hapticSticks = gripping;
+@@ -314,25 +318,23 @@
+     if (changed || stick || _stickShown) [self refresh];   // also refresh on the stick release so the knob returns to the centre
+     _stickShown = stick;
+ }
+-// Touches no control takes (all of them while a physical controller is connected) go to the game's touch screen, normalized on the 16:9 picture that front_ios.m
+-// centres in the screen: Super Mario Galaxy's pointer in handheld mode (profile op_mode). The host reports them only in handheld mode, as on the Switch (hle_hid.c touch_read)
++// Unclaimed touches use the same picture rectangle as the front end, including half-fold regions.
+ - (void)pushGame {
+-    CGRect b = self.bounds; CGFloat w = b.size.width, h = b.size.height;
+-    if (w <= 0 || h <= 0) return;
+-    if (w / h > 16.0 / 9.0) w = h * 16.0 / 9.0; else h = w * 9.0 / 16.0;
+-    CGFloat x0 = (b.size.width - w) / 2, y0 = (b.size.height - h) / 2;
++    CGRect picture = SatchelPictureRect(SatchelGameBounds(self.bounds), SatchelScreenMode());
++    if (picture.size.width <= 0 || picture.size.height <= 0) return;
+     dm_touch t[16]; int n = 0;
+     for (int i = 0; i < 16; i++) if (_game[i]) {
+-        CGPoint p = [_game[i] locationInView:self];
+-        t[n++] = (dm_touch){(uint32_t)i, (float)fmin(fmax((p.x - x0) / w, 0), 0.999), (float)fmin(fmax((p.y - y0) / h, 0), 0.999)};
+-    }
+-    dm_touch_set(t, n);
++        CGPoint p = SatchelPictureTouch([_game[i] locationInView:self], picture);
++        t[n++] = (dm_touch){(uint32_t)i, (float)p.x, (float)p.y};
++    }
++    dm_touch_set(t, SatchelMenuBlocksInput() ? 0 : n);
+ }
+ - (BOOL)gameBegin:(UITouch *)t {
+     for (int i = 0; i < 16; i++) if (!_game[i]) { _game[i] = t; [_owner setObject:@(C_GAME | (uint64_t)i << 8) forKey:t]; return YES; }
+     return NO;
+ }
+ - (void)touchesBegan:(NSSet<UITouch *> *)ts withEvent:(UIEvent *)e {
++    if (SatchelMenuBlocksInput()) return;
+     BOOL game = NO;
+     for (UITouch *t in ts) {
+         if (_padOff) { game |= [self gameBegin:t]; continue; }
+@@ -355,6 +357,7 @@
+     [self recompute];
+ }
+ - (void)touchesMoved:(NSSet<UITouch *> *)ts withEvent:(UIEvent *)e {
++    if (SatchelMenuBlocksInput()) return;
+     BOOL game = NO;
+     for (UITouch *t in ts) {
+         uint64_t v = [_owner objectForKey:t].unsignedLongLongValue; int c = (int)(v & 0xff); CGPoint p = [t locationInView:self];
+@@ -419,6 +422,7 @@
+     CGFloat u = self.u;
+     [CATransaction begin]; [CATransaction setDisableActions:YES];
+     _controls.frame = self.layer.bounds;
++    _controls.opacity = SatchelTouchOpacity();
+     for (int b = B_A; b <= B_Y; b++) { CGPoint c = [self facePos:b]; setPath(_key[b], circlePath(c, self.faceR)); placeLabel(_label[b], c, 20 * u); }
+     for (int i = 0; i < (int)(sizeof k_btns / sizeof *k_btns); i++) { int b = k_btns[i];
+         if (isDrop(b)) {
+@@ -465,6 +469,7 @@
+ static int32_t axis(float v) { return (int32_t)(fmaxf(-1.f, fminf(1.f, v)) * 32767); }
+ static void read_pad(GCExtendedGamepad *g) {
+     int p = g_merge ? 0 : pad_slot_of(&g_slots, (__bridge const void *)g.controller); if (p < 0) return;
++    if (SatchelMenuBlocksInput()) { dm_pad_set_player(p, 0, 0, 0, 0, 0); return; }
+     dm_haptics_apple_controller(p, g.controller);
+     _Static_assert(DM_BTN_A == 1u << B_A && DM_BTN_B == 1u << B_B && DM_BTN_X == 1u << B_X && DM_BTN_Y == 1u << B_Y, "face button bits");
+     uint64_t m = dm_pad_face(g);   // by position, a Nintendo pad by its labels
+@@ -536,3 +541,8 @@
+     if (g_merge) dm_pad_set(0, 0, 0, 0, 0);
+     else for (int p = 0; p < DM_PLAYERS; p++) if (g_held[p]) dm_pad_set_player(p, 0, 0, 0, 0, 0);
+ }
++
++// Display-mode changes reproject game touches without releasing controls. Main thread only.
++void dm_gamepad_reproject(void) { [g_view pushGame]; }
++
++void dm_gamepad_next_layout(void) { [g_view nextLayout]; }
+--- a/dm/host/hle_hid.c
++++ b/dm/host/hle_hid.c
+@@ -217,6 +217,10 @@
+                 size_t n = strlen(line); if (!n || line[n - 1] != '\n') break;   // a line still being written: read it next time
+                 off += (long)n; line[--n] = 0; if (n && line[n - 1] == '\r') line[--n] = 0;
+                 if (!n || line[0] == '#') continue;
++#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++                int satchel_display_command(const char *line);
++                if (satchel_display_command(line)) continue;
++#endif
+                 if (!strcmp(line, "dump")) { crash_dump_now("DM_CTL dump"); continue; }
+                 if (!strncmp(line, "shot ", 5)) { dm_gfx_shot_at(1, line + 5); LOG("DM_CTL: screenshot of the next frame → %s", line + 5); continue; }
+                 if (!strncmp(line, "texlist ", 8)) { void dm_gfx_texlist(int target); dm_gfx_texlist(atoi(line + 8)); continue; }
+@@ -229,6 +233,10 @@
+                 if (!strncmp(line, "env ", 4)) { char *eq = strchr(line + 4, '='); if (eq) { *eq = 0; setenv(line + 4, eq + 1, 1); LOG("DM_CTL: env %s=%s", line + 4, eq + 1); } continue; }
+                 if (!strncmp(line, "texdump ", 8)) { void dm_gfx_texdump_next(const char *path); dm_gfx_texdump_next(line + 8); LOG("DM_CTL: colour targets of the next frame → %s (as DM_NVN_TEXDUMP)", line + 8); continue; }
+                 if (!strncmp(line, "passdump ", 9)) { void dm_gfx_passdump_next(long n); dm_gfx_passdump_next(atol(line + 9)); LOG("DM_CTL: passes of the next %ld frames (as DM_NVN_PASSDUMP)", atol(line + 9)); continue; }
++#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++                int SatchelMenuBlocksInput(void);
++                if (SatchelMenuBlocksInput() && !strncmp(line, "drag ", 5)) continue;
++#endif
+                 if (!strncmp(line, "drag ", 5)) {   // one finger, a step every 8 ms
+                     float x0, y0, x1, y1, s = 0.3f; if (sscanf(line + 5, "%f %f %f %f %f", &x0, &y0, &x1, &y1, &s) < 4) { LOG("[RED] DM_CTL drag wants x0 y0 x1 y1 [seconds]"); continue; }
+                     int n = (int)(s / 0.008f); if (n < 2) n = 2;
+@@ -236,6 +244,10 @@
+                     for (int i = 0; i <= n; i++) { dm_touch t = {0, x0 + (x1 - x0) * (float)i / (float)n, y0 + (y1 - y0) * (float)i / (float)n}; dm_touch_script(&t, 1); usleep((useconds_t)(s * 1e6f / (float)n)); }
+                     dm_touch_script(NULL, 0); continue;
+                 }
++#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++                int SatchelMenuBlocksInput(void);
++                if (SatchelMenuBlocksInput()) { LOG("Satchel menu: ignored scripted game input while paused"); continue; }
++#endif
+                 key_step st = {0, 0.15, 0}; char *h = strchr(line, '~'); if (h) { *h = 0; st.hold = atof(h + 1); }
+                 parse_keys(line, &st);
+                 LOG("DM_CTL: press %#llx (hold %.2f s)", (unsigned long long)st.btn, st.hold);
+--- a/dm/host/hle_audio.c
++++ b/dm/host/hle_audio.c
+@@ -108,6 +108,11 @@
+             a->pos = 0; released = 1;
+         }
+     }
++#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
++    float SatchelMenuVolume(void);
++    float master = SatchelMenuVolume();
++    if (master < 1) for (uint64_t i = 0; i < ns; i++) s16[i] = (int16_t)(s16[i] * master);
++#endif
+     uint32_t vb = atomic_load_explicit(&a->vol, memory_order_relaxed);
+     if (vb != 0x3f800000u) {   // the output's volume (SetAudioOutVolume), as the audout session applies it to the PCM16 it plays; saturating
+         float v; memcpy(&v, &vb, 4);
+--- a/dm/gfx/nvn/hle_nvn.c
++++ b/dm/gfx/nvn/hle_nvn.c
+@@ -1632,13 +1632,17 @@
+     pthread_mutex_unlock(&mu);
+     return result;
+ }
++static _Atomic int g_thermal_limited;
++// UI telemetry only. Sampled by the engine, including its 30-second cool-down latch.
++int nvn_thermal_limited(void) { return atomic_load(&g_thermal_limited); }
+ static int fps_step_cap(void) {
+-    if (!dm_fps_state) return 0;
++    if (!dm_fps_state) { atomic_store(&g_thermal_limited, 0); return 0; }
+     uint32_t b = __atomic_load_n((uint32_t *)dm_fps_state, __ATOMIC_RELAXED); float t; memcpy(&t, &b, sizeof t);
+-    if (t <= 0) return 0;
++    if (t <= 0) { atomic_store(&g_thermal_limited, 0); return 0; }
+     // Movies and a 30 fps target still need thermal samples: heat must reset the
+     // calm interval, and cooling during those caps counts towards recovery.
+     int thermal = thermal_capped();
++    atomic_store(&g_thermal_limited, thermal && t > 30);
+     return dm_movie_playing() || t <= 30 || thermal ? 30 : 60;   // a movie: its player takes a picture per game frame, paced for the Switch's 30 (hle_movie.c)
+ }
+ static int fstep_on(void) { return fps_step_cap() != 0; }   // the host decides the steps in whole vsyncs

@@ -1,0 +1,49 @@
+/* Separate paired create path. Existing raster_schema and existing create API
+ * remain unchanged; validated flat pipelines share only typed resource ownership. */
+static SatchelVulkanStatus flat_create_mode(bool allow_rotation,uint64_t device,const SatchelVulkanFlatDescription *input,const SatchelVulkanFlatModule *vs,const SatchelVulkanFlatModule *fs,uint64_t *token,SatchelVulkanRasterInfo *out,SatchelVulkanFlatPair *reflection){
+ if(!token||!out)return SATCHEL_VULKAN_INVALID;*token=0;*out={};if(!input||!vs||!fs||!reflection)return SATCHEL_VULKAN_INVALID;
+ const auto description=*input;const auto request=description.raster;const auto vertex=*vs,fragment=*fs;SatchelVulkanFlatPair facts={};
+ if(description.version!=1||description.size!=sizeof(description)||request.version!=1||request.size!=sizeof(request))return SATCHEL_VULKAN_INVALID;
+ if(description.provoking_known!=1||description.provoking_mode>(allow_rotation?1u:0u)||!flat_schema_pair(vertex,fragment,facts)||request.state.known!=255||request.state.y_negate!=0||!raster_state(request.state)||request.format!=1||request.samples!=1||request.topology!=SATCHEL_VULKAN_RASTER_TRIANGLE_LIST||request.primitive_restart||request.cull_mode||request.front_face>1||request.depth_test||request.depth_write||request.stencil_test||request.blend_enable||request.color_mask!=15||request.polygon_mode||request.rasterizer_discard||request.depth_clamp||request.depth_bias||request.logic_op_enable||request.sample_mask!=1||request.sample_shading||request.alpha_to_one||!request.vertex_stride||(request.vertex_stride&3))return SATCHEL_VULKAN_UNSUPPORTED;
+ if(gate.test_and_set(std::memory_order_acquire))return SATCHEL_VULKAN_BUSY;Unlock unlock;
+ try{
+  auto *parent=find_device(device);if(!parent)return SATCHEL_VULKAN_INVALID;if(!(parent->caps.queue_flags&VK_QUEUE_GRAPHICS_BIT))return SATCHEL_VULKAN_UNSUPPORTED;
+  VkPhysicalDeviceProperties props={};vkGetPhysicalDeviceProperties(parent->job->physical,&props);const auto &limits=props.limits;
+  if(description.provoking_mode==SATCHEL_VULKAN_PROVOKING_LAST && limits.maxDrawIndexedIndexValue<SATCHEL_VULKAN_PROVOKING_INDEX_COUNT-1)return SATCHEL_VULKAN_UNSUPPORTED;
+  if(props.apiVersion<VK_API_VERSION_1_1 || !limits.maxVertexInputBindings || request.vertex_stride>limits.maxVertexInputBindingStride || limits.maxVertexOutputComponents<14 || limits.maxFragmentOutputAttachments<1)return SATCHEL_VULKAN_UNSUPPORTED;
+  VkFormatProperties format={};vkGetPhysicalDeviceFormatProperties(parent->job->physical,VK_FORMAT_R32G32B32A32_SFLOAT,&format);if(!(format.bufferFeatures&VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT))return SATCHEL_VULKAN_UNSUPPORTED;
+  SatchelVulkanTargetCaps caps={};auto status=target_caps(*parent,request.format,caps);if(status!=SATCHEL_VULKAN_OK)return status;if(!caps.supported)return SATCHEL_VULKAN_UNSUPPORTED;
+  SatchelVulkanFlatCaps live={};live.version=1;live.size=sizeof(live);live.api_version=props.apiVersion;live.graphics_queue=1;live.float4_vertex=1;live.max_attributes=limits.maxVertexInputAttributes;live.max_stride=limits.maxVertexInputBindingStride;live.max_attribute_offset=limits.maxVertexInputAttributeOffset;live.max_vertex_output_components=limits.maxVertexOutputComponents;live.max_fragment_input_components=limits.maxFragmentInputComponents;live.max_fragment_outputs=limits.maxFragmentOutputAttachments;live.first_enabled=1;
+  SatchelVulkanFlatInterface interface={};interface.version=1;interface.size=sizeof(interface);interface.position_components=facts.vertex.position_components;interface.color_components=facts.fragment.color_components;interface.declared_resources=1;interface.inactive_support_uniform=1;interface.provoking_known=description.provoking_known;interface.provoking_mode=0; /* Native pipeline remains FIRST; LAST is separately indexed. */interface.vertex_stride=request.vertex_stride;
+  for(unsigned i=0;i<8;i++){interface.vertex_inputs[i]=facts.vertex.inputs[i];interface.vertex_outputs[i]=facts.vertex.outputs[i];interface.fragment_inputs[i]=facts.fragment.inputs[i];interface.flat_outputs[i]=facts.vertex.flat_outputs[i];interface.flat_inputs[i]=facts.fragment.flat_inputs[i];interface.attribute_offsets[i]=request.attribute_offsets[i];}
+  if(satchel_vulkan_flat_preflight(&live,&interface)!=SATCHEL_VULKAN_OK)return SATCHEL_VULKAN_UNSUPPORTED;
+  VkVertexInputAttributeDescription attrs[8]={};uint32_t count=0,mask=0;
+  for(unsigned i=0;i<8;i++){
+   const uint32_t offset=request.attribute_offsets[i];if(!facts.vertex.inputs[i]){if(offset!=UINT32_MAX)return SATCHEL_VULKAN_UNSUPPORTED;continue;}
+   if(i>=limits.maxVertexInputAttributes || offset>limits.maxVertexInputAttributeOffset || (offset&3) || offset>request.vertex_stride || request.vertex_stride-offset<16)return SATCHEL_VULKAN_UNSUPPORTED;
+   attrs[count++]={i,0,VK_FORMAT_R32G32B32A32_SFLOAT,offset};mask|=1u<<i;
+  }
+  if(!count || count>limits.maxVertexInputAttributes)return SATCHEL_VULKAN_UNSUPPORTED;
+  RasterSlot *slot=nullptr;for(auto &candidate:raster_pipelines)if(!candidate.token){slot=&candidate;break;}if(!slot || next_raster==(UINT64_C(1)<<60))return SATCHEL_VULKAN_BUSY;
+  auto resource=std::make_unique<RasterResource>();resource->parent=device;resource->device=parent->job->device;resource->description=request;resource->info={device,0,mask,request.vertex_stride};
+  if(description.provoking_mode==SATCHEL_VULKAN_PROVOKING_LAST){auto indexed=provoking_index_create(*parent,*resource);if(indexed!=SATCHEL_VULKAN_OK)return indexed;}
+  VkShaderModuleCreateInfo shader={VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};shader.codeSize=vertex.word_count*4;shader.pCode=vertex.words;if(vkCreateShaderModule(resource->device,&shader,nullptr,&resource->vertex)!=VK_SUCCESS)return SATCHEL_VULKAN_API_ERROR;
+  shader.codeSize=fragment.word_count*4;shader.pCode=fragment.words;if(vkCreateShaderModule(resource->device,&shader,nullptr,&resource->fragment)!=VK_SUCCESS)return SATCHEL_VULKAN_API_ERROR;
+  VkPipelineLayoutCreateInfo layout={VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};if(vkCreatePipelineLayout(resource->device,&layout,nullptr,&resource->layout)!=VK_SUCCESS)return SATCHEL_VULKAN_API_ERROR;
+  if(raster_pass(resource->device,VK_IMAGE_LAYOUT_UNDEFINED,&resource->pass)!=VK_SUCCESS)return SATCHEL_VULKAN_API_ERROR;
+  VkPipelineShaderStageCreateInfo stages[2]={{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO},{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO}};stages[0].stage=VK_SHADER_STAGE_VERTEX_BIT;stages[0].module=resource->vertex;stages[0].pName="main";stages[1].stage=VK_SHADER_STAGE_FRAGMENT_BIT;stages[1].module=resource->fragment;stages[1].pName="main";
+  VkVertexInputBindingDescription binding={0,request.vertex_stride,VK_VERTEX_INPUT_RATE_VERTEX};VkPipelineVertexInputStateCreateInfo vertex_input={VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};vertex_input.vertexBindingDescriptionCount=1;vertex_input.pVertexBindingDescriptions=&binding;vertex_input.vertexAttributeDescriptionCount=count;vertex_input.pVertexAttributeDescriptions=attrs;
+  VkPipelineInputAssemblyStateCreateInfo assembly={VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};assembly.topology=VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  VkPipelineViewportStateCreateInfo viewport={VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};viewport.viewportCount=1;viewport.scissorCount=1;
+  VkPipelineRasterizationStateCreateInfo raster={VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};raster.polygonMode=VK_POLYGON_MODE_FILL;raster.cullMode=VK_CULL_MODE_NONE;raster.frontFace=request.front_face?VK_FRONT_FACE_CLOCKWISE:VK_FRONT_FACE_COUNTER_CLOCKWISE;raster.lineWidth=1;
+  VkPipelineMultisampleStateCreateInfo sample={VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};sample.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;sample.pSampleMask=&request.sample_mask;
+  VkPipelineColorBlendAttachmentState blend={};blend.colorWriteMask=VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;VkPipelineColorBlendStateCreateInfo blending={VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};blending.attachmentCount=1;blending.pAttachments=&blend;
+  const VkDynamicState dynamic_values[]={VK_DYNAMIC_STATE_VIEWPORT,VK_DYNAMIC_STATE_SCISSOR};VkPipelineDynamicStateCreateInfo dynamic={VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};dynamic.dynamicStateCount=2;dynamic.pDynamicStates=dynamic_values;
+  VkGraphicsPipelineCreateInfo create={VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};create.stageCount=2;create.pStages=stages;create.pVertexInputState=&vertex_input;create.pInputAssemblyState=&assembly;create.pViewportState=&viewport;create.pRasterizationState=&raster;create.pMultisampleState=&sample;create.pColorBlendState=&blending;create.pDynamicState=&dynamic;create.layout=resource->layout;create.renderPass=resource->pass;
+  if(SATCHEL_RASTER_CREATE_PIPELINES(resource->device,VK_NULL_HANDLE,1,&create,nullptr,&resource->pipeline)!=VK_SUCCESS)return SATCHEL_VULKAN_API_ERROR;
+  slot->resource=std::move(resource);slot->token=next_raster++;*token=slot->token;*out=slot->resource->info;*reflection=facts;return SATCHEL_VULKAN_OK;
+ }catch(...){return SATCHEL_VULKAN_INTERNAL_ERROR;}
+}
+
+extern "C" __attribute__((visibility("default"))) SatchelVulkanStatus satchel_vulkan_flat_create(uint64_t d,const SatchelVulkanFlatDescription *s,const SatchelVulkanFlatModule *v,const SatchelVulkanFlatModule *f,uint64_t *t,SatchelVulkanRasterInfo *i,SatchelVulkanFlatPair *r){return flat_create_mode(false,d,s,v,f,t,i,r);}
+extern "C" __attribute__((visibility("default"))) SatchelVulkanStatus satchel_vulkan_flat_create_provoking(uint64_t d,const SatchelVulkanFlatDescription *s,const SatchelVulkanFlatModule *v,const SatchelVulkanFlatModule *f,uint64_t *t,SatchelVulkanRasterInfo *i,SatchelVulkanFlatPair *r){return flat_create_mode(true,d,s,v,f,t,i,r);}

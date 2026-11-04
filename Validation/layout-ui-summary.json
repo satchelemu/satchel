@@ -1,0 +1,26 @@
+{
+  "result": "Passed",
+  "passedTests": 1,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "runtimeWarnings": [],
+  "testFailures": [],
+  "date": "2026-10-31",
+  "build": 4,
+  "device": "Unfolded physical iPhone Duo",
+  "launchOrientations": [
+    "landscapeRight",
+    "landscapeLeft"
+  ],
+  "checks": [
+    "Launch with portrait requested is landscape",
+    "Library row spans more than80percent of window width",
+    "File details occupy full window",
+    "Guest frame spans full window width",
+    "Portrait request does not rotate gameplay",
+    "Exact game-frame hashes afterA,Right,A",
+    "Pause/resume/stop",
+    "Return to details and library remains landscape"
+  ],
+  "resultBundle": "/tmp/satchel-layout/Layout.xcresult"
+}

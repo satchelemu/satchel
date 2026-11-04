@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Bounded three-title regression using only existing allowed packages and safe diagnostics."""
+from pathlib import Path
+import argparse
+import json
+import os
+import re
+import subprocess
+import threading
+import time
+
+OUT = Path(os.environ.get('SATCHEL_OUT', Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'anygame/services'))
+if OUT.resolve().is_relative_to(Path(__file__).resolve().parents[2]): raise SystemExit('Boot outputs must be outside the worktree.')
+BUILD = Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild')))
+ROOT = BUILD / 'anygame'
+CACHES = {'Castlevania': BUILD / 'castlevania/runtime-shaders/cache',
+          'Odyssey': BUILD / 'games/odyssey/shader/cache', 'TOTK': BUILD / 'zelda/work/shader/cache'}
+# The phone packages contain placeholder tables for runtime translation. These
+# Mac hosts need the same offline tables used by the retained reference runs.
+TABLES = {'Castlevania': BUILD / 'castlevania/package/Castlevania-1.0.0/dm',
+          'Odyssey': BUILD / 'games/odyssey/package/Odyssey-1.4.1/dm',
+          'TOTK': BUILD / 'host/package/TOTK-1.4.3/dm'}
+patterns = [
+    r'sf: [A-Za-z0-9_:.-]+',
+    r'ServiceIPC service=[A-Za-z0-9_:.-]+ command=[0-9]+ status=(?:unknown|missing|stub) caller=[A-Za-z0-9_:.-]+\+0x[0-9a-fA-F]+',
+    r'UNIMPL [A-Za-z0-9_$:]+',
+    r'CRASH sig=[0-9]+(?: addr=[A-Za-z0-9_+x]+)? pc=[A-Za-z0-9_+x]+ lr=[A-Za-z0-9_+x]+',
+    r'frame [0-9]+', r'SVC (?:0x)?[0-9a-fA-F]+',
+    r'\[bootprof\] [A-Za-z0-9_ .=:+-]+',
+    r'shader [0-9a-fA-F]{16} is not in the shader map',
+    r'program has no (?:vertex|compute) shader',
+]
+parser = argparse.ArgumentParser()
+parser.add_argument('--title', choices=list(CACHES), action='append')
+parser.add_argument('--variant', choices=['baseline', 'services'], action='append')
+parser.add_argument('--seconds', type=int, default=125)
+parser.add_argument('--route', action='store_true', help='Exercise the save/menu route (default)')
+parser.add_argument('--idle-only', dest='route', action='store_false', help='Diagnostic idle run, not the save regression gate')
+parser.set_defaults(route=True)
+args = parser.parse_args()
+if args.seconds < 120: parser.error('Long regression requires at least 120 seconds.')
+routes = {'Castlevania': (Path(__file__).parents[1] / 'memory/castlevania-route.txt').read_text().strip(),
+          'Odyssey': 'f900:A~f9,f1200:A~f9,f1500:A~f9,f2100:A~f9',
+          'TOTK': 'f900:A~f9,f1200:A~f9,f1500:A~f9'}
+patterns[:0] = [r'Round8 service=[A-Za-z0-9_:.-]+ command=[0-9]+ result=0x[0-9a-f]+',
+               r'game called nn::diag abort: Result [0-9]+, call site [A-Za-z0-9_]+\+0x[0-9a-f]+',
+               r'save commit #[0-9]+', r'DM_KEYS: [A-Za-z0-9_ .,:~+\-]+']
+results = {}
+for title in args.title or ['Castlevania', 'Odyssey', 'TOTK']:
+    for variant in args.variant or ['baseline', 'services']:
+        work = OUT / 'boot' / (title + '-' + variant) / str(time.time_ns())
+        for folder in ['save', 'temp', 'aoc', 'shots']: (work / folder).mkdir(parents=True, exist_ok=True)
+        package = ROOT / 'packages' / title
+        host = OUT / 'mac' / ('dmhost-' + variant)
+        patched = ROOT / 'host-inputs' / title
+        for path in [host, patched, package / 'profile.tsv', package / 'romfs.img', CACHES[title], TABLES[title] / 'shader_map.tsv']: assert path.exists(), path
+        env = {k:v for k,v in os.environ.items() if not k.startswith('DM_')}
+        env.update(DM_PROFILE=str(package/'profile.tsv'), DM_ROMFS=str(package/'romfs.img'),
+            DM_ROOT=str(work), DM_SAVE=str(work/'save'), DM_TEMP=str(work/'temp'),
+            DM_MSL_DIR=str(CACHES[title]), DM_NVN_SHMAP=str(TABLES[title]/'shader_map.tsv'),
+            DM_SF_TRACE='1' if variant == 'services' else '0', DM_KEYS=routes[title] if args.route else '',
+            DM_CTL=str(work/'ctl.txt'), DM_BOOTPROF='1', DM_PSO_PREBUILD_THREADS='2', DM_OPMODE='0',
+            DM_NVN_SHOT='300,1200,3000:'+str(work/'shots/frame-%d.png'), DM_NVN_SHOT_OUT='1280x720',
+            DM_SERVICE_REPORT=str(work/'services.log'), DM_MISSING_SERVICES=str(work/'missing-services.json'))
+        (work/'ctl.txt').write_text(''); (work/'services.log').write_text('')
+        (work/'missing-services.json').write_text('[]\n')
+        start = time.monotonic(); child = subprocess.Popen(['nice','-n','10',str(host),str(patched)],
+            cwd=work,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace')
+        bounded = []
+        def stop():
+            deadline = start + args.seconds
+            while child.poll() is None and time.monotonic() < deadline: time.sleep(.5)
+            if child.poll() is None:
+                bounded.append(True); child.terminate()
+                try: child.wait(5)
+                except subprocess.TimeoutExpired: child.kill()
+        watcher = threading.Thread(target=stop); watcher.start()
+        fatal = 0; crash = 0; aborts = 0; save_commits = 0; space_queries = 0; gaps = set(); shaders = set(); omitted = 0
+        with (work/'host-safe.log').open('w') as log:
+            for line in child.stdout:
+                if not line.startswith(('[dm]', '[nvn]', '[mtl]')): omitted += 1; continue
+                if 'save commit #' in line: save_commits += 1
+                if re.search(r'Round8 service=SDK.GetFreeSpaceSize[.a-z-]* command=11 result=0x0\b', line): space_queries += 1
+                if 'game called nn::diag abort:' in line: aborts += 1
+                if 'FATAL' in line: fatal += 1; log.write('FATAL host stopped\n')
+                if 'CRASH sig=' in line: crash += 1
+                for pattern in patterns:
+                    m = re.search(pattern,line)
+                    if m:
+                        log.write(m[0]+'\n'); log.flush()
+                        if pattern.startswith(('ServiceIPC','UNIMPL')): gaps.add(m[0])
+                        if pattern.startswith(('shader ', 'program ')): shaders.add(m[0])
+                        break
+                else: omitted += 1
+        child.wait(); watcher.join()
+        summary = json.loads((work/'missing-services.json').read_text())
+        shots = [str(p) for p in sorted((work/'shots').glob('frame-*.png'))]
+        checkpoints = sorted(int(Path(p).stem.split('-')[1]) for p in shots)
+        passed = bool(bounded) and child.returncode in (0,-15,143) and checkpoints==[300,1200,3000] and aborts==0 and fatal==0 and crash==0 and not summary and not any("status=unknown" in gap or "status=missing" in gap or gap.startswith("UNIMPL") for gap in gaps)
+        if title == 'Castlevania' and shaders: passed = False
+        if title == 'Castlevania' and args.route:
+            passed &= save_commits > 0 and (variant == 'baseline' or space_queries > 0)
+        results[title+'-'+variant] = dict(exit=child.returncode,seconds=round(time.monotonic()-start,2),bounded=bool(bounded),
+            aborts=aborts,saveCommits=save_commits,successfulSpaceQueries=space_queries,route=args.route,checkpoints=checkpoints,screenshots=shots,missingSummary=summary,fatal=fatal,crash=crash,missing=sorted(gaps),shaderFailures=sorted(shaders),omitted=omitted,passed=passed)
+        (OUT/'boot-results.json').write_text(json.dumps(results,indent=2)+'\n')
+        print(title,variant,'PASS' if passed else 'FAIL',flush=True)
+        if not passed: raise SystemExit(1)
+print('PASS: three titles reached frames 300, 1200 and 3000 for at least 120 seconds with baseline and overlay hosts; no crash or fatal diagnostics')

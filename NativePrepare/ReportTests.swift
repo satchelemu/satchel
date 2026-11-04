@@ -1,0 +1,31 @@
+import Foundation
+@main struct Test {
+ static func main() throws {
+  var r = NativeGameReport(package: "test", titleID: "0100000000000001", stage: "boot", result: "running", message: "")
+  r.ingest("[dm] CRASH sig=11 addr=0x3fffe0 pc=main+0x821d0c lr=main+0x821d00 sp=0x999\n[dm] SVC 0x65 x0=0x1 (placeholder returns success)\n[dm] unknown service: example:svc\n[dm] [nvn-mtl] shader 9974e69f5a84d951 is not in the shader map\n[guest] SECRET PRIVATE CONTENT\nx1=abcdef instruction bytes\n")
+  precondition(r.crash?.contains("main+0x821d0c") == true)
+  precondition(r.missingSVCs == ["SVC 0x65"])
+  precondition(r.missingServices == ["unknown service: example:svc"])
+  precondition(r.shaderFailures.count == 1)
+  precondition(r.firstFrame == "not verified" && r.gameplay == "not verified")
+  let encoded = String(decoding: try JSONEncoder().encode(r), as: UTF8.self)
+  precondition(!encoded.contains("SECRET") && !encoded.contains("instruction bytes") && !encoded.contains("sp=0x999"))
+  precondition(NativeGameReport.url(package: "a.1") != NativeGameReport.url(package: "a1"))
+  precondition(NativeGameReport.url(package: "../../secret").lastPathComponent.count == 69)
+  r.ingest("[dm] CRASH sig=11 addr=main+0x14 pc=main+0x10 lr=0\n[dm] UNIMPL nnExample (x0=0x123)\n[dm] the dispatched program has no compute shader (or it is not mapped)\n")
+  precondition(r.crash?.contains("addr=main+0x14") == true)
+  precondition(r.missingServices == ["UNIMPL nnExample"])
+  precondition(r.shaderFailures == ["Program has no translated compute shader"])
+  r.ingest("[dm] CRASH sig=6 (stderr held for 1 s, no dump) pc=main+0x44 lr=0\n")
+  precondition(r.crash?.contains("stderr held") == true)
+  r.ingest("[dm] [nvn-mtl] failed to load shader 9974e69f5a84d951_b: private source path\n")
+  precondition(r.shaderFailures == ["failed to load shader 9974e69f5a84d951_b"])
+  precondition(!r.lastLogLines.joined().contains("private source path"))
+  r.ingest("[dm] PhoneShader key=9974e69f5a84d951 stage=1 translated\n[dm] PhoneShader key=9974e69f5a84d951 stage=2 prepare failed status=-3 private payload\n[dm] PhoneShader key=9974e69f5a84d951 compile failed code=3 private compiler source\n")
+  precondition(r.shaderFailures.count == 2)
+  precondition(r.shaderFailures.contains { $0.contains("unsupported shader stage") })
+  precondition(r.lastLogLines.count == 3)
+  precondition(!r.lastLogLines.joined().contains("private"))
+  print("PASS: 18 report filtering, stage, crash, shader and path assertions")
+ }
+}

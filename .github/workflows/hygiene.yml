@@ -1,0 +1,15 @@
+name: Repository hygiene
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Em dashes, leftover names and tracked secrets
+        run: sh scripts/check_repo_hygiene.sh
+      - name: Rename tool unit tests
+        run: python3 -m unittest Tools/Rename/test_rename.py

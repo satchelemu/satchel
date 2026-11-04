@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "status": "validated",
+  "base": {
+    "format": "xci",
+    "metadata": [
+      {
+        "id": "0100ba4026e94000",
+        "type": "Application",
+        "version": 0,
+        "application_id": null,
+        "patch_id": "0100ba4026e94800",
+        "content_ids": [
+          "90a3a9cd0112965156ef21f15a57bfa4",
+          "31f0e9ce0f915b4fcd778b150276a518",
+          "d00548f12239601707dd17ea0b5ffa30"
+        ],
+        "source_meta_nca": "149d5c56081f946fa9fb8df0d7011379.cnmt.nca",
+        "omitted_delta_fragments": []
+      },
+      {
+        "id": "01005f4027e94000",
+        "type": "Application",
+        "version": 0,
+        "application_id": null,
+        "patch_id": "01005f4027e94800",
+        "content_ids": [
+          "c58a3d92668ded24b163aa7b9d6010ed",
+          "aaae21fda7f70c17b09b876fd591e5c0",
+          "dd52c32ee1a2605a960083f384709a1c"
+        ],
+        "source_meta_nca": "0fae0425ab052e1ccce1472c00d5352d.cnmt.nca",
+        "omitted_delta_fragments": []
+      }
+    ],
+    "metadata_integrity_checked": true,
+    "full_content_hashes_checked": false,
+    "signatures_verified": false
+  },
+  "update": {
+    "format": "nsp",
+    "metadata": [
+      {
+        "id": "01005f4027e94800",
+        "type": "Patch",
+        "version": 65536,
+        "application_id": "01005f4027e94000",
+        "patch_id": null,
+        "content_ids": [
+          "15dcb32573338dfeac4219a0dcd11ed2",
+          "4ea8b6351b806d9fe2920db8c90215b6",
+          "ff983c6c736bc7a122b7f1dd498b4a73"
+        ],
+        "source_meta_nca": "0c538928b17d08bab95e185bd34e4167.cnmt.nca",
+        "omitted_delta_fragments": []
+      }
+    ],
+    "metadata_integrity_checked": true,
+    "full_content_hashes_checked": false,
+    "signatures_verified": false
+  },
+  "selection": {
+    "application_id": "01005f4027e94000",
+    "base_version": 0,
+    "patch_id": "01005f4027e94800",
+    "patch_version": 65536
+  }
+}

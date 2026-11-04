@@ -1,0 +1,1 @@
+PASS: content-based NRO/PFS0/XCI/NSO/ZIP routing, all signature truncations, malformed NRO validation, container precedence, renamed NRO files

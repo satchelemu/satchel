@@ -1,0 +1,12 @@
+{
+  "Frameworks/SatchelVulkan.framework/Notices/ScalarCompiler/NOTICES.md": {
+    "source": "Tools/ScalarCompiler/NOTICES.md",
+    "sha256": "378b418c1e88d5d4d301e3719794ec2b41bba5ed7e89aa6d3b3bfa1061e534f2",
+    "reason": "Byte-preserved provenance and attribution notice under the existing notice-preservation policy; historical project name is retained, not a runtime identity or ABI alias."
+  },
+  "NativeAssets/Notices/SatchelNativeHost.txt": {
+    "source": "NativeHost/THIRD_PARTY.md",
+    "sha256": "cb8766a5ebbc4dce16f06efc929b2d8572427259b5b26e9d5444c820738bc1f6",
+    "reason": "Byte-preserved provenance and attribution notice under the existing notice-preservation policy; historical project name is retained, not a runtime identity or ABI alias."
+  }
+}

@@ -1,0 +1,53 @@
+diff --git a/src/aarch64/simulator-aarch64.cc b/src/aarch64/simulator-aarch64.cc
+index 0c842ab..0c43bd2 100644
+--- a/src/aarch64/simulator-aarch64.cc
++++ b/src/aarch64/simulator-aarch64.cc
+@@ -4840,6 +4840,9 @@ void Simulator::CompareAndSwapPairHelper(const Instruction* instr) {
+ }
+ 
+ bool Simulator::CanReadMemory(uintptr_t address, size_t size) {
++#ifdef SATCHEL_VIXL_MEMORY_GUARD
++  VIXL_ABORT_WITH_MSG("Fault-tolerant host-memory probes are disabled");
++#endif
+ #ifndef _WIN32
+   // To simulate fault-tolerant loads, we need to know what host addresses we
+   // can access without generating a real fault. One way to do that is to
+diff --git a/src/aarch64/simulator-aarch64.h b/src/aarch64/simulator-aarch64.h
+index 5d6d975..42b446e 100644
+--- a/src/aarch64/simulator-aarch64.h
++++ b/src/aarch64/simulator-aarch64.h
+@@ -367,6 +367,10 @@ class MetaDataDepot {
+ };
+ 
+ 
++#ifdef SATCHEL_VIXL_MEMORY_GUARD
++extern "C" void* satchel_vixl_translate(uint64_t address, size_t size, bool write);
++#endif
++
+ // Representation of memory, with typed getters and setters for access.
+ class Memory {
+  public:
+@@ -395,7 +399,11 @@ class Memory {
+     VIXL_STATIC_ASSERT((sizeof(value) == 1) || (sizeof(value) == 2) ||
+                        (sizeof(value) == 4) || (sizeof(value) == 8) ||
+                        (sizeof(value) == 16));
++#ifdef SATCHEL_VIXL_MEMORY_GUARD
++    auto base = static_cast<const char*>(satchel_vixl_translate((uint64_t)address, sizeof(value), false));
++#else
+     auto base = reinterpret_cast<const char*>(AddressUntag(address));
++#endif
+     if (stack_.IsAccessInGuardRegion(base, sizeof(value))) {
+       VIXL_ABORT_WITH_MSG("Attempt to read from stack guard region");
+     }
+@@ -415,7 +423,11 @@ class Memory {
+     VIXL_STATIC_ASSERT((sizeof(value) == 1) || (sizeof(value) == 2) ||
+                        (sizeof(value) == 4) || (sizeof(value) == 8) ||
+                        (sizeof(value) == 16));
++#ifdef SATCHEL_VIXL_MEMORY_GUARD
++    auto base = static_cast<char*>(satchel_vixl_translate((uint64_t)address, sizeof(value), true));
++#else
+     auto base = reinterpret_cast<char*>(AddressUntag(address));
++#endif
+     if (stack_.IsAccessInGuardRegion(base, sizeof(value))) {
+       VIXL_ABORT_WITH_MSG("Attempt to write to stack guard region");
+     }

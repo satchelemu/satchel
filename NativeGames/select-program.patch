@@ -1,0 +1,27 @@
+--- a/dm/tools/nx_extract/Program.cs
++++ b/dm/tools/nx_extract/Program.cs
+@@ -34,6 +34,15 @@
+     [DllImport("libc", SetLastError = true)] static extern int clonefile(string src, string dst, uint flags);
+ 
+     static int Main(string[] a) {
++        ulong? programId = null;
++        int programArg = Array.IndexOf(a, "--program-id");
++        if (programArg >= 0) {
++            if (programArg + 1 >= a.Length || !ulong.TryParse(a[programArg + 1], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out ulong value)) {
++                Console.Error.WriteLine("Invalid --program-id; expected a hexadecimal program ID."); return 2;
++            }
++            programId = value;
++            var arguments = new List<string>(a); arguments.RemoveRange(programArg, 2); a = arguments.ToArray();
++        }
+         bool manifest = Array.IndexOf(a, "--manifest") >= 0; a = Array.FindAll(a, s => s != "--manifest");
+         bool image = Array.IndexOf(a, "--romfs-image") >= 0; a = Array.FindAll(a, s => s != "--romfs-image");
+         g_allow = Array.IndexOf(a, "--allow-damaged") >= 0; a = Array.FindAll(a, s => s != "--allow-damaged");
+@@ -42,7 +51,7 @@
+         KeySet ks = ExternalKeyReader.ReadKeyFile(a[0]);
+         if (a[1] == "--aoc") return Aoc(ks, a[2], a[3], image);
+         var basePkg = OpenNsp(ks, a[1], ContentMetaType.Application); var updPkg = a[2] == "-" ? null : OpenNsp(ks, a[2]);
+-        Nca baseProg = Pick(basePkg, NcaContentType.Program) ?? throw new Exception("no Program NCA in the base NSP");
++        Nca baseProg = Pick(basePkg, NcaContentType.Program, programId) ?? throw new Exception("no Program NCA in the base NSP");
+         Nca updProg = updPkg == null ? null : Pick(updPkg, NcaContentType.Program, baseProg.Header.TitleId) ?? throw new Exception("no Program NCA of the base game's program in the update NSP");
+         Nca ctrl = Pick(updPkg ?? basePkg, NcaContentType.Control, baseProg.Header.TitleId);
+         Console.WriteLine($"title {baseProg.Header.TitleId:x16}" + (updProg != null ? $", update {updProg.Header.TitleId:x16}" : ""));

@@ -1,0 +1,75 @@
+--- a/hle_fs.c
++++ b/hle_fs.c
+@@ -7,2 +7,5 @@
+ #include "hle.h"
++#define SATCHEL_PAUSE_UNIT "fs"
++#define SATCHEL_PAUSE_EPOCH g_t0_ns
++#include "HostPause.h"
+ #include <mach/mach.h>
+@@ -174,3 +177,5 @@
+ static int img_path(const char *p, int *mi, int64_t *k) {
+-    PATH_LOCK(); char fwd[1024]; p = fwd_slashes(p, fwd, sizeof fwd); const char *c = p ? strchr(p, ':') : NULL; if (!c) return 0;
++    static satchel_pause_stat path_stat; SATCHEL_PAUSE_SCOPE(&path_stat, "Path", 4);
++    static satchel_pause_stat lock_stat; satchel_pause_scope wait_scope = satchel_pause_begin(&lock_stat, "PathLock", 5);
++    PATH_LOCK(); satchel_pause_end(&wait_scope); char fwd[1024]; p = fwd_slashes(p, fwd, sizeof fwd); const char *c = p ? strchr(p, ':') : NULL; if (!c) return 0;
+     size_t ln = c - p;
+@@ -726,2 +731,3 @@
+ HLE_FORCE("_ZN2nn2fs8OpenFileEPNS0_10FileHandleEPKci", "fsp-srv → open(2)", Result, h_fs_OpenFile, uint64_t *out, const char *path, int mode) {
++    static satchel_pause_stat open_stat; SATCHEL_PAUSE_SCOPE(&open_stat, "OpenFile", 3);
+     int mi; int64_t k;
+@@ -752,2 +758,3 @@
+ HLE_FORCE("_ZN2nn2fs8ReadFileEPmNS0_10FileHandleElPvm", "fsp-srv → pread(2)", Result, h_fs_ReadFile, size_t *out, uint64_t h, int64_t off, void *buf, size_t sz) { h = FH_IN(h);
++    static satchel_pause_stat read_stat; SATCHEL_PAUSE_SCOPE(&read_stat, "ReadFile", IMG_H(h) ? 0 : 8); satchel_scope.bytes = sz;
+     if (!h) { *out = 0; return RES_FAIL; }   // a file handle is an fd; 0 is stdin and never a file the game opened: the null handle the game keeps using after a failed open
+@@ -759,5 +766,11 @@
+     }
++    static satchel_pause_stat prepare_stat;
++    satchel_pause_scope prepare_scope = satchel_pause_begin(&prepare_stat, "ReadPrepare", 1);
+     dm_guest_write_prepare(buf, sz);   // The destination may be a texture pool page write-protected by the graphics layer: a kernel write to a read-only page returns EFAULT instead of page-faulting, so unprotect and mark dirty first
++    satchel_pause_end(&prepare_scope);
++    static satchel_pause_stat io_stat;
+     while (got < sz) {
++        satchel_pause_scope io_scope = satchel_pause_begin(&io_stat, "ReadIO", 2);
+         ssize_t r = pread(fd, (uint8_t *)buf + got, sz - got, base + off + got);
++        int read_errno = errno; io_scope.bytes = r > 0 ? (uint64_t)r : 0; satchel_pause_end(&io_scope); errno = read_errno;
+         if (r < 0) { if (errno == EINTR) continue;
+@@ -815,2 +828,3 @@
+ HLE_FORCE("_ZN2nn2fs11GetFileSizeEPlNS0_10FileHandleE", "fsp-srv → fstat(2)", Result, h_fs_GetFileSize, int64_t *out, uint64_t h) { h = FH_IN(h);
++    static satchel_pause_stat service_stat; SATCHEL_PAUSE_SCOPE(&service_stat, "GetFileSize", 9);
+     if (!h) return RES_FAIL;
+@@ -831,2 +845,3 @@
+ HLE_FORCE("_ZN2nn2fs9CloseFileENS0_10FileHandleE", "fsp-srv → close(2)", void, h_fs_CloseFile, uint64_t h) { h = FH_IN(h);
++    static satchel_pause_stat service_stat; SATCHEL_PAUSE_SCOPE(&service_stat, "CloseFile", 10);
+     if (!h || IMG_H(h)) return;   // the null handle after a failed open (see ReadFile): do not touch fd 0; an image entry holds no descriptor
+@@ -912,2 +927,3 @@
+ HLE_FORCE("_ZN2nn2fs12GetEntryTypeEPNS0_18DirectoryEntryTypeEPKc", "fsp-srv → stat(2)", Result, h_fs_GetEntryType, int32_t *out, const char *path) {
++    static satchel_pause_stat service_stat; SATCHEL_PAUSE_SCOPE(&service_stat, "GetEntryType", 11);
+     int mi; int64_t k;
+@@ -968,2 +984,3 @@
+ HLE_FORCE("_ZN2nn2fs13OpenDirectoryEPNS0_15DirectoryHandleEPKci", "fsp-srv → opendir(3)", Result, h_fs_OpenDirectory, uint64_t *out, const char *path, int mode) {
++    static satchel_pause_stat service_stat; SATCHEL_PAUSE_SCOPE(&service_stat, "OpenDirectory", 12);
+     int mi; int64_t k;
+@@ -992,2 +1009,3 @@
+ HLE_FORCE("_ZN2nn2fs13ReadDirectoryEPlPNS0_14DirectoryEntryENS0_15DirectoryHandleEl", "fsp-srv → readdir(3)", Result, h_fs_ReadDirectory, int64_t *count, DirectoryEntry *ents, uint64_t hh, int64_t max) {
++    static satchel_pause_stat service_stat; SATCHEL_PAUSE_SCOPE(&service_stat, "ReadDirectory", 13);
+     if (!hh) { *count = 0; return RES_FAIL; }
+@@ -1010,2 +1028,3 @@
+ HLE_FORCE("_ZN2nn2fs14CloseDirectoryENS0_15DirectoryHandleE", "fsp-srv → closedir(3)", void, h_fs_CloseDirectory, uint64_t hh) {
++    static satchel_pause_stat service_stat; SATCHEL_PAUSE_SCOPE(&service_stat, "CloseDirectory", 15);
+     if (!hh) return;   // the game also closes after a failed open (handle 0): nothing to do in the original either
+@@ -1026,2 +1045,3 @@
+ HLE_FORCE("_ZN2nn2fs22GetDirectoryEntryCountEPlNS0_15DirectoryHandleE", "fsp-srv; directory entry count (filtered by the mode given at open, read position untouched)", Result, h_fs_DirCount, int64_t *out, uint64_t hh) {
++    static satchel_pause_stat service_stat; SATCHEL_PAUSE_SCOPE(&service_stat, "DirCount", 14);
+     PATH_LOCK(); dirh_t *h = (dirh_t *)hh; int64_t n = 0;
+--- a/hle_svc.c
++++ b/hle_svc.c
+@@ -441,6 +441,9 @@
+ int svc_thread(int num, uint64_t *regs);   // hle_thread.c: thread and synchronization kind
+
+ uint64_t svc_dispatch(int num, uint64_t *regs, uint64_t orig_addr) {
++    static satchel_pause_stat memory_stat[0x80];
++    int timed = num == 1 || num == 4 || num == 5 || num == 6 || num == 0x2c || num == 0x2d || num == 0x32 || num == 0x33 || num == 0x18 || num == 0x1c || num == 0x1d || num == 0x34 || num == 0x35;
++    satchel_pause_scope satchel_scope __attribute__((cleanup(satchel_pause_end))) = timed ? satchel_pause_begin(&memory_stat[num], "SVC", num) : (satchel_pause_scope){0};
+     { void hlecount_svc(int); hlecount_svc(num); }   // DM_HLECOUNT: svc counts by number
+     mem_init();
+     if (svc_thread(num, regs)) return regs[0];

@@ -1,0 +1,102 @@
+{
+  "status": "scratch owner/composite validated; independent review clear; iOS17 compiled; no canonical promotion",
+  "production": {
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestWindows.c": "49ca430269cee9388d97aa759ea52b32ba438254264c9f31101ef04814d19f1f",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestWindows.h": "4a8984527d2d08c5391c10534312ec378c29aba38fe497bc536030f248ab5b79",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestVulkanWindows.c": "e92a7c8e1b152ddfeb353fb14ccc8d6e52d14f611d768947b5cf80eb8c2865cf",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestVulkanWindows.h": "d7eedaaefe1cec0ae667bd1d0efe8c4af00987a41e8fd512f8b2f3e6a1782370",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestDispatch.c": "ac047017b0ccfe05423c500d58732cb351ab400d9d7ab5cfedf67fa28befda97",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestDispatch.h": "183b6f44b38f82a73beb257278a4c34c5baebb47f25ed34c558b49566618e1df",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/WindowDispatchOperations.h": "10765f6116f94622de2d0ae7ea441e7b0a9278210bcef03cc1d12e1813e5ae64",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestTransfers.c": "96f914c2d93f839c5b8526e5913e0e3061f34162812a22573fbb9caa84d9122c",
+    "/tmp/satchel-guest-window-staging/window-integration/Tools/GuestGraphics/GuestTransfers.h": "a6a13eca517fac5f90723e40c2954b881a44aa70898cbf44a4b85c85312b6070"
+  },
+  "gates": {
+    "/tmp/satchel-guest-window-staging/window-integration/process-gate02/validation-manifest.json": "ec88cce392f3debda18fb1100b2725b00819d8b53f9dfde4b7470ea194d7a87e",
+    "/tmp/satchel-guest-window-staging/window-integration/regressions02/validation-manifest.json": "71c55e62ae618703866b0cd7fad60ce230eefd0f60b2edee900a29e67468ce39",
+    "/tmp/satchel-guest-window-staging/window-integration/dispatch-gate01/validation-manifest.json": "db77cef941a8daddab277bdfc53c5fb4dfa6dba167def3565ee3384d7c159f78",
+    "/tmp/satchel-guest-window-staging/window-integration/snapshot-gate01/validation-manifest.json": "1a4e8ebc3802e0ee92e9b4aba44dfe675bedf9cae0c9ddc4968b052a956f3e64"
+  },
+  "reviews": {
+    "/tmp/satchel-guest-window-independent-review.json": "3ea6a8882e7155ea7465d45b81089d62403b3f1376064e998296a4535681d53c",
+    "/tmp/satchel-window-composite-independent-review.json": "bf37da8175dd4f2169e45740d2b45b5bec119aa22a50bfca512c9a34eb24d165",
+    "/tmp/satchel-present-queue-independent-review.json": "abf4afc021552ff493f6d2a7d9d917ee0f225b09759259b232f068fc678bfe93"
+  },
+  "archives": {
+    "/private/tmp/satchel-guest-window-staging/window-integration/regressions02/ios/libSatchelGuestWindows.a": "a4cb9276dd51a0347c0b2f7b6fa461d5a8445f6aadc50511a4258cd117fdbbad",
+    "/private/tmp/satchel-guest-window-staging/window-integration/regressions02/ios/libSatchelGuestVulkanWindows.a": "3787c71230a9736cf811c88cad4ddfde7b508a9148d227c3c26e1b061cd8efca",
+    "/private/tmp/satchel-guest-window-staging/window-integration/regressions02/ios/libSatchelGuestDispatch.a": "52bfa202ee2e350541abbb6cf2bbf2b369d3b73a0185abf99400509e03ca3a9a"
+  },
+  "exports": {
+    "GuestWindows": [
+      "_satchel_guest_windows_copy",
+      "_satchel_guest_windows_create",
+      "_satchel_guest_windows_detach",
+      "_satchel_guest_windows_device_children",
+      "_satchel_guest_windows_execute",
+      "_satchel_guest_windows_guard",
+      "_satchel_guest_windows_poll",
+      "_satchel_guest_windows_release",
+      "_satchel_guest_windows_stats",
+      "_satchel_guest_windows_take",
+      "_satchel_guest_windows_try_destroy"
+    ],
+    "GuestVulkanWindows": [
+      "_satchel_guest_dispatch_enable_vulkan_windows",
+      "_satchel_guest_dispatch_handle_windows",
+      "_satchel_guest_dispatch_window_copy",
+      "_satchel_guest_dispatch_window_detach",
+      "_satchel_guest_dispatch_window_poll",
+      "_satchel_guest_dispatch_window_release",
+      "_satchel_guest_dispatch_window_stats",
+      "_satchel_guest_dispatch_window_take",
+      "_satchel_guest_dispatch_windows_texture_frame_begin",
+      "_satchel_guest_dispatch_windows_texture_frame_copy",
+      "_satchel_guest_dispatch_windows_texture_frame_describe",
+      "_satchel_guest_dispatch_windows_texture_frame_destroy",
+      "_satchel_guest_dispatch_windows_texture_frame_detach",
+      "_satchel_guest_dispatch_windows_texture_frame_poll",
+      "_satchel_guest_dispatch_windows_texture_frame_release",
+      "_satchel_guest_dispatch_windows_texture_frame_take"
+    ],
+    "GuestDispatch": [
+      "_satchel_guest_dispatch_attach_checked_pool_services",
+      "_satchel_guest_dispatch_attach_pool_services",
+      "_satchel_guest_dispatch_attach_transfer_services",
+      "_satchel_guest_dispatch_breakpoints",
+      "_satchel_guest_dispatch_build_stubs",
+      "_satchel_guest_dispatch_check_output_range",
+      "_satchel_guest_dispatch_create",
+      "_satchel_guest_dispatch_destroy",
+      "_satchel_guest_dispatch_device_capabilities",
+      "_satchel_guest_dispatch_device_count",
+      "_satchel_guest_dispatch_handle",
+      "_satchel_guest_dispatch_handoff",
+      "_satchel_guest_dispatch_name",
+      "_satchel_guest_dispatch_resolve_pool",
+      "_satchel_guest_dispatch_retire",
+      "_satchel_guest_dispatch_retirement_poll",
+      "_satchel_guest_dispatch_retirement_stats",
+      "_satchel_guest_dispatch_set_device_backend",
+      "_satchel_guest_dispatch_set_device_backend_v2"
+    ]
+  },
+  "ios_build": {
+    "GuestWindows": "/tmp/satchel-guest-window-staging/window-integration/regressions02/ios/GuestWindows.o:\nLoad command 1\n      cmd LC_BUILD_VERSION\n  cmdsize 24\n platform IOS\n    minos 17.0\n      sdk 27.2\n   ntools 0\n",
+    "GuestVulkanWindows": "/tmp/satchel-guest-window-staging/window-integration/regressions02/ios/GuestVulkanWindows.o:\nLoad command 1\n      cmd LC_BUILD_VERSION\n  cmdsize 24\n platform IOS\n    minos 17.0\n      sdk 27.2\n   ntools 0\n",
+    "GuestDispatch": "/tmp/satchel-guest-window-staging/window-integration/regressions02/ios/GuestDispatch.o:\nLoad command 1\n      cmd LC_BUILD_VERSION\n  cmdsize 24\n platform IOS\n    minos 17.0\n      sdk 27.2\n   ntools 0\n"
+  },
+  "baseline_unchanged": {
+    "/tmp/satchel-guest-window-staging/window-integration/baseline/GuestDispatch.h": "504cad7da654b457ca8fc55c0ce0a0a88d42baa686b11a9e2390f454388e1df3",
+    "/tmp/satchel-guest-window-staging/window-integration/baseline/GuestVulkanTextureFrames.c": "288d45f8f7ebccfcaabf9aaf1a336cbe63577e94ca36fd3ed19311f387630e9e",
+    "/tmp/satchel-guest-window-staging/window-integration/baseline/GuestDispatch.c": "f6c932e60e7d8445ed7bbd8711db4fb8881891a0c94cfa670021743598324a7f"
+  },
+  "derivation_patch": "e433e3f1818aeb537610d7595f026bc90e1f1fe939c44a193e80a0b8d53f40da",
+  "readme": "21bbeb0acb0f9870533344bd1ad8f0c535bcb2e2caba951a1bdc0f0a20684f7e",
+  "limits": [
+    "No actual game Window invocation or display",
+    "No reviewed NVN interval/default mapping",
+    "App scheduler/policy/presenter integration pending",
+    "Durable relocation/full matched promotion gates not yet run"
+  ]
+}

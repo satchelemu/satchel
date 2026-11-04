@@ -1,0 +1,4 @@
+#define main complete_original_suite_main
+#include "Test.c"
+#undef main
+int main(int argc,char**argv){CHECK(argc==2);SatchelCFInput x;SatchelCFPair out,before;unsigned accepted=0,rejected=0;for(unsigned stage=0;stage<2;stage++)for(unsigned at=0;at<136;at++)for(unsigned bit=0;bit<8;bit++){original(0,0);(stage?fs:vs)[at]^=1u<<bit;x=input();memset(&out,0x6a,sizeof out);before=out;int result=satchel_captured_flat_compile(&x,&out,sizeof out);CHECK(result==SATCHEL_CF_OK||result==SATCHEL_CF_UNSUPPORTED);if(result==SATCHEL_CF_OK){accepted++;CHECK(out.dynamic_code_features==0);save(argv[1],stage,at*8+bit,&out);}else{rejected++;CHECK(!memcmp(&out,&before,sizeof out));}}printf("%u hostile original-source assertions; %u accepted source mutations / %u rejected. Accepted outputs require independent SPIR-V/schema validation.\n",checks,accepted,rejected);return 0;}

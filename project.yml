@@ -1,0 +1,177 @@
+name: Satchel
+options:
+  bundleIdPrefix: com.dell
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CODE_SIGN_STYLE: Automatic
+    CLANG_WARN_DOCUMENTATION_COMMENTS: YES
+    GCC_WARN_64_TO_32_BIT_CONVERSION: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Satchel:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: Core
+      - path: docs/install.md
+        buildPhase: resources
+    dependencies:
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-vixl-probe/build/ios/libSatchelCPUProbe.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-shader-bridge/ios/libSatchelShaderBridge.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-shader-aot/SatchelShaderProbe.framework
+        embed: true
+        codeSign: true
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-captured-flat/SatchelCapturedFlat.framework
+        embed: true
+        codeSign: true
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-captured-host/libSatchelCapturedHostAdapter.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-captured-programs/libSatchelGuestCapturedPrograms.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestCapturedProgramDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestProvokingDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestTextureFrameDiagnostic.a
+        embed: false
+      - sdk: Metal.framework
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-vulkan-backend/build/ios/SatchelVulkan.framework
+        embed: true
+        codeSign: true
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestSymbols.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-vi/ios/libSatchelGuestVI.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestDispatch.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestVulkanDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-pool-diagnostic/libSatchelGuestPoolDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-pools/libSatchelGuestPools.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestVulkanPools.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestPoolDispatchDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-transfers/libSatchelGuestTransfers.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestVulkanTransfers.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestTransferDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestComputeDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestNVNComputeDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestVulkanCompute.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-compute/libSatchelGuestComputeOwner.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-scalar-compiler/ios/libSatchelScalarCompiler.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-raster/libSatchelGuestRasterResources.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-raster/libSatchelGuestRasterPrograms.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestVulkanRaster.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestVulkanCapturedRaster.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-frames/libSatchelGuestFrames.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-texture-frames/libSatchelGuestTextureFrames.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestVulkanTextureFrames.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-windows/libSatchelGuestWindows.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics/libSatchelGuestVulkanWindows.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic/libSatchelGuestNVNRasterDiagnostic.a
+        embed: false
+      - framework: /Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-horizon-ipc/ios/libSatchelHorizonIPC.a
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dell.satchel
+        PRODUCT_NAME: Satchel
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_OBJC_BRIDGING_HEADER: App/Bridge.h
+        HEADER_SEARCH_PATHS: ['$(SRCROOT)/Core', '$(SRCROOT)/Tools/CPUProbe', '$(SRCROOT)/Tools/ShaderBridge', '$(SRCROOT)/Tools/VulkanBackend', '$(SRCROOT)/Tools/GuestGraphics', '$(SRCROOT)/Tools/GuestVI', '$(SRCROOT)/Tools/HorizonIPC', '$(SRCROOT)/Tools/ScalarCompiler', '$(SRCROOT)/Tools/RasterCompiler']
+        OTHER_LDFLAGS: ['$(inherited)', '-lc++']
+        LIBRARY_SEARCH_PATHS: ['$(inherited)', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-vixl-probe/build/ios', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-shader-bridge/ios', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-graphics', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-vi/ios', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-diagnostic', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-pool-diagnostic', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-pools', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-transfers', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-compute', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-scalar-compiler/ios', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-raster', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-horizon-ipc/ios', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-captured-host', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-captured-programs', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-frames', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-texture-frames', '/Users/dell/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-guest-windows']
+        TARGETED_DEVICE_FAMILY: '1,2'
+        MARKETING_VERSION: '0.3.0'
+        CURRENT_PROJECT_VERSION: '8'
+        GCC_OPTIMIZATION_LEVEL: '3'
+        SWIFT_OPTIMIZATION_LEVEL: '-O'
+        ENABLE_BITCODE: NO
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Satchel
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationLandscapeLeft]
+        UIRequiresFullScreen: YES
+        UIFileSharingEnabled: YES
+        LSSupportsOpeningDocumentsInPlace: YES
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.dell.satchel.nro
+            UTTypeDescription: Nintendo Switch Homebrew
+            UTTypeConformsTo: [public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [nro]
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+  SatchelUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/UI
+        excludes: [Navigation]
+    dependencies:
+      - target: Satchel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dell.satchel.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Satchel
+  SatchelNavigationUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/UI/Navigation
+        includes: ["*.swift"]
+    dependencies:
+      - target: Satchel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dell.satchel.satchelnavigationuitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Satchel
+schemes:
+  SatchelNavigation:
+    build:
+      targets:
+        Satchel: all
+        SatchelNavigationUITests: [test]
+    test:
+      config: Release
+      targets:
+        - name: SatchelNavigationUITests
+          parallelizable: false
+  Satchel:
+    build:
+      targets:
+        Satchel: all
+        SatchelUITests: [test]
+    test:
+      config: Release
+      targets: [SatchelUITests]

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "status": "error",
+  "error": {
+    "code": "update_mismatch",
+    "message": "The update\u0027s internal application and patch IDs do not match the selected base game."
+  }
+}

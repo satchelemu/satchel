@@ -1,0 +1,105 @@
+{
+  "status": "clear independent read-only production review; no blocker within explicit serialized/pure-borrowed contracts",
+  "reviewer": "core_options",
+  "method": "Read-only source, primary installed prototype, producer test/recipe and bound artifact/log inspection. No reviewer builds, test execution, canonical changes, device actions or additional original-game analysis.",
+  "findings": [],
+  "production": {
+    "/tmp/satchel-guest-vi-staging/GuestVI.c": "46f092d894836565e30f3bb43ee0559aced0d6ddca4cf173c689715350d5ccd2",
+    "/tmp/satchel-guest-vi-staging/GuestVI.h": "86c374287946bf9154c2b31f5b64d76256383e530faf1f0ec247f8852f541a5a",
+    "/tmp/satchel-guest-vi-staging/GuestVIDispatch.c": "85f3d309aaeeb3d6157ac5b15d088b0ac394171159119d98ccf8def105d85bb5",
+    "/tmp/satchel-guest-vi-staging/GuestVIDispatch.h": "2590a0e744f637a75b1b82b20316484d6c456fb3246709cf224ec8e79b1f2d85"
+  },
+  "producer_sources": {
+    "/tmp/satchel-guest-vi-staging/GuestVI.c": "46f092d894836565e30f3bb43ee0559aced0d6ddca4cf173c689715350d5ccd2",
+    "/tmp/satchel-guest-vi-staging/GuestVI.h": "86c374287946bf9154c2b31f5b64d76256383e530faf1f0ec247f8852f541a5a",
+    "/tmp/satchel-guest-vi-staging/GuestVIDispatch.c": "85f3d309aaeeb3d6157ac5b15d088b0ac394171159119d98ccf8def105d85bb5",
+    "/tmp/satchel-guest-vi-staging/GuestVIDispatch.h": "2590a0e744f637a75b1b82b20316484d6c456fb3246709cf224ec8e79b1f2d85",
+    "/tmp/satchel-guest-vi-staging/Test.c": "b860dfef58a012515fa3d1522c6cd57a03f0fae45a9daf8b9c720fdedd23cea3",
+    "/tmp/satchel-guest-vi-staging/ProcessTest.c": "9345acca6a9a537decd5e14ce9aa8a361818f3b60494e5ba6470400bdc460a48",
+    "/tmp/satchel-guest-vi-staging/build.py": "43b1266d5a7e99c2085ae9cdc555b4ae15cae9e1538199e7a454bdb7cf2e51c3",
+    "/tmp/satchel-guest-vi-staging/build_joint.py": "5b38fd5681301b0b4bd0f92995e0d3fc201639a600f51b7c3601abef8451be2c",
+    "/tmp/satchel-guest-vi-staging/README.md": "fc6b7f7765efe67ca368ac8fa068f03bdbb3ead64b949f024fdcf845868f409d",
+    "/tmp/satchel-guest-vi-staging/PROVENANCE.md": "11593e24314dfa6b75f6819dc2a4fcf5555b3663d2729d3bbf4cebc591d99cf5",
+    "/tmp/satchel-guest-vi-staging/DESIGN.md": "75c121438563bd06bde4b6a3a9e6761fa9a4eea94afc975d527ceb7ff0620a78",
+    "/tmp/satchel-guest-vi-staging/Reference-LICENSE": "d3274a6660e61e3d3255e8a66ae2f1a9a8bfa171afb6a4a7846647dc0d35b701",
+    "/tmp/satchel-guest-vi-staging/NVN-Header-LICENSE": "ba6210e6e7f81f423585c4c26549476da7ae35575fcd73c9af37ed18e7181597"
+  },
+  "producer_manifest": {
+    "path": "/tmp/satchel-guest-vi-staging/validation-manifest.json",
+    "sha256": "94cbf709886b05da1b433bb167a041ab65b562ee5ff129bc5c3e84c90d8f6efc"
+  },
+  "producer_gates": {
+    "normal_assertions": 68705,
+    "fault_assertions": 70292,
+    "joint_actual_process_assertions": 142,
+    "assertion_count_note": "Includes register/byte comparisons, not independent scenarios",
+    "normal_fault_log_sha256": "d90e8190623f9174ea09d93dfdba1505a9269a6ab86cc178e81194d18e5f6362",
+    "joint_log_sha256": "993ba9d4f14a7c8dd521b6998599bd85d3de8b33994a9754c6dbe0f8299cf85b",
+    "build_manifest": {
+      "path": "/tmp/satchel-guest-vi-staging/build/validation-manifest.json",
+      "sha256": "cebc21ac69f28375c067a9d4e3240eddd29fab8bd449325c6b80feb24a2d1816"
+    },
+    "joint_manifest": {
+      "path": "/tmp/satchel-guest-vi-staging/joint/validation-manifest.json",
+      "sha256": "699df8ec05b2742a68655c317458f4885257c2108514c90ccf3aa4ece3161c24"
+    }
+  },
+  "archives": {
+    "host_archive": {
+      "path": "/tmp/satchel-guest-vi-staging/build/libSatchelGuestVI.a",
+      "sha256": "c98649e8d709c60b8d0ed50ec579455e483eac99b12bc9573f3d059f63d771da"
+    },
+    "ios_archive": {
+      "path": "/tmp/satchel-guest-vi-staging/build/ios/libSatchelGuestVI.a",
+      "sha256": "19303f72534437c856cf3e4fbcf8c0a3b288c2913b7d7ce2eedc4b8cf1322d44",
+      "target": "arm64-apple-ios17.0",
+      "public_exports": 11,
+      "test_exports": 0
+    }
+  },
+  "verified_ios_exports": [
+    "_satchel_guest_vi_create",
+    "_satchel_guest_vi_detach",
+    "_satchel_guest_vi_dispatch",
+    "_satchel_guest_vi_entry_name",
+    "_satchel_guest_vi_entry_points",
+    "_satchel_guest_vi_execute",
+    "_satchel_guest_vi_release_native",
+    "_satchel_guest_vi_resolve_entries",
+    "_satchel_guest_vi_retain_native",
+    "_satchel_guest_vi_stats",
+    "_satchel_guest_vi_try_destroy"
+  ],
+  "primary_prototype_evidence": {
+    "pin": "8227f80f9b381c680611303319656c4e0c806a50",
+    "files": {
+      "/tmp/satchel-switch-integration/NX2Apple/dm/gfx/hle_vi.c": "32559a00b9e26c9c8848bb299e21e3e08ee6ec007574729690346a315bfc7125",
+      "/tmp/satchel-switch-integration/NX2Apple/dm/host/hle.h": "b4cdd72b06ea53af0241b3c42de2b0186b4d72108aa1e020fd57324edf71c07f"
+    },
+    "scope": "Exact seven public names, pointer-output/parent argument positions, uint32 Result zero and void teardown signatures only. Reference static objects, no-op teardown and guessed layouts/defaults are not adopted."
+  },
+  "review": [
+    "Owner stores only copied numeric configuration/identities/generations, counters and reference tokens. No CPU, Process, output guard, cancellation callback/context or native surface pointer is retained.",
+    "Creation copies configuration before clearing valid output, validates bounded fields, reserves an available owner slot and allocates before invoking the real one-way Process claim. Failure before claim does not burn it; after successful claim only nonfallible fixed-field publication remains. Live duplicate reservations are rejected; Process claim prevents namespace reuse after owner destruction.",
+    "Per-execute monotonic deadline is freshly computed after the cumulative event admission. Initial clock failure/overflow, final failure/expiry and both cancellation checkpoints precede LR/output/semantic publication. Idle lifetime is not a deadline; the independent cumulative event cap still bounds repeated zero-instruction traps.",
+    "Five operations maintain one Display/Layer/Native chain with monotonic16-byte identities,256 issuance limit and32 retained references. Duplicate, stale or wrong-parent identity requests stop; repeated native lookup returns the same live identity. No dimensions/defaults/retail object bytes or fabricated failure nn::Result is emitted.",
+    "Before output, full8-byte writable mapping, physical disjointness from the entire reserved backing and required protected-range guard are checked. LR is validated/set before atomic writev. Write failure restores trap PC before returning; fixed semantic metadata and X0 success commit only after write. Void teardown validates LR before metadata changes and preserves X0. Under stopped-CPU exclusivity no fallible callback/allocation occurs after guest output commit; unexpected register/rollback failure is explicit INTERNAL, not an ordinary refusal.",
+    "Detach forbids new active-surface operations/retains but leaves matching destruction and reference release possible. Retiring rejects execution and preserves owner until references drain. Release/stats/try_destroy are CPU-free; joint tests destroy the entire Process before releasing the final Window-style reference.",
+    "Resolver copies at most8 module descriptors and requires three core definitions. Existing GuestSymbols validates bounded geometry/null metadata, exact global/weak function names/default-or-protected visibility and complete declared text span. Imports do not activate methods; duplicate definitions and cross-operation address aliases refuse. Local results publish atomically after final cancellation/deadline check.",
+    "Adapter selects only exact entry PC, requires supplied BREAKPOINT reason, re-observes same current PC via zero-budget CPU run and checks executable4-byte mapping, then reads X0/X1/X30 before owner entry. NOT_OURS and adapter preflight failures preserve result/state. It executes no original body, modifies no code and leaves merging with existing breakpoint owners to the caller.",
+    "Global try-gate rejects owner reentry; borrowed guard/validation/cancellation callbacks are pure, nonmutating and prompt. The only state-changing callback is the explicit constructor claim. Reservation validation is the previously reviewed real Process contract, not failed-read inference.",
+    "Producer original tests exercise actual BLR-to-breakpoint dispatch, full GPR/output rollback, LR failure, writev failure after provisional return PC, foreign physical alias/provenance checks, constructor allocation before claim, first/last argument-read failures, generation/ref limits, expiry and hours-long idle gaps. Joint tests use real staged Process reservation/claim and CPU-free final release.",
+    "Recipes bind private CPU/GuestSymbols inputs and all final source/build artifacts, segregate test-only allocation/clock/write/read seams, and verify exact11 iOS exports. New archive contains only owner/adapter, preserving existing NVN composite dependencies."
+  ],
+  "nonblocking_documentation_observation": {
+    "path": "/tmp/satchel-guest-vi-staging/DESIGN.md",
+    "issue": "Historical Final proposed C contract section still lists preimplementation create/resolver signatures. README and headers state the real implemented contract.",
+    "resolution": "Owner acknowledged and will correct only the separate repository-ready overlay, retaining this immutable producer checkpoint. No production change or new gate required for that documentation correction."
+  },
+  "contract_limits": [
+    "Fresh stop/source tables and actual attached surface epoch are trusted caller inputs; numeric structs are not cryptographic provenance. Caller must supply verified module metadata, merge bounded breakpoint registrations and keep Process/CPU/borrowed inputs alive and exclusive throughout dispatch.",
+    "Deadlines are cooperative and cannot preempt arbitrary blocking callbacks. Retain/release are fixed bounded host ownership operations; caller serialization and pure prompt borrowed callbacks remain required.",
+    "Only semantic owner state and guest bytes/registers/PC are rollback guarantees on ordinary refusal; lifetime attempt counters intentionally advance. INTERNAL denotes violated invariants and does not claim rollback.",
+    "No VI Binder service, retail display object layout, NVN Window/Acquire/Present, original invocation or displayed game-frame compatibility is established."
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "purpose": "Exact original compiler-output admission reference, not pipeline input substitution or result data",
+  "origin": "Tools/MaxwellShaderCompiler/fixture_compute.c independently encoded original LDC/IADD/STG/EXIT fixture",
+  "spirv_bytes": 1208,
+  "spirv_sha256": "ff34e7908a128a41251688a2aef0b26e3984dbf050c29f512fd7ae9b54895e47",
+  "uniform_binding_word": 113,
+  "storage_binding_word": 133,
+  "compiler_pin": "8227f80f9b381c680611303319656c4e0c806a50",
+  "initial_source_files": {
+    "Tools/MaxwellShaderCompiler/fixture_compute.c": "bd275442d6cf4cb366c00b130499489ebe04ba9bce39cb44fec5910a3f9c098c",
+    "Tools/MaxwellShaderCompiler/FixtureCompiler.cs": "6594041c728791d236d8968a852e8a972550979a58d702bef7a45dcd138568a2",
+    "Tools/MaxwellShaderCompiler/FixtureSpirv.cs": "b08ba11a57e9bc2a9449c8dd4bab9ead03764b11abd3717a2b05fe1a5ae942ea",
+    "Tools/MaxwellShaderCompiler/SatchelShaderFixture.h": "7da62eb396a98d40aff0481a2a0658bd0fa7c93fefb734ba8cae7fe25336498a"
+  },
+  "validated_source_files": {
+    "Tools/MaxwellShaderCompiler/fixture_compute.c": "bd275442d6cf4cb366c00b130499489ebe04ba9bce39cb44fec5910a3f9c098c",
+    "Tools/MaxwellShaderCompiler/FixtureCompiler.cs": "15efd90f84aea00cab7b9722f8c0346de731b5d51bb992c56f81315f87e8becb",
+    "Tools/MaxwellShaderCompiler/FixtureSpirv.cs": "b08ba11a57e9bc2a9449c8dd4bab9ead03764b11abd3717a2b05fe1a5ae942ea",
+    "Tools/MaxwellShaderCompiler/SatchelShaderFixture.h": "7da62eb396a98d40aff0481a2a0658bd0fa7c93fefb734ba8cae7fe25336498a"
+  },
+  "production_entry": "Cold-first NativeAOT exported entry, non-inlined managed worker; no test exports or warm-up required"
+}

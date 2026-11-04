@@ -1,0 +1,39 @@
+#include "GuestPools.h"
+#include "VulkanBuffer.h"
+#include "VulkanSubmission.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+static unsigned checks;
+#define CHECK(v) do{checks++;if(!(v)){fprintf(stderr,"pool budget assertion line%d\n",__LINE__);exit(1);}}while(0)
+enum {DEV=0x300000,BUILDER=0x304000,OBJECT=0x305000,STORAGE=0x10000000};
+typedef struct {uint64_t token;} Context;
+static int valid(void *c,SatchelCPUProbe *cpu,uint64_t a,uint64_t *token,uint64_t *generation){unsigned char bytes[16];if(a!=DEV || !satchel_cpu_probe_read(cpu,DEV,bytes,sizeof(bytes)) || bytes[0]!=0x5a)return 0;*token=((Context*)c)->token;*generation=1;return 1;}
+static SatchelGuestPoolStatus call(SatchelGuestPools *o,SatchelCPUProbe *cpu,unsigned op,uint64_t object,uint64_t a,uint64_t b,uint64_t *value){SatchelGuestPoolRequest req={op,object,a,b};SatchelGuestPoolResult out;SatchelGuestPoolStatus s=satchel_guest_pools_execute(o,cpu,&req,&out);CHECK(out.status==(unsigned)s);if(value)*value=out.value;else CHECK(s==SATCHEL_GUEST_POOL_OK);return s;}
+static void builder(SatchelGuestPools *o,SatchelCPUProbe *cpu,uint64_t base,uint64_t size){call(o,cpu,SATCHEL_GUEST_POOL_BUILDER_DEFAULTS,BUILDER,0,0,NULL);call(o,cpu,SATCHEL_GUEST_POOL_BUILDER_DEVICE,BUILDER,DEV,0,NULL);call(o,cpu,SATCHEL_GUEST_POOL_BUILDER_STORAGE,BUILDER,base,size,NULL);call(o,cpu,SATCHEL_GUEST_POOL_BUILDER_FLAGS,BUILDER,0x24,0,NULL);}
+int main(){
+ uint32_t code=0xd4200000;uint8_t tag[16]={0x5a};SatchelCPUProbeRegion regions[]={{0x100000,&code,4,4096,5},{DEV,tag,16,65536,3},{STORAGE,NULL,0,144*1024*1024,3}};char error[128];SatchelCPUProbe *cpu=satchel_cpu_probe_create(regions,3,0x100000,error,sizeof(error));CHECK(cpu);
+ Context context={0};SatchelGuestDeviceCaps dc;CHECK(satchel_vulkan_device_create(0,&context.token,&dc)==SATCHEL_VULKAN_OK);SatchelGuestPools *a=satchel_guest_pools_create(valid,&context),*b=satchel_guest_pools_create(valid,&context);CHECK(a && b);
+ SatchelGuestPoolBudget budget;CHECK(satchel_guest_pools_budget(a,&budget)==SATCHEL_GUEST_POOL_OK && !budget.live_pools && budget.global_backing_limit==128*1024*1024 && !budget.transient_bytes && budget.transient_limit==64*1024*1024);
+ // Actual block-linear720p/1080p allocations, endpoint copy/fill/invalidation.
+ const uint64_t sizes[]={3932160,8847360};
+ for(unsigned i=0;i<2;i++){
+  uint64_t base=STORAGE+(uint64_t)i*16*1024*1024,obj=OBJECT+i*256;builder(a,cpu,base,sizes[i]);uint32_t marker=0xaabbccdd;CHECK(satchel_cpu_probe_write(cpu,base+sizes[i]-4,&marker,4));uint64_t result=0;CHECK(call(a,cpu,SATCHEL_GUEST_POOL_INITIALIZE,obj,BUILDER,0,&result)==SATCHEL_GUEST_POOL_OK && result==1);call(a,cpu,SATCHEL_GUEST_POOL_GPU_ADDRESS,obj,0,0,&result);SatchelGuestPoolBinding binding;CHECK(satchel_guest_pools_resolve(a,cpu,DEV,result+sizes[i]-4,4,&binding)==SATCHEL_GUEST_POOL_OK);SatchelVulkanBufferInfo info;CHECK(satchel_vulkan_buffer_info(context.token,binding.buffer,&info)==SATCHEL_VULKAN_OK && info.usage==23 && info.size==sizes[i] && info.allocation_size>=sizes[i]);uint32_t actual=0;CHECK(satchel_vulkan_buffer_read(context.token,binding.buffer,sizes[i]-4,&actual,4)==SATCHEL_VULKAN_OK && actual==marker);
+  uint64_t lease=0,second=0;SatchelGuestPoolView view;CHECK(satchel_guest_pools_retain_object(a,cpu,DEV,obj,&lease,&view)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_guest_pools_retain_object(a,cpu,DEV,obj,&second,&view)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_guest_pools_gpu_acquire(a,cpu,lease)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_guest_pools_gpu_acquire(a,cpu,second)==SATCHEL_GUEST_POOL_BUSY);SatchelGuestPoolBinding held_binding;CHECK(satchel_guest_pools_resolve(a,cpu,DEV,view.gpu_address,4,&held_binding)==SATCHEL_GUEST_POOL_BUSY);CHECK(satchel_guest_pools_lease_binding(a,cpu,second,view.gpu_address,4,&held_binding)==SATCHEL_GUEST_POOL_BUSY);CHECK(satchel_guest_pools_lease_binding(a,cpu,lease,view.gpu_address,4,&held_binding)==SATCHEL_GUEST_POOL_OK);uint64_t third=0;SatchelGuestPoolView held_view;CHECK(satchel_guest_pools_retain_object(a,cpu,DEV,obj,&third,&held_view)==SATCHEL_GUEST_POOL_BUSY && !third);uint64_t held_result=99;CHECK(call(a,cpu,SATCHEL_GUEST_POOL_FLUSH,obj,0,4,&held_result)==SATCHEL_GUEST_POOL_BUSY && !held_result);CHECK(call(a,cpu,SATCHEL_GUEST_POOL_INVALIDATE,obj,0,4,&held_result)==SATCHEL_GUEST_POOL_BUSY && !held_result);CHECK(satchel_guest_pools_release(a,lease)==SATCHEL_GUEST_POOL_BUSY);CHECK(satchel_guest_pools_release(a,second)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_guest_pools_gpu_release(a,lease)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_guest_pools_gpu_release(a,lease)==SATCHEL_GUEST_POOL_BAD_OBJECT);CHECK(satchel_guest_pools_release(a,lease)==SATCHEL_GUEST_POOL_OK);
+  uint64_t job=0;CHECK(satchel_vulkan_buffer_fill(context.token,binding.buffer,sizes[i]-4,4,0x11223344,&job,NULL,NULL)==SATCHEL_VULKAN_OK && job);SatchelVulkanSubmissionReport completed;CHECK(satchel_vulkan_submission_wait(context.token,job,5000,NULL,NULL,&completed)==SATCHEL_VULKAN_OK && completed.completed);call(a,cpu,SATCHEL_GUEST_POOL_INVALIDATE,obj,sizes[i]-4,4,NULL);CHECK(satchel_cpu_probe_read(cpu,base+sizes[i]-4,&actual,4) && actual==0x11223344);
+ }
+ CHECK(satchel_guest_pools_budget(a,&budget)==SATCHEL_GUEST_POOL_OK && budget.live_pools==2 && budget.logical_bytes==sizes[0]+sizes[1] && budget.backing_bytes>=budget.logical_bytes && budget.global_backing_bytes==budget.backing_bytes);
+ call(a,cpu,SATCHEL_GUEST_POOL_FINALIZE,OBJECT,0,0,NULL);call(a,cpu,SATCHEL_GUEST_POOL_FINALIZE,OBJECT+256,0,0,NULL);
+ // A non-pool resource consumes the same padded budget across two owners.
+ uint64_t extra=0;SatchelVulkanBufferInfo extra_info;CHECK(satchel_vulkan_buffer_create(context.token,65536,SATCHEL_VULKAN_BUFFER_TRANSFER_DESTINATION,&extra,&extra_info)==SATCHEL_VULKAN_OK);
+ unsigned made=0;uint64_t charged=extra_info.allocation_size;
+ for(unsigned i=0;i<8;i++){
+  SatchelGuestPools *owner=(i&1)?b:a;builder(owner,cpu,STORAGE+(uint64_t)i*16*1024*1024,16*1024*1024);uint64_t answer=99;
+  SatchelGuestPoolStatus status=call(owner,cpu,SATCHEL_GUEST_POOL_INITIALIZE,OBJECT+i*256,BUILDER,0,&answer);if(status==SATCHEL_GUEST_POOL_BUSY){CHECK(!answer);break;}CHECK(status==SATCHEL_GUEST_POOL_OK && answer==1);made++;
+  CHECK(satchel_guest_pools_budget(owner,&budget)==SATCHEL_GUEST_POOL_OK);CHECK(budget.global_backing_bytes>charged && budget.global_backing_bytes<=budget.global_backing_limit);charged=budget.global_backing_bytes;
+ }
+ CHECK(made>=6 && made<8);SatchelVulkanBufferStats stats;CHECK(satchel_vulkan_buffer_stats(&stats)==SATCHEL_VULKAN_OK && stats.allocated_bytes==charged && stats.live_buffers==made+1);
+ uint64_t final_lease=0;SatchelGuestPoolView final_view;CHECK(satchel_guest_pools_retain_object(a,cpu,DEV,OBJECT,&final_lease,&final_view)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_guest_pools_gpu_acquire(a,cpu,final_lease)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_cpu_probe_try_destroy(cpu));cpu=NULL;CHECK(satchel_guest_pools_try_destroy(&a)==SATCHEL_GUEST_POOL_BUSY && a);CHECK(satchel_guest_pools_gpu_release(a,final_lease)==SATCHEL_GUEST_POOL_OK);CHECK(satchel_guest_pools_release(a,final_lease)==SATCHEL_GUEST_POOL_OK);
+ CHECK(satchel_guest_pools_try_destroy(&a)==SATCHEL_GUEST_POOL_OK && !a);CHECK(satchel_guest_pools_try_destroy(&b)==SATCHEL_GUEST_POOL_OK && !b);CHECK(satchel_vulkan_buffer_stats(&stats)==SATCHEL_VULKAN_OK && stats.live_buffers==1 && stats.allocated_bytes==extra_info.allocation_size);CHECK(satchel_vulkan_buffer_destroy(context.token,extra)==SATCHEL_VULKAN_OK);CHECK(satchel_vulkan_device_destroy(context.token)==SATCHEL_VULKAN_OK);CHECK(!cpu);CHECK(satchel_vulkan_buffer_stats(&stats)==SATCHEL_VULKAN_OK && !stats.live_buffers && !stats.allocated_bytes);
+ printf("Pool budget: %u sanitizer assertions,720p/1080p real buffers/GPU endpoint writes,16MiB cap and padded128MiB aggregate across owners/staging, complete cleanup.\n",checks);return 0;
+}

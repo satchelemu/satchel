@@ -1,0 +1,10 @@
+{
+  "instructions" : 31956,
+  "name" : "hbmenu",
+  "outcome" : "Horizon SVC not implemented: 0x2 at PC 0x33b2c",
+  "output" : "",
+  "pc" : "0x33b2c",
+  "seconds" : 0.005922416661633179,
+  "sha256" : "6cf6d130515723ebe0041c2479420caf9726895087439ff7b2e528c2ed39c100",
+  "timestamp" : "2026-10-31T04:47:56Z"
+}

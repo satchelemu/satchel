@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "sources": {
+    "WindowFrameBridge.c": "6dce023c48edf2961d2fb44dda028191c513712e1230787b37b9f71734fce677",
+    "WindowFrameBridge.h": "cd23d0bcb1a54f08ccb66a498adf1cadda59db69fc53fea945e65e11a135470e",
+    "Test.c": "41ae6a83c71ba9d9deae73c38204362497c4aa5912f4f7c7c6aedfd6b3c3e58f"
+  },
+  "original_gate": {
+    "sha256": "782e67813fc4ccc3485695c6f2696dc028f0939866016132e433dcf31d17148f",
+    "result": "Original Window-to-consumer C fixture: 4233 assertions, normal and CPU-destroyed READY frames, real leased retirement retry and resources zero."
+  },
+  "exports": [
+    "_satchel_window_frame_fixture_begin",
+    "_satchel_window_frame_fixture_finish"
+  ]
+}

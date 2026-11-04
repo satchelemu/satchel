@@ -1,0 +1,26 @@
+# Metadata for the reviewed Mac-prepared profile. Phone Prepare is disabled.
+# Unity 2022.3.62f2 IL2CPP, SDK 19.3.16. No game code or shader data.
+# app_pool follows NX2Apple heap_signals from the bounded Mac run.
+title_id	0100BA4026E94000
+program_id	0100BA4026E94000
+
+name	Castlevania: Belmont's Curse
+ipa	CastlevaniaBelmontsCurse.ipa
+app_category	public.app-category.games
+
+build	v0	1.0.0	main=e7caa6ab07f133269a2705ec9340ac58	subsdk0=8205ead9e1f93d8b2337feaddefac330	sdk=8af286d7bfb124125a15e96a39cb1ab7
+package	v0
+shader_versions	v0
+
+modules	main subsdk0 sdk
+romfs_marker	Data/StreamingAssets/Master.bank
+zip_store	.assets:.bank:.bundle:.dat:.json:.nro:.ress:.metallib
+
+mem_reserve	0x140000000
+mem_alias	0x118000000
+mem_stack	0x10000000
+app_pool	0x40000000
+sys_resource	0x1000000
+
+shader_groups	/Data/=data /.nrr/=nrr /Plugins/=plugins
+shader_note	Castlevania: Belmont's Curse shaders (provisional profile)

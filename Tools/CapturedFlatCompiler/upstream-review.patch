@@ -1,0 +1,1198 @@
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/CodeGen/Spirv/CodeGenContext.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/CodeGen/Spirv/CodeGenContext.cs
+@@ -64,7 +64,7 @@
+             public Instruction GetLabel(CodeGenContext context, int index)
+             {
+                 while (index >= _labels.Count)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     _labels.Add(context.Label());
+                 }
+ 
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/CodeGen/Spirv/Declarations.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/CodeGen/Spirv/Declarations.cs
+@@ -21,7 +21,7 @@
+         private static void DeclareParameters(CodeGenContext context, IEnumerable<AggregateType> argTypes, int argIndex)
+         {
+             foreach (AggregateType argType in argTypes)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 SpvInstruction argPointerType = context.TypePointer(StorageClass.Function, context.GetType(argType));
+                 SpvInstruction spvArg = context.FunctionParameter(argPointerType);
+ 
+@@ -32,7 +32,7 @@
+         public static void DeclareLocals(CodeGenContext context, StructuredFunction function)
+         {
+             foreach (AstOperand local in function.Locals)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 SpvInstruction localPointerType = context.TypePointer(StorageClass.Function, context.GetType(local.VarType));
+                 SpvInstruction spvLocal = context.Variable(localPointerType, StorageClass.Function);
+ 
+@@ -59,7 +59,7 @@
+             StorageClass storage)
+         {
+             foreach ((int id, MemoryDefinition memory) in memories)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 SpvInstruction pointerType = context.TypePointer(storage, context.GetType(memory.Type, memory.ArrayLength));
+                 SpvInstruction variable = context.Variable(pointerType, storage);
+ 
+@@ -84,7 +84,7 @@
+             HashSet<SpvInstruction> decoratedTypes = [];
+ 
+             foreach (BufferDefinition buffer in buffers)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 int setIndex = context.TargetApi == TargetApi.Vulkan ? buffer.Set : 0;
+                 int alignment = buffer.Layout == BufferLayout.Std140 ? 16 : 4;
+                 int alignmentMask = alignment - 1;
+@@ -94,7 +94,7 @@
+                 int[] structFieldOffsets = new int[buffer.Type.Fields.Length];
+ 
+                 for (int fieldIndex = 0; fieldIndex < buffer.Type.Fields.Length; fieldIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     StructureField field = buffer.Type.Fields[fieldIndex];
+                     int fieldSize = (field.Type.GetSizeInBytes() + alignmentMask) & ~alignmentMask;
+ 
+@@ -130,7 +130,7 @@
+                     context.Decorate(structType, isBuffer ? Decoration.BufferBlock : Decoration.Block);
+ 
+                     for (int fieldIndex = 0; fieldIndex < structFieldOffsets.Length; fieldIndex++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         context.MemberDecorate(structType, fieldIndex, Decoration.Offset, (LiteralInteger)structFieldOffsets[fieldIndex]);
+                     }
+                 }
+@@ -157,7 +157,7 @@
+         private static void DeclareSamplers(CodeGenContext context, IEnumerable<TextureDefinition> samplers)
+         {
+             foreach (TextureDefinition sampler in samplers)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 int setIndex = context.TargetApi == TargetApi.Vulkan ? sampler.Set : 0;
+ 
+                 SpvInstruction imageType;
+@@ -226,7 +226,7 @@
+         private static void DeclareImages(CodeGenContext context, IEnumerable<TextureDefinition> images)
+         {
+             foreach (TextureDefinition image in images)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 int setIndex = context.TargetApi == TargetApi.Vulkan ? image.Set : 0;
+ 
+                 Dim dim = GetDim(image.Type);
+@@ -339,7 +339,7 @@
+             if (context.Definitions.Stage == ShaderStage.Fragment && context.Definitions.DualSourceBlend)
+             {
+                 foreach (IoDefinition ioDefinition in info.IoDefinitions)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (ioDefinition.IoVariable == IoVariable.FragmentOutputColor && ioDefinition.Location < firstLocation)
+                     {
+                         firstLocation = ioDefinition.Location;
+@@ -348,7 +348,7 @@
+             }
+ 
+             foreach (IoDefinition ioDefinition in info.IoDefinitions)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 PixelImap iq = PixelImap.Unused;
+ 
+                 if (context.Definitions.Stage == ShaderStage.Fragment)
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/CodeGen/Spirv/SpirvGenerator.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/CodeGen/Spirv/SpirvGenerator.cs
+@@ -123,14 +123,14 @@
+                 Declarations.DeclareAll(context, info);
+     
+                 for (int funcIndex = 0; funcIndex < info.Functions.Count; funcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     StructuredFunction function = info.Functions[funcIndex];
+                     SpvInstruction retType = context.GetType(function.ReturnType);
+     
+                     SpvInstruction[] funcArgs = new SpvInstruction[function.InArguments.Length + function.OutArguments.Length];
+     
+                     for (int argIndex = 0; argIndex < funcArgs.Length; argIndex++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         SpvInstruction argType = context.GetType(function.GetArgumentType(argIndex));
+                         SpvInstruction argPointerType = context.TypePointer(StorageClass.Function, argType);
+                         funcArgs[argIndex] = argPointerType;
+@@ -143,7 +143,7 @@
+                 }
+     
+                 for (int funcIndex = 0; funcIndex < info.Functions.Count; funcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     Generate(context, info, funcIndex);
+                 }
+     
+@@ -402,7 +402,7 @@
+             };
+ 
+             foreach (IAstNode node in visitor.Visit())
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (node is AstAssignment assignment)
+                 {
+                     AstOperand dest = (AstOperand)assignment.Destination;
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Decoders/Decoder.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Decoders/Decoder.cs
+@@ -65,7 +65,7 @@
+             DecodedFunction mainFunction = EnqueueFunction(0);
+ 
+             while (functionsQueue.TryDequeue(out DecodedFunction currentFunction))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 List<Block> blocks = [];
+                 Queue<Block> workQueue = new();
+                 Dictionary<ulong, Block> visited = new();
+@@ -88,9 +88,9 @@
+                 bool hasNewTarget;
+ 
+                 do
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     while (workQueue.TryDequeue(out Block currBlock))
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         // Check if the current block is inside another block.
+                         if (BinarySearch(blocks, currBlock.Address, out int nBlkIndex))
+                         {
+@@ -133,7 +133,7 @@
+                             // We should have blocks for all possible branch targets,
+                             // including those from PBK/PCNT/SSY instructions.
+                             foreach (PushOpInfo pushOp in currBlock.PushOpCodes)
+-                            {
++                            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                                 GetBlock(pushOp.Op.GetAbsoluteAddress());
+                             }
+ 
+@@ -177,9 +177,9 @@
+ 
+                     // Propagate SSY/PBK addresses into their uses (SYNC/BRK).
+                     foreach (Block block in blocks.Where(x => x.PushOpCodes.Count != 0))
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         for (int pushOpIndex = 0; pushOpIndex < block.PushOpCodes.Count; pushOpIndex++)
+-                        {
++                        { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                             PropagatePushOp(visited, block, pushOpIndex);
+                         }
+                     }
+@@ -214,7 +214,7 @@
+             int right = blocks.Count - 1;
+ 
+             while (left <= right)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 int size = right - left;
+ 
+                 int middle = left + (size >> 1);
+@@ -256,7 +256,7 @@
+             InstOp op = default;
+ 
+             do
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (address + 7 >= limitAddress)
+                 {
+                     break;
+@@ -387,7 +387,7 @@
+             else
+             {
+                 for (int elemIndex = 0; elemIndex < count; elemIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     int attr = offset + elemIndex * 4;
+ 
+                     if (perPatch)
+@@ -520,7 +520,7 @@
+             bool hasNewTarget = false;
+ 
+             foreach (Block block in blocks)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 InstOp lastOp = block.GetLastOp();
+                 bool hasNext = block.HasNext();
+ 
+@@ -541,7 +541,7 @@
+                     }
+ 
+                     for (int i = 0; i < cbOffsetsCount; i++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         uint targetOffset = context.ConstantBuffer1Read(cbBaseOffset + i * 4);
+                         ulong targetAddress = baseOffset + targetOffset;
+ 
+@@ -647,10 +647,10 @@
+             visited.Add(location.Block);
+ 
+             while (toVisit.TryDequeue(out BlockLocation currentLocation))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Block block = currentLocation.Block;
+                 for (int i = currentLocation.Index - 1; i >= 0; i--)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (WritesToRegister(block.OpCodes[i], regIndex))
+                     {
+                         return new BlockLocation(block, i);
+@@ -658,7 +658,7 @@
+                 }
+ 
+                 foreach (Block predecessor in block.Predecessors)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (visited.Add(predecessor))
+                     {
+                         toVisit.Enqueue(new BlockLocation(predecessor, predecessor.OpCodes.Count));
+@@ -743,7 +743,7 @@
+                 else if (_restoreType == RestoreType.PopPushOp)
+                 {
+                     while (branchStack.Count > (uint)_restoreValue)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         branchStack.Pop();
+                     }
+                 }
+@@ -779,7 +779,7 @@
+             Push(new PathBlockState(currBlock));
+ 
+             while (workQueue.TryPop(out PathBlockState pbs))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (pbs.ReturningFromVisit)
+                 {
+                     pbs.RestoreStackState(branchStack);
+@@ -803,7 +803,7 @@
+                     Push(new PathBlockState(branchStack.Count));
+ 
+                     for (int index = pushOpIndex; index < pushOpsCount; index++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         InstOp currentPushOp = current.PushOpCodes[index].Op;
+                         MergeType pushMergeType = GetMergeTypeFromPush(currentPushOp.Name);
+                         branchStack.Push((currentPushOp.GetAbsoluteAddress(), pushMergeType));
+@@ -828,7 +828,7 @@
+                     MergeType mergeType;
+ 
+                     do
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         if (branchStack.Count == 0)
+                         {
+                             found = false;
+@@ -873,7 +873,7 @@
+                     // By adding them in descending order (sorted by address), we process the blocks
+                     // in order (of ascending address), since we work with a LIFO.
+                     foreach (Block possibleTarget in current.Successors.OrderByDescending(x => x.Address))
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         if (!hasNext || possibleTarget != current.Successors[0])
+                         {
+                             Push(new PathBlockState(possibleTarget));
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/ControlFlowGraph.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/ControlFlowGraph.cs
+@@ -26,7 +26,7 @@
+             blockStack.Push(blocks[0]);
+ 
+             while (blockStack.TryPop(out BasicBlock block))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (block.Next != null && visited.Add(block.Next))
+                 {
+                     blockStack.Push(block);
+@@ -78,7 +78,7 @@
+             bool needsNewBlock = true;
+ 
+             for (int index = 0; index < operations.Length; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operation operation = operations[index];
+ 
+                 if (operation.Inst == Instruction.MarkLabel)
+@@ -133,11 +133,11 @@
+             bool hasUnreachable;
+ 
+             do
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 hasUnreachable = false;
+ 
+                 for (int blkIndex = 1; blkIndex < blocks.Count; blkIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     BasicBlock block = blocks[blkIndex];
+ 
+                     if (block.Predecessors.Count == 0)
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/BindlessElimination.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/BindlessElimination.cs
+@@ -23,7 +23,7 @@
+             LinkedListNode<INode> nextNode;
+ 
+             for (LinkedListNode<INode> node = block.Operations.First; node != null; node = nextNode)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 nextNode = node.Next;
+ 
+                 if (node.Value is not TextureOperation texOp)
+@@ -67,7 +67,7 @@
+                     gpuAccessor.Log($"Failed to find handle source for bindless access of type \"{typeName}\".");
+ 
+                     for (int destIndex = 0; destIndex < texOp.DestsCount; destIndex++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         block.Operations.AddBefore(node, new Operation(Instruction.Copy, texOp.GetDest(destIndex), OperandHelper.Const(0)));
+                     }
+ 
+@@ -101,7 +101,7 @@
+             List<(Operand Texture, Operand Sampler)> found = new();
+ 
+             foreach (Operand leaf in PhiLeaves(handle))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (IsTableWord(leaf))
+                 {
+                     AddCandidate(found, leaf, null);
+@@ -109,9 +109,9 @@
+                 else if (!texOp.Inst.IsImage() && leaf.AsgOp is Operation orOp && orOp.Inst == Instruction.BitwiseOr)
+                 {
+                     foreach (Operand texture in PhiLeaves(orOp.GetSource(0)))
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         foreach (Operand sampler in PhiLeaves(orOp.GetSource(1)))
+-                        {
++                        { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                             if (IsTableWord(texture) && (IsTableWord(sampler) || (sampler.Type == OperandType.Constant && (sampler.Value & 0xfffff) == 0)))
+                             {
+                                 AddCandidate(found, texture, sampler);
+@@ -151,18 +151,18 @@
+             Operand[][] results = new Operand[last][];
+ 
+             for (int index = 0; index < last; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand candidate = CandidateHandle(block, node, found[index]);
+                 Operand[] sources = new Operand[texOp.SourcesCount];
+                 results[index] = new Operand[texOp.DestsCount];
+ 
+                 for (int srcIndex = 0; srcIndex < sources.Length; srcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     sources[srcIndex] = srcIndex == 0 ? candidate : texOp.GetSource(srcIndex);
+                 }
+ 
+                 for (int destIndex = 0; destIndex < results[index].Length; destIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     results[index][destIndex] = OperandHelper.Local();
+                 }
+ 
+@@ -172,7 +172,7 @@
+                 if (!TryConvertBindless(block, resourceManager, gpuAccessor, read))
+                 {
+                     for (int destIndex = 0; destIndex < results[index].Length; destIndex++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         block.Operations.AddBefore(readNode, new Operation(Instruction.Copy, results[index][destIndex], OperandHelper.Const(0)));
+                     }
+ 
+@@ -188,13 +188,13 @@
+             LinkedListNode<INode> after = node;
+ 
+             for (int destIndex = 0; destIndex < texOp.DestsCount && last > 0; destIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand dest = texOp.GetDest(destIndex);
+                 Operand value = OperandHelper.Local();
+                 texOp.SetDest(destIndex, value);
+ 
+                 for (int index = last - 1; index >= 0; index--)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     Operand selected = index == 0 ? dest : OperandHelper.Local();
+                     after = block.Operations.AddAfter(after, new Operation(Instruction.ConditionalSelect, selected, matches[index], results[index][destIndex], value));
+                     value = selected;
+@@ -244,7 +244,7 @@
+         private static void AddCandidate(List<(Operand Texture, Operand Sampler)> found, Operand texture, Operand sampler)
+         {
+             foreach ((Operand t, Operand s) in found)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (t.Value == texture.Value && (s == null ? sampler == null : sampler != null && s.Type == sampler.Type && s.Value == sampler.Value))
+                 {
+                     return;
+@@ -263,7 +263,7 @@
+             pending.Push(operand);
+ 
+             while (pending.Count > 0)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand current = pending.Pop();
+ 
+                 if (current.AsgOp is PhiNode phi)
+@@ -271,7 +271,7 @@
+                     if (visited.Add(phi))
+                     {
+                         for (int index = 0; index < phi.SourcesCount; index++)
+-                        {
++                        { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                             pending.Push(phi.GetSource(index));
+                         }
+                     }
+@@ -369,7 +369,7 @@
+             if (bindlessHandle.AsgOp is PhiNode phi)
+             {
+                 for (int srcIndex = 0; srcIndex < phi.SourcesCount; srcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     Operand phiSource = phi.GetSource(srcIndex);
+ 
+                     if (phiSource.AsgOp is not PhiNode && !IsBindlessAccessAllowed(phiSource))
+@@ -612,7 +612,7 @@
+                 pending.Push(phi);
+ 
+                 while (pending.Count > 0)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     PhiNode current = pending.Pop();
+ 
+                     if (!visited.Add(current))
+@@ -621,7 +621,7 @@
+                     }
+ 
+                     for (int index = 0; index < current.SourcesCount; index++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         Operand src = current.GetSource(index);
+ 
+                         if (src.AsgOp is PhiNode srcPhi)
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/BindlessToArray.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/BindlessToArray.cs
+@@ -22,7 +22,7 @@
+             // - The load has a constant offset.
+             // The base offset of the array of handles on the constant buffer is the constant offset.
+             for (LinkedListNode<INode> node = block.Operations.First; node != null; node = node.Next)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (node.Value is not TextureOperation texOp)
+                 {
+                     continue;
+@@ -115,7 +115,7 @@
+             // - The load has a constant offset.
+             // The base offset of the array of handles on the constant buffer is the constant offset.
+             for (LinkedListNode<INode> node = block.Operations.First; node != null; node = node.Next)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (node.Value is not TextureOperation texOp)
+                 {
+                     continue;
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/BranchElimination.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/BranchElimination.cs
+@@ -45,7 +45,7 @@
+             block = block.Next;
+ 
+             while (block != null && block.Operations.Count == 0)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (block.HasBranch)
+                 {
+                     throw new InvalidOperationException("Found a bogus empty block that \"ends with a branch\".");
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/ConstantFolding.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/ConstantFolding.cs
+@@ -219,7 +219,7 @@
+         private static bool AreAllSourcesConstant(Operation operation)
+         {
+             for (int index = 0; index < operation.SourcesCount; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (operation.GetSource(index).Type != OperandType.Constant)
+                 {
+                     return false;
+@@ -234,7 +234,7 @@
+             int count = 0;
+ 
+             for (int bit = 0; bit < 32; bit++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (value.Extract(bit))
+                 {
+                     count++;
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/DoubleToFloat.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/DoubleToFloat.cs
+@@ -10,7 +10,7 @@
+         public static void RunPass(HelperFunctionManager hfm, BasicBlock block)
+         {
+             for (LinkedListNode<INode> node = block.Operations.First; node != null; node = node.Next)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (node.Value is not Operation)
+                 {
+                     continue;
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/GlobalToStorage.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/GlobalToStorage.cs
+@@ -94,7 +94,7 @@
+             public bool TryGetFunctionId(Operation baseOp, bool isMultiTarget, List<uint> targetCbs, out int functionId)
+             {
+                 foreach (Entry entry in _entries)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (entry.Inst != baseOp.Inst ||
+                         entry.StorageKind != baseOp.StorageKind ||
+                         entry.IsMultiTarget != isMultiTarget ||
+@@ -106,7 +106,7 @@
+                     bool allEqual = true;
+ 
+                     for (int index = 0; index < targetCbs.Count; index++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         if (targetCbs[index] != entry.TargetCbs[index])
+                         {
+                             allEqual = false;
+@@ -216,9 +216,9 @@
+             GtsContext gtsContext = new(hfm);
+ 
+             foreach (BasicBlock block in blocks)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 for (LinkedListNode<INode> node = block.Operations.First; node != null; node = node.Next)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (node.Value is not Operation operation)
+                     {
+                         continue;
+@@ -464,7 +464,7 @@
+                 sources[1] = offset;
+ 
+                 for (int srcIndex = 2; srcIndex < operation.SourcesCount; srcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     sources[srcIndex] = operation.GetSource(srcIndex);
+                 }
+             }
+@@ -473,7 +473,7 @@
+                 // Use the 64-bit global address which is split in 2 32-bit arguments.
+ 
+                 for (int srcIndex = 0; srcIndex < operation.SourcesCount; srcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     sources[srcIndex + 1] = operation.GetSource(srcIndex);
+                 }
+             }
+@@ -627,9 +627,9 @@
+             }
+ 
+             while (phis.TryDequeue(out phi))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 for (int srcIndex = 0; srcIndex < phi.SourcesCount; srcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     BasicBlock phiBlock = phi.GetBlock(srcIndex);
+                     Operand phiSource = phi.GetSource(srcIndex);
+ 
+@@ -680,7 +680,7 @@
+             Operand globalAddressHigh = Argument(1);
+ 
+             foreach (uint targetCb in targetCbs)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 (int sbCbSlot, int sbCbOffset) = UnpackCbSlotAndOffset(targetCb);
+ 
+                 Operand baseAddrLow = Cbuf(sbCbSlot, sbCbOffset);
+@@ -804,7 +804,7 @@
+             }
+ 
+             foreach (uint targetCb in targetCbs)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 (int sbCbSlot, int sbCbOffset) = UnpackCbSlotAndOffset(targetCb);
+ 
+                 nameBuilder.Append($"_c{sbCbSlot}o{sbCbOffset}");
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/Optimizer.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/Optimizer.cs
+@@ -10,7 +10,7 @@
+         public static void RunPass(TransformContext context)
+         {
+             for (int blkIndex = 0; blkIndex < context.Blocks.Length; blkIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 XmadOptimizer.RunPass(context.Blocks[blkIndex]);
+             }
+ 
+@@ -24,7 +24,7 @@
+ 
+             // Those passes are looking for specific patterns and only needs to run once.
+             for (int blkIndex = 0; blkIndex < context.Blocks.Length; blkIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (context.TargetApi == TargetApi.OpenGL)
+                 {
+                     BindlessToArray.RunPassOgl(context.Blocks[blkIndex], context.ResourceManager);
+@@ -51,7 +51,7 @@
+ 
+             // nxnative: the reads whose handle merges several c[2] handles, once every other read has registered its texture (BindlessElimination.TryTableHandle)
+             for (int blkIndex = 0; blkIndex < context.Blocks.Length; blkIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 BindlessElimination.RunPass(context.Blocks[blkIndex], context.ResourceManager, context.GpuAccessor);
+             }
+ 
+@@ -64,18 +64,18 @@
+             bool modified;
+ 
+             do
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 SatchelProfile.WorkBudget.Charge(SatchelProfile.BoundKind.OptimizeVisit);
+                 modified = false;
+ 
+                 for (int blkIndex = 0; blkIndex < blocks.Length; blkIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     BasicBlock block = blocks[blkIndex];
+ 
+                     LinkedListNode<INode> node = block.Operations.First;
+ 
+                     while (node != null)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         SatchelProfile.WorkBudget.Charge(SatchelProfile.BoundKind.OptimizeVisit);
+                         LinkedListNode<INode> nextNode = node.Next;
+ 
+@@ -150,9 +150,9 @@
+             INode[] uses = dest.UseOps.ToArray();
+ 
+             foreach (INode useNode in uses)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 for (int index = 0; index < useNode.SourcesCount; index++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (useNode.GetSource(index) == dest)
+                     {
+                         useNode.SetSource(index, src);
+@@ -178,9 +178,9 @@
+             INode[] uses = dest.UseOps.ToArray();
+ 
+             foreach (INode useNode in uses)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 for (int index = 0; index < useNode.SourcesCount; index++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (useNode.GetSource(index) == dest)
+                     {
+                         useNode.SetSource(index, firstSrc);
+@@ -204,7 +204,7 @@
+             INode[] uses = dest.UseOps.ToArray();
+ 
+             foreach (INode useNode in uses)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (useNode is not Operation operation || operation.Inst != Instruction.UnpackHalf2x16)
+                 {
+                     continue;
+@@ -253,7 +253,7 @@
+             INode[] uses = operation.Dest.UseOps.ToArray();
+ 
+             foreach (INode use in uses)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (use is not Operation test)
+                 {
+                     continue;
+@@ -302,7 +302,7 @@
+         private static void EliminateMultiplyByFragmentCoordW(BasicBlock block)
+         {
+             foreach (INode node in block.Operations)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (node is Operation operation)
+                 {
+                     EliminateMultiplyByFragmentCoordW(operation);
+@@ -379,9 +379,9 @@
+             nodes.Enqueue(llNode.Value);
+ 
+             while (nodes.TryDequeue(out INode node))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 for (int index = 0; index < node.SourcesCount; index++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     Operand src = node.GetSource(index);
+ 
+                     if (src.Type != OperandType.LocalVariable)
+@@ -443,7 +443,7 @@
+             }
+ 
+             for (int index = 0; index < node.DestsCount; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand dest = node.GetDest(index);
+ 
+                 if (dest != null && dest.Type != OperandType.LocalVariable)
+@@ -458,7 +458,7 @@
+         private static bool DestHasNoUses(INode node)
+         {
+             for (int index = 0; index < node.DestsCount; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand dest = node.GetDest(index);
+ 
+                 if (dest != null && dest.UseOps.Count != 0)
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/Utils.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/Utils.cs
+@@ -53,7 +53,7 @@
+             }
+ 
+             for (int index = 0; index < node.SourcesCount; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (!IsSameOperand(node.GetSource(index), otherNode.GetSource(index)))
+                 {
+                     return false;
+@@ -68,7 +68,7 @@
+             Operand firstSrc = node.GetSource(0);
+ 
+             for (int index = 1; index < node.SourcesCount; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (!IsSameOperand(firstSrc, node.GetSource(index)))
+                 {
+                     return false;
+@@ -81,7 +81,7 @@
+         private static Operation FindBranchSource(BasicBlock block)
+         {
+             foreach (BasicBlock sourceBlock in block.Predecessors)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (sourceBlock.Operations.Count > 0)
+                 {
+                     if (sourceBlock.GetLastOp() is Operation lastOp && IsConditionalBranch(lastOp.Inst) && sourceBlock.Next == block)
+@@ -141,7 +141,7 @@
+                 int undefCount = 0;
+ 
+                 for (int i = phiNode.SourcesCount - 1; i >= 0; i--)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     BasicBlock phiBlock = phiNode.GetBlock(i);
+                     Operand phiSource = phiNode.GetSource(i);
+ 
+@@ -173,7 +173,7 @@
+                 if (undefCount == phiNode.SourcesCount - 1)
+                 {
+                     for (int i = phiNode.SourcesCount - 1; i >= 0; i--)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         Operand phiSource = phiNode.GetSource(i);
+ 
+                         if (phiSource.Type != OperandType.Undefined)
+@@ -192,7 +192,7 @@
+             node.List.Remove(node);
+ 
+             for (int srcIndex = 0; srcIndex < operation.SourcesCount; srcIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 operation.SetSource(srcIndex, null);
+             }
+ 
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/XmadOptimizer.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/XmadOptimizer.cs
+@@ -8,7 +8,7 @@
+         public static void RunPass(BasicBlock block)
+         {
+             for (LinkedListNode<INode> node = block.Operations.First; node != null; node = node.Next)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 if (node.Value is not Operation operation)
+                 {
+                     continue;
+@@ -322,7 +322,7 @@
+         private static Operand GetCopySource(Operand value)
+         {
+             while (value.AsgOp is Operation operation && IsCopy(operation))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 value = operation.GetSource(0);
+             }
+ 
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/RegisterUsage.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/RegisterUsage.cs
+@@ -136,13 +136,13 @@
+             RegisterMask[] localOutputs = new RegisterMask[cfg.Blocks.Length];
+ 
+             foreach (BasicBlock block in cfg.Blocks)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 for (LinkedListNode<INode> node = block.Operations.First; node != null; node = node.Next)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     Operation operation = node.Value as Operation;
+ 
+                     for (int srcIndex = 0; srcIndex < operation.SourcesCount; srcIndex++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         Operand source = operation.GetSource(srcIndex);
+ 
+                         if (source.Type != OperandType.Register)
+@@ -156,7 +156,7 @@
+                     }
+ 
+                     for (int dstIndex = 0; dstIndex < operation.DestsCount; dstIndex++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         Operand dest = operation.GetDest(dstIndex);
+ 
+                         if (dest != null && dest.Type == OperandType.Register)
+@@ -181,12 +181,12 @@
+             bool firstPass = true;
+ 
+             do
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 modified = false;
+ 
+                 // Compute register outputs.
+                 for (int index = cfg.PostOrderBlocks.Length - 1; index >= 0; index--)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     BasicBlock block = cfg.PostOrderBlocks[index];
+ 
+                     if (block.Predecessors.Count != 0)
+@@ -198,7 +198,7 @@
+                         RegisterMask outputs = globalOutputs[predecessor.Index];
+ 
+                         for (int pIndex = 1; pIndex < block.Predecessors.Count; pIndex++)
+-                        {
++                        { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                             predecessor = block.Predecessors[pIndex];
+ 
+                             cmnOutputs &= localOutputs[predecessor.Index] | globalCmnOutputs[predecessor.Index];
+@@ -240,7 +240,7 @@
+ 
+                 // Compute register inputs.
+                 for (int index = 0; index < cfg.PostOrderBlocks.Length; index++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     BasicBlock block = cfg.PostOrderBlocks[index];
+ 
+                     RegisterMask inputs = localInputs[block.Index];
+@@ -269,7 +269,7 @@
+ 
+             // Insert load and store context instructions where needed.
+             foreach (BasicBlock block in cfg.Blocks)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 // The only block without any predecessor should be the entry block.
+                 // It always needs a context load as it is the first block to run.
+                 if (block.Predecessors.Count == 0)
+@@ -291,9 +291,9 @@
+         public static void FixupCalls(BasicBlock[] blocks, FunctionRegisterUsage[] frus)
+         {
+             foreach (BasicBlock block in blocks)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 for (LinkedListNode<INode> node = block.Operations.First; node != null; node = node.Next)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     Operation operation = node.Value as Operation;
+ 
+                     if (operation.Inst == Instruction.Call)
+@@ -307,7 +307,7 @@
+                         Operand[] inRegs = new Operand[fru.InArguments.Length];
+ 
+                         for (int i = 0; i < fru.InArguments.Length; i++)
+-                        {
++                        { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                             inRegs[i] = OperandHelper.Register(fru.InArguments[i]);
+                         }
+ 
+@@ -316,7 +316,7 @@
+                         Operand[] outRegs = new Operand[1 + fru.OutArguments.Length];
+ 
+                         for (int i = 0; i < fru.OutArguments.Length; i++)
+-                        {
++                        { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                             outRegs[1 + i] = OperandHelper.Register(fru.OutArguments[i]);
+                         }
+ 
+@@ -384,12 +384,12 @@
+             int argIndex = 0;
+ 
+             for (int i = 0; i < TotalMasks; i++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 (RegisterType regType, int baseRegIndex) = GetRegTypeAndBaseIndex(i);
+                 long mask = masks.GetMask(i);
+ 
+                 while (mask != 0)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     int bit = BitOperations.TrailingZeroCount(mask);
+ 
+                     mask &= ~(1L << bit);
+@@ -424,12 +424,12 @@
+             bool fillArgsList = outArguments.Count == 0;
+ 
+             for (int i = 0; i < TotalMasks; i++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 (RegisterType regType, int baseRegIndex) = GetRegTypeAndBaseIndex(i);
+                 long mask = masks.GetMask(i);
+ 
+                 while (mask != 0)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     int bit = BitOperations.TrailingZeroCount(mask);
+ 
+                     mask &= ~(1L << bit);
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/DrawParametersReplace.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/DrawParametersReplace.cs
+@@ -43,7 +43,7 @@
+             bool modified = false;
+ 
+             for (int srcIndex = 0; srcIndex < operation.SourcesCount; srcIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand src = operation.GetSource(srcIndex);
+ 
+                 if (src.Type == OperandType.ConstantBuffer && src.GetCbufSlot() == 0)
+@@ -72,7 +72,7 @@
+         private static bool HasConstantBufferDrawParameters(Operation operation)
+         {
+             for (int srcIndex = 0; srcIndex < operation.SourcesCount; srcIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand src = operation.GetSource(srcIndex);
+ 
+                 if (src.Type == OperandType.ConstantBuffer && src.GetCbufSlot() == 0)
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/VectorComponentSelect.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/VectorComponentSelect.cs
+@@ -54,12 +54,12 @@
+             Operand result = null;
+ 
+             for (int i = 0; i < elemCount; i++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Operand value = Local();
+                 Operand[] inputs = new Operand[operation.SourcesCount];
+ 
+                 for (int srcIndex = 0; srcIndex < inputs.Length - 1; srcIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     inputs[srcIndex] = operation.GetSource(srcIndex);
+                 }
+ 
+--- frozen/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Translator.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Translator.cs
+@@ -52,9 +52,9 @@
+             ulong maxEndAddress = 0;
+ 
+             foreach (DecodedFunction function in program)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 foreach (Block block in function.Blocks)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     if (maxEndAddress < block.EndAddress)
+                     {
+                         maxEndAddress = block.EndAddress;
+@@ -109,12 +109,12 @@
+                 transformFeedbackOutputs = new TransformFeedbackOutput[0xc0];
+ 
+                 for (int tfbIndex = 0; tfbIndex < 4; tfbIndex++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     ReadOnlySpan<byte> locations = gpuAccessor.QueryTransformFeedbackVaryingLocations(tfbIndex);
+                     int stride = gpuAccessor.QueryTransformFeedbackStride(tfbIndex);
+ 
+                     for (int i = 0; i < locations.Length; i++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         byte wordOffset = locations[i];
+                         if (wordOffset < 0xc0)
+                         {
+@@ -146,14 +146,14 @@
+             FunctionMatch.RunPass(program);
+ 
+             foreach (DecodedFunction function in program.Where(x => !x.IsCompilerGenerated).OrderBy(x => x.Address))
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 program.AddFunctionAndSetId(function);
+             }
+ 
+             FunctionCode[] functions = new FunctionCode[program.FunctionsWithIdCount];
+ 
+             for (int index = 0; index < functions.Length; index++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 EmitterContext context = new(translatorContext, resourceManager, program, vertexAsCompute, index != 0);
+ 
+                 if (initializeOutputs && index == 0)
+@@ -165,7 +165,7 @@
+                 DecodedFunction function = program.GetFunctionById(index);
+ 
+                 foreach (Block block in function.Blocks)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     context.CurrBlock = block;
+ 
+                     context.EnterBlock(block.Address);
+@@ -196,7 +196,7 @@
+                 if (gpuAccessor.QueryGraphicsState().DualSourceBlendEnable)
+                 {
+                     for (int i = 0; i < 4; i++)
+-                    {
++                    { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                         context.Store(StorageKind.Output, IoVariable.FragmentOutputColor, null, Const(1), Const(i), ConstF(0));
+                     }
+                 }
+@@ -218,7 +218,7 @@
+ 
+             UInt128 usedAttributes = context.TranslatorContext.AttributeUsage.NextInputAttributesComponents;
+             while (usedAttributes != UInt128.Zero)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 int index = (int)UInt128.TrailingZeroCount(usedAttributes);
+                 int vecIndex = index / 4;
+ 
+@@ -236,7 +236,7 @@
+             if (context.TranslatorContext.AttributeUsage.NextUsedInputAttributesPerPatch != null)
+             {
+                 foreach (int vecIndex in context.TranslatorContext.AttributeUsage.NextUsedInputAttributesPerPatch.Order())
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     InitializeOutput(context, vecIndex, perPatch: true);
+                 }
+             }
+@@ -247,7 +247,7 @@
+                 int fixedStartAttr = supportsLayerFromVertexOrTess ? 0 : 1;
+ 
+                 for (int i = fixedStartAttr; i < fixedStartAttr + 5 + AttributeConsts.TexCoordCount; i++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     int index = attributeUsage.GetFreeUserAttribute(isOutput: true, i);
+                     if (index < 0)
+                     {
+@@ -262,14 +262,14 @@
+         private static void InitializeVertexOutputs(EmitterContext context)
+         {
+             for (int c = 0; c < 4; c++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 context.Store(StorageKind.Output, IoVariable.Position, null, Const(c), ConstF(c == 3 ? 1f : 0f));
+             }
+ 
+             if (context.Program.ClipDistancesWritten != 0)
+             {
+                 for (int i = 0; i < 8; i++)
+-                {
++                { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                     context.Store(StorageKind.Output, IoVariable.ClipDistance, null, Const(i), ConstF(0f));
+                 }
+             }
+@@ -278,7 +278,7 @@
+         private static void InitializeOutput(EmitterContext context, int location, bool perPatch)
+         {
+             for (int c = 0; c < 4; c++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 InitializeOutputComponent(context, location, c, perPatch);
+             }
+         }
+@@ -317,7 +317,7 @@
+         private static void EmitOps(EmitterContext context, Block block)
+         {
+             for (int opIndex = 0; opIndex < block.OpCodes.Count; opIndex++)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 InstOp op = block.OpCodes[opIndex];
+ 
+                 if (context.TranslatorContext.Options.Flags.HasFlag(TranslationFlags.DebugMode))
+--- frozen/upstream/dm/third_party/ryujinx/src/Spv.Generator/Module.cs
++++ captured/upstream/dm/third_party/ryujinx/src/Spv.Generator/Module.cs
+@@ -285,7 +285,7 @@
+ 
+             // 1.
+             foreach (Capability capability in _capabilities)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Instruction capabilityInstruction = NewInstruction(Op.OpCapability);
+ 
+                 capabilityInstruction.AddOperand(capability);
+@@ -294,7 +294,7 @@
+ 
+             // 2.
+             foreach (string extension in _extensions)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 Instruction extensionInstruction = NewInstruction(Op.OpExtension);
+ 
+                 extensionInstruction.AddOperand(extension);
+@@ -303,7 +303,7 @@
+ 
+             // 3.
+             foreach (Instruction extInstImport in _extInstImports.Values)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 extInstImport.Write(writer);
+             }
+ 
+@@ -315,26 +315,26 @@
+ 
+             // 5.
+             foreach (Instruction entrypoint in _entrypoints)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 entrypoint.Write(writer);
+             }
+ 
+             // 6.
+             foreach (Instruction executionMode in _executionModes)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 executionMode.Write(writer);
+             }
+ 
+             // 7.
+             // TODO: Order debug information correctly.
+             foreach (Instruction debug in _debug)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 debug.Write(writer);
+             }
+ 
+             // 8.
+             foreach (Instruction annotation in _annotations)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 annotation.Write(writer);
+             }
+ 
+@@ -347,19 +347,19 @@
+ 
+             // 9.
+             foreach (Instruction declaration in declarations)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 declaration.Write(writer);
+             }
+ 
+             // 10.
+             foreach (Instruction functionDeclaration in _functionsDeclarations)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 functionDeclaration.Write(writer);
+             }
+ 
+             // 11.
+             foreach (Instruction functionDefinition in _functionsDefinitions)
+-            {
++            { global::SatchelProfile.WorkBudget.Charge(global::SatchelProfile.BoundKind.PassVisit); 
+                 functionDefinition.Write(writer);
+             }
+ 

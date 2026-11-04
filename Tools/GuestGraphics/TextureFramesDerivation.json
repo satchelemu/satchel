@@ -1,0 +1,16 @@
+{
+  "baseline": "Tools/GuestGraphics/GuestVulkanCapturedRaster.c",
+  "baseline_sha256": "63e610c6158f2a6f3e2b69d11034270bb9a1eb1e73db1729980d068b3c861158",
+  "new": "Tools/GuestGraphics/GuestVulkanTextureFrames.c",
+  "new_sha256": "288d45f8f7ebccfcaabf9aaf1a336cbe63577e94ca36fd3ed19311f387630e9e",
+  "review_patch_sha256": "c301bed5ef4fa57e4765e633e8088d0a3c86bd383d9ee29ace2e1af2d33e2f8c",
+  "unchanged_legacy": "Tools/GuestGraphics/GuestVulkanRaster.c",
+  "unchanged_legacy_sha256": "19530611fb324f8bbedd8e444ae9aaab4864e0116ce6b6ce226e3e08aeedefad",
+  "changes": [
+    "Separate exported opt-in plus trusted host snapshot ticket APIs",
+    "Owner slots/try-gate and monotonic non-guest tickets",
+    "Existing pool/transfer/resolve service methods gated while snapshot GPU resources survive",
+    "Actual parent child counts and CPU-free retirement own snapshot cleanup first"
+  ],
+  "preserved": "Existing common/scalar/legacy/captured program routing, checked reciprocal guards, queue state and unknown captured Bind state stop are derived without changing their operation semantics."
+}

@@ -1,0 +1,30 @@
+{
+  "app" : "Satchel 0.1",
+  "autoPlay" : true,
+  "cpuExecution" : "C interpreter; no JIT; guest bytes never executed natively",
+  "device" : "iPhone",
+  "elapsedSeconds" : 10.117409208323807,
+  "error" : null,
+  "framebufferFNV1a" : "756c6ba1f06600f4",
+  "frames" : 600,
+  "guestABI" : "Private framebuffer + SVC 0xF001; not Horizon OS",
+  "instructions" : 107233200,
+  "interpreterMIPS" : 45.080319395735749,
+  "interpreterSeconds" : 2.3787142912333366,
+  "limitations" : [
+    "ARM64 instruction subset",
+    "No Switch ROM loader",
+    "No Horizon services",
+    "No NVN\/Metal translation",
+    "No audio emulation",
+    "Not an App Store approval or Switch performance test"
+  ],
+  "lives" : 3,
+  "recentFrameP95Milliseconds" : 4.301166656659916,
+  "recentPresentedFPS" : 59.992755875440302,
+  "score" : 50,
+  "systemVersion" : "27.1",
+  "timestamp" : "2026-10-31T04:25:40Z",
+  "validation" : "Passed · 600 frames",
+  "workload" : "Original synthetic ARM64 brick-breaker; not a Switch game"
+}

@@ -1,0 +1,16 @@
+{
+  "producer_manifest_sha256": "94cbf709886b05da1b433bb167a041ab65b562ee5ff129bc5c3e84c90d8f6efc",
+  "production": {
+    "GuestVI.c": "46f092d894836565e30f3bb43ee0559aced0d6ddca4cf173c689715350d5ccd2",
+    "GuestVI.h": "86c374287946bf9154c2b31f5b64d76256383e530faf1f0ec247f8852f541a5a",
+    "GuestVIDispatch.c": "85f3d309aaeeb3d6157ac5b15d088b0ac394171159119d98ccf8def105d85bb5",
+    "GuestVIDispatch.h": "2590a0e744f637a75b1b82b20316484d6c456fb3246709cf224ec8e79b1f2d85"
+  },
+  "producer_counts": {
+    "normal": 68705,
+    "fault": 70292,
+    "joint": 142
+  },
+  "independent_review_sha256": "d2485f8b87e42a29e8ab3f1b855bc2dee6b8307b8b7ee7723c7b63975623bf88",
+  "scope": "Original synthetic checked VI identity owner; no game invocation, window dimensions or display claim."
+}

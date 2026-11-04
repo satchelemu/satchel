@@ -1,0 +1,31 @@
+{
+  "status": "scratch source admission and guest owner host gates passed; iOS17 compiled",
+  "source_root": "/private/tmp/satchel-guest-captured-program-staging",
+  "validated_output": "/tmp/satchel-guest-captured-program-validation2",
+  "validation_manifest_sha256": "b5ed0edffffa07f2354f919e5c56064fb8b34e0cbfd2c7e3555c914eeb1387e8",
+  "new_or_changed_sources": {
+    "Tools/CapturedFlatCompiler/CapturedFlatAdmission.cs": "bbccfae436a1fa8343c276f0ce8d0ff9c2738ed5798dfae487e087c0ff394cb4",
+    "Tools/CapturedFlatCompiler/CapturedFlatAdmission.h": "9eac8c9c2958d921f8431059db99cad5ec4085769e4b63a733d2457a4f9251a1",
+    "Tools/CapturedFlatCompiler/CapturedFlat.csproj": "4a96fd1e1bba416b8ae8e6acdfb5974be3889da68aae1e0b72132260917d8b2d",
+    "Tools/CapturedFlatCompiler/AdmissionTest.c": "2766bf4d18fcadd2dbb9c333189e0a2fe061209580408f285b57a2e27959ae52",
+    "Tools/GuestGraphics/GuestCapturedPrograms.c": "89a467c02ec1429627b27a1167ea4d4cf4a6ed3c418452b539abe57ae236a883",
+    "Tools/GuestGraphics/GuestCapturedPrograms.h": "6bd36414187e64496649bfb43ff372d46e0435ea88962c3d28acec677c1fca2d",
+    "Tools/GuestGraphics/CapturedProgramTest.c": "9b0f218564d23399de681810b29b0231a84b3ff12c24e2f7a3f1759ca14f26cd",
+    "reproduce.py": "1067c4239273d8a5df51e2ccbffaafdf4f2fbbfa15f28c2be46dd3f225599965",
+    "checkpoint-lock.json": "c51b837a8591b6e848dff27fc2bd2623b74156d5aafbb15d7c205c1140c009e8",
+    "CONTRACT.md": "493f0a322b0000b99bca47afb0f28dd3a541e6282fa5b76a7b9676f142cfe4eb"
+  },
+  "artifacts": {
+    "host-publish/SatchelCapturedFlat.dylib": "ec8bd5b049cf3f71bc2a410333068a317354ff7e8cf88a761fa4fedef8c560d3",
+    "ios-publish/SatchelCapturedFlat.dylib": "8ea0a4e4b83202f087f53d9c54dbd18d286d55cd98c7c33d161b6fcfd0ebf12a",
+    "SatchelCapturedFlat.framework/SatchelCapturedFlat": "6c22c830b817aea2a9899481e3abb43844798cb9d2bf8199995dda4c87951ff3",
+    "libSatchelGuestCapturedPrograms.a": "367365e393b5ddf92adc4800218040ec0288353bfabc86b9efc674b2f0b2d3ab",
+    "libSatchelGuestCapturedPrograms-macos.a": "c010fb2f1b0f74cdc10bc4360ed88bec10ff3b9c6e8fcc7951d9f5a3e97ccd18"
+  },
+  "independent_review": {
+    "path": "/tmp/satchel-guest-captured-program-independent-review.json",
+    "sha256": "878e120a4e4ac1a177bcfc76dba050f116d7b32de2ca9b04212f494d1c0846f5"
+  },
+  "scope": "scratch only; source admission/owner, no game opt-in or state default",
+  "cpu_archive_sha256": "da47c710e427ed60e3b285a0bd9ab788e85a207504479980037be1615246e4bc"
+}

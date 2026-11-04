@@ -1,0 +1,48 @@
+# Simulator-only UI preview of Satchel. Compiles the real App UI sources and
+# portable Core C files; engine-bound files are swapped for PreviewStubs.swift.
+# build-preview.zsh fills in __REPO__ and generates into ~/SatchelBuild/redesign/preview.
+name: SatchelPreview
+options:
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CODE_SIGN_IDENTITY: '-'
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ''
+targets:
+  SatchelPreview:
+    type: application
+    platform: iOS
+    sources:
+      - path: __REPO__/App
+        excludes:
+          - Info.plist
+          - SatchelApp.swift
+          - GameDiagnostics.swift
+          - SwitchRuntime*.swift
+          - Switch*VulkanReport.swift
+          - SwitchWindowReport.swift
+          - SwitchTime.swift
+          - SwitchDecodedModule.swift
+      - path: __REPO__/Core/HomebrewFormat.c
+      - path: __REPO__/Core/Interpreter.c
+      - path: __REPO__/Core/NROLoader.c
+      - path: __REPO__/Core/NSOLoader.c
+      - path: __REPO__/Core/SwitchCrypto.c
+      - path: __REPO__/Tests/UIPreview/CompressionFixture.c
+      - path: __REPO__/Tests/UIPreview/PreviewStubs.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dell.satchel.preview
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: 'DEBUG SATCHEL_UI_PREVIEW_MINIMAL'
+        PRODUCT_NAME: SatchelPreview
+        SWIFT_OBJC_BRIDGING_HEADER: '__REPO__/Tests/UIPreview/PreviewBridge.h'
+        HEADER_SEARCH_PATHS: ['"__REPO__/Core"']
+        TARGETED_DEVICE_FAMILY: '1'
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: 'UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight'
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Satchel Preview

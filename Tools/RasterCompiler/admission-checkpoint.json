@@ -1,0 +1,85 @@
+{
+  "status": "staged-frozen-not-promoted",
+  "gate": {
+    "owner": 483,
+    "compiler": 4398,
+    "pinned_NV\u039d_ABI": 10,
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "SPIRV": "six byte-identical modules; spirv-val Vulkan1.1 passed",
+    "ios": "arm64 compile only"
+  },
+  "sources": {
+    "Compiler/Fixtures.h": "1379c0d4f04dd56e4172e5d032301842720e37d5dccb89e35d3a5590698e6a6f",
+    "Compiler/RasterCompiler.c": "039c6438579d477646800bd0bbb4144650b288b030f843b5055851d168a46e36",
+    "Compiler/RasterCompiler.h": "90f90a84915d53efd2c80dd65b4c6b0d1a71aeac052fb278ff47916e18c37e36",
+    "Compiler/test.c": "509bd7bb7aab3b423e56624616b5d004c04aead0de5b766f9533c71857cb731e",
+    "Faults.h": "110e476567c9869c8883218a93a9f266778cd9b86bf2d526981dcac2baa4c70a",
+    "GuestRasterPrograms.c": "272fd09e9e290113a60369b1ead1c1581d391314cf13386f1755c00441e373fb",
+    "GuestRasterPrograms.h": "fd8e4534112371d791f14304a99a42559ce9432bd5086875e102bc4b50dd2f58",
+    "NVNABI.c": "b315058e889dd77e45f28e941510aa980e99bfafc978e0916c3d0ae95922df32",
+    "README.md": "2cc4a1e75f679364e3174b547bee34dbec676ca1276064f6a9f0f299c37d3ccb",
+    "Reference/GuestPrograms.c": "9223c9ba50041fdbd5b039fe8ed26866b68d971aeeb43b48a83b0de577847e31",
+    "Reference/GuestPrograms.h": "d8ec9fbda4efc96d56f6b14f9e2039571af16d2e0b12fcd14b1ef644bbfbebb8",
+    "Test.c": "1cde5ec859f4e5348751edc4324563fea56d1f08543f4256c6a2ba686ab1330b",
+    "review.patch": "06db35c3c11117e71a6b242c7a195b1a1aa5c53882204c8e3ab7707c6d7293aa",
+    "test.sh": "13a6cc24b3bcbc12085cb0a3634880239d55a85e81aec3a65e0f1faff6394399"
+  },
+  "artifacts": {
+    "/tmp/satchel-raster-unused-state-staging/macos/libSatchelGuestRasterPrograms.a": {
+      "sha256": "441abca37b326084cede72933f400b72468f345bafb778c277041ae6b90cd462",
+      "exports": [
+        "_satchel_guest_raster_programs_capture",
+        "_satchel_guest_raster_programs_code_bindings",
+        "_satchel_guest_raster_programs_code_disjoint",
+        "_satchel_guest_raster_programs_collect",
+        "_satchel_guest_raster_programs_compile",
+        "_satchel_guest_raster_programs_create",
+        "_satchel_guest_raster_programs_device_children",
+        "_satchel_guest_raster_programs_forget",
+        "_satchel_guest_raster_programs_info",
+        "_satchel_guest_raster_programs_references",
+        "_satchel_guest_raster_programs_release",
+        "_satchel_guest_raster_programs_retain",
+        "_satchel_guest_raster_programs_try_destroy",
+        "_satchel_raster_admit",
+        "_satchel_raster_compile",
+        "_satchel_raster_compile_pair"
+      ]
+    },
+    "/tmp/satchel-raster-unused-state-staging/ios/libSatchelGuestRasterPrograms.a": {
+      "sha256": "a8c92ed48271614c450119fd4d9736e4bc288c666a496b544d1260172ac3501c",
+      "exports": [
+        "_satchel_guest_raster_programs_capture",
+        "_satchel_guest_raster_programs_code_bindings",
+        "_satchel_guest_raster_programs_code_disjoint",
+        "_satchel_guest_raster_programs_collect",
+        "_satchel_guest_raster_programs_compile",
+        "_satchel_guest_raster_programs_create",
+        "_satchel_guest_raster_programs_device_children",
+        "_satchel_guest_raster_programs_forget",
+        "_satchel_guest_raster_programs_info",
+        "_satchel_guest_raster_programs_references",
+        "_satchel_guest_raster_programs_release",
+        "_satchel_guest_raster_programs_retain",
+        "_satchel_guest_raster_programs_try_destroy",
+        "_satchel_raster_admit",
+        "_satchel_raster_compile",
+        "_satchel_raster_compile_pair"
+      ]
+    }
+  },
+  "fixtures": {
+    "fragment-bits.spv": "e7a6b2b1799aa1fa1fb2a5bb0828f9c880254cb326efdc5f3b1ecc39ff512709",
+    "fragment-color.spv": "3d6e56f11bc50d877aa7f7baf1a24b4c9c810982fcd1b7b32b86c2687026af70",
+    "fragment-zero.spv": "c1ebb0036e0cb18e6fc08bd37e583d2a194313a6aa6953637878748d6c021d71",
+    "vertex-overwrite.spv": "c11b08157b693fa403e1619e5dcbca95548110990bfb847878cd239827c66bf0",
+    "vertex-pass.spv": "b9adde5bef6077af568a687da3a60c52daf2a898fabccd8451b17c8aca985399",
+    "vertex-swizzle.spv": "81c85aad4cc02190671812c8efd55c7e1b02b9eb0ff1c375cd649963923773ed"
+  },
+  "baseline": "/tmp/satchel-guest-raster-nvn-stage-staging",
+  "proof": "reflection appended unused_state_mask8; known247 accepted only after complete decoding proves no YNegate observation",
+  "tested_CPU_sha256": "3902db535b15895b9b5183de9b6e59ad7d0093c37d8259cb121f1f05e5161f8f"
+}

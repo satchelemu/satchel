@@ -1,0 +1,18 @@
+{
+  "title": "Test - Satchel",
+  "result": "Passed",
+  "totalTestCount": 1,
+  "passedTests": 1,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "finishTime": 1793420702.312,
+  "startTime": 1793420676.836,
+  "coveredJourney": [
+    "600-frame device reference check",
+    "pause and resume",
+    "manual paddle drag and actual guest position",
+    "reset score",
+    "diagnostics result and close"
+  ],
+  "resultBundle": "/tmp/satchel-build/PlayerJourney-verified.xcresult"
+}

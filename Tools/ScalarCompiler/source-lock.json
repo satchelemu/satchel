@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "source_sha256": {
+    "ScalarCompiler.c": "dee2c006fce47232271e3374dc903b0eb93ba2e4f05528d92bd9b1a434460ea1",
+    "ScalarCompiler.h": "4ae3f47401e949376df3d3fdd5627c4143ee15a40d952e2125d561c4fe7e25ad",
+    "test.c": "cbbe7b420b8218795a5613cffc78bad25853264461f091d37442eb14bbf06d57",
+    "admission_test.c": "d773fc6e46de19060df46733b8693317467eb7d2abc2bda441181c2b61a7068a",
+    "Reference-LICENSE.txt": "781bbdf040b7d0286c47cca6bffdb9148dfe751c0c9cabdf1a1752412a2e56b4",
+    "NOTICES.md": "378b418c1e88d5d4d301e3719794ec2b41bba5ed7e89aa6d3b3bfa1061e534f2"
+  },
+  "original_fixture_sha256": {
+    "program0.spv": "eb68ea00309d69afb4c037d439d94e6047228bb890949ea89ac8afdc8961627a",
+    "program0.cb": "4eda2aff6752b03b01cf0a70cffba55dd0425d616f4726f0aea3225b38824e96",
+    "program0.expected": "1e5aed21397c97becc862c9b01a40ac9a1022783986dc3c8609242e5412d5288",
+    "program0.maxwell": "46a3ac569359889b5133b7cd8f0bacbbb66e4989645bdf544d0a688d6154c067",
+    "program1.spv": "1306d6b6ae5fe136edcb2f95d320068b6bcec656153c18193b70bf1711f38339",
+    "program1.cb": "4eda2aff6752b03b01cf0a70cffba55dd0425d616f4726f0aea3225b38824e96",
+    "program1.expected": "256a47e13cf66a4fba4342fefd03714a3d43e82fc64a844870e39b86ce5b14a3",
+    "program1.maxwell": "c84d7772adafc0f3f18407002f5a3fdcba837c7011719e4f84253e752ca8e195",
+    "program2.spv": "41dcf492eb8f6ba5c99d98d6639badb405fb62c64f9b06384de5916be7a96f33",
+    "program2.cb": "4eda2aff6752b03b01cf0a70cffba55dd0425d616f4726f0aea3225b38824e96",
+    "program2.expected": "56e08e3208ecbb9714c9d60372e0465b040f4175780151d2758ddefcbbcae42c",
+    "program2.maxwell": "7dcefa01f9de7de6a39843b0d3810889275b19372d94151029e8113b99d454ff",
+    "program3.spv": "a53586160036175de9a779c1c37577f1bd119fc415147d72846936f959d49738",
+    "program3.cb": "4eda2aff6752b03b01cf0a70cffba55dd0425d616f4726f0aea3225b38824e96",
+    "program3.expected": "278d3a33d7f68547443def35851a51b52ff0fd04ec09be82390c32b08a8de550",
+    "program3.maxwell": "c5060064c5fe6aa296bfff5016c7494fd7e4052e13f8ef561855561c7e40f38e"
+  },
+  "reference": {
+    "repository": "https://github.com/LNPANDY/NX2Apple",
+    "commit": "8227f80f9b381c680611303319656c4e0c806a50",
+    "files_sha256": {
+      "Decoders/InstDecoders.cs": "f217076b3878a9ed676e238373cb3d21154fcc99aa9a75ca4ba5f98948493f9e",
+      "Decoders/InstTable.cs": "dcfcb9b8fba9c3626a2865f29e95336792bc9133c1785839f222582cdd23a35f",
+      "Decoders/Decoder.cs": "699049edb12f9042f0697d8b0b94e4683e00b83adac5b2c31c2088d1aca99dc2",
+      "Instructions/InstEmitMemory.cs": "5ad31e57c329960145e4d9681f1dbc15fcc4b3096382e436eb8f9831324301f2",
+      "Instructions/InstEmitIntegerArithmetic.cs": "11c2e58c7b2390c6d3b87caa3cd3cc17a65b3471933a4609b0aff703ffd40632"
+    }
+  },
+  "expected_checks": {
+    "compiler": 853611,
+    "admission": 20365499
+  }
+}

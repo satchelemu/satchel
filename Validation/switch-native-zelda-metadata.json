@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "status": "validated",
+  "base": {
+    "format": "xci",
+    "metadata": [
+      {
+        "id": "0100f2c0115b6000",
+        "type": "Application",
+        "version": 0,
+        "application_id": null,
+        "patch_id": "0100f2c0115b6800",
+        "content_ids": [
+          "9d827368992a2faafa9062aa5458b7ec",
+          "491f62797fd5bc9b6c218d00c8b6f8a0",
+          "e4051ab2cf9d8df3798b17bd754abc9c"
+        ],
+        "source_meta_nca": "ce6fe3b3db29b6853ce8963bda188e97.cnmt.nca",
+        "omitted_delta_fragments": []
+      }
+    ],
+    "metadata_integrity_checked": true,
+    "full_content_hashes_checked": false,
+    "signatures_verified": false
+  },
+  "update": {
+    "format": "nsp",
+    "metadata": [
+      {
+        "id": "0100f2c0115b6800",
+        "type": "Patch",
+        "version": 720896,
+        "application_id": "0100f2c0115b6000",
+        "patch_id": null,
+        "content_ids": [
+          "a83558333ead6da3e4af5c8d04013bb7",
+          "cb4abe63a85ad7de97b7d826783ad4bd",
+          "01a7179a72050fa7e0ccbcfec626322d",
+          "0283fe32d6f1ec8eee19fd9b59c18245",
+          "a3338688c4c022f58defbb8623298d53",
+          "ecbe04b8b1d190e01c847737661f5a29",
+          "7da9e7f141dd107d44c710fbae69d911"
+        ],
+        "source_meta_nca": "83d0cc32cab0fc4f6ff5615c005479ab.cnmt.nca",
+        "omitted_delta_fragments": [
+          "0283fe32d6f1ec8eee19fd9b59c18245",
+          "a3338688c4c022f58defbb8623298d53",
+          "ecbe04b8b1d190e01c847737661f5a29",
+          "7da9e7f141dd107d44c710fbae69d911"
+        ]
+      }
+    ],
+    "metadata_integrity_checked": true,
+    "full_content_hashes_checked": false,
+    "signatures_verified": false
+  },
+  "selection": {
+    "application_id": "0100f2c0115b6000",
+    "base_version": 0,
+    "patch_id": "0100f2c0115b6800",
+    "patch_version": 720896
+  }
+}

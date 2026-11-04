@@ -1,0 +1,126 @@
+{
+  "IApplicationProxyService": [
+    0
+  ],
+  "IAllSystemAppletProxiesService": [
+    200,
+    201
+  ],
+  "IApplicationProxy": [
+    0,
+    1,
+    11,
+    20
+  ],
+  "ILibraryAppletProxy": [
+    0,
+    1,
+    11
+  ],
+  "IApplicationFunctions": [
+    1,
+    22,
+    40,
+    60,
+    65,
+    90,
+    121,
+    130,
+    140,
+    141,
+    150,
+    160,
+    210
+  ],
+  "ISelfController": [
+    1,
+    2,
+    3,
+    4,
+    9,
+    14,
+    50,
+    65,
+    90,
+    91
+  ],
+  "ICommonStateGetter": [
+    8,
+    10,
+    13,
+    50,
+    51,
+    52,
+    53,
+    54,
+    62,
+    300,
+    900
+  ],
+  "ILibraryAppletCreator": [
+    0,
+    3,
+    10
+  ],
+  "ILibraryAppletAccessor": [
+    0,
+    10,
+    20,
+    30,
+    60,
+    100,
+    101,
+    103,
+    104,
+    105,
+    106,
+    110,
+    150
+  ],
+  "IStorage": [
+    0
+  ],
+  "IStorageAccessor": [
+    0,
+    10,
+    11
+  ],
+  "IApplicationRootService": [
+    0
+  ],
+  "IApplicationDisplayService": [
+    1101,
+    1102,
+    2102
+  ],
+  "AudioRendererManager": [
+    2,
+    4
+  ],
+  "AudioDevice": [
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "IParentalControlServiceFactory": [
+    0,
+    1
+  ],
+  "IParentalControlService": [
+    1013,
+    1031,
+    1064,
+    1065
+  ],
+  "IStaticServiceForGlue": [
+    3
+  ],
+  "ITimeZoneServiceForGlue": [
+    1,
+    2,
+    3
+  ]
+}

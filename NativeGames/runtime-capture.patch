@@ -1,0 +1,43 @@
+--- a/dm/gfx/nvn/nvn_mtl.m
++++ b/dm/gfx/nvn/nvn_mtl.m
+@@ -4107,6 +4107,8 @@
+     }
+     return nil;
+ }
++#include "RuntimeCapture.inc"
++
+ static __unsafe_unretained NvProg *prog_get(const prog_t *cp) {   // Called only on the submit thread
+     prog_t *p = (prog_t *)cp;
+     static const prog_t *lp; static uint64_t lser, lgen; static NvProg *lpr;   // Last result: same object, same serial and unchanged serial table means it is used directly
+@@ -7587,6 +7589,7 @@
+         // The compute stage has a binding of its own: a compute bind used to replace the one bound program, so a draw after a dispatch found the compute program (or none) and was
+         // dropped, and a dispatch after a graphics bind found no compute shader. Hyrule Warriors: Age of Calamity interleaves them; its movie's NV12 → RGB draw was dropped and the intro played black
+         case OP_BIND_PROGRAM: { const p_bind_program *bp_ = a;
++            satchel_capture_program(bp_->prog);
+             if ((bp_->stages & 0x20) && bp_->prog != S.cprog) { S.cprog = bp_->prog; args_dirty_all(); }
+             if (bp_->stages & 0x1f) { const prog_t *np = bind_stages(bp_->prog, bp_->stages & 0x1f); if (np != S.prog) { S.prog = np; g_pso_dirty = 1; args_dirty_all(); } }
+             break; }
+@@ -9521,6 +9524,7 @@
+ static void draw_(const p_draw *dw, const p_draw_idx *di);
+ static void draw(const p_draw *dw, const p_draw_idx *di) { cp_stamp start = cp_begin(); draw_(dw, di); cp_end(5, start); }
+ static void draw_(const p_draw *dw, const p_draw_idx *di) {
++    satchel_capture_draw(S.bst);
+     g_draw_binst = (uint32_t)(dw ? dw->base_instance : di ? di->base_instance : 0);   // c0 + 0x644 of the stages that read the driver segment (encode_args)
+     if (passdump()) { NvProg *p = g_geo_program ? g_geo_program : S.prog ? prog_get(S.prog) : nil;
+         PD("j %llu draw-entry vs=%s fs=%s gs=%s prim=%d count=%d instances=%d indexed=%d indirect=%#llx discard=%d feedback=%d", g_stat_pass + !g_enc,
+--- a/dm/gfx/nvn/hle_nvn.c
++++ b/dm/gfx/nvn/hle_nvn.c
+@@ -653,7 +653,12 @@
+             }
+         }
+         // DM_NVN_SHDUMP (debugging): keep a copy of the control section so the replay layer can save shaders missing from the map (never freed)
+-        if (dump && sd[i].control) { void *c = malloc(0x880); memcpy(c, sd[i].control, 0x880); o->sd[i].control = c; }
++        if (dump && sd[i].control) {
++            uint32_t own; memcpy(&own, (const uint8_t *)sd[i].control + 0x20, 4);
++            uint32_t count = own >= 0x760 && own < 0x880 ? own : 0x880;
++            void *c = calloc(1, 0x880); if (!c) abort();
++            memcpy(c, sd[i].control, count); o->sd[i].control = c;
++        }
+     }
+     OLOG("ProgramSetShaders %p n=%d data0=%#llx", (void *)p, n, n ? (unsigned long long)sd[0].data : 0ull);
+     return 1;

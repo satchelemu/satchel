@@ -1,0 +1,153 @@
+[
+  {
+    "titleID": "0100F2C0115B6000",
+    "version": "1.4.3",
+    "name": "The Legend of Zelda: Tears of the Kingdom",
+    "packageName": "TOTK-1.4.3",
+    "phonePrepare": true,
+    "modules": [
+      "main",
+      "subsdk0",
+      "sdk"
+    ],
+    "environment": {
+      "DM_LAUNCHER": "0",
+      "DM_SAVED_CHOICES": "0",
+      "DM_SAVE_SYNC": "0",
+      "DM_FPS_TARGET": "30",
+      "DM_RENDER_SCALE": "0.65",
+      "DM_SHOW_FPS": "1",
+      "DM_OPMODE": "1",
+      "DM_PSO_PREPARE": "1",
+      "DM_PSO_MTL4": "0",
+      "DM_THERMAL_CAP": "1",
+      "DM_BOOTPROF": "1",
+      "DM_SLOWFRAME": "1",
+      "DM_NVN_TSV": "zelda-frame-times.tsv",
+      "DM_NVN_TSV_CALLS": "0",
+      "DM_NVN_GPUPROF": "every:600",
+      "DM_MEMSTAT": "zelda-memory.tsv"
+    },
+    "shaderInputs": "ed3afea18bbf",
+    "profileSHA256": "8d2c60ddf220f2c6cdb3e6e94fd3f169a78d9e69a82204a06f6bb3b40ee3a910",
+    "enginePin": "bbc3b73784751d2a706932dc69fd67627e3445d4",
+    "shaderChain": "e65a4ebd3322",
+    "buildIDs": {
+      "main": "277178b7dba1b6d4949a84778d4abc58",
+      "subsdk0": "f39f4c431234c72eb520cfdd1001bbcf",
+      "sdk": "574284b40c06cf1821a44857939083be"
+    },
+    "requiredFiles": [
+      "game.dylib",
+      "profile.tsv",
+      "romfs.img",
+      "dm/shader_map.tsv",
+      "dm/pso_manifest.tsv",
+      "dm/c1_full.tsv",
+      "msl/b-e65a4ebd3322/inputs.tsv"
+    ]
+  },
+  {
+    "titleID": "0100000000010000",
+    "version": "1.4.1",
+    "name": "Super Mario Odyssey",
+    "packageName": "Odyssey-1.4.1",
+    "phonePrepare": false,
+    "modules": [
+      "main",
+      "subsdk0",
+      "sdk"
+    ],
+    "environment": {
+      "DM_LAUNCHER": "0",
+      "DM_SAVED_CHOICES": "0",
+      "DM_SAVE_SYNC": "0",
+      "DM_FPS_TARGET": "60",
+      "DM_RENDER_SCALE": "1",
+      "DM_SHOW_FPS": "1",
+      "DM_OPMODE": "1",
+      "DM_PSO_PREPARE": "1",
+      "DM_PSO_MTL4": "0",
+      "DM_THERMAL_CAP": "1",
+      "DM_BOOTPROF": "1",
+      "DM_SLOWFRAME": "1",
+      "DM_NVN_TSV": "odyssey-frame-times.tsv",
+      "DM_NVN_TSV_CALLS": "0",
+      "DM_NVN_GPUPROF": "every:600",
+      "DM_MEMSTAT": "odyssey-memory.tsv"
+    },
+    "shaderInputs": "e7245139bf37",
+    "profileSHA256": "306f992efc5d294e0337de66ec5c7ba3045f253fc9b0ad5b614c87f1cf872796",
+    "buildIDs": {
+      "main": "b424be150a8e7d78701cbe7a439d9ebf",
+      "subsdk0": "93ff8252d975adf07230cb86c83301c5",
+      "sdk": "fcf93a41b08c5193a1410d262602dc62"
+    },
+    "enginePin": "bbc3b73784751d2a706932dc69fd67627e3445d4",
+    "shaderChain": "e65a4ebd3322",
+    "requiredFiles": [
+      "game.dylib",
+      "profile.tsv",
+      "romfs.img",
+      "dm/shader_map.tsv",
+      "dm/pso_manifest.tsv",
+      "dm/c1_full.tsv",
+      "msl/b-e65a4ebd3322/inputs.tsv"
+    ]
+  },
+  {
+    "titleID": "0100BA4026E94000",
+    "version": "1.0.0",
+    "name": "Castlevania: Belmont's Curse",
+    "packageName": "Castlevania-1.0.0",
+    "phonePrepare": false,
+    "modules": [
+      "main",
+      "subsdk0",
+      "sdk"
+    ],
+    "environment": {
+      "DM_LAUNCHER": "0",
+      "DM_SAVED_CHOICES": "0",
+      "DM_SAVE_SYNC": "0",
+      "DM_FPS_TARGET": "30",
+      "DM_RENDER_SCALE": "1",
+      "DM_SHOW_FPS": "1",
+      "DM_OPMODE": "0",
+      "DM_PSO_PREPARE": "1",
+      "DM_PSO_MTL4": "0",
+      "DM_THERMAL_CAP": "1",
+      "DM_BOOTPROF": "1",
+      "DM_SLOWFRAME": "1",
+      "DM_NVN_TSV": "castlevania-frame-times.tsv",
+      "DM_NVN_TSV_CALLS": "0",
+      "DM_NVN_GPUPROF": "every:600",
+      "DM_MEMSTAT": "castlevania-memory.tsv"
+    },
+    "shaderInputs": "ecf38f1ae766",
+    "profileSHA256": "5eccf46689f463a3e96c4f72a77d78dc4cc30cc1d822c299f16fab29ca567dbb",
+    "enginePin": "bbc3b73784751d2a706932dc69fd67627e3445d4",
+    "shaderChain": "e65a4ebd3322",
+    "buildIDs": {
+      "main": "e7caa6ab07f133269a2705ec9340ac58",
+      "subsdk0": "8205ead9e1f93d8b2337feaddefac330",
+      "sdk": "8af286d7bfb124125a15e96a39cb1ab7"
+    },
+    "nroInventorySHA256": "49c94307439dcac4302886652e9a113cf025c7248c025d08b0d5ee9fbe4be393",
+    "nroBuildIDs": {
+      "nro0": "8233e7b465802062bcc4f7f8fa84ad8f"
+    },
+    "requiredFiles": [
+      "game.dylib",
+      "profile.tsv",
+      "romfs.img",
+      "dm/shader_map.tsv",
+      "dm/pso_manifest.tsv",
+      "dm/c1_full.tsv",
+      "msl/b-e65a4ebd3322/inputs.tsv",
+      "dm/nro.tsv",
+      "dm/nro0.fixups.tsv",
+      "dm/nro0.gates.tsv"
+    ]
+  }
+]

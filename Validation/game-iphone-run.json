@@ -1,0 +1,17 @@
+{
+  "activeInterpreterSeconds" : 12.755481040134327,
+  "debugOutput" : "",
+  "execution" : "Interpreted NRO; displayed pixels copied from guest framebuffer",
+  "fault" : false,
+  "finished" : true,
+  "frameChecksum" : "fb62bc9c4a553f88",
+  "frames" : 12,
+  "instructions" : 2500084684,
+  "lastGameFrameSeconds" : 1.2417747083236463,
+  "name" : "tictactoe",
+  "pc" : "0x103a4",
+  "sha256" : "20e058deda2267215f6197bcc63cbfe91347aa5ee2c8aa3f56fefcbc0825ae5a",
+  "status" : "Stopped by you",
+  "timestamp" : "2026-10-31T05:15:43Z",
+  "timing" : "Last complete interval between guest presentations, including copying\/pacing; pause-crossing intervals skipped. Zero means no interval measured yet. Interpreter total excludes host waits and pauses."
+}

@@ -1,0 +1,7 @@
+{
+  "Tools/VulkanBackend/VulkanFlatSchema.inc": "4eede019baf9acb3b017f87de9704505aa061ab44881b8629b9d14ae89255f8a",
+  "Tools/VulkanBackend/VulkanFlat.h": "b93d218541cd5f28d8c46d796337d1df8390ab777a7d93627a0faa7155496fb5",
+  "Tools/VulkanBackend/VulkanBackend.h": "8b269dbe3c1c89d2f061d5582c2626970eecf97a68ece7c4335c90060cd87e3d",
+  "Tools/VulkanBackend/VulkanRaster.h": "e09b4cd1ab1a6f3b5f642c58ca2d7da0f0e9d1b16cd7e9b290d7109ddbb21ffa",
+  "Tools/RasterCompiler/RasterCompiler.h": "6d067a32f4046d788671f13f3479684cc1a293ceb0a352085609348e1633d55d"
+}

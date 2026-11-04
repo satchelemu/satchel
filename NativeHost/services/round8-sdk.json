@@ -1,0 +1,156 @@
+{
+  "IFileSystemProxy": {
+    "22": [
+      "EnsureSaveData",
+      "CreateCacheStorage"
+    ],
+    "32": [
+      "ExtendSaveData",
+      "ExtendDeviceSaveData"
+    ],
+    "33": [
+      "DeleteCacheStorage"
+    ],
+    "34": [
+      "GetCacheStorageSize"
+    ],
+    "51": [
+      "MountSaveData",
+      "MountDeviceSaveData",
+      "MountTemporaryStorage",
+      "MountCacheStorage"
+    ],
+    "53": [
+      "MountSaveDataReadOnly"
+    ],
+    "62": [
+      "OpenCacheStorageList"
+    ],
+    "200": [
+      "MountRom"
+    ],
+    "202": [
+      "MountAddOnContent",
+      "MountSystemData"
+    ],
+    "203": [
+      "MountRom"
+    ],
+    "205": [
+      "MountRom"
+    ],
+    "1005": [
+      "IsEnabledAccessLog"
+    ]
+  },
+  "IFile": {
+    "0": [
+      "ReadFile"
+    ],
+    "1": [
+      "WriteFile"
+    ],
+    "2": [
+      "FlushFile"
+    ],
+    "3": [
+      "SetFileSize"
+    ],
+    "4": [
+      "GetFileSize"
+    ]
+  },
+  "IDirectory": {
+    "0": [
+      "ReadDirectory"
+    ],
+    "1": [
+      "GetDirectoryEntryCount"
+    ]
+  },
+  "IFileSystem": {
+    "16": [
+      "GetPathLengthMax",
+      "GetEntryNameLengthMax",
+      "GetUtf16PathLengthMax",
+      "GetUtf16EntryNameLengthMax"
+    ]
+  },
+  "IStorage": {
+    "0": [
+      "MountRom",
+      "MountAddOnContent",
+      "MountSystemData"
+    ],
+    "4": [
+      "MountRom",
+      "MountAddOnContent",
+      "MountSystemData"
+    ]
+  },
+  "IHidServer": {
+    "1": [
+      "InitializeDebugPad"
+    ],
+    "11": [
+      "InitializeTouchScreen"
+    ],
+    "21": [
+      "InitializeMouse"
+    ],
+    "31": [
+      "InitializeKeyboard"
+    ],
+    "91": [
+      "InitializeGesture"
+    ],
+    "103": [
+      "InitializeNpad"
+    ],
+    "106": [
+      "BindNpadStyleSetUpdateEvent"
+    ],
+    "109": [
+      "InitializeNpad"
+    ],
+    "122": [
+      "SetNpadJoyAssignmentModeSingle"
+    ],
+    "133": [
+      "SetNpadJoyAssignmentModeSingle"
+    ],
+    "203": [
+      "InitializeVibrationDevice"
+    ],
+    "502": [
+      "BindPalmaOperationCompleteEvent"
+    ],
+    "522": [
+      "EnableAnyPalmaConnection",
+      "DisableAnyPalmaConnection"
+    ]
+  },
+  "IActiveVibrationDeviceList": {
+    "0": [
+      "InitializeVibrationDevice"
+    ]
+  },
+  "IStaticServiceForGlue": {
+    "200": [
+      "IsAccuracySufficient"
+    ],
+    "400": [
+      "CreateWithStandardSystemClock",
+      "CreateWithAdjustableSystemClock"
+    ]
+  },
+  "IStaticServiceForPsc": {
+    "200": [
+      "IsAccuracySufficient"
+    ],
+    "400": [
+      "CreateWithStandardSystemClock",
+      "CreateWithAdjustableSystemClock"
+    ]
+  }
+}

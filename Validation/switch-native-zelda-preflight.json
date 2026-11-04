@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "status": "blocked",
+  "error": {
+    "code": "disk_space",
+    "message": "Build needs at least 43.6 GiB free; destination has 13.2 GiB. Choose a larger work volume."
+  }
+}

@@ -1,0 +1,280 @@
+{
+  "status": "Original tests passed; iOS17 compiled; root-only promotion pending",
+  "gates": {
+    "/tmp/satchel-guest-window-repro-gate02/validation-manifest.json": {
+      "sha256": "2f2543fb8284cabac349fee88b9cae88abfad9ef44739d0144a72be2fc3a7475",
+      "status": "original owner/actual Process/interpreted Window and legacy regressions passed",
+      "results": {
+        "owner": "Raster shared queue: 6361 original sanitizer assertions; real ordered draw submission, Flush/fence/publication retry, CPU-free cleanup.\nWindow owner original real-Vulkan assertions: 15262 added; prior queue 6361 preserved. No game/window-display claim.",
+        "composite": "Interpreted NVN raster: 13055 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nInterpreted Window composite: 4416 added assertions, legacy 13056 retained; real VI/queue/raster/acquire/present immutable bytes, no display/game claim.",
+        "process": "Interpreted NVN raster: 13056 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nActual Process / interpreted Window composite: 4419 added assertions, legacy 13057 retained; real VI/queue/raster/acquire/present immutable bytes, no display/game claim.",
+        "captured": "Interpreted NVN raster: 15502 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nCaptured NVN admission: 2452 assertions before preserved legacy raster regression; source admission only, missing real state refused, no captured pipeline.",
+        "captured-fault": "Captured actual reference and finalize-retry: 998 assertions; test-only observer/failure wrapper.",
+        "compute": "Interpreted NVN scalar compute: 16174 ASan/UBSan assertions; original guest code/resources, admitted program, recorded bindings, GPU execution, explicit flush/fence/invalidate and CPU-free cleanup.",
+        "snapshot": "Original texture frame: 273 instructions/92 dispatch events, snapshots1/cancelled-drained1.\nTexture frame diagnostic: 431 host assertions (includes output-canary bytes).",
+        "DispatchTest": "Guest dispatch: 4638 sanitizer-backed original interpreter checks passed; no game graphics executed.",
+        "DispatchRangeTest": "Dispatch checked-output guard: 324 assertions passed; synthetic backend/service only."
+      }
+    },
+    "/tmp/satchel-guest-window-raster-gate01/validation-manifest.json": {
+      "sha256": "51365dda343ff8d970bf400f101e14ba41403ea096010141dee6b19259c53081",
+      "status": "host gates passed; iOS17 compiled",
+      "results": {
+        "raster-compiler": "PASS 4398 raster compiler assertions",
+        "raster-nvn-abi": "PASS 10 independent pinned NVN stage ABI assertions",
+        "raster-program": "PASS 483 original GuestRasterPrograms assertions; no game graphics claim",
+        "raster-state": "32920 checked NVN state assertions passed (original fixtures; no rendering claim).",
+        "texture-layout": "Texture layout: 131927145 sanitizer assertions, public pinned layout comparisons,720p/1080p block-linear bijection/roundtrip and padding preservation. No guest draw claim.",
+        "pool-budget": "Pool budget: 193 sanitizer assertions,720p/1080p real buffers/GPU endpoint writes,16MiB cap and padded128MiB aggregate across owners/staging, complete cleanup.",
+        "pool-regression": "Original pool registry: 1480 ASan/UBSan assertions passed; real Vulkan backing/transfers, explicit cache copies, range/generation guards and retained cleanup verified. No guest NVN pool dispatch or game rendering tested.",
+        "texture-owner": "Texture owner: 245 original sanitizer assertions; real images/pools, aliases, bounds, partial cleanup/retry and CPU-free retirement.",
+        "raster-batch": "Raster batches: 91788 sanitizer assertions,8 actual image upload/multi-draw submissions; explicit LOAD/CLEAR, overlapping draw order, shared refs, changed backing, fence/error/cancel ownership and cleanup.",
+        "raster-run": "Guest raster run: 31245 original sanitizer assertions; actual paired captures, tiled pools, multi-draw/fence/publication, retry and CPU-free cleanup.",
+        "raster-record": "Raster recording: 6360 original sanitizer assertions, actual NVN-shaped copied state/transactional records -> captured shaders -> GPU multi-draw/publication; not yet interpreter dispatch.",
+        "raster-queue": "Raster shared queue: 6360 original sanitizer assertions; real ordered draw submission, Flush/fence/publication retry, CPU-free cleanup.",
+        "raster-dispatch": "Interpreted NVN raster: 13050 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.",
+        "raster-diagnostic": "Reusable NVN raster diagnostic: 25 host assertions, normal/cancel-after-submit/reentry/reap; each successful original journey558 instructions186 events.",
+        "DiagnosticTest": "Bounded original guest NVN/Vulkan diagnostic:48 instructions,14 dispatches,7 real-cap queries, real device create/finalize, guards/state/cleanup verified.",
+        "PoolDiagnosticTest": "Original checked-memory pool diagnostic: 107 ASan/UBSan assertions passed; GPU fill/fence, guarded cache copies, cancellation retention/reap, reentry and resource independence verified. No interpreted NVN pool call or game frame.",
+        "PoolDispatchDiagnosticTest": "Original interpreted pool phone fixture: 109 ASan/UBSan assertions passed;78 instructions,26 dispatch events, real GPU cache result/guards, cancellation handoff/reap and cleanup verified. No guest queue submission or game frame.",
+        "TransferDiagnosticTest": "Original interpreted pool phone fixture: 113 ASan/UBSan assertions passed;282 instructions,94 dispatch events, real GPU cache result/guards, cancellation handoff/reap and cleanup verified. Actual original interpreted queue submission; no game frame.",
+        "NVNComputeDiagnosticTest": "Original interpreted NVN diagnostic success: 438 instructions/146 events, 4 cases/4 real pipelines/4 fences\nNVN diagnostic: 44 original sanitizer assertions, cancellation at nine stages and reentry/CPU-free retirement",
+        "TransferDiagnosticTest-raster": "Original interpreted pool phone fixture: 109 ASan/UBSan assertions passed;282 instructions,94 dispatch events, real GPU cache result/guards, cancellation handoff/reap and cleanup verified. Actual original interpreted queue submission; no game frame.",
+        "NVNComputeDiagnosticTest-raster": "Original interpreted NVN diagnostic success: 438 instructions/146 events, 4 cases/4 real pipelines/4 fences\nNVN diagnostic: 43 original sanitizer assertions, cancellation at nine stages and reentry/CPU-free retirement",
+        "typed-flat-manifest-sha256": "7b0a26190c1bc02d17379bebeb94d4eaae91f83ea6c18ed592b4a95cf0e81d3a"
+      }
+    },
+    "/tmp/satchel-guest-window-owner-regression/validation-manifest.json": {
+      "sha256": "b8b7d58e2355a8638a18e36e569b319b043b7f07d0f6aa0de90ec7c995e0903e",
+      "status": "original captured guest owner host gate passed; iOS17 compiled",
+      "results": {}
+    },
+    "/tmp/satchel-guest-window-existing-captured-diagnostic/validation-manifest.json": {
+      "sha256": "167f8fec0797c3e9d2396131777567a6cdc08b2d1d4faea2d77c4224c81accdb",
+      "status": "original checked-memory captured-owner GPU diagnostic passed; iOS17 compiled",
+      "results": {
+        "normal": "PASS 94 original captured-owner diagnostic assertions; four completed4-draw journeys plus cancelled checkpoints; no game/display evidence",
+        "pending_cleanup_clock": "PASS 27 test-only pending-fence/pool-cleanup retry assertions; real GPU submission, CPU-free bounded retention, no production fault seam"
+      }
+    },
+    "/tmp/satchel-guest-window-existing-captured-nvn/validation-manifest.json": {
+      "sha256": "284ac14ecf3311e36e5946bef3808e6a731beadd9acfc0b32dc8f416191c0307",
+      "status": "interpreted captured admission and preserved legacy GPU paths passed",
+      "results": {
+        "test": "Interpreted NVN raster: 15502 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nCaptured NVN admission: 2452 assertions before preserved legacy raster regression; source admission only, missing real state refused, no captured pipeline.",
+        "compute": "Interpreted NVN scalar compute: 16174 ASan/UBSan assertions; original guest code/resources, admitted program, recorded bindings, GPU execution, explicit flush/fence/invalidate and CPU-free cleanup.",
+        "fault": "Captured actual reference and finalize-retry: 998 assertions; test-only observer/failure wrapper.",
+        "legacy-no-captured": "Interpreted NVN raster: 13050 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero."
+      }
+    },
+    "/tmp/satchel-guest-window-existing-texture-diagnostic/validation-manifest.json": {
+      "sha256": "7c059be86cc5012943d8d12569992fef038ebfa94e6d76022bf6c10b8592597d",
+      "status": "focused original host sanitizer gates passed; iOS17 compiled",
+      "results": {
+        "normal": "Original texture frame: 273 instructions/92 dispatch events, snapshots1/cancelled-drained1.\nTexture frame diagnostic: 431 host assertions (includes output-canary bytes).",
+        "faults": "Texture frame diagnostic: 30 injected-failure assertions; zero lost ticket/lease/retirement ownership."
+      }
+    },
+    "/tmp/satchel-guest-window-existing-texture-frames/validation-manifest.json": {
+      "sha256": "fe430376236027381780d545db47e4b451eedcd958f7c821aaa4e3aae065034e",
+      "status": "focused original host sanitizer gates passed; iOS17 compiled",
+      "results": {
+        "normal": "Interpreted NVN raster: 13051 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nTexture frame interpreted gate: 25034 assertions (includes bytes); current-mirror upload, cached submission gate, real parent/texture lifetime, CPU-free UI lease, cancellation.",
+        "faults": "Interpreted NVN raster: 13051 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nTexture frame interpreted gate: 33993 assertions (includes bytes); current-mirror upload, cached submission gate, real parent/texture lifetime, CPU-free UI lease, cancellation.",
+        "captured": "Interpreted NVN raster: 15502 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nCaptured NVN admission: 2452 assertions before preserved legacy raster regression; source admission only, missing real state refused, no captured pipeline.",
+        "captured-fault": "Captured actual reference and finalize-retry: 998 assertions; test-only observer/failure wrapper.",
+        "compute": "Interpreted NVN scalar compute: 16174 ASan/UBSan assertions; original guest code/resources, admitted program, recorded bindings, GPU execution, explicit flush/fence/invalidate and CPU-free cleanup."
+      }
+    },
+    "/tmp/satchel-guest-window-existing-range/validation-manifest.json": {
+      "sha256": "f08ef6af994bc14c707e70436a69a61d258c79577f30b9881cecf06ab80eea06",
+      "status": "focused original host sanitizer gates passed; iOS17 compiled",
+      "results": {
+        "normal": "Original texture frame: 273 instructions/92 dispatch events, snapshots1/cancelled-drained1.\nTexture frame diagnostic: 431 host assertions (includes output-canary bytes).\nActual Vulkan composite output guard: 67859 assertions, 510 read-only queries, 84 physical aliases, 84 live-resource cases, 20 released-range cases; original diagnostic preserved.",
+        "faults": "Texture frame diagnostic: 30 injected-failure assertions; zero lost ticket/lease/retirement ownership."
+      }
+    },
+    "/tmp/satchel-guest-window-existing-queue02/validation-manifest.json": {
+      "sha256": "5f3bf17d704f908e33565a6db54c599ccbc025eead2722e32ae9e8ded2354cb2",
+      "status": "passed",
+      "results": {
+        "transfer": "guest transfer checks passed: 535 assertions (original direct state-machine fixtures; no interpreted dispatch or game rendering)\nPresentation transfer lease: 242 added assertions; prior transfer regression 535 assertions retained.",
+        "raster": "Raster shared queue: 6360 original sanitizer assertions; real ordered draw submission, Flush/fence/publication retry, CPU-free cleanup.\nPresentation raster lease: 12587 added assertions; prior queue regression 6360 retained; real fence/publication and CPU-free cancellation.",
+        "compute": "Interpreted NVN scalar compute: 16174 ASan/UBSan assertions; original guest code/resources, admitted program, recorded bindings, GPU execution, explicit flush/fence/invalidate and CPU-free cleanup.\nPresentation compute lease: 3991 added assertions; prior interpreted compute regression 16174 retained."
+      }
+    }
+  },
+  "production": {
+    "GuestWindows.c": "49ca430269cee9388d97aa759ea52b32ba438254264c9f31101ef04814d19f1f",
+    "GuestWindows.h": "4a8984527d2d08c5391c10534312ec378c29aba38fe497bc536030f248ab5b79",
+    "GuestVulkanWindows.c": "e8f2e776a3a58b2c08069f0e7ca87c5bb76bd9585b6c370523c62c35ff344cf6",
+    "GuestVulkanWindows.h": "d7eedaaefe1cec0ae667bd1d0efe8c4af00987a41e8fd512f8b2f3e6a1782370",
+    "GuestDispatch.c": "ca2e58bad75fb23562abb8920c919e43e3d47f6056460d3fdbd2e761c4408908",
+    "GuestDispatch.h": "183b6f44b38f82a73beb257278a4c34c5baebb47f25ed34c558b49566618e1df",
+    "WindowDispatchOperations.h": "a64276d847267c1995da064bb77f4e6d22467a417064c50be4671fcbe6827e16"
+  },
+  "archives": {
+    "libSatchelGuestWindows-macos.a": "c140a2628903f134f47ab2ece57422b8416cddaea0eebd6970677cf6825ceb06",
+    "libSatchelGuestVulkanWindows-macos.a": "663739503581932c33e2599caebdb2f28cfe2647d41a1cabd8fdc87c3f35bd49",
+    "libSatchelGuestDispatch-macos.a": "f17d7d8f15cce1b09d0bde0493e3a0597be51edf01d9c5baf92287afb7fd4dc7",
+    "libSatchelGuestWindows.a": "4293d335b69a9d689d5f856c77f102a2505091b2f12bb14e5563b094319d8442",
+    "libSatchelGuestVulkanWindows.a": "f58ce8649cc7ade4b1f5fe84fbac81db2b3957d782177da8bdf27a1b6ddbb438",
+    "libSatchelGuestDispatch.a": "9310eced913fefd56b3a4462199474b2a9f6eb5c8a706b06f3e513c80f287afd"
+  },
+  "exports": {
+    "GuestWindows": [
+      "_satchel_guest_windows_copy",
+      "_satchel_guest_windows_create",
+      "_satchel_guest_windows_detach",
+      "_satchel_guest_windows_device_children",
+      "_satchel_guest_windows_execute",
+      "_satchel_guest_windows_guard",
+      "_satchel_guest_windows_poll",
+      "_satchel_guest_windows_release",
+      "_satchel_guest_windows_stats",
+      "_satchel_guest_windows_take",
+      "_satchel_guest_windows_try_destroy"
+    ],
+    "GuestVulkanWindows": [
+      "_satchel_guest_dispatch_enable_vulkan_windows",
+      "_satchel_guest_dispatch_handle_windows",
+      "_satchel_guest_dispatch_window_copy",
+      "_satchel_guest_dispatch_window_detach",
+      "_satchel_guest_dispatch_window_poll",
+      "_satchel_guest_dispatch_window_release",
+      "_satchel_guest_dispatch_window_stats",
+      "_satchel_guest_dispatch_window_take",
+      "_satchel_guest_dispatch_windows_texture_frame_begin",
+      "_satchel_guest_dispatch_windows_texture_frame_copy",
+      "_satchel_guest_dispatch_windows_texture_frame_describe",
+      "_satchel_guest_dispatch_windows_texture_frame_destroy",
+      "_satchel_guest_dispatch_windows_texture_frame_detach",
+      "_satchel_guest_dispatch_windows_texture_frame_poll",
+      "_satchel_guest_dispatch_windows_texture_frame_release",
+      "_satchel_guest_dispatch_windows_texture_frame_take"
+    ],
+    "GuestDispatch": [
+      "_satchel_guest_dispatch_attach_checked_pool_services",
+      "_satchel_guest_dispatch_attach_pool_services",
+      "_satchel_guest_dispatch_attach_transfer_services",
+      "_satchel_guest_dispatch_breakpoints",
+      "_satchel_guest_dispatch_build_stubs",
+      "_satchel_guest_dispatch_check_output_range",
+      "_satchel_guest_dispatch_create",
+      "_satchel_guest_dispatch_destroy",
+      "_satchel_guest_dispatch_device_capabilities",
+      "_satchel_guest_dispatch_device_count",
+      "_satchel_guest_dispatch_handle",
+      "_satchel_guest_dispatch_handoff",
+      "_satchel_guest_dispatch_name",
+      "_satchel_guest_dispatch_resolve_pool",
+      "_satchel_guest_dispatch_retire",
+      "_satchel_guest_dispatch_retirement_poll",
+      "_satchel_guest_dispatch_retirement_stats",
+      "_satchel_guest_dispatch_set_device_backend",
+      "_satchel_guest_dispatch_set_device_backend_v2"
+    ]
+  },
+  "cpu": {
+    "archive": {
+      "path": "/private/tmp/satchel-guest-window-staging/cpu/libSatchelCPUProbe.a",
+      "sha256": "b492df1ebae1c92feff551b8dcc060badab17d881990fcb73aab1a88080eae65"
+    },
+    "header": {
+      "path": "/private/tmp/satchel-guest-window-staging/cpu/CPUProbe.h",
+      "sha256": "95a65e120474ab7ab1ec610f771cac4d15f6885ed0875b12d1074d66cdf9817c"
+    },
+    "source": {
+      "path": "/private/tmp/satchel-guest-window-staging/cpu/CPUProbe.cpp",
+      "sha256": "71e000660ec8980ee8492ae738dca78ac4aaa6a9e6698e55cb2b03e30500fb46"
+    }
+  },
+  "reviews": {
+    "/tmp/satchel-window-composite-independent-review.json": "bf37da8175dd4f2169e45740d2b45b5bec119aa22a50bfca512c9a34eb24d165",
+    "/tmp/satchel-guest-window-independent-review.json": "3ea6a8882e7155ea7465d45b81089d62403b3f1376064e998296a4535681d53c"
+  },
+  "routing_header_delta": {
+    "reason": "Preserve legacy dispatcher compile dependency boundary; no runtime/ABI change",
+    "before": {
+      "WindowDispatchOperations.h": "10765f6116f94622de2d0ae7ea441e7b0a9278210bcef03cc1d12e1813e5ae64",
+      "GuestDispatch.c": "ac047017b0ccfe05423c500d58732cb351ab400d9d7ab5cfedf67fa28befda97",
+      "GuestVulkanWindows.c": "e92a7c8e1b152ddfeb353fb14ccc8d6e52d14f611d768947b5cf80eb8c2865cf"
+    },
+    "after": {
+      "WindowDispatchOperations.h": "a64276d847267c1995da064bb77f4e6d22467a417064c50be4671fcbe6827e16",
+      "GuestDispatch.c": "ca2e58bad75fb23562abb8920c919e43e3d47f6056460d3fdbd2e761c4408908",
+      "GuestVulkanWindows.c": "e8f2e776a3a58b2c08069f0e7ca87c5bb76bd9585b6c370523c62c35ff344cf6"
+    },
+    "existing_locks": [
+      "Tools/GuestGraphics/raster-source-lock.json",
+      "Tools/GuestGraphics/TextureFrameDiagnosticSourceLock.json",
+      "Tools/GuestGraphics/TextureFramesSourceLock.json",
+      "Tools/GuestGraphics/PresentQueueSourceLock.json"
+    ]
+  },
+  "queue_lock_delta": [
+    {
+      "path": "Tools/GuestGraphics/TextureFrameDiagnosticSourceLock.json",
+      "before": "0067eac72b73311f43de6b6e3e2287a7e342857880053ef9f444eb98b1631fca",
+      "after": "1fea8ddb48d8528c72833bacb599f9595e11cf3eb4ac12ad0b344c8e4b737223"
+    }
+  ],
+  "scope": "No game Window invocation/display or interval/default semantics established; explicit unknown policy remains refused",
+  "failed_logs_preserved": [
+    "/tmp/satchel-guest-window-staging/window-integration/regressions01/captured-test-compile.log",
+    "/tmp/satchel-guest-window-existing-queue.log"
+  ],
+  "routing_object_comparison": {
+    "GuestDispatch": {
+      "__TEXT,__text": {
+        "equal": true,
+        "old_sha256": "ff9c0abd194c8225db3b984e31e8d192c5a71d08c0d61a7d6122f2ebb82b4fdf",
+        "new_sha256": "ff9c0abd194c8225db3b984e31e8d192c5a71d08c0d61a7d6122f2ebb82b4fdf"
+      },
+      "__TEXT,__const": {
+        "equal": true,
+        "old_sha256": "ce5db83c0c3762f7af446f2d251b90eecec60f042dfcc66d07864225af0cbb85",
+        "new_sha256": "ce5db83c0c3762f7af446f2d251b90eecec60f042dfcc66d07864225af0cbb85"
+      },
+      "__TEXT,__cstring": {
+        "equal": true,
+        "old_sha256": "ec87829311ee0bcc7ca3caea38da2982ebb88c8ce0d0d426ee44441204ea3868",
+        "new_sha256": "ec87829311ee0bcc7ca3caea38da2982ebb88c8ce0d0d426ee44441204ea3868"
+      }
+    },
+    "GuestVulkanWindows": {
+      "__TEXT,__text": {
+        "equal": true,
+        "old_sha256": "577b346779755a51d825b4635a059140feeaddc8f12fafb005a2d9d518bfa2a4",
+        "new_sha256": "577b346779755a51d825b4635a059140feeaddc8f12fafb005a2d9d518bfa2a4"
+      },
+      "__TEXT,__const": {
+        "equal": true,
+        "old_sha256": "bc0caa74bc2db6c2a19bc189792c3a4ee00c1847dcb282d4c4517ebb4d1d5174",
+        "new_sha256": "bc0caa74bc2db6c2a19bc189792c3a4ee00c1847dcb282d4c4517ebb4d1d5174"
+      },
+      "__TEXT,__cstring": {
+        "equal": true,
+        "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "new_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "GuestWindows": {
+      "__TEXT,__text": {
+        "equal": true,
+        "old_sha256": "90ddf004c5737248c1eba9a0b666f5d207cc2cf98f3ab8ae135d21f10a8ada17",
+        "new_sha256": "90ddf004c5737248c1eba9a0b666f5d207cc2cf98f3ab8ae135d21f10a8ada17"
+      },
+      "__TEXT,__const": {
+        "equal": true,
+        "old_sha256": "a0ab66a2d7badb1b97aefeb50b0038dba572a398a4eafbf327f0af2123beab84",
+        "new_sha256": "a0ab66a2d7badb1b97aefeb50b0038dba572a398a4eafbf327f0af2123beab84"
+      },
+      "__TEXT,__cstring": {
+        "equal": true,
+        "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "new_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  }
+}

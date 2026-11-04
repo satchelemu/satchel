@@ -1,0 +1,11 @@
+{
+  "exitCode" : 0,
+  "instructions" : 41,
+  "name" : "hello-horizon",
+  "outcome" : "Completed",
+  "output" : "Hello from Switch homebrew!\nNRO segments, BSS, stack, loader arguments, TLS and Horizon debug output passed.\n",
+  "pc" : "0x3e02000",
+  "seconds" : 0.001933166669914499,
+  "sha256" : "aab1722b76e532e657e3f93fd7764477b321d8758ac325a2e02a07b0165c2b66",
+  "timestamp" : "2026-10-31T04:47:25Z"
+}

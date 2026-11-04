@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "review": "/tmp/satchel-nvn-captured-program-independent-review.json",
+  "review_sha256": "df563cdc4737ef23f4bc7e2df21f54f4e6c102f588d805ce9809ec9952122e29",
+  "result": "Final repro production byte-identical to independently reviewed separated source; overlay inputs and artifact hashes match producer manifest.",
+  "mode": "read-only hash/provenance binding; no reviewer builds/tests",
+  "producer_manifest": "/tmp/satchel-captured-nvn-repro-build/validation-manifest.json",
+  "producer_manifest_sha256": "e0870e546b8f9ad3ebd40e277ad378b84c3a0077d11deae61901181ba4016e49",
+  "production_hashes": {
+    "/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestVulkanCapturedRaster.c": "63e610c6158f2a6f3e2b69d11034270bb9a1eb1e73db1729980d068b3c861158",
+    "/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestVulkanCapturedRaster.h": "c1e4e2eaa6dcd558a57b668b98bbe9ad348e07880bda34ccc527b1b463361bab",
+    "/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestDispatch.c": "97d1fc90900f450e51bac1222a0fd2d8eda997e37ac6b029bb3b5278e5b1803f",
+    "/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestDispatch.h": "fd9a596b9e507b290eaab2c3d6bb682d589a50a7cdd637107a3f7b9c6a784e68",
+    "/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestTransfers.h": "1e924aa0bc1135131de51797951567d00a3022cc720e94a1c953e33a663d4b7b"
+  },
+  "verified_overlay_inputs": {
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/CapturedNVNProgramTest.c": "5cb9b180a6ca8636192252dc0ed04cccaacb41e55ea72f82480cb31b0c321032",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestTransfers.h": "1e924aa0bc1135131de51797951567d00a3022cc720e94a1c953e33a663d4b7b",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/CapturedNVNLegacyFixture.c": "544f292bfa7e6e287d79fb9d6c938bcf009f8b3f87ddca00373d05e238070c9c",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestVulkanCapturedRaster.c": "63e610c6158f2a6f3e2b69d11034270bb9a1eb1e73db1729980d068b3c861158",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestDispatch.h": "fd9a596b9e507b290eaab2c3d6bb682d589a50a7cdd637107a3f7b9c6a784e68",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/build_captured_nvn.py": "ad79d43aaf36612e361c391c0b983ebae8718f253ff417d4717ca5efc7a21cef",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/CapturedNVNComputeRegression.c": "ada56e7863c3745427746d71d5785c10e79bb3160334a3c150f4d49dc25d27f4",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/CapturedNVNProgramFaultTest.c": "e429134e9c72ee2e0c787a7238048d873778010dd826ea9a6a473e5873c6ef6d",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestDispatch.c": "97d1fc90900f450e51bac1222a0fd2d8eda997e37ac6b029bb3b5278e5b1803f",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/GuestVulkanCapturedRaster.h": "c1e4e2eaa6dcd558a57b668b98bbe9ad348e07880bda34ccc527b1b463361bab",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/CAPTURED_NVN.md": "661d560c5381fa7a5246b1d511f334e69f47dbce2246cf1e5e79c94ec66a677f",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/scripts/test_captured_nvn.sh": "292d47dd4a314a3bad40f5596ace8f280573ddb97aab0647738639685a9934ed",
+    "/private/tmp/satchel-nvn-captured-program-repro-overlay/Tools/GuestGraphics/captured-nvn-source-lock.json": "d3bfb836e76ba4636a3b1d48ce0aa7e304ac368fc389788a28d88228472d6950"
+  },
+  "verified_artifacts": {
+    "libSatchelGuestDispatch-macos.a": "51ec4cda309232681603dfbc5c6045e4539ebf7478d15147ec7fee1f24682ff6",
+    "libSatchelGuestVulkanCapturedRaster-macos.a": "3d9d8a95bc8e356e20e5901e42e25d4f326e1eab9e4b3ac791ac79acb345aba8",
+    "libSatchelGuestDispatch.a": "ae09457a2cfbf47681ce6c749058036f4f8a7947db65371ef35fcd1db68c292d",
+    "libSatchelGuestVulkanCapturedRaster.a": "c983cd62f39069fc2d10d15e8ba7158527cd109c3e6a11051f65822bd18c536b"
+  },
+  "observed_producer_gates": {
+    "test": "Interpreted NVN raster: 15502 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero.\nCaptured NVN admission: 2452 assertions before preserved legacy raster regression; source admission only, missing real state refused, no captured pipeline.",
+    "compute": "Interpreted NVN scalar compute: 16174 ASan/UBSan assertions; original guest code/resources, admitted program, recorded bindings, GPU execution, explicit flush/fence/invalidate and CPU-free cleanup.",
+    "fault": "Captured actual reference and finalize-retry: 998 assertions; test-only observer/failure wrapper.",
+    "legacy-no-captured": "Interpreted NVN raster: 13050 original assertions, 620 instructions/210 events; actual paired code + copied state -> ordered clear/draw -> fence/tile publication; resources zero."
+  },
+  "limitations": [
+    "Recipe/schema and original fixture validation are producer evidence, not independently rerun.",
+    "No captured pipeline/game/frame claim; explicit unavailable-state stop remains."
+  ]
+}

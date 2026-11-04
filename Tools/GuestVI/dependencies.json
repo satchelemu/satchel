@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "cpu": {
+    "CPUProbe.h": "95a65e120474ab7ab1ec610f771cac4d15f6885ed0875b12d1074d66cdf9817c",
+    "CPUProbe.cpp": "b21360f17fc283e0cb48db00d8b46bf216f7c76c71e32aa51ecc9a5740679be9",
+    "libSatchelCPUProbe.a": "e00bf99f7e82e2ae1d62b60f42aba8477a64796029a578754954a02ec45acb73"
+  },
+  "ipc_archive": "815bd1ee7d9b621af46a38dfcfbd44f060387dc41b80d5c35f1bfbac8494edf0",
+  "sources": {
+    "Core/NSOLoader.h": "a1df5dccba2ee23f673f4a4940b9da0841a1f41b477f8f0f52e6111ddae58f47",
+    "Core/ProcessMetadata.c": "9ad09c8f6887136a02bac7f42e722a667451a294c2495e424a33193031848135",
+    "Core/ProcessMetadata.h": "13081e6d856c036e7e93b2c4318ab1f7d3ba678d74aff8a0211a2a0b1e71347c",
+    "Core/SwitchEvents.c": "88366acf4a2dcb304045e827564d26adf3483efb9c86ab8a04931142103bc9c9",
+    "Core/SwitchEvents.h": "91e0b9f566a8569d8e89e3f88f806620c1c28f32c952cd4981282649f49ee9f0",
+    "Core/SwitchProcess.c": "5e21253efd68a4f4b29263fc8ffe0d32631161a44c0f1047e4a09c803b790e1d",
+    "Core/SwitchProcess.h": "3e79aaf603456ad529bad507ffa582b6a2e3af7686ccc91a721b93191d87da7f",
+    "Core/SwitchResources.c": "7f97b514015839144f7fe7f5191d5b8e8f6fc1855c7487c35b99afa9148571c4",
+    "Core/SwitchResources.h": "2ff6f8fac2f0061b5e37ce0dc924db18de3ff6457e6bf79eae8494db458badb3",
+    "Core/SwitchStorage.h": "de218bcc2e5ed69007c2d6458cc5ac682834589be2585a4c325c3a48e202de5d",
+    "Core/SwitchStorageIPC.c": "7dbfb4e1279e29cc283a1fafb4fc4c3f42d89efc64dc7b1c692b691cf505da25",
+    "Core/SwitchStorageIPC.h": "34bef520d73ec6921230e2fab64dd94929cd1913cd7c3cbdbe91bab661537431",
+    "Tools/GuestGraphics/GuestSymbols.c": "2f149fc44d2abfb631716fb9d28caa7a5eaa26de3a65c1139794cd798e2877e5",
+    "Tools/GuestGraphics/GuestSymbols.h": "64c7e153307fec631d7637c724a80c9bbc7bbcc1d37ca7c792475efc54debb30",
+    "Tools/HorizonIPC/HorizonIPC.h": "174d7ae8fe3a919b6625f052c4ab57f9eb1fef142cd6e49d1a5673f82cf7d809"
+  }
+}

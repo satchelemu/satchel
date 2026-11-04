@@ -1,0 +1,14 @@
+{
+  "production_c_unchanged": "96f914c2d93f839c5b8526e5913e0e3061f34162812a22573fbb9caa84d9122c",
+  "reviewed_header_sha256": "a6a13eca517fac5f90723e40c2954b881a44aa70898cbf44a4b85c85312b6070",
+  "final_header_sha256": "d9d467e8e6160f9113339d16fc8bed504b4ec39741a6f286a982cac7c1f450da",
+  "comment_removed_tokens_equal": true,
+  "review": {
+    "path": "/tmp/satchel-present-queue-independent-review.json",
+    "sha256": "abf4afc021552ff493f6d2a7d9d917ee0f225b09759259b232f068fc678bfe93"
+  },
+  "original_gate": {
+    "path": "/tmp/satchel-guest-window-staging/queue-validation-manifest.json",
+    "sha256": "a11777fcaf825f1a1b415afe6318ef68bd511e141c4b595f3aea3e4c81fa1d71"
+  }
+}

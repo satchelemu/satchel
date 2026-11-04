@@ -1,0 +1,481 @@
+[
+  {
+    "artifact": "satchel-captured-host/libSatchelCapturedHostAdapter.a",
+    "sources": [
+      "Tools/CapturedFlatCompiler/CapturedHostAdapter.c"
+    ],
+    "exports": [
+      "_satchel_captured_compile_for_target"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-captured-programs/libSatchelGuestCapturedPrograms.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestCapturedPrograms.c"
+    ],
+    "exports": [
+      "_satchel_guest_captured_programs_capture",
+      "_satchel_guest_captured_programs_code_bindings",
+      "_satchel_guest_captured_programs_code_disjoint",
+      "_satchel_guest_captured_programs_collect",
+      "_satchel_guest_captured_programs_compile",
+      "_satchel_guest_captured_programs_create",
+      "_satchel_guest_captured_programs_device_children",
+      "_satchel_guest_captured_programs_forget",
+      "_satchel_guest_captured_programs_info",
+      "_satchel_guest_captured_programs_references",
+      "_satchel_guest_captured_programs_release",
+      "_satchel_guest_captured_programs_retain",
+      "_satchel_guest_captured_programs_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-compute/libSatchelGuestComputeOwner.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestCompute.c",
+      "Tools/GuestGraphics/GuestPrograms.c"
+    ],
+    "exports": [
+      "_satchel_guest_compute_bind",
+      "_satchel_guest_compute_create",
+      "_satchel_guest_compute_device_children",
+      "_satchel_guest_compute_pool_guard",
+      "_satchel_guest_compute_program_admit",
+      "_satchel_guest_compute_program_capture",
+      "_satchel_guest_compute_program_finalize",
+      "_satchel_guest_compute_program_identity",
+      "_satchel_guest_compute_program_initialize",
+      "_satchel_guest_compute_program_release",
+      "_satchel_guest_compute_program_retain",
+      "_satchel_guest_compute_submit",
+      "_satchel_guest_compute_try_destroy",
+      "_satchel_guest_compute_unbind",
+      "_satchel_guest_compute_wait",
+      "_satchel_guest_programs_check_unowned_range",
+      "_satchel_guest_programs_code_disjoint",
+      "_satchel_guest_programs_copy",
+      "_satchel_guest_programs_create",
+      "_satchel_guest_programs_device_children",
+      "_satchel_guest_programs_finalize",
+      "_satchel_guest_programs_identity",
+      "_satchel_guest_programs_initialize",
+      "_satchel_guest_programs_metadata",
+      "_satchel_guest_programs_pool_guard",
+      "_satchel_guest_programs_set_shaders",
+      "_satchel_guest_programs_set_shaders_admitted",
+      "_satchel_guest_programs_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestCapturedProgramDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestCapturedProgramDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_captured_program_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestComputeDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestComputeDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_compute_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestNVNComputeDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestNVNComputeDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_nvn_compute_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestNVNRasterDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestNVNRasterDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_nvn_raster_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestPoolDispatchDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestPoolDispatchDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_pool_dispatch_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestProvokingDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestProvokingDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_provoking_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestTextureFrameDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestTextureFrameDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_texture_frame_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestTransferDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestTransferDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_transfer_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-diagnostic/libSatchelGuestVulkanDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_vulkan_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-frames/libSatchelGuestFrames.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestFrames.c"
+    ],
+    "exports": [
+      "_satchel_guest_frames_attach",
+      "_satchel_guest_frames_begin",
+      "_satchel_guest_frames_collect",
+      "_satchel_guest_frames_copy",
+      "_satchel_guest_frames_create",
+      "_satchel_guest_frames_detach",
+      "_satchel_guest_frames_poll",
+      "_satchel_guest_frames_release",
+      "_satchel_guest_frames_stats",
+      "_satchel_guest_frames_take",
+      "_satchel_guest_frames_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestDispatch.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestDispatch.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_attach_checked_pool_services",
+      "_satchel_guest_dispatch_attach_pool_services",
+      "_satchel_guest_dispatch_attach_transfer_services",
+      "_satchel_guest_dispatch_breakpoints",
+      "_satchel_guest_dispatch_build_stubs",
+      "_satchel_guest_dispatch_check_output_range",
+      "_satchel_guest_dispatch_create",
+      "_satchel_guest_dispatch_destroy",
+      "_satchel_guest_dispatch_device_capabilities",
+      "_satchel_guest_dispatch_device_count",
+      "_satchel_guest_dispatch_handle",
+      "_satchel_guest_dispatch_handoff",
+      "_satchel_guest_dispatch_name",
+      "_satchel_guest_dispatch_resolve_pool",
+      "_satchel_guest_dispatch_retire",
+      "_satchel_guest_dispatch_retirement_poll",
+      "_satchel_guest_dispatch_retirement_stats",
+      "_satchel_guest_dispatch_set_device_backend",
+      "_satchel_guest_dispatch_set_device_backend_v2"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestSymbols.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestSymbols.c"
+    ],
+    "exports": [
+      "_satchel_guest_symbols_find_function",
+      "_satchel_guest_symbols_nso_table"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestVulkanCapturedRaster.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanCapturedRaster.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_enable_vulkan_captured_raster"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestVulkanCompute.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanCompute.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_enable_vulkan_compute"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestVulkanPools.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanPools.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_enable_vulkan_pools",
+      "_satchel_guest_dispatch_vulkan_pool_binding"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestVulkanRaster.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanRaster.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_enable_vulkan_raster"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestVulkanTextureFrames.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanTextureFrames.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_enable_vulkan_texture_frames",
+      "_satchel_guest_dispatch_texture_frame_begin",
+      "_satchel_guest_dispatch_texture_frame_copy",
+      "_satchel_guest_dispatch_texture_frame_describe",
+      "_satchel_guest_dispatch_texture_frame_destroy",
+      "_satchel_guest_dispatch_texture_frame_detach",
+      "_satchel_guest_dispatch_texture_frame_poll",
+      "_satchel_guest_dispatch_texture_frame_release",
+      "_satchel_guest_dispatch_texture_frame_take"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestVulkanTransfers.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanTransfers.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_enable_vulkan_transfers"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-graphics/libSatchelGuestVulkanWindows.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestVulkanWindows.c"
+    ],
+    "exports": [
+      "_satchel_guest_dispatch_enable_vulkan_windows",
+      "_satchel_guest_dispatch_handle_windows",
+      "_satchel_guest_dispatch_window_copy",
+      "_satchel_guest_dispatch_window_detach",
+      "_satchel_guest_dispatch_window_poll",
+      "_satchel_guest_dispatch_window_release",
+      "_satchel_guest_dispatch_window_stats",
+      "_satchel_guest_dispatch_window_take",
+      "_satchel_guest_dispatch_windows_texture_frame_begin",
+      "_satchel_guest_dispatch_windows_texture_frame_copy",
+      "_satchel_guest_dispatch_windows_texture_frame_describe",
+      "_satchel_guest_dispatch_windows_texture_frame_destroy",
+      "_satchel_guest_dispatch_windows_texture_frame_detach",
+      "_satchel_guest_dispatch_windows_texture_frame_poll",
+      "_satchel_guest_dispatch_windows_texture_frame_release",
+      "_satchel_guest_dispatch_windows_texture_frame_take"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-pool-diagnostic/libSatchelGuestPoolDiagnostic.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestPoolDiagnostic.c"
+    ],
+    "exports": [
+      "_satchel_guest_pool_diagnostic"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-pools/libSatchelGuestPools.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestPools.c"
+    ],
+    "exports": [
+      "_satchel_guest_pools_budget",
+      "_satchel_guest_pools_check_unowned_range",
+      "_satchel_guest_pools_check_unowned_range_checked",
+      "_satchel_guest_pools_create",
+      "_satchel_guest_pools_create_checked",
+      "_satchel_guest_pools_create_protected",
+      "_satchel_guest_pools_device_children",
+      "_satchel_guest_pools_execute",
+      "_satchel_guest_pools_gpu_acquire",
+      "_satchel_guest_pools_gpu_release",
+      "_satchel_guest_pools_lease_binding",
+      "_satchel_guest_pools_lease_view",
+      "_satchel_guest_pools_release",
+      "_satchel_guest_pools_resolve",
+      "_satchel_guest_pools_retain_object",
+      "_satchel_guest_pools_retain_range",
+      "_satchel_guest_pools_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-raster/libSatchelGuestRasterPrograms.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestRasterPrograms.c",
+      "Tools/RasterCompiler/RasterCompiler.c"
+    ],
+    "exports": [
+      "_satchel_guest_raster_programs_capture",
+      "_satchel_guest_raster_programs_code_bindings",
+      "_satchel_guest_raster_programs_code_disjoint",
+      "_satchel_guest_raster_programs_collect",
+      "_satchel_guest_raster_programs_compile",
+      "_satchel_guest_raster_programs_create",
+      "_satchel_guest_raster_programs_device_children",
+      "_satchel_guest_raster_programs_forget",
+      "_satchel_guest_raster_programs_info",
+      "_satchel_guest_raster_programs_references",
+      "_satchel_guest_raster_programs_release",
+      "_satchel_guest_raster_programs_retain",
+      "_satchel_guest_raster_programs_try_destroy",
+      "_satchel_raster_admit",
+      "_satchel_raster_compile",
+      "_satchel_raster_compile_pair"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-raster/libSatchelGuestRasterResources.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestTextureLayout.c",
+      "Tools/GuestGraphics/GuestTextures.c",
+      "Tools/GuestGraphics/GuestRasterRun.c",
+      "Tools/GuestGraphics/GuestRasterRecord.c",
+      "Tools/GuestGraphics/GuestRasterState.c"
+    ],
+    "exports": [
+      "_satchel_guest_nvn_state_apply",
+      "_satchel_guest_nvn_state_decode",
+      "_satchel_guest_nvn_state_size",
+      "_satchel_guest_raster_record_apply",
+      "_satchel_guest_raster_record_count",
+      "_satchel_guest_raster_record_create",
+      "_satchel_guest_raster_record_destroy",
+      "_satchel_guest_raster_record_snapshot",
+      "_satchel_guest_raster_run_begin",
+      "_satchel_guest_raster_run_peek",
+      "_satchel_guest_raster_run_poll",
+      "_satchel_guest_raster_run_stats",
+      "_satchel_guest_texture_decode",
+      "_satchel_guest_texture_encode",
+      "_satchel_guest_texture_layout",
+      "_satchel_guest_texture_offset",
+      "_satchel_guest_textures_binding",
+      "_satchel_guest_textures_create",
+      "_satchel_guest_textures_device_children",
+      "_satchel_guest_textures_execute",
+      "_satchel_guest_textures_pool_guard",
+      "_satchel_guest_textures_release",
+      "_satchel_guest_textures_retain",
+      "_satchel_guest_textures_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-transfers/libSatchelGuestTransfers.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestTransfers.c"
+    ],
+    "exports": [
+      "_satchel_guest_transfers_attach_compute",
+      "_satchel_guest_transfers_attach_raster",
+      "_satchel_guest_transfers_check_pool_range_checked",
+      "_satchel_guest_transfers_check_unowned_range",
+      "_satchel_guest_transfers_check_unowned_range_checked",
+      "_satchel_guest_transfers_create",
+      "_satchel_guest_transfers_create_checked",
+      "_satchel_guest_transfers_device_children",
+      "_satchel_guest_transfers_execute",
+      "_satchel_guest_transfers_guard",
+      "_satchel_guest_transfers_present_poll",
+      "_satchel_guest_transfers_present_prepare",
+      "_satchel_guest_transfers_present_release",
+      "_satchel_guest_transfers_raster_pending",
+      "_satchel_guest_transfers_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-vi/ios/libSatchelGuestVI.a",
+    "sources": [
+      "Tools/GuestVI/GuestVI.c",
+      "Tools/GuestVI/GuestVIDispatch.c"
+    ],
+    "exports": [
+      "_satchel_guest_vi_create",
+      "_satchel_guest_vi_detach",
+      "_satchel_guest_vi_dispatch",
+      "_satchel_guest_vi_entry_name",
+      "_satchel_guest_vi_entry_points",
+      "_satchel_guest_vi_execute",
+      "_satchel_guest_vi_release_native",
+      "_satchel_guest_vi_resolve_entries",
+      "_satchel_guest_vi_retain_native",
+      "_satchel_guest_vi_stats",
+      "_satchel_guest_vi_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-guest-windows/libSatchelGuestWindows.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestWindows.c"
+    ],
+    "exports": [
+      "_satchel_guest_windows_copy",
+      "_satchel_guest_windows_create",
+      "_satchel_guest_windows_detach",
+      "_satchel_guest_windows_device_children",
+      "_satchel_guest_windows_execute",
+      "_satchel_guest_windows_guard",
+      "_satchel_guest_windows_poll",
+      "_satchel_guest_windows_release",
+      "_satchel_guest_windows_stats",
+      "_satchel_guest_windows_take",
+      "_satchel_guest_windows_try_destroy"
+    ]
+  },
+  {
+    "artifact": "satchel-horizon-ipc/ios/libSatchelHorizonIPC.a",
+    "sources": [
+      "Tools/HorizonIPC/HorizonIPC.c"
+    ],
+    "exports": [
+      "_satchel_cmif_encode_reply",
+      "_satchel_hipc_copy_payload",
+      "_satchel_hipc_parse_request",
+      "_satchel_tipc_encode_reply"
+    ]
+  },
+  {
+    "artifact": "satchel-texture-frames/libSatchelGuestTextureFrames.a",
+    "sources": [
+      "Tools/GuestGraphics/GuestTextureFrames.c"
+    ],
+    "exports": [
+      "_satchel_guest_texture_frames_begin",
+      "_satchel_guest_texture_frames_check_submit",
+      "_satchel_guest_texture_frames_copy",
+      "_satchel_guest_texture_frames_detach",
+      "_satchel_guest_texture_frames_device_children",
+      "_satchel_guest_texture_frames_peek",
+      "_satchel_guest_texture_frames_poll",
+      "_satchel_guest_texture_frames_release",
+      "_satchel_guest_texture_frames_stats",
+      "_satchel_guest_texture_frames_take",
+      "_satchel_guest_texture_frames_try_destroy"
+    ]
+  }
+]

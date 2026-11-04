@@ -1,0 +1,62 @@
+--- a/dm/gfx/nvn/nvn_mtl.m
++++ b/dm/gfx/nvn/nvn_mtl.m
+@@ -3842,8 +3842,10 @@
+ }
+ // Build the library from a .metallib file without permanently occupying a file descriptor: newLibraryWithURL keeps that file open for as long as the library object lives (one per game shader - of the 258 descriptors the iOS app permanently holds in a run, 213 are these,
+ // while the default soft limit of an iOS process is 256; new shaders created in other acts raise it further). Here the file is mapped into memory and closed immediately, and the library is built from the in-memory data; the mapping is released when the library's data object is freed
++#include "PhoneShaderRuntime.h"
+ static __thread int t_lib_layer;
+ static id<MTLLibrary> lib_from_file(NSString *path, NSError **err) {
++    id<MTLLibrary> translated = satchel_phone_library(path, &t_lib_layer); if (translated) return translated;
+     int fd = open(path.fileSystemRepresentation, O_RDONLY); struct stat st;
+     if (fd < 0 || fstat(fd, &st) || st.st_size <= 0) { if (fd >= 0) close(fd); if (err) *err = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"cannot open %@", path]}]; return nil; }
+     size_t len = (size_t)st.st_size; void *m = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0); close(fd);
+@@ -3928,7 +3930,7 @@
+ static NvShader *shader_load(NSString *pc, int stage, int layer) {
+     NSError *e = nil;
+     NSData *jd = [NSData dataWithContentsOfFile:[NSString stringWithFormat:@"%@/%@.json", g_msl_dir, pc]];
+-    NSDictionary *j = jd ? [NSJSONSerialization JSONObjectWithData:jd options:0 error:nil] : nil;
++    NSDictionary *j = satchel_phone_reflection(pc) ?: (jd ? [NSJSONSerialization JSONObjectWithData:jd options:0 error:nil] : nil);
+     if (j && stage == 2 && [j[@"gs_slice"] isKindOfClass:[NSDictionary class]] && [j[@"chain"] isEqual:@DMSH_CHAIN]) {   // a slice-writing geometry shader has no library: a stub prog_fold_gs replaces
+         NvShader *o = [NvShader new]; o->stage = 2; o->lay_loc = -1; strlcpy(o->key, pc.UTF8String, sizeof o->key);
+         o->gs_loc = [j[@"gs_slice"][@"loc"] intValue]; o->gs_comp = [[j[@"gs_slice"][@"comp"] description] UTF8String][0];
+@@ -4108,9 +4110,11 @@
+     return nil;
+ }
+ #include "RuntimeCapture.inc"
++#include "PhoneShaderRuntime.inc"
+ 
+ static __unsafe_unretained NvProg *prog_get(const prog_t *cp) {   // Called only on the submit thread
+     prog_t *p = (prog_t *)cp;
++    satchel_phone_prepare_program(p, 0);
+     static const prog_t *lp; static uint64_t lser, lgen; static NvProg *lpr;   // Last result: same object, same serial and unchanged serial table means it is used directly
+     uint64_t gen = g_ser_gen;
+     if (p == lp && p->serial == lser && gen == lgen && lpr) return lpr;
+@@ -4969,6 +4973,11 @@
+     if (same && S.bst[1] == v) return v;
+     enum { NCMP = 64 };
+     static prog_t cp[NCMP]; static const prog_t *ck[NCMP][5]; static uint64_t cs[NCMP][5]; static int ncp, next;
++    static uint64_t epoch;
++    if (epoch != satchel_phone_epoch) {
++        for (int i = 0; i < ncp; i++) if (cp[i].serial) serial_del(cp[i].serial);
++        memset(cp, 0, sizeof cp); ncp = next = 0; epoch = satchel_phone_epoch;
++    }
+     for (int i = 0; i < ncp; i++) {
+         int hit = 1; for (int st = 0; st < 5 && hit; st++) hit = ck[i][st] == S.bst[st] && (!S.bst[st] || cs[i][st] == S.bst[st]->serial);
+         if (hit) return &cp[i];
+@@ -9524,6 +9533,15 @@
+ static void draw_(const p_draw *dw, const p_draw_idx *di);
+ static void draw(const p_draw *dw, const p_draw_idx *di) { cp_stamp start = cp_begin(); draw_(dw, di); cp_end(5, start); }
+ static void draw_(const p_draw *dw, const p_draw_idx *di) {
++    if (satchel_phone_enabled()) {
++        satchel_phone_prepare_program(S.bst[1], 0);
++        satchel_phone_prepare_program(S.bst[0], satchel_phone_fragment_inputs(S.bst[1]));
++        for (int stage = 2; stage < 5; stage++) satchel_phone_prepare_program(S.bst[stage], 0);
++        static uint64_t drawEpoch;
++        if (drawEpoch != satchel_phone_epoch) { drawEpoch = satchel_phone_epoch; g_pso_dirty = 1; args_dirty_all(); }
++        const prog_t *resolved = bind_stages(NULL, 0);
++        if (resolved != S.prog) { S.prog = resolved; g_pso_dirty = 1; args_dirty_all(); }
++    }
+     satchel_capture_draw(S.bst);
+     g_draw_binst = (uint32_t)(dw ? dw->base_instance : di ? di->base_instance : 0);   // c0 + 0x644 of the stages that read the driver segment (encode_args)
+     if (passdump()) { NvProg *p = g_geo_program ? g_geo_program : S.prog ? prog_get(S.prog) : nil;

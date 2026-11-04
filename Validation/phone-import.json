@@ -1,0 +1,27 @@
+{
+  "status": "phone_package_import_validated_execution_unimplemented",
+  "build": "7",
+  "bundle_id": "com.dell.satchel",
+  "parser_synthetic_assertions": 49,
+  "stream_import_scenarios_passed": 5,
+  "device_journeys_passed": 3,
+  "original_nro_entries_preserved": 3,
+  "packages": [
+    {
+      "format": "nsp",
+      "bytes": 88755040,
+      "entry_count": 6,
+      "source_digest_matches": true
+    },
+    {
+      "format": "xci",
+      "bytes": 4845553152,
+      "entry_count": 8,
+      "source_digest_matches": true
+    }
+  ],
+  "package_execution": false,
+  "on_device_title_matching": false,
+  "update_application": false,
+  "icloud_provider_cancellation_timing_verified": false
+}

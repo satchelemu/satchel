@@ -1,0 +1,35 @@
+{
+  "sources": {
+    "Tools/CapturedFlatCompiler/CapturedHostAdapter.c": "7251a68e9f503bba91feab88ef2ae754dac217bffe900140e7c5840418d212a2",
+    "Tools/CapturedFlatCompiler/CapturedHostAdapter.h": "6fc07ca67c9b8388bbec0f6c3ec8f38d34a68c705e4234f662a32cb5031eef4a",
+    "Tools/CapturedFlatCompiler/HostFactsV2Test.cpp": "c7de839a09210a53477fa1d352ec1c347478e000940a81a4b27b83a6bcd66105",
+    "Tools/CapturedFlatCompiler/HostFactsGPUTest.cpp": "320273c384b8563c9758a668ef5e5e39a6d1bb81f4a0a5532370c254b93911d2",
+    "Tools/CapturedFlatCompiler/HostFactsTest.cpp": "47060816c3eef766de5d2b7a6cab4ac36faecbc508175c1b82028441d7519ecb",
+    "Tools/CapturedFlatCompiler/HostFactsFaults.h": "479192484fe05c9a6960d7934fbe13269b4df9e3a9a3220baadb99765d83c180",
+    "Tools/CapturedFlatCompiler/GPUOriginalPair.h": "b5af7568898921400d593ef30610a3a6e9bb813ca57d5ecb969e98df6509f04c",
+    "Tools/CapturedFlatCompiler/HOST_FACTS.md": "7441c75f8fbd87f61c697ad33418eb08bfbf676bfac0129c3c699ad21b770140",
+    "Tools/CapturedFlatCompiler/host-facts-map.json": "2a0b80fd5e486a4957df18c7c1f7fa30415f3d2b5fcd04e720b8bd242b9dae14",
+    "Tools/CapturedFlatCompiler/build_host_facts.py": "ec0999c31c486c7843273bfc0423752239c553be68fe3386a29f901762104328",
+    "scripts/test_captured_host_facts.sh": "55afd05d3868e03c52d22e6c0a8e8cf0979e377d618cff01540356321e11690d"
+  },
+  "compiler_contract": {
+    "CapturedFlat.h": "3d8edae99a38cc3b4ba1bf575f9b96fe7c389e5fbb51cacf3d2fd72b4c1321c7",
+    "CapturedFlatV2.h": "59738dfe624c77f7250860b7cf9b91cb95b66a1e6120cb9fa1d38b393a254be1",
+    "CapturedFlat.cs": "1e543a7ca701129afd3ca6d9f395fb73edced2391a4b1c47f834de9866d08e0c",
+    "CapturedFlatV2.cs": "44945b8aaa2989a7d4cfdc2b9f05fdcdeb2ca5de484f5e5be29c8d70ed37f951",
+    "StrictSource.cs": "ad161f781901aac04a998f73df3404462791ce3325fa3bd83fbf0661f822f866",
+    "SpirvProof.cs": "0aa476d70814e7e549a57cd0cf016aad496e739097c6658f6114602bc6a0f61b",
+    "WorkBudget.cs": "6332e2bc2a465e777f5f5e79e03d2c3b05cf5e46317e337e5e1b9843de071d30",
+    "source-lock.json": "5957e2bbc4e5e42a6b72db5872c18baa5bb33f3e2a9c984cef5a1b32ae770170"
+  },
+  "renderer_contract": {
+    "Tools/VulkanBackend/VulkanBackend.cpp": "ea9ebbe3b2ff077826b0c77757ce426686a230f03144e5653e8e07ed6a582387",
+    "Tools/VulkanBackend/VulkanCapturedHost.h": "23ba263a74f61bb7d74281c0405bae22c0a9160b5ac9193da91717678ab09a5f",
+    "Tools/VulkanBackend/VulkanCapturedHost.inc": "4e44924140dc146cf701fedd30e9bb1300c17c9d2f51f25f65370bbeb57dc5df",
+    "Tools/VulkanBackend/VulkanFlat.h": "f8a38fc236a9f6604fadc436899156b4a19d53f6dace06a8d3762159555df4b4",
+    "Tools/VulkanBackend/VulkanFlatSchema.inc": "db4a91cd1381bfec5f1892e228afa45a32dffcb0a038f561dbeeeac8a3aa0332",
+    "Tools/VulkanBackend/VulkanFlatCreate.inc": "dad4a1317742fbc4b9aa817086f4e7399c6d4d2e0ad88d9365cfb3cdd243eaf3",
+    "Tools/VulkanBackend/VulkanProvoking.h": "58d7266a01a905133008550d6dcc31532f489ba8414813928072290870e7d4d5",
+    "Tools/VulkanBackend/VulkanProvoking.inc": "46d5324430505980bff5eb577d25078309454b70c1308bf63c6bf01be592bf19"
+  }
+}

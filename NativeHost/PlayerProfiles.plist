@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>default</key>
+	<dict>
+		<key>DM_FPS_TARGET</key>
+		<string>0</string>
+		<key>DM_RENDER_SCALE</key>
+		<string>1.0</string>
+	</dict>
+	<key>titles</key>
+	<dict>
+		<key>0100F2C0115B6000</key>
+		<dict>
+			<key>DM_FPS_TARGET</key>
+			<string>30</string>
+			<key>DM_RENDER_SCALE</key>
+			<string>1.0</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

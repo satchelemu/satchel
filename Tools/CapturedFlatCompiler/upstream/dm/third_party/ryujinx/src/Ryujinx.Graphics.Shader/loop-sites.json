@@ -1,0 +1,712 @@
+[
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 67,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 90,
+    "syntax": "DoStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 92,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 135,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 179,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 181,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 216,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 258,
+    "syntax": "DoStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 389,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 522,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 543,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 649,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 652,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 660,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 745,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 781,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 805,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 830,
+    "syntax": "DoStatement"
+  },
+  {
+    "file": "Decoders/Decoder.cs",
+    "line": 875,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 54,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 56,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 111,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 116,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 148,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 155,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 167,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 198,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 220,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 238,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 249,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 264,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 271,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 280,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Translator.cs",
+    "line": 319,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/ControlFlowGraph.cs",
+    "line": 28,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/ControlFlowGraph.cs",
+    "line": 80,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/ControlFlowGraph.cs",
+    "line": 135,
+    "syntax": "DoStatement"
+  },
+  {
+    "file": "Translation/ControlFlowGraph.cs",
+    "line": 139,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 138,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 140,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 144,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 158,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 183,
+    "syntax": "DoStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 188,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 200,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 242,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 271,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 293,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 295,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 309,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 318,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 386,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 391,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 426,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/RegisterUsage.cs",
+    "line": 431,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 12,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 26,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 53,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 66,
+    "syntax": "DoStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 71,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 77,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 152,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 154,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 180,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 182,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 206,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 255,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 304,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 381,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 383,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 445,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Optimizer.cs",
+    "line": 460,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/XmadOptimizer.cs",
+    "line": 10,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/XmadOptimizer.cs",
+    "line": 324,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 96,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 108,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 218,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 220,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 466,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 475,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 629,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 631,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 682,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/GlobalToStorage.cs",
+    "line": 806,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessToArray.cs",
+    "line": 24,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessToArray.cs",
+    "line": 117,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 25,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 69,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 103,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 111,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 113,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 153,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 159,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 164,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 174,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 190,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 196,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 246,
+    "syntax": "ForEachVariableStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 265,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 273,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 371,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 614,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BindlessElimination.cs",
+    "line": 623,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/DoubleToFloat.cs",
+    "line": 12,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/BranchElimination.cs",
+    "line": 47,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "Translation/Optimizations/ConstantFolding.cs",
+    "line": 221,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/ConstantFolding.cs",
+    "line": 236,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Utils.cs",
+    "line": 55,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Utils.cs",
+    "line": 70,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Utils.cs",
+    "line": 83,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Utils.cs",
+    "line": 143,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Utils.cs",
+    "line": 175,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Optimizations/Utils.cs",
+    "line": 194,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Transforms/DrawParametersReplace.cs",
+    "line": 45,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Transforms/DrawParametersReplace.cs",
+    "line": 74,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Transforms/VectorComponentSelect.cs",
+    "line": 56,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "Translation/Transforms/VectorComponentSelect.cs",
+    "line": 61,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/SpirvGenerator.cs",
+    "line": 125,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/SpirvGenerator.cs",
+    "line": 132,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/SpirvGenerator.cs",
+    "line": 145,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/SpirvGenerator.cs",
+    "line": 404,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 23,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 34,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 61,
+    "syntax": "ForEachVariableStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 86,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 96,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 132,
+    "syntax": "ForStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 159,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 228,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 341,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/Declarations.cs",
+    "line": 350,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "CodeGen/Spirv/CodeGenContext.cs",
+    "line": 66,
+    "syntax": "WhileStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 287,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 296,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 305,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 317,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 323,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 330,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 336,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 349,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 355,
+    "syntax": "ForEachStatement"
+  },
+  {
+    "file": "../Spv.Generator/Module.cs",
+    "line": 361,
+    "syntax": "ForEachStatement"
+  }
+]

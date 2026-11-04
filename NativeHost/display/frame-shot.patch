@@ -1,0 +1,33 @@
+--- a/dm/gfx/nvn/nvn_mtl.m
++++ b/dm/gfx/nvn/nvn_mtl.m
+@@ -10924,14 +10924,24 @@
+     else MLOG("[RED] more than %d screenshot requests; dropping %s", SHOTQ_MAX, path);
+     pthread_mutex_unlock(&g_shotq_mu);
+ }
+-// DM_NVN_SHOT_OUT=WIDTHxHEIGHT (for picture quality metrics): the present-frame screenshot instead captures the result "upscaled to this resolution by the present pass", i.e. the picture the player sees on a screen
+-// of that size (with DM_PRESENT_UPSCALE=metalfx through MetalFX, on the Metal 4 queue: present_offscreen_m4); screen=0 (texture dump) is unaffected
++// Frame screenshots use the display pass, including its crop, orientation and aspect fit.
++// DM_NVN_SHOT_OUT=WIDTHxHEIGHT overrides the canvas for comparisons; "raw" explicitly
++// reads the whole swapchain texture. Texture dumps (screen=0) always retain raw semantics.
+ static void shot(id<MTLTexture> src, const char *path, int screen, const int crop[4]) {
+-    static int out_w = -1, out_h;
+-    if (out_w < 0) {
+-        out_w = 0;
++    static int requested_w = -1, requested_h, raw;
++    if (requested_w < 0) {
++        requested_w = 0;
+         const char *e = getenv("DM_NVN_SHOT_OUT"); int w = 0, h = 0; char sep = 0, extra = 0;
+-        if (e && sscanf(e, "%d%c%d%c", &w, &sep, &h, &extra) == 3 && sep == 'x' && w > 0 && h > 0) { out_w = w; out_h = h; }
++        raw = e && !strcmp(e, "raw");
++        if (e && sscanf(e, "%d%c%d%c", &w, &sep, &h, &extra) == 3 && sep == 'x' && w > 0 && h > 0) { requested_w = w; requested_h = h; }
++    }
++    int out_w = requested_w, out_h = requested_h;
++    if (screen && !raw && !out_w) {
++        CAMetalLayer *layer = (__bridge CAMetalLayer *)front_metal_layer();
++        CGSize size = layer.drawableSize;
++        // A windowless diagnostic still applies the crop on a texture-sized canvas.
++        out_w = size.width > 0 ? (int)llround(size.width) : (int)src.width;
++        out_h = size.height > 0 ? (int)llround(size.height) : (int)src.height;
+     }
+     id<MTLTexture> read = src;
+     if (out_w && screen) {

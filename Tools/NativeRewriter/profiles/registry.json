@@ -1,0 +1,1158 @@
+{
+  "schema": 1,
+  "builds": {
+    "9de92bad67c4150268943ab4843ace65": {
+      "CUTS": [
+        [
+          605692,
+          "e9030232",
+          "0980a052",
+          "VammManager node area limit: 1 GB to 64 MB"
+        ],
+        [
+          605836,
+          "ea030232",
+          "0a80a052",
+          "VammManager occupied node area: 1 GB to 64 MB"
+        ],
+        [
+          606176,
+          "ea030232",
+          "0a40a052",
+          "AllocateAddressRegion: align regions of 1 GB and more to 32 MB"
+        ]
+      ]
+    },
+    "2d369d9999e3e10e665106f840ffff9b": {
+      "CUTS": [
+        [
+          3465416,
+          "08fca752",
+          "087ca052",
+          "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+        ],
+        [
+          3465572,
+          "09fca752",
+          "097ca052",
+          "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+        ]
+      ]
+    },
+    "56ec24747ec9e7f19b3efb062483a19d": {
+      "CUTS": [
+        [
+          3433520,
+          "08fca752",
+          "087ca052",
+          "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+        ],
+        [
+          3433676,
+          "09fca752",
+          "097ca052",
+          "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+        ]
+      ]
+    },
+    "311deab1f062b504f3d646a49ddcd4e8": {
+      "CUTS": [
+        [
+          1283176,
+          "08fca752",
+          "087ca052",
+          "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+        ],
+        [
+          1283324,
+          "09fca752",
+          "097ca052",
+          "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+        ]
+      ]
+    },
+    "12f161039300861f1054371f0e36b8c9": {
+      "CUTS": [
+        [
+          1263480,
+          "08fca752",
+          "087ca052",
+          "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+        ],
+        [
+          1263628,
+          "09fca752",
+          "097ca052",
+          "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+        ]
+      ]
+    },
+    "9c73fb73f529fedc9ffefa28246711cc": {
+      "CUTS": [
+        [
+          3654576,
+          "08fca752",
+          "087ca052",
+          "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+        ],
+        [
+          3654732,
+          "09fca752",
+          "097ca052",
+          "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+        ]
+      ]
+    },
+    "e01950c58e17b080c90494784ea1dd29": {
+      "CUTS": [
+        [
+          1334268,
+          "08fca752",
+          "087ca052",
+          "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+        ],
+        [
+          1334376,
+          "09fca752",
+          "097ca052",
+          "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+        ]
+      ]
+    },
+    "5b050c55b8264040b642a0cdca5ded83": {
+      "CUTS": [
+        [
+          6625268,
+          "e51f8052",
+          "e5078052",
+          "BucketAllocator ALLOC_BUCKET: at most 255 blocks of 4 MB (a 1 GB address region) \u2192 63 (256 MB)"
+        ]
+      ]
+    },
+    "799d1061182c1302e08e706b84ce76e5": {
+      "CUTS": [
+        [
+          4732324,
+          "2cffff54",
+          "1f2003d5",
+          "frame limiter spin: b.gt main+0x483588 \u2192 nop (the host paces the frames)"
+        ]
+      ]
+    },
+    "c3cf52bf2b05d7310884971b50bcccb8": {
+      "FRAME_STEP": "unsupported"
+    },
+    "5b76a43b231e0640521ac66203f7c178": {
+      "CUTS": [
+        [
+          1458888,
+          "2800c0d2",
+          "0800a4d2",
+          "Snowdrop allocator: initialize the three range-size fields to 512 MB (mov x8,#0x20000000); the large range is overridden to 2 GB below"
+        ],
+        [
+          1458940,
+          "7600c0d2",
+          "1600b8d2",
+          "Snowdrop allocator: combined virtual range end uses 3 GB instead of 12 GB (mov x22,#0xc0000000)"
+        ],
+        [
+          1458944,
+          "e1031f2a",
+          "0100b0d2",
+          "Snowdrop allocator: prepare 2 GB for the large range (mov x1,#0x80000000); AllocateAddressRegion wrapper discards incoming x1"
+        ],
+        [
+          1458952,
+          "6000c0d2",
+          "0000b8d2",
+          "Snowdrop allocator: reserve 3 GB instead of 12 GB (mov x0,#0xc0000000)"
+        ],
+        [
+          1458956,
+          "e2031faa",
+          "615600f9",
+          "Snowdrop allocator: override the large range-size field to 2 GB (str x1,[x19,#0xa8]); AllocateAddressRegion wrapper never reads x2"
+        ],
+        [
+          1459000,
+          "2500a052",
+          "05009052",
+          "Snowdrop large allocator: maximum 64 KB page count 65536 -> 32768, matching its 2 GB range (mov w5,#0x8000)"
+        ],
+        [
+          607060,
+          "0108a052",
+          "2100a052",
+          "Unused 272-byte slot pool: 4,194,304 -> 65,536 slots, 1.06 GB -> 17 MB of address space (mov w1,#0x10000)"
+        ]
+      ]
+    },
+    "f5ab74b9d45f955de2dc91da8e039c57": {
+      "CUTS": [
+        [
+          4472748,
+          "087c149be9e301b2291191f2087dc99b14fd45d3",
+          "087c149b890780520809c99a9f060071f403889a",
+          "frame limiter threshold: N \u00d7 tick frequency / 60 (umulh by 1/60 \u2192 udiv by 60), then 0 when N = 1 (cmp w20, #1; csel x20, xzr, x8, eq): one vsync a frame is the present pacing's; N = 2 keeps the 2 ms rounds"
+        ]
+      ]
+    },
+    "3cfd457814dd647f4cd0f0ae9f9454d2": {
+      "CUTS": [
+        [
+          75092,
+          "000040f9",
+          "000400f9",
+          "job pool wake: ldr x0,[x0] \u2192 str x0,[x0,#8] (pending = nonzero: the woken worker signals once more)"
+        ],
+        [
+          75096,
+          "36fc1814",
+          "fdffff17",
+          "job pool wake: b SignalEvent \u2192 b 0x1254c (ldr x0,[x0]; b SignalEvent)"
+        ]
+      ]
+    },
+    "b3db5a1edaf8454f8cd52b31dc82fb02": {
+      "CUTS": [
+        [
+          6351460,
+          "e51f8052",
+          "e5078052",
+          "BucketAllocator ALLOC_BUCKET: at most 255 blocks of 4 MB (a 1 GB address region) \u2192 63 (256 MB)"
+        ]
+      ]
+    },
+    "df3766a2bb651a3e822828abf10b6f7b": {
+      "CUTS": [
+        [
+          7368612,
+          "e10f1f32",
+          "81078052",
+          "frame limiter target: mov w1,#30 \u2192 mov w1,#60 (main+0x707090 sleeps out 1000 / fps ms since the last frame)"
+        ],
+        [
+          6715652,
+          "08ed46bd",
+          "083548bd",
+          "frame update step: ldr s8,[x8,#0x6ec] (1/30) \u2192 ldr s8,[x8,#0x834] (1/60), passed to main+0x6a337c"
+        ]
+      ]
+    },
+    "89048449ba238c8cf565518b83bf02d3": {
+      "CUTS": [
+        [
+          13712864,
+          "020000000100000002000000020000000100000002000000",
+          "010000000100000001000000010000000100000001000000",
+          "per-render-mode present interval table {2,1,2,2,1,2} \u2192 all 1 (60 fps; the game logic already runs at 60 updates a second)"
+        ],
+        [
+          13712960,
+          "000000400000803f00000040000000400000803f00000040",
+          "0000803f0000803f0000803f0000803f0000803f0000803f",
+          "per-render-mode interval as float {2.0,1.0,2.0,2.0,1.0,2.0} \u2192 all 1.0 (render-thread per-frame steps)"
+        ],
+        [
+          5307260,
+          "2801082a",
+          "e8031f2a",
+          "render thread forced interval 2: orr w8,w9,w8 (either flag) \u2192 mov w8,wzr (the mode's interval, 1)"
+        ],
+        [
+          6022336,
+          "20fa1494",
+          "e00208cb",
+          "frame limiter wait: bl YieldThread \u2192 sub x0,x23,x8 (time left, 100 ns units)"
+        ],
+        [
+          6022340,
+          "bbf71494",
+          "01e87bd3",
+          "frame limiter wait: bl GetSystemTick \u2192 lsl x1,x0,#5"
+        ],
+        [
+          6022344,
+          "680240f9",
+          "2018008b",
+          "frame limiter wait: ldr x8,[x19] \u2192 add x0,x1,x0,lsl #6 (96 ns per 100 ns left)"
+        ],
+        [
+          6022348,
+          "080008cb",
+          "8df71494",
+          "frame limiter wait: sub x8,x0,x8 \u2192 bl nn::os::SleepThread (PLT main+0xafc300)"
+        ],
+        [
+          6022352,
+          "087d149b",
+          "dfffff17",
+          "frame limiter wait: mul x8,x8,x20 \u2192 b main+0x5be44c (read the tick and compare again)"
+        ],
+        [
+          5306600,
+          "01102e1e",
+          "483d0090",
+          "render thread wait timeout: fmov s1,#1.0 \u2192 adrp x8,#0xcb7000"
+        ],
+        [
+          5306604,
+          "2018201e",
+          "08514bbd",
+          "render thread wait timeout: fdiv s0,s1,s0 \u2192 ldr s8,[x8,#0xb50] (1000.0)"
+        ],
+        [
+          5306608,
+          "483d0090",
+          "0019201e",
+          "render thread wait timeout: adrp x8,#0xcb7000 \u2192 fdiv s0,s8,s0 (1000/fps; the fmul by s8 that follows makes it \u00b5s)"
+        ],
+        [
+          5306612,
+          "08514bbd",
+          "1f2003d5",
+          "render thread wait timeout: ldr s8,[x8,#0xb50] \u2192 nop (moved up)"
+        ]
+      ]
+    },
+    "3c10ec35c5ef4c3686b4053afb0e58e7": {
+      "CUTS": [
+        [
+          5837208,
+          "20008052",
+          "00008052",
+          "60 FPS present interval mode: 1 -> 0"
+        ],
+        [
+          10202472,
+          "41008052",
+          "21008052",
+          "60 FPS NVN present interval: 2 -> 1"
+        ],
+        [
+          10220840,
+          "ac9999528cd9a772",
+          "0c0080520cf0a772",
+          "handheld lower bound follows preset minimum"
+        ],
+        [
+          10220852,
+          "cc648a52aceaa772",
+          "0c0080520cf0a772",
+          "docked lower bound follows preset minimum"
+        ],
+        [
+          10220596,
+          "8c46a8528301271e",
+          "8c36a8528301271e",
+          "dynamic resolution: bad frame cost 45 -> 22.5 ms at 60 fps"
+        ],
+        [
+          10220676,
+          "ac4781520c40a872",
+          "ac4781520c30a872",
+          "dynamic resolution: optimal frame cost 32.01 -> 16.005 ms at 60 fps (first load)"
+        ],
+        [
+          10220756,
+          "ac4781520c40a87283cc201e8001271e",
+          "ac4781520c30a87283cc201e8001271e",
+          "dynamic resolution: optimal frame cost 32.01 -> 16.005 ms at 60 fps (second load)"
+        ],
+        [
+          10220792,
+          "00d0271e",
+          "00d0251e",
+          "dynamic resolution: good frame cost 30 -> 15 ms at 60 fps"
+        ]
+      ],
+      "CAPABILITIES": [
+        "DYNAMIC_RESOLUTION"
+      ]
+    },
+    "3b39e0c06b8841f1baf0ea4d54286bfe": {
+      "CUTS": [
+        [
+          15344016,
+          "e80360b2",
+          "0800a4d2",
+          "Snowdrop pool sizes: initialize each range to 512 MB"
+        ],
+        [
+          15344064,
+          "f60760b2",
+          "1600b8d2",
+          "Snowdrop combined range end: 12 GB to 3 GB"
+        ],
+        [
+          15344068,
+          "e1031f2a",
+          "0100b0d2",
+          "Prepare the large range size of 2 GB; reserve wrapper discards incoming x1"
+        ],
+        [
+          15344076,
+          "e00760b2",
+          "0000b8d2",
+          "Snowdrop combined reservation: 12 GB to 3 GB"
+        ],
+        [
+          15344080,
+          "e2031faa",
+          "615200f9",
+          "Override the large range size field to 2 GB; reserve wrapper discards incoming x2"
+        ],
+        [
+          15344116,
+          "e5031032",
+          "05009052",
+          "Large allocator maximum 64 KB page count: 65536 to 32768, matching its 2 GB range"
+        ]
+      ]
+    },
+    "21450c647b8c5940ed5b68218ea128fd": {
+      "CUTS": [
+        [
+          58497628,
+          "e11361b2",
+          "2100c0d2",
+          "AllocateAddressRegion size mov x1,#0xf80000000 \u2192 mov x1,#0x100000000 (62 GB \u2192 4 GB)"
+        ],
+        [
+          58497644,
+          "e97f7cb2",
+          "09fe9fd2",
+          "node pool top check, low part mov x9,#0xffffffff0 \u2192 mov x9,#0xfff0"
+        ],
+        [
+          58497648,
+          "0be4afd2",
+          "0be4bfd2",
+          "node pool start mov x11,#0x7f200000 \u2192 mov x11,#0xff200000"
+        ],
+        [
+          58497652,
+          "09e4aff2",
+          "09e4bff2",
+          "node pool top check movk x9,#0x7f20,lsl #16 \u2192 movk x9,#0xff20,lsl #16 (0xff20fff0)"
+        ],
+        [
+          58497656,
+          "eb01c0f2",
+          "0b00c0f2",
+          "node pool start movk x11,#0xf,lsl #32 \u2192 movk x11,#0,lsl #32 (0xff200000 = 4 GB \u2212 14 MB)"
+        ],
+        [
+          58497692,
+          "e91361b2",
+          "2900c0d2",
+          "node pool bound: region end mov x9,#0xf80000000 \u2192 mov x9,#0x100000000"
+        ],
+        [
+          58497944,
+          "01e48f52",
+          "01e49f52",
+          "first free range in 64 KB units mov w1,#0x7f20 \u2192 mov w1,#0xff20"
+        ],
+        [
+          58497948,
+          "e101a072",
+          "0100a072",
+          "first free range movk w1,#0xf,lsl #16 \u2192 movk w1,#0,lsl #16 (0xff20 units = 4 GB \u2212 14 MB)"
+        ],
+        [
+          58498128,
+          "e91361b2",
+          "2900c0d2",
+          "node pool bound: region end mov x9,#0xf80000000 \u2192 mov x9,#0x100000000"
+        ],
+        [
+          58500044,
+          "e81361b2",
+          "2800c0d2",
+          "node pool bound: region end mov x8,#0xf80000000 \u2192 mov x8,#0x100000000"
+        ],
+        [
+          58503016,
+          "e91361b2",
+          "2900c0d2",
+          "node pool bound: region end mov x9,#0xf80000000 \u2192 mov x9,#0x100000000"
+        ]
+      ]
+    },
+    "909e904af78ac1b8deefe97ab2ccdb51": {
+      "CUTS": [
+        [
+          17617008,
+          "080040f9",
+          "c0035fd6",
+          "physics completion task release (calls its own destructor): ldr x8,[x0] \u2192 ret (no longer destroyed; the step function rebuilds it in place every step)"
+        ]
+      ]
+    },
+    "4b159f0f7a360669738390ee8657b4f0": {
+      "FRAME_STEP": "unsupported"
+    },
+    "82d187fe9ef9be921b8e1b1cddf7bd28": {
+      "CUTS": [
+        [
+          19457420,
+          "e001c0d2",
+          "2000c0d2",
+          "malloc address region: 60 GB to 4 GB"
+        ],
+        [
+          19142768,
+          "e98340b2",
+          "e9ff9fd2",
+          "first arena bump size, low part: mov x9,#0xffff"
+        ],
+        [
+          19142784,
+          "4900a0f2",
+          "4900a4f2",
+          "first arena bump size: 512 MB + 128 KB + 64 KB - 1"
+        ],
+        [
+          19142872,
+          "e97b5fb2",
+          "e98361b2",
+          "first arena subtraction, sign extension"
+        ],
+        [
+          19142876,
+          "c9ffbff2",
+          "c9ffbbf2",
+          "first arena subtraction: -(512 MB + 128 KB)"
+        ],
+        [
+          19142888,
+          "2800c0f2",
+          "4800a4f2",
+          "first arena stored capacity: 512 MB + 128 KB"
+        ]
+      ]
+    },
+    "cd57b23fa4bbad65803d9788c01821ee": {
+      "CUTS": [
+        [
+          17983244,
+          "6041201e",
+          "4041201e",
+          "lower bound of the candidate interval: fmov s0,s11 (2.0) \u2192 fmov s0,s10 (1.0)"
+        ],
+        [
+          17983248,
+          "7f0b0071",
+          "7f070071",
+          "lower bound of the candidate interval: cmp w27,#2 \u2192 cmp w27,#1"
+        ],
+        [
+          17983068,
+          "78008052",
+          "58008052",
+          "step-down target recorded when stepping up, max(candidate, w24) \u2212 1: mov w24,#3 \u2192 mov w24,#2"
+        ],
+        [
+          17983304,
+          "1f0d0071",
+          "1f090071",
+          "step-down target recorded when stepping up: cmp w8,#3 \u2192 cmp w8,#2"
+        ],
+        [
+          17983380,
+          "3f0d0071",
+          "3f090071",
+          "stepping down stops at < 3 \u2192 at < 2: cmp w9,#3 \u2192 cmp w9,#2"
+        ],
+        [
+          17983772,
+          "c00000b4",
+          "03000014",
+          "interval controller always takes the GPU time path (CPU span timing): cbz x0,#0x1126934 \u2192 b #0x1126928"
+        ],
+        [
+          17983860,
+          "c00000b4",
+          "03000014",
+          "interval controller always takes the GPU time path (takes max(CPU span, GPU time)): cbz x0,#0x112698c \u2192 b #0x1126980"
+        ]
+      ],
+      "FRAME_STEP": "unsupported"
+    },
+    "8c08b9719e085f91847b5e0f935d9488": {
+      "CUTS": [
+        [
+          53449428,
+          "f303002a",
+          "33008052",
+          "QualitySettings.set_vSyncCount wrapper: argument mov w19,w0 \u2192 mov w19,#1 (the 60 fps path of the game itself)"
+        ]
+      ]
+    },
+    "feae83dc9e9fb34c77d0a62f1fa9ae9f": {
+      "CUTS": [
+        [
+          26405908,
+          "68cb0090",
+          "a4040014",
+          "GMalloc setup: adrp x8 (first instruction of the inlined allocator constructor, 1 GB + 37 GB of address space) \u2192 b 0x192fea4 (__cxa_guard_release); the host allocator is in the object already (hle_uemalloc.c)"
+        ],
+        [
+          12955172,
+          "4a3d4092",
+          "4b3d4092",
+          "queue push: and x10, x10, #0xffff \u2192 and x11, x10, #0xffff (w10 keeps the tail)"
+        ],
+        [
+          12955176,
+          "28792af8",
+          "28792bf8",
+          "queue push: str x8, [x9, x10, lsl #3] \u2192 str x8, [x9, x11, lsl #3] (the item)"
+        ],
+        [
+          12955180,
+          "681a40b9",
+          "bf3a03d5",
+          "queue push: ldr w8, [x19, #0x18] (the tail again) \u2192 dmb ishst"
+        ],
+        [
+          12955184,
+          "08050011",
+          "48050011",
+          "queue push: add w8, w8, #1 \u2192 add w8, w10, #1 (then str w8, [x19, #0x18]: the new tail)"
+        ],
+        [
+          12954508,
+          "680240f9",
+          "bf3903d5",
+          "queue pop: ldr x8, [x19] \u2192 dmb ishld (after the tail load; w8 = head)"
+        ],
+        [
+          12954516,
+          "691e40b9",
+          "093d4092",
+          "queue pop: ldr w9, [x19, #0x1c] (the head again) \u2192 and x9, x8, #0xffff"
+        ],
+        [
+          12954520,
+          "293d4092",
+          "680240f9",
+          "queue pop: and x9, x9, #0xffff \u2192 ldr x8, [x19] (the ring; then ldr x8, [x8, x9, lsl #3]: the item)"
+        ]
+      ]
+    },
+    "98397a10419894652f372d4dc1b6fc2c": {
+      "CUTS": [
+        [
+          10225652,
+          "8c46a8528301271e",
+          "8c36a8528301271e",
+          "dynamic resolution: bad frame cost 45 -> 22.5 ms at 60 fps"
+        ],
+        [
+          10225732,
+          "ac4781520c40a872",
+          "ac4781520c30a872",
+          "dynamic resolution: optimal frame cost 32.01 -> 16.005 ms at 60 fps (first load)"
+        ],
+        [
+          10225812,
+          "ac4781520c40a87283cc201e8001271e",
+          "ac4781520c30a87283cc201e8001271e",
+          "dynamic resolution: optimal frame cost 32.01 -> 16.005 ms at 60 fps (second load)"
+        ],
+        [
+          10225848,
+          "00d0271e",
+          "00d0251e",
+          "dynamic resolution: good frame cost 30 -> 15 ms at 60 fps"
+        ],
+        [
+          5837208,
+          "20008052",
+          "00008052",
+          "NieR 1.0.3 frame interval default: 30 -> 60 fps (the mode the setter main+0x9c0590 stores at display +0x504)"
+        ],
+        [
+          10207528,
+          "41008052",
+          "21008052",
+          "NieR 1.0.3 NVN present interval default: 30 -> 60 fps (stored at the device's +0x9c160)"
+        ],
+        [
+          10225896,
+          "ac9999528cd9a772",
+          "0c0080520cf0a772",
+          "dynamic resolution lower bound follows the selected preset"
+        ],
+        [
+          10225908,
+          "cc648a52aceaa772",
+          "0c0080520cf0a772",
+          "dynamic resolution lower bound follows the selected preset"
+        ]
+      ],
+      "CAPABILITIES": [
+        "DYNAMIC_RESOLUTION"
+      ]
+    },
+    "e1d8b399b787ae4186bc974403a82d97": {
+      "CUTS": [
+        [
+          31881808,
+          "080140b9",
+          "08fddf88",
+          "stream reader going to sleep: ldr w8,[x8] \u2192 ldar (write position after the store-release of \"reader sleeping\")"
+        ],
+        [
+          31884200,
+          "080140b9",
+          "08fddf88",
+          "stream writer: ldr w8,[x8] \u2192 ldar (\"reader sleeping\" after the store-release of the write position)"
+        ],
+        [
+          31884440,
+          "080140b9",
+          "08fddf88",
+          "stream writer: ldr w8,[x8] \u2192 ldar (\"reader sleeping\" after the store-release of the write position)"
+        ],
+        [
+          31884572,
+          "080140b9",
+          "08fddf88",
+          "stream writer: ldr w8,[x8] \u2192 ldar (\"reader sleeping\" after the store-release of the write position)"
+        ],
+        [
+          31885256,
+          "290140b9",
+          "29fddf88",
+          "stream writer going to sleep: ldr w9,[x9] \u2192 ldar (read position after the store-release of \"writer sleeping\")"
+        ],
+        [
+          31883356,
+          "080140b9",
+          "08fddf88",
+          "stream reader: ldr w8,[x8] \u2192 ldar (\"writer sleeping\" after the store-release of the read position)"
+        ],
+        [
+          31883604,
+          "080140b9",
+          "08fddf88",
+          "stream reader: ldr w8,[x8] \u2192 ldar (\"writer sleeping\" after the store-release of the read position)"
+        ],
+        [
+          31883736,
+          "080140b9",
+          "08fddf88",
+          "stream reader: ldr w8,[x8] \u2192 ldar (\"writer sleeping\" after the store-release of the read position)"
+        ]
+      ]
+    },
+    "0effe4af1dec3a7966b934d4a7c3d2bf": {
+      "CUTS": [
+        [
+          3045284,
+          "49008052",
+          "29008052",
+          "frame step floor in 60 Hz vsyncs: mov w9,#2 \u2192 mov w9,#1 (the game steps by the vsyncs that passed, down to one)"
+        ]
+      ],
+      "FRAME_STEP": "unsupported"
+    },
+    "277178b7dba1b6d4949a84778d4abc58": {
+      "FRAME_STEP": 1
+    },
+    "5cb42b1cf25469fb0635fd046453d843": {
+      "FRAME_STEP": "unsupported"
+    }
+  },
+  "sdk_match_cuts": {
+    "sdk": [
+      {
+        "name": "AddressRegionManager node area 1 GB \u2192 62 MB",
+        "size": 276,
+        "fingerprints": [
+          "5c81bb821d119d00ffcda6c3a4f1b827fc08c084fa53995e3a6262b5bf37cded"
+        ],
+        "cuts": [
+          [
+            16,
+            "e9230b32",
+            "097ca052",
+            "AddressRegionManager constructor: node area limit orr w9,wzr,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+          ],
+          [
+            176,
+            "e9230b32",
+            "097ca052",
+            "AddressRegionManager constructor: length of the node area registered as an occupied region orr w9,wzr,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+          ]
+        ]
+      },
+      {
+        "name": "AddressRegionManager node area 1 GB \u2192 62 MB",
+        "size": 272,
+        "fingerprints": [
+          "6fe2b1b95eced45e081611b786a8ff80b656bdcad6bd58082ee3264f5163ec44"
+        ],
+        "cuts": [
+          [
+            16,
+            "e8230b32",
+            "087ca052",
+            "AddressRegionManager constructor: node area limit orr w8,wzr,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+          ],
+          [
+            172,
+            "e9230b32",
+            "097ca052",
+            "AddressRegionManager constructor: length of the node area registered as an occupied region orr w9,wzr,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+          ]
+        ]
+      },
+      {
+        "name": "AddressRegionManager node area 1 GB \u2192 62 MB",
+        "size": 272,
+        "fingerprints": [
+          "3ab9bc1471da6658c861c809d8aa43b3be34fd78a65f7136cb346e442a52968b",
+          "14660c33f9b064a429405d34d1ab0d1b8fd3867d5b335e2831afb59c2a399746"
+        ],
+        "cuts": [
+          [
+            16,
+            "08fca752",
+            "087ca052",
+            "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+          ],
+          [
+            172,
+            "09fca752",
+            "097ca052",
+            "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+          ]
+        ]
+      },
+      {
+        "name": "AddressRegionManager node area 1 GB \u2192 62 MB",
+        "size": 240,
+        "fingerprints": [
+          "cd7fb0efd387e5676d349376acf368b706116e089c30485f2d33970d9fb23145",
+          "d16909674e7f982f2fe1c765f7cd366341c2aaa9eb56a28c52a48d3c1057a126",
+          "3549234b3e27a013791bbd834b5ff7dd501a5826c4216c80961bd996eef556ea"
+        ],
+        "cuts": [
+          [
+            16,
+            "08fca752",
+            "087ca052",
+            "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+          ],
+          [
+            164,
+            "09fca752",
+            "097ca052",
+            "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+          ]
+        ]
+      },
+      {
+        "name": "AddressRegionManager node area 1 GB \u2192 62 MB",
+        "size": 244,
+        "fingerprints": [
+          "b02f0514e2cc25a65261ec23cefa9a1fe7b244b3db741f183deb334935541eee"
+        ],
+        "cuts": [
+          [
+            16,
+            "08fca752",
+            "087ca052",
+            "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+          ],
+          [
+            124,
+            "09fca752",
+            "097ca052",
+            "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+          ]
+        ]
+      },
+      {
+        "name": "AddressRegionManager node area 1 GB \u2192 62 MB",
+        "size": 276,
+        "fingerprints": [
+          "8960fe237061c387226a3775daf750a646dd0ee12eccf3d1340248683a6a7d78"
+        ],
+        "cuts": [
+          [
+            16,
+            "08fca752",
+            "087ca052",
+            "AddressRegionManager constructor: node area limit mov w8,#0x3fe00000 \u2192 mov w8,#0x3e00000"
+          ],
+          [
+            124,
+            "09fca752",
+            "097ca052",
+            "AddressRegionManager constructor: length of the node area registered as an occupied region mov w9,#0x3fe00000 \u2192 mov w9,#0x3e00000"
+          ]
+        ]
+      },
+      {
+        "name": "AllocateAddressRegion: regions of 4 MB and more aligned to 2 MB, as SDK 20",
+        "size": 352,
+        "fingerprints": [
+          "006abd214d94c93386735550cee4fe7708bc1f0d1812663123cfa3b9611f1533",
+          "42167e4d3c710e11937e45a9e420fdd0ed9a410386c17da4d1d896b847d3b0d6"
+        ],
+        "cuts": [
+          [
+            100,
+            "eb030732",
+            "0b04a052",
+            "AllocateAddressRegion: alignment of regions from 32 MB to 1 GB orr w11,wzr,#0x2000000 \u2192 mov w11,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            108,
+            "ea030232",
+            "0a04a052",
+            "AllocateAddressRegion: alignment of regions of 1 GB and more orr w10,wzr,#0x40000000 \u2192 mov w10,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            112,
+            "e8030a32",
+            "0804a052",
+            "AllocateAddressRegion: alignment of regions from 4 MB to 32 MB orr w8,wzr,#0x400000 \u2192 mov w8,#0x200000 (2 MB, as SDK 20)"
+          ]
+        ]
+      },
+      {
+        "name": "AllocateAddressRegion: regions of 4 MB and more aligned to 2 MB, as SDK 20",
+        "size": 360,
+        "fingerprints": [
+          "b8c0853dcad6b42ca2d504945c9944dd913a991297499e700a97a85bcf5a77c2"
+        ],
+        "cuts": [
+          [
+            100,
+            "0b40a052",
+            "0b04a052",
+            "AllocateAddressRegion: alignment of regions from 32 MB to 1 GB mov w11,#0x2000000 \u2192 mov w11,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            108,
+            "0a00a852",
+            "0a04a052",
+            "AllocateAddressRegion: alignment of regions of 1 GB and more mov w10,#0x40000000 \u2192 mov w10,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            112,
+            "0808a052",
+            "0804a052",
+            "AllocateAddressRegion: alignment of regions from 4 MB to 32 MB mov w8,#0x400000 \u2192 mov w8,#0x200000 (2 MB, as SDK 20)"
+          ]
+        ]
+      },
+      {
+        "name": "AllocateAddressRegion: regions of 4 MB and more aligned to 2 MB, as SDK 20",
+        "size": 352,
+        "fingerprints": [
+          "4bec18d9a1f8c73408e95b54d971b2ae87ccb5451b185e3378c05801ad03fa39",
+          "57ad718ebd4e8ebf49a3199c62e1ba2002867df5d124cfee6b4d30aeffee0b8d"
+        ],
+        "cuts": [
+          [
+            100,
+            "0b40a052",
+            "0b04a052",
+            "AllocateAddressRegion: alignment of regions from 32 MB to 1 GB mov w11,#0x2000000 \u2192 mov w11,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            108,
+            "0a00a852",
+            "0a04a052",
+            "AllocateAddressRegion: alignment of regions of 1 GB and more mov w10,#0x40000000 \u2192 mov w10,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            112,
+            "0808a052",
+            "0804a052",
+            "AllocateAddressRegion: alignment of regions from 4 MB to 32 MB mov w8,#0x400000 \u2192 mov w8,#0x200000 (2 MB, as SDK 20)"
+          ]
+        ]
+      },
+      {
+        "name": "AllocateAddressRegion: regions of 4 MB and more aligned to 2 MB, as SDK 20",
+        "size": 388,
+        "fingerprints": [
+          "bb9debe722dc0807c947365b7acfb1aa84f82af125e981f31b1d02b44d8032c8",
+          "58845d068f4e828c39e03f66fbe03487387404183b0bcc14068eb45b571d2c02"
+        ],
+        "cuts": [
+          [
+            100,
+            "0b40a052",
+            "0b04a052",
+            "AllocateAddressRegion: alignment of regions from 32 MB to 1 GB mov w11,#0x2000000 \u2192 mov w11,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            108,
+            "0a00a852",
+            "0a04a052",
+            "AllocateAddressRegion: alignment of regions of 1 GB and more mov w10,#0x40000000 \u2192 mov w10,#0x200000 (2 MB, as SDK 20)"
+          ],
+          [
+            112,
+            "0808a052",
+            "0804a052",
+            "AllocateAddressRegion: alignment of regions from 4 MB to 32 MB mov w8,#0x400000 \u2192 mov w8,#0x200000 (2 MB, as SDK 20)"
+          ]
+        ]
+      }
+    ]
+  },
+  "profile_match_cuts": {
+    "0100346017304000": {
+      "main": [
+        {
+          "name": "frame limiter threshold: 0 when N = 1",
+          "size": 364,
+          "fingerprints": [
+            "3191958fa93fa496f5b57c61cf4a08fd6154d947f0b16f481d119ba38c28c48d"
+          ],
+          "cuts": [
+            [
+              288,
+              "087c149be9e301b2291191f2087dc99b14fd45d3",
+              "087c149b890780520809c99a9f060071f403889a",
+              "frame limiter threshold: 0 when N = 1 (as 1.1.1 main+0x443fac)"
+            ]
+          ]
+        },
+        {
+          "name": "frame limiter threshold: 0 when N = 1",
+          "size": 172,
+          "fingerprints": [
+            "8fda590c2f6df29ae21230a600452979e26c0972dcb738cec24130239aef1346"
+          ],
+          "cuts": [
+            [
+              104,
+              "087c149be9e301b2291191f2087dc99b14fd45d3",
+              "087c149b890780520809c99a9f060071f403889a",
+              "frame limiter threshold: 0 when N = 1 (as v0 main+0x43e1a8)"
+            ]
+          ]
+        }
+      ]
+    },
+    "01006A800016E000": {
+      "main": [
+        {
+          "name": "engine region 62 GB \u2192 4 GB (11 instructions in four functions)",
+          "functions": [
+            {
+              "size": 472,
+              "fingerprints": [
+                "96d9585e1be0b5ad1a975ae94df0b9e5540467bbd4f646fe7b4eb7abb6ba89fc"
+              ],
+              "cuts": [
+                [
+                  60,
+                  "e11361b2",
+                  "2100c0d2",
+                  "AllocateAddressRegion size mov x1,#0xf80000000 \u2192 mov x1,#0x100000000 (62 GB \u2192 4 GB) (as 13.0.5 main+0x37c9a5c)"
+                ],
+                [
+                  76,
+                  "e97f7cb2",
+                  "09fe9fd2",
+                  "node pool top check, low part mov x9,#0xffffffff0 \u2192 mov x9,#0xfff0 (as 13.0.5 main+0x37c9a6c)"
+                ],
+                [
+                  80,
+                  "0be4afd2",
+                  "0be4bfd2",
+                  "node pool start mov x11,#0x7f200000 \u2192 mov x11,#0xff200000 (as 13.0.5 main+0x37c9a70)"
+                ],
+                [
+                  84,
+                  "09e4aff2",
+                  "09e4bff2",
+                  "node pool top check movk x9,#0x7f20,lsl #16 \u2192 movk x9,#0xff20,lsl #16 (0xff20fff0) (as 13.0.5 main+0x37c9a74)"
+                ],
+                [
+                  88,
+                  "eb01c0f2",
+                  "0b00c0f2",
+                  "node pool start movk x11,#0xf,lsl #32 \u2192 movk x11,#0,lsl #32 (0xff200000 = 4 GB \u2212 14 MB) (as 13.0.5 main+0x37c9a78)"
+                ],
+                [
+                  124,
+                  "e91361b2",
+                  "2900c0d2",
+                  "node pool bound: region end mov x9,#0xf80000000 \u2192 mov x9,#0x100000000 (as 13.0.5 main+0x37c9a9c)"
+                ],
+                [
+                  376,
+                  "01e48f52",
+                  "01e49f52",
+                  "first free range in 64 KB units mov w1,#0x7f20 \u2192 mov w1,#0xff20 (as 13.0.5 main+0x37c9b98)"
+                ],
+                [
+                  380,
+                  "e101a072",
+                  "0100a072",
+                  "first free range movk w1,#0xf,lsl #16 \u2192 movk w1,#0,lsl #16 (0xff20 units = 4 GB \u2212 14 MB) (as 13.0.5 main+0x37c9b9c)"
+                ]
+              ]
+            },
+            {
+              "size": 536,
+              "fingerprints": [
+                "6a1ad9e4dcca89cdb736dddc23b8cb7640ce06dce95ce497362749cb75b43e61"
+              ],
+              "cuts": [
+                [
+                  80,
+                  "e91361b2",
+                  "2900c0d2",
+                  "node pool bound: region end mov x9,#0xf80000000 \u2192 mov x9,#0x100000000 (as 13.0.5 main+0x37c9c50)"
+                ]
+              ]
+            },
+            {
+              "size": 1328,
+              "fingerprints": [
+                "6248aa2f59006b37f9af1690691000914210a3482e3a0defef56460c042cc43f"
+              ],
+              "cuts": [
+                [
+                  588,
+                  "e81361b2",
+                  "2800c0d2",
+                  "node pool bound: region end mov x8,#0xf80000000 \u2192 mov x8,#0x100000000 (as 13.0.5 main+0x37ca3cc)"
+                ]
+              ]
+            },
+            {
+              "size": 788,
+              "fingerprints": [
+                "846ba936f6b9870853808ed82d482ce0e104aa7ef300c692d79ca7d4837dd07b"
+              ],
+              "cuts": [
+                [
+                  88,
+                  "e91361b2",
+                  "2900c0d2",
+                  "node pool bound: region end mov x9,#0xf80000000 \u2192 mov x9,#0x100000000 (as 13.0.5 main+0x37caf68)"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

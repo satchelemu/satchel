@@ -1,0 +1,11 @@
+{
+  "source": "/tmp/satchel-ryujinx-profile-staging/strict-visits",
+  "source_validation": "/tmp/satchel-ryujinx-profile-staging/strict-visits/validation-manifest.json",
+  "modules": {
+    "flat-vertex.spv": "2dd809eb678399950917703ad63abac047430a622ccda6ddc31fdd8ad5db66f8",
+    "flat-fragment.spv": "850f889ff0385e083bec5dc6104ca39abb330bcf6ef3e30475aad333ba7cf233",
+    "location3-vertex-raw.spv": "b825a85573666eb7e19eb9f948652ba47597700006e5acef79d0406293d4761a",
+    "location3-fragment-raw.spv": "a1617a87bf8b0aa26c67492ea462d4268d5940b30f3941a0e1b7135f0a49809f"
+  },
+  "scope": "original independently encoded Maxwell passed through actual strict Ryujinx translator; not game input"
+}

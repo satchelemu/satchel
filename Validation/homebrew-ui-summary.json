@@ -1,0 +1,43 @@
+{
+  "device": "Physical iPhone19,4",
+  "os": "iOS 27.1",
+  "date": "2026-10-31",
+  "runs": [
+    {
+      "scope": "Original gameplay and local import/persistence",
+      "result": "Passed",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "runtimeWarnings": [],
+      "resultBundle": "/tmp/satchel-homebrew/Journey2.xcresult"
+    },
+    {
+      "scope": "iCloud Drive export/import/run",
+      "result": "Passed",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "runtimeWarnings": [],
+      "resultBundle": "/tmp/satchel-homebrew/Cloud5.xcresult"
+    },
+    {
+      "scope": "Local copy repair and import/persistence",
+      "result": "Passed",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "runtimeWarnings": [],
+      "resultBundle": "/tmp/satchel-homebrew/Repair.xcresult"
+    },
+    {
+      "scope": "Official nx-hbmenu missing-service diagnostic",
+      "result": "Passed",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "runtimeWarnings": [],
+      "resultBundle": "/tmp/satchel-homebrew/Existing.xcresult"
+    }
+  ]
+}

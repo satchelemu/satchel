@@ -1,0 +1,19 @@
+{
+  "status": "frozen, staged only",
+  "command": "zsh /tmp/satchel-scalar-admission-staging/test.sh",
+  "source_sha256": {
+    "ScalarCompiler.c": "60f532cadd61f1a03c937ebfdf3cbfa74bf42719701c58da1cef5db6177dd5dd",
+    "ScalarCompiler.h": "9aa63295ecff311b34f90b5ebfa4038d7f0159bb0922bc619a8a25eb4f5b374c",
+    "test.c": "8cbd3bf194ccf336dabfb79b5b3461e362dd3b777acae6bfda12339ff65162fc",
+    "test.sh": "711b3ef068332998135ac4b84f1dcf603dc9d2052df050e455f0cba958097676",
+    "admission_test.c": "eff53d3c0702c01fb61d6f829e64b44dc54b01d8e7863678c5863a246f6f2208",
+    "README.md": "3e6654af418893b3226bfad35254e75c5c7ef7f0010d739a86973a91e0696887"
+  },
+  "archive_sha256": {
+    "macos": "a8bc728c0f90c7889efe23045d52c51e8d7f05681775dff2f91e84e8d5daabd1",
+    "ios": "03f00519f12a760c07d76db965e6908eab120adbc9c603eb243a3d855e32714f"
+  },
+  "prior_modules_identical": true,
+  "canonical_promoted": false,
+  "prior_frozen_manifest_sha256": "f77a61a426a86f3a8ac6d7f5abde5e0898b7210b0f6b5476cde29dfee662f514"
+}

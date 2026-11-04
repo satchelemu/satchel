@@ -1,0 +1,306 @@
+[
+  {
+    "manifest": "Tools/ScalarCompiler/source-lock.json",
+    "field": [
+      "source_sha256",
+      "ScalarCompiler.c"
+    ],
+    "source": "Tools/ScalarCompiler/ScalarCompiler.c",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "60f532cadd61f1a03c937ebfdf3cbfa74bf42719701c58da1cef5db6177dd5dd",
+    "after": "dee2c006fce47232271e3374dc903b0eb93ba2e4f05528d92bd9b1a434460ea1"
+  },
+  {
+    "manifest": "Tools/ScalarCompiler/source-lock.json",
+    "field": [
+      "source_sha256",
+      "ScalarCompiler.h"
+    ],
+    "source": "Tools/ScalarCompiler/ScalarCompiler.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "9aa63295ecff311b34f90b5ebfa4038d7f0159bb0922bc619a8a25eb4f5b374c",
+    "after": "4ae3f47401e949376df3d3fdd5627c4143ee15a40d952e2125d561c4fe7e25ad"
+  },
+  {
+    "manifest": "Tools/ScalarCompiler/source-lock.json",
+    "field": [
+      "source_sha256",
+      "test.c"
+    ],
+    "source": "Tools/ScalarCompiler/test.c",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "8cbd3bf194ccf336dabfb79b5b3461e362dd3b777acae6bfda12339ff65162fc",
+    "after": "cbbe7b420b8218795a5613cffc78bad25853264461f091d37442eb14bbf06d57"
+  },
+  {
+    "manifest": "Tools/ScalarCompiler/source-lock.json",
+    "field": [
+      "source_sha256",
+      "admission_test.c"
+    ],
+    "source": "Tools/ScalarCompiler/admission_test.c",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "eff53d3c0702c01fb61d6f829e64b44dc54b01d8e7863678c5863a246f6f2208",
+    "after": "d773fc6e46de19060df46733b8693317467eb7d2abc2bda441181c2b61a7068a"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "CapturedFlat.cs"
+    ],
+    "source": "Tools/CapturedFlatCompiler/CapturedFlat.cs",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "1e543a7ca701129afd3ca6d9f395fb73edced2391a4b1c47f834de9866d08e0c",
+    "after": "701ca24a7e6539083a8d8f98d4b0d22105bae68f2645e0172149592e3d408c9b"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "CapturedFlat.csproj"
+    ],
+    "source": "Tools/CapturedFlatCompiler/CapturedFlat.csproj",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "4a96fd1e1bba416b8ae8e6acdfb5974be3889da68aae1e0b72132260917d8b2d",
+    "after": "8e0fd1be195d3acbfe57e5f630e834ca6a7e31568c143f975f42e7e2b7aab0e8"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "CapturedFlat.h"
+    ],
+    "source": "Tools/CapturedFlatCompiler/CapturedFlat.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "3d8edae99a38cc3b4ba1bf575f9b96fe7c389e5fbb51cacf3d2fd72b4c1321c7",
+    "after": "e8709287a034377954902297726a092c19b7263cb0349054ef5ae933082280de"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "MutationTest.c"
+    ],
+    "source": "Tools/CapturedFlatCompiler/MutationTest.c",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "054ab434fb01b083912283565ae5c17969da937315b7c338dc0ea77abf10b1f2",
+    "after": "dac4a98e3deba0fc10890e957cb3034784260bbb86e2649636f6bdd95fb42972"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "README.md"
+    ],
+    "source": "Tools/CapturedFlatCompiler/README.md",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "ed12f532bb937cec637aac0c278dd54a131bd15b091f12c0e6aad2068a963b4e",
+    "after": "0a2b0335e6a0f58eee42c2db42c4569d1efb77364b88674cf9c99c7688e20de0"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "SchemaTest.cpp"
+    ],
+    "source": "Tools/CapturedFlatCompiler/SchemaTest.cpp",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "03d3473469e9974f3afdc330108ba916d9fec556c5518657396a026c05c7ae92",
+    "after": "1fdf0b30c60fcd3da17edc0f627a5c25cb01e52cc7734777d4532a9f0b8206a1"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "SpirvProof.cs"
+    ],
+    "source": "Tools/CapturedFlatCompiler/SpirvProof.cs",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "0aa476d70814e7e549a57cd0cf016aad496e739097c6658f6114602bc6a0f61b",
+    "after": "ea3c70ecac2b5969f877a058b8899adc0d7ee3635278b3007853321ab65a552b"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "StrictSource.cs"
+    ],
+    "source": "Tools/CapturedFlatCompiler/StrictSource.cs",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "ad161f781901aac04a998f73df3404462791ce3325fa3bd83fbf0661f822f866",
+    "after": "e68357f128cfb0de658fe7788de79c49a302cca89ca997db2fc7937ab47c68bf"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "Test.c"
+    ],
+    "source": "Tools/CapturedFlatCompiler/Test.c",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "284e28f8354dc3cb20120d290682b108cc8c14502f3d681531b587daff2427b3",
+    "after": "34148f1d5db3e18533c4cc5f210f4e7bdc35189475a586088b745ac282f76565"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "WorkBudget.cs"
+    ],
+    "source": "Tools/CapturedFlatCompiler/WorkBudget.cs",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "6332e2bc2a465e777f5f5e79e03d2c3b05cf5e46317e337e5e1b9843de071d30",
+    "after": "392ccc57b7b7f0e5663295539a4acde2de8ffee4a054ad5a29ea4952c544a648"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "build.py"
+    ],
+    "source": "Tools/CapturedFlatCompiler/build.py",
+    "reason": "Repository-local builder: rename, two-job limits and checked scratch staging of 406 project budget namespace references in 32 pinned vendor files. Original vendor bytes/pins, full tests and assertions remain unchanged; staged consumed bytes are recorded and rechecked.",
+    "before": "0a0a9818703dc7b2e34f838db7ffd617c2ea66414a6ef945edf80793992ec853",
+    "after": "954cd7e33c6969bade5b660a4753f1ece9ae5c337c54d2dba39c0d3a35e9ae64"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "frozen-input-manifest.json"
+    ],
+    "source": "Tools/CapturedFlatCompiler/frozen-input-manifest.json",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "97a4eaaff67dff6d0d09f0214e90d8934ee4347234354a9fad6e2a94e77510d3",
+    "after": "04e0009fc2047663fa128e2855612e0f5456d0b2fce29723aa90e527621ae8cf"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "pinned-upstream.patch"
+    ],
+    "source": "Tools/CapturedFlatCompiler/pinned-upstream.patch",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "e6a5563d6d05c220c7c60c48238393e9a14e88dcc8897b53bebf4476b60396be",
+    "after": "76907f14c5b0a11589adff6be2aa4356b137e9a9222385555a012606aaca9246"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "upstream-review.patch"
+    ],
+    "source": "Tools/CapturedFlatCompiler/upstream-review.patch",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "54e92e0d8e97f490f4811a1b5708e19fe5b97c5c24208375c773e17df3039c28",
+    "after": "cc30b96d7d7eb80d1d63da6816e774b4cd80d40dacf12d4b3c61a48b418be5a3"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "CapturedFlatV2.cs"
+    ],
+    "source": "Tools/CapturedFlatCompiler/CapturedFlatV2.cs",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "44945b8aaa2989a7d4cfdc2b9f05fdcdeb2ca5de484f5e5be29c8d70ed37f951",
+    "after": "8de6bed3efd1e7a0b1c8bb17498ad8f64090a660ac1e24b0e09166332760808e"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "CapturedFlatV2.h"
+    ],
+    "source": "Tools/CapturedFlatCompiler/CapturedFlatV2.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "59738dfe624c77f7250860b7cf9b91cb95b66a1e6120cb9fa1d38b393a254be1",
+    "after": "cb2039253104e2d60543fbef0e848e042c0af69c33b6b2ff96625eb288ff2c29"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "CapturedFlatAdmission.cs"
+    ],
+    "source": "Tools/CapturedFlatCompiler/CapturedFlatAdmission.cs",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "bbccfae436a1fa8343c276f0ce8d0ff9c2738ed5798dfae487e087c0ff394cb4",
+    "after": "de2c7b37408a7c8de983f31f6f44e66325f20cd5695c8917cca4b35a5d56565c"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "CapturedFlatAdmission.h"
+    ],
+    "source": "Tools/CapturedFlatCompiler/CapturedFlatAdmission.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "9eac8c9c2958d921f8431059db99cad5ec4085769e4b63a733d2457a4f9251a1",
+    "after": "28e6d2e3772dfbde3ff1ae5292570ab8117775ebae316125670c1bc7e0da563f"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "AdmissionTest.c"
+    ],
+    "source": "Tools/CapturedFlatCompiler/AdmissionTest.c",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "2766bf4d18fcadd2dbb9c333189e0a2fe061209580408f285b57a2e27959ae52",
+    "after": "bf0d70c478b0153f1748877cb0af3eda3b7b6f6879e06f440c047a8bc14f6171"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "ADMISSION.md"
+    ],
+    "source": "Tools/CapturedFlatCompiler/ADMISSION.md",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "50462e7a2b83f4b3970c329b95787fc85c216fe271e6d05048924b89f7e5326c",
+    "after": "f3adc057ef92149d32e229bb7325e2bf8ddb1410e6e050f2bfaf6d93171fadee"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/renderer-reference-lock.json",
+    "field": [
+      "Tools/VulkanBackend/VulkanFlatSchema.inc"
+    ],
+    "source": "Tools/VulkanBackend/VulkanFlatSchema.inc",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "db4a91cd1381bfec5f1892e228afa45a32dffcb0a038f561dbeeeac8a3aa0332",
+    "after": "4eede019baf9acb3b017f87de9704505aa061ab44881b8629b9d14ae89255f8a"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/renderer-reference-lock.json",
+    "field": [
+      "Tools/VulkanBackend/VulkanFlat.h"
+    ],
+    "source": "Tools/VulkanBackend/VulkanFlat.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "f8a38fc236a9f6604fadc436899156b4a19d53f6dace06a8d3762159555df4b4",
+    "after": "b93d218541cd5f28d8c46d796337d1df8390ab777a7d93627a0faa7155496fb5"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/renderer-reference-lock.json",
+    "field": [
+      "Tools/VulkanBackend/VulkanBackend.h"
+    ],
+    "source": "Tools/VulkanBackend/VulkanBackend.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "a8204d62c835c1425806bfe61e7c58dfff76191e247c6b4693917ed3af222066",
+    "after": "8b269dbe3c1c89d2f061d5582c2626970eecf97a68ece7c4335c90060cd87e3d"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/renderer-reference-lock.json",
+    "field": [
+      "Tools/VulkanBackend/VulkanRaster.h"
+    ],
+    "source": "Tools/VulkanBackend/VulkanRaster.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "f6d1827de16e6de1f79fc5826409b622061840e4d17d308bafb217dd031cdf36",
+    "after": "e09b4cd1ab1a6f3b5f642c58ca2d7da0f0e9d1b16cd7e9b290d7109ddbb21ffa"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/renderer-reference-lock.json",
+    "field": [
+      "Tools/RasterCompiler/RasterCompiler.h"
+    ],
+    "source": "Tools/RasterCompiler/RasterCompiler.h",
+    "reason": "Repository-local source consumed by the builder. Only the reviewed rename changes its bytes; external pins and fixture digests are unchanged.",
+    "before": "90f90a84915d53efd2c80dd65b4c6b0d1a71aeac052fb278ff47916e18c37e36",
+    "after": "6d067a32f4046d788671f13f3479684cc1a293ceb0a352085609348e1633d55d"
+  },
+  {
+    "manifest": "Tools/CapturedFlatCompiler/source-lock.json",
+    "field": [
+      "renderer-reference-lock.json"
+    ],
+    "source": "Tools/CapturedFlatCompiler/renderer-reference-lock.json",
+    "reason": "Transitive local binding: the captured compiler locks the renderer reference manifest itself. That manifest changed only through its five individually reviewed rename digest updates.",
+    "before": "2d7eeb1bb8f1cb2873df039de93009c9556d3fedc2836dd3bd32e2f4ee388fb6",
+    "after": "25220e5c870e87fa3413986a5d0a904495c06ae14924c8d035dd3550a023e946"
+  }
+]

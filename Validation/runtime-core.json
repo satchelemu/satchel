@@ -1,0 +1,46 @@
+{
+  "activeModule": "sdk",
+  "cpuOutcome": "Stopped before unimplemented Horizon system call 0x29.",
+  "graphicsImplemented": false,
+  "graphicsSelfTest": {
+    "bufferValueMatched": true,
+    "dynamicCodeFeatures": 0,
+    "guardWordsMatched": true,
+    "maxwellCompleted": true,
+    "maxwellMSLBytes": 242,
+    "maxwellSpirvBytes": 676,
+    "passed": true,
+    "status": 0,
+    "storeMSLBytes": 185
+  },
+  "instructions": 66965844,
+  "memoryQueries": 22,
+  "modules": [
+    {
+      "imageBytes": 20480,
+      "name": "rtld",
+      "segmentHashesChecked": 3
+    },
+    {
+      "imageBytes": 120438784,
+      "name": "main",
+      "segmentHashesChecked": 3
+    },
+    {
+      "imageBytes": 6844416,
+      "name": "subsdk0",
+      "segmentHashesChecked": 3
+    },
+    {
+      "imageBytes": 12967936,
+      "name": "sdk",
+      "segmentHashesChecked": 3
+    }
+  ],
+  "pc": "0xfad81a0",
+  "seconds": 10.94199754166766,
+  "svc": 41,
+  "titleID": "0100ba4026e94000",
+  "verifiedBlocks": 996,
+  "verifiedExeFSBytes": 65215759
+}

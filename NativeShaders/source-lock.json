@@ -1,0 +1,19 @@
+{
+  "engine_commit": "8227f80f9b381c680611303319656c4e0c806a50",
+  "spirv_cross_commit": "f11ba9f0b21ba8fc15153d50a2a1ae31ab1cf8f7",
+  "oracle_sha256": {
+    "dmsh_build.py": "5fee5f0d7ac7fd24016b5522a5d73669a426709cf8bc58f4cd9921e7829f9235",
+    "dmsh_alpha.py": "943841c5e3f230958ac39038cfa4c7f5a7d6aee67f20e53f0d6a4e75b15e2478",
+    "dmsh_logic.py": "43179bdeae6f6aa1a9c13a6603e2f4fcf3b40fb3c21afedb6248a266aea9bf89",
+    "dmsh_pull.py": "5adde7bbcd4becd49b40d3747761b483ec36231c0fd5a7dbd4d54307cad4043c",
+    "dmsh_pull.metal": "898853af97a228e32cfe624e900222fdd36d372a83bc2d3dc573657225a269de",
+    "dmsh_vin.py": "5076c6bc3f587435f3d60723d11ef92ac105730c7214fee1135e21a4d0d63f14",
+    "dmsh_fetch.py": "c76494bd4e894e2e4e2bdd8e6871e58b83cd6c6b83551e76bf9f70d603994245",
+    "dmsh_geometry.py": "7d087606a8c2d81064e7cc8327bc7dc5f1eb77fbc99d26cb1146ce4b2f742e50",
+    "dmsh_atomic.py": "e889cf1c5e48df976008181f6f85b8d9ba987d170fe165d4d9d0a5798511dcef",
+    "dmsh_abi.py": "7fef7aa1ea3a2295abb3cb35ebcaa70ea72bdd7c254c2d393d95626b50b352aa",
+    "c1_guard.py": "60fee6f681232b615f268d138c234f0d8b8eeee2a4f70da2a38c03f492a35d61",
+    "cb_extent.py": "5d8e1988a0e686e1d114aa3e9f1c5eb8b229c7de2bc01e1cad72b1629c1b08c0",
+    "shader_split.py": "2e935d257282d39c10a1c3754c15cbd26d6af04a76c18b455b705595f78cabfc"
+  }
+}

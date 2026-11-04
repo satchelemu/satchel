@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>SatchelShaderProbe</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>preview</LangVersion>
+    <PublishAot>true</PublishAot>
+    <PublishAotUsingRuntimePack>true</PublishAotUsingRuntimePack>
+    <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
+    <NativeLib>Shared</NativeLib>
+    <Ryu>$(NX2AppleRoot)/dm/third_party/ryujinx/src</Ryu>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Ryu)/Ryujinx.Graphics.Shader/**/*.cs" Exclude="$(Ryu)/Ryujinx.Graphics.Shader/obj/**/*.cs;$(Ryu)/Ryujinx.Graphics.Shader/bin/**/*.cs;$(Ryu)/Ryujinx.Graphics.Shader/**/._*" />
+    <Compile Include="$(Ryu)/Spv.Generator/**/*.cs" Exclude="$(Ryu)/Spv.Generator/obj/**/*.cs;$(Ryu)/Spv.Generator/bin/**/*.cs;$(Ryu)/Spv.Generator/**/._*" />
+    <Compile Include="$(Ryu)/Ryujinx.Common/Memory/StructArrayHelpers.cs;$(Ryu)/Ryujinx.Common/Memory/IArray.cs;$(Ryu)/Ryujinx.Common/Utilities/BitUtils.cs;$(Ryu)/Ryujinx.Common/Utilities/BitfieldExtensions.cs;$(Ryu)/Ryujinx.Common/Pools/ObjectPool.cs" />
+    <Compile Include="Compiler.cs" />
+    <Compile Include="GameShaderTranslator.cs;GameShaderFacade.cs" Condition="'$(SatchelOriginalFixture)' != 'true'" />
+    <Compile Include="FixtureCompiler.cs;FixtureSpirv.cs" Condition="'$(SatchelOriginalFixture)' == 'true'" />
+    <EmbeddedResource Include="$(Ryu)/Ryujinx.Graphics.Shader/CodeGen/Glsl/HelperFunctions/*.glsl" LogicalName="Ryujinx.Graphics.Shader.CodeGen.Glsl.HelperFunctions.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(SatchelFixtureTesting)' == 'true'">
+    <DefineConstants>$(DefineConstants);SATCHEL_SHADER_FIXTURE_TESTING</DefineConstants>
+  </PropertyGroup>
+</Project>

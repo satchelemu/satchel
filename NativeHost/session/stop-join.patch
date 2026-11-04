@@ -1,0 +1,494 @@
+--- a/thread.c
++++ b/thread.c
+@@ -3,6 +3,7 @@
+ // section stores it as a mutex's owner and compares it in IsLockedByCurrentThread, where SDK 16 compared the object pointer). Here each thread gets a zero-initialized object allocated and
+ // written in, and its ID once the thread table has one (guest_thread_set_id)
+ #include "dm.h"
++#include "SessionBoundary.h"
+ #include <sys/mman.h>
+ #define TLS_SIZE 8192
+ #define TLR_SIZE 0x200
+@@ -43,7 +44,10 @@
+ static uint16_t g_gate_free[GATE_SLOTS]; static int g_gate_nfree = -1;
+ static pthread_key_t g_keygslot; static pthread_once_t g_gslot_once = PTHREAD_ONCE_INIT;
+ static void gslot_release(void *p) {   // key destructor (pthread_exit): slot + 1
+-    pthread_mutex_lock(&g_gate_lock); g_gate_free[g_gate_nfree++] = (uint16_t)((uintptr_t)p - 1); pthread_mutex_unlock(&g_gate_lock);
++    pthread_mutex_lock(&g_gate_lock);
++    unsigned slot = (unsigned)((uintptr_t)p - 1);
++    dm_gate_top[slot] = 0; g_gate_free[g_gate_nfree++] = (uint16_t)slot;
++    pthread_mutex_unlock(&g_gate_lock);
+ }
+ static void gslot_key_init(void) {
+     if (pthread_key_create(&g_keygslot, gslot_release)) die("cannot create the gate slot key");
+@@ -57,6 +61,7 @@
+     else {
+         uint8_t *m = mmap(NULL, GATE_STACK_SIZE + 16384, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+         if (m == MAP_FAILED || mprotect(m, 16384, PROT_NONE)) die("cannot map a gate stack (errno %d)", errno);   // guard page at the bottom
++        if (satchel_session_active()) satchel_session_own_mapping(m, GATE_STACK_SIZE + 16384);
+         top = m + 16384 + GATE_STACK_SIZE;
+     }
+     uintptr_t prev = (uintptr_t)pthread_getspecific(g_keygslot);
+--- a/hle_thread.c
++++ b/hle_thread.c
+@@ -10,6 +10,7 @@
+ // Semantics follow the public Horizon kernel behavior (KConditionVariable / KAddressArbiter / KSynchronization of Atmosphère mesosphère).
+ // All waits hang on one global lock G, with one condition variable per thread; correctness first, performance to be measured later.
+ #include "dm.h"
++#include "SessionBoundary.h"
+ #include <errno.h>
+ #include <sched.h>
+ #include <signal.h>
+@@ -51,7 +52,7 @@
+     uint32_t handle; uint64_t id;
+     uint64_t entry, arg, stack_top; int prio, core; uint64_t mask;
+     uint64_t born_ns, exit_ns; uint32_t born_tick, exit_tick;   // Time of creation / exit and the game tick at that time (for the state dump: did the job worker exit before the stall)
+-    int started, exited, cancel;
++    int started, exited, cancel, session_root_gate;
+     pthread_t pt; pthread_cond_t cv;
+     // Current wait: kind 0=none 1=lock 2=condition 3=address 4=synchronization object
+     int wkind, woke; uint64_t waddr, wkey; uint32_t wtag; int64_t wres;
+@@ -96,6 +97,18 @@
+ #define MAX_H 4096
+ static struct { int type; void *obj; } g_h[MAX_H];
+ static pthread_key_t g_keythr;
++static pthread_once_t g_keythr_once = PTHREAD_ONCE_INIT;
++static struct sigaction g_session_old_pause;
++static int g_session_has_pause;
++static void thread_key_init(void) { if (pthread_key_create(&g_keythr, NULL)) die("thread key"); }
++void satchel_kernel_gate_enter(int root) {
++    thr_t *t = pthread_getspecific(g_keythr);
++    if (t) { pthread_mutex_lock(&G); t->session_root_gate = root; pthread_mutex_unlock(&G); }
++}
++static int session_root_stopping(void) {
++    thr_t *t = pthread_getspecific(g_keythr);
++    return satchel_session_stopping() && t && t->session_root_gate;
++}
+ static uint64_t g_next_id = 0x51;
+ static thr_t *g_wait;          // All waiting threads (lock / condition / address / synchronization)
+ 
+@@ -168,7 +181,7 @@
+         for (thr_t *t = g_all; t && !busy; t = t->all)
+             if (t != self && t->started && !t->exited && !t->host_owned && t->mask == bit && t->prio < self->prio && thr_runnable(t) && (all || thr_in_handoff(t, self))) busy = 1;
+         pthread_mutex_unlock(&G);
+-        if (!busy) return waited;
++        if (!busy || session_root_stopping()) return waited;
+         { struct timespec ts = {0, 50000}; nanosleep(&ts, 0); } waited = 1;
+     }
+ }
+@@ -217,6 +230,7 @@
+ }
+ // Suspend until woken or timed out (ns<0 infinite, 0 immediate timeout); returns wres or R_TIMEOUT
+ static int64_t block(thr_t *t, int kind, int64_t ns) {
++    if (satchel_session_stopping() && t->session_root_gate) return R_CANCELLED;
+     t->wkind = kind; t->woke = 0; t->next = g_wait; g_wait = t; t->wseq = ++g_wseq;
+     if (ns == 0) { wait_unlink(t); t->wkind = 0; return R_TIMEOUT; }
+     hand_leave(t);
+@@ -291,6 +305,12 @@
+ // A host helper thread (audio notify / silent sink, vsync, movie decode) created from a guest thread inherits that thread's class; under DM_QOS_MAP it sets its own instead
+ void dm_host_helper_qos(qos_class_t q) { if (g_qos_map) pthread_set_qos_class_self_np(q, 0); }
+ static const char *thr_name(thr_t *t, char *buf, size_t n);
++static void thread_exit(thr_t *t);
++static void __attribute__((no_instrument_function)) session_thread_enter(void *p) {
++    thr_t *t = p;
++    guest_gate_stack(1);
++    dm_thread_enter(t->entry, t->arg, t->stack_top);
++}
+ static void *thread_main(void *p) {
+     thr_t *t = p;
+     pthread_setspecific(g_keythr, t);
+@@ -303,10 +323,11 @@
+     pthread_mutex_unlock(&G);
+     crash_thread_init();
+     guest_thread_init(); guest_thread_set_id(t->id);
+-    guest_gate_stack(1);   // the guest runs on its own stack from dm_thread_enter on: this pthread's stack below this frame is where its SVCs run
+-    pthread_mutex_lock(&G); while (!t->started) pthread_cond_wait(&t->cv, &G); pthread_mutex_unlock(&G);
++    pthread_mutex_lock(&G); while (!t->started && !satchel_session_stopping()) pthread_cond_wait(&t->cv, &G); pthread_mutex_unlock(&G);
++    if (satchel_session_stopping()) thread_exit(t);
+     { char nb[48], hn[64]; snprintf(hn, sizeof hn, "%#x %s", t->handle, thr_name(t, nb, sizeof nb)); pthread_setname_np(hn); }   // the guest's name (set before StartThread) for sample / Instruments
+-    dm_thread_enter(t->entry, t->arg, t->stack_top);   // Does not return: the guest must exit through ExitThread
++    satchel_session_run_guest(session_thread_enter, t);
++    if (satchel_session_stopping()) thread_exit(t);
+     die("guest thread entry returned");
+ }
+ static void thr_free(thr_t *t) {   // Holding G; unlink from the all-threads chain and free
+@@ -377,7 +398,8 @@
+ static void pause_install(void) {
+     struct sigaction sa = {.sa_sigaction = on_pause_sig, .sa_flags = SA_SIGINFO | SA_ONSTACK | SA_RESTART};
+     sigemptyset(&sa.sa_mask);
+-    sigaction(SIGUSR2, &sa, NULL);
++    sigaction(SIGUSR2, &sa, satchel_session_active() ? &g_session_old_pause : NULL);
++    g_session_has_pause = satchel_session_active();
+ }
+ // Horizon svc::ThreadContext (arm64, 0x320 bytes)
+ typedef struct { uint64_t r[29], fp, lr, sp, pc; uint32_t pstate, pad; __uint128_t v[32]; uint32_t fpcr, fpsr; uint64_t tpidr; } hz_ctx_t;
+@@ -470,13 +492,14 @@
+     return NULL;
+ }
+ static void hitch_init(void) {
++    if (satchel_session_active()) return;   // The diagnostic sampler has no session owner yet.
+     const char *e = getenv("DM_HITCH_DUMP"); if (!e || atoi(e) <= 0) return;
+     pthread_t th; pthread_create(&th, NULL, hitch_main, (void *)e); pthread_detach(th);
+     LOG("DM_HITCH_DUMP=%s: the guest threads are logged when no frame is presented for that many ms", e);
+ }
+ // Register the main thread and return its handle (passed to nnosInitialize as the main thread handle)
+ uint32_t svc_thread_main_init(void) {
+-    pthread_key_create(&g_keythr, NULL);
++    pthread_once(&g_keythr_once, thread_key_init);
+     qos_map_init();
+     { const char *e = getenv("DM_PREEMPT"); g_core_preempt = e ? atoi(e) != 0 : dm_profile()->core_preempt; }
+     pause_install();
+@@ -714,14 +737,14 @@
+ // Mac frame p95 34.5 → 41 ms with 7 drops per 300 frames; on the iPhone the threads also looked idle to the performance controller, which kept them on efficiency cores at 1.5 GHz.
+ // Waits under 2 ms are handoffs between threads that do work; waits beyond it are limiters and idle polls. Returns the sleep for a yield whose run started `run_ns` ago (0 = plain yield).
+ // DM_YIELD_BACKOFF=0 turns it off; DM_YIELD_BACKOFF=<cap µs>[:<start µs>] sets the cap and the run length after which it starts (default 250:2000)
++static int64_t g_session_yield_cap = -1, g_session_yield_start = 2000000;
+ static uint64_t yield_backoff_ns(uint64_t run_ns) {
+-    static int64_t cap = -1, start = 2000000;
+-    if (cap < 0) { const char *e = getenv("DM_YIELD_BACKOFF"); cap = 250000;
+-        if (e && *e) { cap = atoll(e) * 1000; const char *c = strchr(e, ':'); if (c) start = atoll(c + 1) * 1000; }
+-        if (!cap) LOG("DM_YIELD_BACKOFF=0: no back-off on repeated yields (plain sched_yield spin)"); else if (e && *e) LOG("DM_YIELD_BACKOFF: back off after %lld µs of repeated yields, sleeping at most %lld µs at a time", (long long)(start / 1000), (long long)(cap / 1000)); }
+-    if (!cap || run_ns < (uint64_t)start) return 0;
++    if (g_session_yield_cap < 0) { const char *e = getenv("DM_YIELD_BACKOFF"); g_session_yield_cap = 250000;
++        if (e && *e) { g_session_yield_cap = atoll(e) * 1000; const char *c = strchr(e, ':'); if (c) g_session_yield_start = atoll(c + 1) * 1000; }
++        if (!g_session_yield_cap) LOG("DM_YIELD_BACKOFF=0: no back-off on repeated yields (plain sched_yield spin)"); else if (e && *e) LOG("DM_YIELD_BACKOFF: back off after %lld µs of repeated yields, sleeping at most %lld µs at a time", (long long)(g_session_yield_start / 1000), (long long)(g_session_yield_cap / 1000)); }
++    if (!g_session_yield_cap || run_ns < (uint64_t)g_session_yield_start) return 0;
+     uint64_t s = run_ns / 8; if (s < 10000) s = 10000;
+-    return s < (uint64_t)cap ? s : (uint64_t)cap;
++    return s < (uint64_t)g_session_yield_cap ? s : (uint64_t)g_session_yield_cap;
+ }
+ // sched_yield, or a short sleep once the wait has lasted run_ns past the back-off's start
+ static void yield_for(thr_t *me, uint64_t run_ns) {
+@@ -759,17 +782,17 @@
+ // (yield_backoff_ns, DM_YIELD_BACKOFF), which leaves the core to the threads doing the work. A sched_yield on every pass instead (DM_SPIN_POLL=0) raised the Mac's frame p95 by 2-5 ms,
+ // as a yield there hands the core to other processes. DM_SPIN=0: no sleeps either. gate = the gate's address, site = the loop head (module offset)
+ #define SPIN_GAP_NS 20000
++static int g_session_spin_on = -1; static uint64_t g_session_spin_poll;
+ void dm_spin_wait(uint64_t gate, uint64_t site) {
+-    static int on = -1; static uint64_t poll_ns;
+-    if (on < 0) { const char *e = getenv("DM_SPIN"), *p = getenv("DM_SPIN_POLL"); poll_ns = (p && *p ? strtoull(p, 0, 10) : 2000) * 1000; on = !(e && *e && atoi(e) == 0);
+-                  if (!on) LOG("DM_SPIN=0: spin waits do not yield or sleep"); else if (p && *p) LOG("DM_SPIN_POLL: spin waits poll for %llu µs, then yield", (unsigned long long)(poll_ns / 1000)); }
++    if (g_session_spin_on < 0) { const char *e = getenv("DM_SPIN"), *p = getenv("DM_SPIN_POLL"); g_session_spin_poll = (p && *p ? strtoull(p, 0, 10) : 2000) * 1000; g_session_spin_on = !(e && *e && atoi(e) == 0);
++                  if (!g_session_spin_on) LOG("DM_SPIN=0: spin waits do not yield or sleep"); else if (p && *p) LOG("DM_SPIN_POLL: spin waits poll for %llu µs, then yield", (unsigned long long)(g_session_spin_poll / 1000)); }
+     thr_t *me = pthread_getspecific(g_keythr);
+     if (!me) return;
+     uint64_t now = now_ns();
+     if (me->srun_svc != me->nsvc || now - me->spin_ret > SPIN_GAP_NS) me->srun_t0 = now;   // a new wait
+     me->srun_svc = me->nsvc; me->nspin++;
+     if (site != me->spin_site || !me->spin_mod) { const module_t *m = module_of((void *)gate); me->spin_mod = m ? m->name : "?"; me->spin_site = site; }
+-    if (on && now - me->srun_t0 >= poll_ns) { me->nyield++; yield_for(me, now - me->srun_t0); }
++    if (g_session_spin_on && now - me->srun_t0 >= g_session_spin_poll) { me->nyield++; yield_for(me, now - me->srun_t0); }
+     me->spin_ret = now_ns();
+ }
+ // Short timed waits as polls. A wait with a timeout under 20 µs (a condition variable, WaitSynchronization or WaitForAddress) that times out is a poll, as a SleepThread that short is
+@@ -841,6 +864,7 @@
+ // Each step sleeps only 3/4 of the remaining time (the slack is at most about 25%, so it never oversleeps), looping until within 20 µs: a 33 ms sleep takes about 4 system calls with an error of tens of microseconds, and nothing spins
+ static void sleep_precise(uint64_t dl) {
+     for (int i = 0; i < 16; i++) {
++        if (session_root_stopping()) return;
+         uint64_t now = now_ns(); if (now + 20000 >= dl) return;
+         uint64_t rem = dl - now, s = rem < 100000 ? rem : rem - rem / 4;
+         struct timespec ts = {(time_t)(s / 1000000000u), (long)(s % 1000000000u)}; nanosleep(&ts, 0);
+@@ -852,7 +876,7 @@
+     if (ns <= 0) return;
+     if (dm_detclock_enabled()) {
+         uint64_t deadline = guest_ns() + (uint64_t)ns;
+-        while (guest_ns() < deadline) { struct timespec ts = {0, 1000000}; nanosleep(&ts, 0); }
++        while (guest_ns() < deadline && !session_root_stopping()) { struct timespec ts = {0, 1000000}; nanosleep(&ts, 0); }
+         return;
+     }
+     thr_t *me = pthread_getspecific(g_keythr); if (me) me->sleeping = 1;
+@@ -884,13 +908,25 @@
+         //   SMBW's font engine picks its per-core engine slot by the current core number and crashed indexing with -2 (main +0x107dbc0, SequenceBackgroundWorker thread)
+         t->prio = (int)regs[4]; t->core = (int)regs[5] >= 0 ? (int)regs[5] : 0; t->mask = 1ull << t->core;
+         t->born_ns = now_ns(); t->born_tick = dm_thread_tick_fn ? dm_thread_tick_fn() : 0;
+-        pthread_mutex_lock(&G); t->handle = h_new(O_THREAD, t); t->id = g_next_id++; pthread_mutex_unlock(&G);
+         pthread_attr_t a; pthread_attr_init(&a); pthread_attr_setstacksize(&a, 1 << 20);
+-        pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);   // Host resources are reclaimed on exit (the guest waits through the handle, no join)
+-        pthread_t pt; if (pthread_create(&pt, &a, thread_main, t)) die("pthread_create");
++        if (!satchel_session_active()) pthread_attr_setdetachstate(&a, PTHREAD_CREATE_DETACHED);
++        // Publish under G before the child can start or a stop can inspect it.
++        pthread_mutex_lock(&G);
++        if (satchel_session_stopping()) {
++            pthread_mutex_unlock(&G); pthread_attr_destroy(&a);
++            pthread_cond_destroy(&t->cv); pthread_cond_destroy(&t->pcv); free(t);
++            regs[0] = R_CANCELLED; regs[1] = 0; return 1;
++        }
++        t->handle = h_new(O_THREAD, t); t->id = g_next_id++;
++        int error = satchel_session_pthread_create(&t->pt, &a, thread_main, t);
+         pthread_attr_destroy(&a);
+-        // pthread_create writes its output without G; publish that value and the registry link together.
+-        pthread_mutex_lock(&G); t->pt = pt; t->all = g_all; g_all = t; pthread_mutex_unlock(&G);
++        if (error) {
++            memset(&g_h[t->handle - 0x1000], 0, sizeof g_h[0]);
++            pthread_mutex_unlock(&G);
++            pthread_cond_destroy(&t->cv); pthread_cond_destroy(&t->pcv); free(t);
++            regs[0] = error == EBUSY ? R_CANCELLED : R_OUT_OF_RES; regs[1] = 0; return 1;
++        }
++        t->all = g_all; g_all = t; pthread_mutex_unlock(&G);
+         if (g_flag.thr) LOG("CreateThread h=%#x entry=%#llx arg=%#llx sp=%#llx prio=%d core=%d", t->handle, t->entry, t->arg, t->stack_top, t->prio, t->core);
+         regs[0] = 0; regs[1] = t->handle; return 1;
+     }
+@@ -937,12 +973,12 @@
+         thr_t *t = h_get((uint32_t)regs[0], O_THREAD); int64_t r = 0;
+         if (!t) r = R_BAD_HANDLE;
+         else if (t == me) r = R_BAD_STATE;
+-        else if (act == 1) {
++        else if (act == 1 && !session_root_stopping()) {
+             atomic_store(&t->pause_req, 1);
+             int st = atomic_fetch_or(&t->svc_state, 2);
+             if (!t->started || t->exited || (st & 1)) t->paused = 1;
+             uint64_t t0 = now_ns(); int warned = 0;
+-            while (!t->paused && !t->exited) {
++            while (!t->paused && !t->exited && !session_root_stopping()) {
+                 pthread_mutex_unlock(&G); pthread_kill(t->pt, SIGUSR2); pthread_mutex_lock(&G);
+                 if (t->paused || t->exited) break;
+                 struct timespec dl; clock_gettime(CLOCK_REALTIME, &dl); dl.tv_nsec += 100000; if (dl.tv_nsec >= 1000000000) { dl.tv_sec++; dl.tv_nsec -= 1000000000; }
+@@ -1085,7 +1121,7 @@
+             int64_t left = ns < 0 ? -1 : ns == 0 ? 0 : deadline - (dm_detclock_enabled() ? (int64_t)guest_ns() : now_mono_ns());
+             if (ns > 0 && left <= 0) { r = R_TIMEOUT; break; }
+             t->whs = hs; t->whn = n; int64_t br = block(t, 4, left); t->whs = NULL; t->whn = 0;
+-            if (br == R_TIMEOUT) { r = R_TIMEOUT; break; }
++            if (br == R_TIMEOUT || br == R_CANCELLED) { r = br; break; }
+         }
+         pthread_mutex_unlock(&G);
+         poll_wait_end((int64_t)regs[3], r);
+@@ -1197,3 +1233,45 @@
+     }
+     pthread_mutex_unlock(&G);
+ }
++
++// Satchel: coordinator calls this after closing thread admission. Nested native
++// calls must unwind normally; waking their guest waits can strand a host lock.
++void satchel_kernel_request_stop(void) {
++    if (!satchel_session_stopping()) return;
++    pthread_mutex_lock(&G);
++    for (thr_t *t = g_all; t; t = t->all) {
++        atomic_store(&t->pause_req, 0);
++        pthread_cond_broadcast(&t->pcv);
++        if (t->wkind && t->session_root_gate) wake(t, R_CANCELLED);
++        pthread_cond_broadcast(&t->cv);
++    }
++    pthread_mutex_unlock(&G);
++}
++void satchel_kernel_thread_exit(void) { thread_exit(cur()); }
++int satchel_kernel_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    pthread_mutex_lock(&G);
++    for (thr_t *t = g_all; t; t = t->all) if (!t->exited) {
++        pthread_mutex_unlock(&G); return EBUSY;
++    }
++    if (g_wait) { pthread_mutex_unlock(&G); return EBUSY; }
++    for (unsigned i = 1; i < MAX_H; ++i)
++        if (g_h[i].type == O_EVENT_R || g_h[i].type == O_EVENT_W) {
++            event_t *event = g_h[i].obj; if (!--event->refs) free(event);
++        }
++    memset(g_h, 0, sizeof g_h);
++    while (g_all) thr_free(g_all);
++    pthread_mutex_lock(&g_se_lock);
++    memset(g_se, 0, sizeof g_se); g_nse = 0; g_next_se_id = 1;
++    pthread_mutex_unlock(&g_se_lock);
++    g_next_id = 0x51; g_wseq = 0; g_core_preempt = 0;
++    g_session_yield_cap = -1; g_session_yield_start = 2000000;
++    g_session_spin_on = -1; g_session_spin_poll = 0;
++    g_main_yield_n = 0; g_main_yield_ns = 0;
++    g_preempt_n = 0; g_preempt_ns = 0; dm_thread_tick_fn = NULL; dm_present_ns = 0;
++    g_qos_map = 0; g_qos_e1 = 44; g_qos_e2 = 59;
++    int error = g_session_has_pause && sigaction(SIGUSR2, &g_session_old_pause, NULL) ? errno : 0;
++    if (!error) g_session_has_pause = 0;
++    pthread_mutex_unlock(&G);
++    return error;
++}
+--- a/hle.c
++++ b/hle.c
+@@ -1,3 +1,4 @@
++#include "SessionBoundary.h"
+ // Import resolution (implemented ones go to the host, the rest go to named stubs) and host gate dispatch.
+ #include "hle.h"
+ #include <mach-o/getsect.h>
+@@ -110,6 +111,7 @@
+ uint64_t svc_dispatch(int num, uint64_t *regs, uint64_t orig_addr);   // hle_svc.c
+ 
+ uint64_t gate_dispatch(uint64_t ret_addr, uint64_t *regs) {
++    if (satchel_session_active()) satchel_kernel_gate_enter(satchel_session_root_call());
+     for (unsigned i = gate_h(ret_addr);; i = (i + 1) & ((1u << GATE_BITS) - 1)) {
+         const gate_t *g = &g_gate[i];
+         if (g->ret == ret_addr) switch (g->kind) {
+--- a/hle_profile.c
++++ b/hle_profile.c
+@@ -1,3 +1,5 @@
++#include "SessionBoundary.h"
++#include <errno.h>
+ // Runtime game profile: see hle_profile.h. One IPA for every game reads its layout, switches and tables from DM_PROFILE
+ // instead of having them compiled in (game_profile.h stays the fallback, so a build without DM_PROFILE is unchanged).
+ #include "dm.h"
+@@ -310,3 +312,8 @@
+     LOG("  more stdalloc_cap %#llx key_skip %#x+%#x bc_cpu %d ue_pool %d enc_thread %d",
+         (unsigned long long)p->stdalloc_cap, p->shader_skip_off, p->shader_skip_len, p->tex_bc_cpu, p->ue_texture_pool, p->enc_thread);
+ }
++
++int satchel_profile_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    memset(&P, 0, sizeof P); g_loaded = 0; return 0;
++}
+--- a/hle_fs.c
++++ b/hle_fs.c
+@@ -1,3 +1,4 @@
++#include "SessionBoundary.h"
+ // nn::fs: on the real device it goes through the fsp-srv service; the host connects directly to the Mac file system. Mount name → host directory:
+ //   rom   → $DM_ROMFS (default $DM_ROOT/romfs, read-only; the game parses the storage blocks in it itself)
+ //   save  → $DM_SAVE (must be set, pointing to this run's copy of the standard save save_ref; if unset, report a failure and abort)
+@@ -107,7 +108,8 @@
+ __attribute__((weak)) void front_save_failed(int err) { LOG("front_save_failed(errno=%d): no front end attached (default weak implementation)", err); }
+ // DM_FSLOG=<file>: each ReadFile logs one TSV line "seconds since boot\tguest path\toffset\tlength\tguest buffer address" (which bytes boot read, for offline reverse lookup against the manifest)
+ static FILE *g_fslog; static char *g_fdpath[4096]; static pthread_mutex_t g_fslog_lock = PTHREAD_MUTEX_INITIALIZER;
+-static void fslog_init(void) { static int done; if (done) return; done = 1; const char *e = getenv("DM_FSLOG"); if (e && !(g_fslog = fopen(e, "w"))) die("cannot open DM_FSLOG %s", e); if (g_fslog) setvbuf(g_fslog, NULL, _IOLBF, 0); }   // line-buffered: runs end at the time-limit alarm or a crash, which never flush stdio
++static int g_fslog_done;
++static void fslog_init(void) { if (g_fslog_done) return; g_fslog_done = 1; const char *e = getenv("DM_FSLOG"); if (e && !(g_fslog = fopen(e, "w"))) die("cannot open DM_FSLOG %s", e); if (g_fslog) setvbuf(g_fslog, NULL, _IOLBF, 0); }   // line-buffered: runs end at the time-limit alarm or a crash, which never flush stdio
+ 
+ static const char *envdir(const char *var, const char *rel, char *buf, size_t n) {
+     const char *v = getenv(var);
+@@ -918,7 +920,12 @@
+ }
+ 
+ // ---------- Directories ----------
+-typedef struct { DIR *d; char path[1024]; DIR *od; char opath[1024]; DirectoryEntry *snap; int64_t nsnap, psnap; int mode; } dirh_t;
++typedef struct dirh { struct dirh *next; DIR *d; char path[1024]; DIR *od; char opath[1024]; DirectoryEntry *snap; int64_t nsnap, psnap; int mode; } dirh_t;
++static dirh_t *g_open_dirs;
++static pthread_mutex_t g_dirs_lock = PTHREAD_MUTEX_INITIALIZER;
++static void dir_track(dirh_t *h) {
++    pthread_mutex_lock(&g_dirs_lock); h->next = g_open_dirs; g_open_dirs = h; pthread_mutex_unlock(&g_dirs_lock);
++}
+ static void dir_snapshot(dirh_t *h, const mount_t *m, const char *rest) {
+     char fwd[1024]; rest = fwd_slashes(rest, fwd, sizeof fwd);
+     char *roots = strdup(m->overlay);
+@@ -978,7 +985,7 @@
+             memcpy(o->name, m->names + c->name, c->nlen < sizeof o->name ? c->nlen : sizeof o->name - 1);
+             o->type = c->type ? ENT_FILE : ENT_DIR; o->size = c->type ? (int64_t)c->b : 0;
+         }
+-        *out = (uint64_t)h; return RES_OK;
++        dir_track(h); *out = (uint64_t)h; return RES_OK;
+     }
+     HP(path); DIR *d = opendir(hp);
+     if (!d) return err_res("opendir", hp);
+@@ -987,7 +994,7 @@
+     if (c) for (int i = 0; i < g_nmnt; i++) if (g_mnt[i].overlay[0] && strlen(g_mnt[i].name) == (size_t)(c - path) && !strncmp(g_mnt[i].name, path, (size_t)(c - path))) {
+         dir_snapshot(h, &g_mnt[i], c + 1); break;
+     }
+-    *out = (uint64_t)h; return RES_OK;
++    dir_track(h); *out = (uint64_t)h; return RES_OK;
+ }
+ HLE_FORCE("_ZN2nn2fs13ReadDirectoryEPlPNS0_14DirectoryEntryENS0_15DirectoryHandleEl", "fsp-srv → readdir(3)", Result, h_fs_ReadDirectory, int64_t *count, DirectoryEntry *ents, uint64_t hh, int64_t max) {
+     if (!hh) { *count = 0; return RES_FAIL; }
+@@ -1009,7 +1016,11 @@
+ }
+ HLE_FORCE("_ZN2nn2fs14CloseDirectoryENS0_15DirectoryHandleE", "fsp-srv → closedir(3)", void, h_fs_CloseDirectory, uint64_t hh) {
+     if (!hh) return;   // the game also closes after a failed open (handle 0): nothing to do in the original either
+-    dirh_t *h = (dirh_t *)hh; if (h->d) closedir(h->d); if (h->od) closedir(h->od); free(h->snap); free(h);
++    dirh_t *h = (dirh_t *)hh;
++    pthread_mutex_lock(&g_dirs_lock);
++    for (dirh_t **p = &g_open_dirs; *p; p = &(*p)->next) if (*p == h) { *p = h->next; break; }
++    pthread_mutex_unlock(&g_dirs_lock);
++    if (h->d) closedir(h->d); if (h->od) closedir(h->od); free(h->snap); free(h);
+ }
+ 
+ // ---------- Overloads from newer SDKs (SDK 16: MountRom without a cache, ReadFile without the bytes-read output / with read options, directory entry count) ----------
+@@ -1042,3 +1053,37 @@
+ HLE_FORCE("_ZN2nn2fs26SetPriorityOnCurrentThreadENS0_8PriorityE", "fsp-srv; file read priority, ignored by the host", void, h_fs_SetPrio, int prio) { (void)prio; }
+ HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEj", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLogMask, unsigned mask) { (void)mask; return 0; }
+ HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEv", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLog, void) { return 0; }
++
++// No forced Commit here. Only the game knows when its logical save transaction
++// is complete. Quiescence lets an in-flight Commit finish; the last successful
++// atomic swap survives, and the next mount discards unfinished work.
++int satchel_fs_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    PATH_LOCK(); pthread_mutex_lock(&g_lock);
++    int error = 0;
++    for (unsigned fd = 0; fd < sizeof g_fmode; ++fd) {
++        if (g_fmode[fd] && close((int)fd) && !error) error = errno;
++        g_fmode[fd] = 0; atomic_store(&g_ftxn[fd], 0);
++    }
++    while (g_open_dirs) h_fs_CloseDirectory((uint64_t)g_open_dirs);
++    for (int i = 0; i < g_nmnt; ++i) if (g_mnt[i].img) {
++        romfs_img *image = g_mnt[i].img;
++        for (int j = i; j < g_nmnt; ++j) if (g_mnt[j].img == image) g_mnt[j].img = NULL;
++        romfs_image_close(image);
++    }
++    for (unsigned i = 0; i < DIR_INDEX_SLOTS; ++i) {
++        while (g_dir_index[i]) {
++            dir_index *d = g_dir_index[i]; g_dir_index[i] = d->next;
++            free(d->path); free(d->e); free(d->pool); free(d);
++        }
++    }
++    pthread_mutex_lock(&g_fslog_lock);
++    if (g_fslog && fclose(g_fslog) && !error) error = errno;
++    g_fslog = NULL; g_fslog_done = 0;
++    for (unsigned i = 0; i < sizeof g_fdpath / sizeof *g_fdpath; ++i) { free(g_fdpath[i]); g_fdpath[i] = NULL; }
++    pthread_mutex_unlock(&g_fslog_lock);
++    memset(g_mnt, 0, sizeof g_mnt); g_nmnt = 0;
++    g_save_writes = 0; g_save_commits = 0;
++    pthread_mutex_unlock(&g_lock);
++    return error;
++}
+--- a/hle_os.c
++++ b/hle_os.c
+@@ -1,3 +1,4 @@
++#include "SessionBoundary.h"
+ // Host common miscellany: guest object side table, monotonic clock, C library imports that none of the modules define.
+ // (The former 136 HLE entries for nn::os/mem/lmem/C++ ABI have been deleted: the SDK brings its own nn::os, and at load time not one of these entries was resolved and used.)
+ #include <pthread.h>
+@@ -48,9 +49,10 @@
+ // Before the first frame the wall clock is still used (the boot period has waits that poll by time, freezing would hang them); at the switch it continues from the guest clock value at that time, no jump. It does not advance while frozen.
+ static _Atomic uint64_t g_gfrozen, g_glag, g_gdet, g_guest_frame; static _Atomic int g_gfz, g_gdet_on; static uint64_t g_gdet_step = 1;
+ uint64_t dm_guest_frame(void) { return atomic_load(&g_guest_frame); }
++static int g_session_detclock = -1;
+ static int detclock_cfg(void) {
+-    static int c = -1; if (c < 0) { const char *e = getenv("DM_DETCLOCK"); g_gdet_step = e ? strtoull(e, 0, 0) : 0; c = g_gdet_step > 0; }
+-    return c;
++    if (g_session_detclock < 0) { const char *e = getenv("DM_DETCLOCK"); g_gdet_step = e ? strtoull(e, 0, 0) : 0; g_session_detclock = g_gdet_step > 0; }
++    return g_session_detclock;
+ }
+ static uint64_t wall_guest_ns(void) { return atomic_load(&g_gfz) ? atomic_load(&g_gfrozen) : now_ns() - atomic_load(&g_glag); }
+ uint64_t guest_ns(void) { return atomic_load(&g_gdet_on) ? atomic_load(&g_gdet) : wall_guest_ns(); }
+@@ -80,7 +82,7 @@
+ void guest_clock_read_wait(void) {
+     if (!atomic_load(&g_gfz_bg) || atomic_load(&dm_host_work)) return;
+     pthread_mutex_lock(&g_gfz_mu);
+-    while (g_gfz_reasons & 2u) pthread_cond_wait(&g_gfz_cv, &g_gfz_mu);
++    while ((g_gfz_reasons & 2u) && !satchel_session_stopping()) pthread_cond_wait(&g_gfz_cv, &g_gfz_mu);
+     pthread_mutex_unlock(&g_gfz_mu);
+ }
+ void guest_clock_freeze_for(int reason, int on) {
+@@ -159,3 +161,16 @@
+     pthread_once(&g_sa_once, sa_init);
+     return g_sa_big_align && size >= 0x10000 ? g_sa_alloc_al(self, size, 0x10000) : g_sa_alloc(self, size);
+ }
++
++void satchel_clock_request_stop(void) {
++    if (!satchel_session_stopping()) return;
++    pthread_mutex_lock(&g_gfz_mu); pthread_cond_broadcast(&g_gfz_cv); pthread_mutex_unlock(&g_gfz_mu);
++}
++int satchel_clock_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    pthread_mutex_lock(&g_gfz_mu);
++    g_gfz_reasons = 0; g_gfz_bg = 0; g_gfrozen = 0; g_glag = 0;
++    g_gdet = 0; g_guest_frame = 0; g_gfz = 0; g_gdet_on = 0; g_gdet_step = 1;
++    g_session_detclock = -1; g_detrng = 0x5357444554524e47ull; g_detrng_n = 0;
++    pthread_mutex_unlock(&g_gfz_mu); return 0;
++}
+--- a/crash.c
++++ b/crash.c
+@@ -186,7 +186,12 @@
+ // The alternate stack is released when the thread exits: the pthread key destructor is called at thread exit (disable the alternate stack first, then free). The game frequently starts short-lived threads, and without releasing each one leaks 64 KiB.
+ static pthread_key_t g_altstack_key;
+ static pthread_once_t g_altstack_once = PTHREAD_ONCE_INIT;
+-static void altstack_free(void *p) { stack_t off = {.ss_flags = SS_DISABLE}; sigaltstack(&off, 0); free(p); }
++static void altstack_free(void *p) {
++    // Darwin can reject a zero-sized disable request with ENOMEM.
++    stack_t off = {.ss_flags = SS_DISABLE, .ss_size = 65536};
++    if (sigaltstack(&off, 0)) die("cannot disable the guest signal stack");
++    free(p);
++}
+ static void altstack_key_init(void) { if (pthread_key_create(&g_altstack_key, altstack_free)) die("altstack key"); }
+ void crash_thread_init(void) {
+     pthread_once(&g_altstack_once, altstack_key_init);

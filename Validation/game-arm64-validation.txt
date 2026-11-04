@@ -1,0 +1,1 @@
+PASS: 80 registers match native ARM64 exclusives, barriers, TLS, integer operations and SIMD string/memory operations; alignment/write protection enforced

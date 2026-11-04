@@ -1,0 +1,21 @@
+{
+  "activeModule": "main",
+  "activeModuleOffset": "0x8217c8",
+  "attributesServiced": 3,
+  "cpuReason": 3,
+  "executionElapsedMilliseconds": 117963,
+  "executionTimeoutSeconds": 240,
+  "graphicsImplemented": false,
+  "hostOnly": true,
+  "instructions": 67462784,
+  "ipcRequests": 63,
+  "ipcServiced": 63,
+  "pc": "0x88267c8",
+  "permissionChangedBytes": 491520,
+  "permissionLockedBytes": 4456448,
+  "permissionsServiced": 2,
+  "schedulerState": 0,
+  "stopsBeforeNVN": true,
+  "storageReads": 0,
+  "threads": 2
+}

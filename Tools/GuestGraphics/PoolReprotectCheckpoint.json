@@ -1,0 +1,24 @@
+{
+  "scope": "Combined UCVTF W/X-to-D and scalar FDIV D; 5837760 full original native/sanitizer assertions and iOS17 compile passed. Historical focused pool gate unchanged; no new pool-behavior claim.",
+  "cpu_archive_sha256": "8b6507d6b7410bd40d89838f375d9b78eaf271398a27889db3327f41ad02e168",
+  "cpu_sources": {
+    "CPUProbe.cpp": "3ee635cd78fa20a4881b9718e80c1711072bd9bb728a337cdbfa2b058ce56cfc",
+    "CPUProbe.h": "95a65e120474ab7ab1ec610f771cac4d15f6885ed0875b12d1074d66cdf9817c",
+    "Binary64.cpp": "48b288dde71716c53dc9c4fb6974dcf3dbce3bb63ab6a4efb1988a5821a8906b",
+    "Binary64.h": "43622a8307234990965d25004b063b6166e12d77785cdbb2d17fea6b0823d146",
+    "vixl-memory-guard.patch": "e869266297db19c73448abeec433d035dcf6d6cfd03bde7dea1ad36ebbf30274",
+    "build.py": "463c5d9459227fa42ee681704a3ceeedb0becbc993b6e90aa338e05908d1c1de"
+  },
+  "original_test_sha256": "fff949709d197dfd8bfb6f16a777d3fcd948684fa1bb4a304eccfb58a3d83e9c",
+  "original_gate": "Pool reprotection: 196700 sanitizer assertions; RW/R/NONE split guards, real mirror unchanged on refusals, restored cache copies, stable generation/accounting, pending CPU-free retirement. Counts include byte assertions.",
+  "original_inputs": {
+    "/tmp/satchel-vixl-probe/reprotect-staging/macos/libSatchelCPUProbe.a": "f6352d6bde2a6c3a628af98305b018ab6c527523788fca0e1054cb80c89a4e4e",
+    "/tmp/satchel-vixl-probe/reprotect-staging/source/Tools/CPUProbe/CPUProbe.h": "95a65e120474ab7ab1ec610f771cac4d15f6885ed0875b12d1074d66cdf9817c",
+    "/tmp/satchel-vixl-probe/reprotect-staging/source/Tools/CPUProbe/CPUProbe.cpp": "e0379cd75b49f469c9d99b16d57903eb742c112fc2cc46149d5d3e405767b298",
+    "/tmp/satchel-nvn-raster-repro-build/macos/GuestPools.o": "d7ac8ae2d0c119164044900f9b7224ff8ba9b06366ddf77190aca61b23a07b19",
+    "/tmp/satchel-nvn-raster-repro-build/macos/backend.o": "e8f8b5d96bc212feb6a5932f475aa38035f83a9df8c194b2f697e32323680575",
+    "/Users/dell/Documents/Repo - Personal/satchel/Tools/GuestGraphics/GuestPools.c": "28d3d8ec7f0c64a1fdad8b2587e7fce9085d1ee4d03f3baea2504dc5a6967a25",
+    "/Users/dell/Documents/Repo - Personal/satchel/Tools/GuestGraphics/GuestPools.h": "0a3b09e1224a251d1866f62fc6eb43bbc4722a42f45b53108386601b402a1bd8"
+  },
+  "cpu_validation_manifest": "/tmp/satchel-vixl-probe/fdiv-staging/validation-manifest.json"
+}

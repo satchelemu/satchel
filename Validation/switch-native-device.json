@@ -1,0 +1,34 @@
+{
+  "status": "limited_gameplay_and_touch_validated",
+  "bundle_id": "com.dell.satchel.native.0100f2c0115b6000",
+  "version": "1.4.3",
+  "initial_pid": 14293,
+  "first_present_seconds": 9.929,
+  "shader_count": 28669,
+  "interactive_gameplay_verified": true,
+  "touch_verified": true,
+  "save_reload_verified": false,
+  "audible_output_verified": false,
+  "ui_test_error": null,
+  "red_log_line_count": 0,
+  "crash_marker_count": 0,
+  "ui_authentication": "resolved_by_user_touch_id",
+  "ui_test_cases_passed": 4,
+  "same_pid_after_tests": 14293,
+  "observed_scene_fps": [
+    29,
+    30
+  ],
+  "tested_actions": [
+    "Plus opens System menu",
+    "B returns to cave",
+    "Left-stick hold moves Link"
+  ],
+  "guest_input_evidence": [
+    "f151896:Plus~f8",
+    "f153359:B~f7",
+    "f154251:L-0.01/0.62~f30"
+  ],
+  "broader_traversal_verified": false,
+  "probe_apps_removed": true
+}

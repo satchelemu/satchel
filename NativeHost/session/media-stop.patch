@@ -1,0 +1,1050 @@
+--- a/hle_movie.c
++++ b/hle_movie.c
+@@ -2,6 +2,8 @@
+ // The host has no nvdrv: the SDK aborts when the decoder thread opens the device. Extractor::SetDataSource returns 0x1000 (the same code the SDK returns when it has no implementation object); Engage's Unity demuxes WebM itself and does not use it.
+ // The host takes over Decoder (below; VP8 / VP9 are decoded with libvpx, H.264 with VideoToolbox in hle_movie_avc.c, Vorbis audio with stb_vorbis): Engage's movies are 103 VP9 WebM files under RomFS/Data/StreamingAssets/Movie (2.7 GB, no audio track), and the game does not go on until the opening movie S01F has played.
+ #include "hle.h"
++#include "SessionBoundary.h"
++#include <errno.h>
+ #include <arm_neon.h>
+ #include <mach/mach.h>
+ #include <pthread.h>
+@@ -66,7 +68,8 @@
+ #define MD_FMT_PCM16 1
+ #define MD_PCM_CAP (8192 * 8 * 2)   // bytes per audio output: a Vorbis packet gives at most 4096 samples per channel (blocksize 8192), 8 channels at most
+ 
+-typedef struct {
++typedef struct mdec {
++    struct mdec *session_next;
+     pthread_mutex_t mu;                          // guards the queues and slots below
+     int type, fmt, mode, nout;                   // nout: output slots, MD_NOUT_VIDEO for video, MD_NOUT_AAC for AAC, MD_NOUT for Vorbis (see the constructor)
+     int out_align;                               // SDK 3's GetOutputBufferSize puts an alignment in its second output where later SDKs put the mode; 0 = the mode (h_movie_Decoder3)
+@@ -92,6 +95,8 @@
+     uint64_t dec_n, dec_ns, dec_max;            // decode timing (on the host thread, per packet)
+     unsigned long ncall[24];
+ } mdec_t;
++static pthread_mutex_t session_decoders_mu = PTHREAD_MUTEX_INITIALIZER;
++static mdec_t *session_decoders;
+ 
+ static struct {
+     void (*signal)(void *ev);
+@@ -106,6 +111,98 @@
+     size_t (*size)(const void *buf);
+     void *(*nvn_sync)(const void *buf);   // used only by the native texture mode; Engage's subsdk0 has it too, but it is not required
+ } G;
++
++// Cancellation returns to the native caller. Zero results suppress further
++// guest data access; native mutexes and decoder jobs still unwind normally.
++typedef struct { void * a0;  } session_movie_signal_args;
++static void __attribute__((no_instrument_function)) session_movie_signal_guest(void *p) {
++    session_movie_signal_args *a = p; G.signal(a->a0);
++}
++static void session_movie_signal(void * a0) {
++    session_movie_signal_args a = {.a0 = a0};
++    satchel_session_call_guest(session_movie_signal_guest, &a);
++}
++typedef struct { void * a0; void * a1; size_t a2;  } session_movie_set_data_args;
++static void __attribute__((no_instrument_function)) session_movie_set_data_guest(void *p) {
++    session_movie_set_data_args *a = p; G.set_data(a->a0, a->a1, a->a2);
++}
++static void session_movie_set_data(void * a0, void * a1, size_t a2) {
++    session_movie_set_data_args a = {.a0 = a0, .a1 = a1, .a2 = a2};
++    satchel_session_call_guest(session_movie_set_data_guest, &a);
++}
++typedef struct { void * a0; int a1; int a2;  } session_movie_set_range_args;
++static void __attribute__((no_instrument_function)) session_movie_set_range_guest(void *p) {
++    session_movie_set_range_args *a = p; G.set_range(a->a0, a->a1, a->a2);
++}
++static void session_movie_set_range(void * a0, int a1, int a2) {
++    session_movie_set_range_args a = {.a0 = a0, .a1 = a1, .a2 = a2};
++    satchel_session_call_guest(session_movie_set_range_guest, &a);
++}
++typedef struct { const void * a0; void * result; } session_movie_data_args;
++static void __attribute__((no_instrument_function)) session_movie_data_guest(void *p) {
++    session_movie_data_args *a = p; a->result = G.data(a->a0);
++}
++static void * session_movie_data(const void * a0) {
++    session_movie_data_args a = {.a0 = a0};
++    satchel_session_call_guest(session_movie_data_guest, &a); return a.result;
++}
++typedef struct { const void * a0; size_t result; } session_movie_cap_args;
++static void __attribute__((no_instrument_function)) session_movie_cap_guest(void *p) {
++    session_movie_cap_args *a = p; a->result = G.cap(a->a0);
++}
++static size_t session_movie_cap(const void * a0) {
++    session_movie_cap_args a = {.a0 = a0};
++    satchel_session_call_guest(session_movie_cap_guest, &a); return a.result;
++}
++typedef struct { void * a0; const char * a1; int a2;  } session_movie_set_i32_args;
++static void __attribute__((no_instrument_function)) session_movie_set_i32_guest(void *p) {
++    session_movie_set_i32_args *a = p; G.set_i32(a->a0, a->a1, a->a2);
++}
++static void session_movie_set_i32(void * a0, const char * a1, int a2) {
++    session_movie_set_i32_args a = {.a0 = a0, .a1 = a1, .a2 = a2};
++    satchel_session_call_guest(session_movie_set_i32_guest, &a);
++}
++typedef struct { void * a0; const char * a1; int a2; int a3; int a4; int a5;  } session_movie_set_rect_args;
++static void __attribute__((no_instrument_function)) session_movie_set_rect_guest(void *p) {
++    session_movie_set_rect_args *a = p; G.set_rect(a->a0, a->a1, a->a2, a->a3, a->a4, a->a5);
++}
++static void session_movie_set_rect(void * a0, const char * a1, int a2, int a3, int a4, int a5) {
++    session_movie_set_rect_args a = {.a0 = a0, .a1 = a1, .a2 = a2, .a3 = a3, .a4 = a4, .a5 = a5};
++    satchel_session_call_guest(session_movie_set_rect_guest, &a);
++}
++typedef struct { const void * a0; const char * a1; int * a2; int result; } session_movie_find_i32_args;
++static void __attribute__((no_instrument_function)) session_movie_find_i32_guest(void *p) {
++    session_movie_find_i32_args *a = p; a->result = G.find_i32(a->a0, a->a1, a->a2);
++}
++static int session_movie_find_i32(const void * a0, const char * a1, int * a2) {
++    session_movie_find_i32_args a = {.a0 = a0, .a1 = a1, .a2 = a2};
++    satchel_session_call_guest(session_movie_find_i32_guest, &a); return a.result;
++}
++typedef struct { const void * a0; const char * a1; void ** a2; int result; } session_movie_find_buf_args;
++static void __attribute__((no_instrument_function)) session_movie_find_buf_guest(void *p) {
++    session_movie_find_buf_args *a = p; a->result = G.find_buf(a->a0, a->a1, a->a2);
++}
++static int session_movie_find_buf(const void * a0, const char * a1, void ** a2) {
++    session_movie_find_buf_args a = {.a0 = a0, .a1 = a1, .a2 = a2};
++    satchel_session_call_guest(session_movie_find_buf_guest, &a); return a.result;
++}
++typedef struct { const void * a0; size_t result; } session_movie_size_args;
++static void __attribute__((no_instrument_function)) session_movie_size_guest(void *p) {
++    session_movie_size_args *a = p; a->result = G.size(a->a0);
++}
++static size_t session_movie_size(const void * a0) {
++    session_movie_size_args a = {.a0 = a0};
++    satchel_session_call_guest(session_movie_size_guest, &a); return a.result;
++}
++typedef struct { const void * a0; void * result; } session_movie_nvn_sync_args;
++static void __attribute__((no_instrument_function)) session_movie_nvn_sync_guest(void *p) {
++    session_movie_nvn_sync_args *a = p; a->result = G.nvn_sync(a->a0);
++}
++static void * session_movie_nvn_sync(const void * a0) {
++    session_movie_nvn_sync_args a = {.a0 = a0};
++    satchel_session_call_guest(session_movie_nvn_sync_guest, &a); return a.result;
++}
++
+ 
+ // A movie is playing while a video decoder hands out pictures. The frame step (hle_nvn.c fps_step_cap) then holds 30 fps, the rate the games it steps run at on the Switch:
+ // their players take one picture per game frame rather than by its time. Breath of the Wild's movies (VP9 1080p, 30 fps) went at twice their speed at 60 and left their sound
+@@ -143,7 +240,7 @@
+     if (d->evc && (vm_read_overwrite(mach_task_self(), (vm_address_t)&d->evc[i], sizeof p, (vm_address_t)&p, &got) != KERN_SUCCESS || got != sizeof p)) p = NULL;
+     void *live = p;
+     if (!p || !ev_ok(p)) p = d->ev[i];
+-    if (p) G.signal(p);
++    if (p) session_movie_signal(p);
+     else if (live) { static _Atomic int red; if (red++ < 8) LOG("[RED] movie: decoder %p event %d not delivered: the client's entry %p is not an event", (void *)d, i, live); }
+ }
+ // Deferred events: "input available" after Start / Flush. The SDK's decoder signals it asynchronously from its own codec thread; Metroid Dread calls InitializeMultiWaitHolder before RegisterClientEvents
+@@ -159,6 +256,7 @@
+ static void md_defer_body(void *arg);
+ static void md_defer_at(void *d, int ev, uint64_t due) {
+     dm_host_lock(&g_dfmu);
++    if (satchel_session_stopping()) { pthread_mutex_unlock(&g_dfmu); return; }
+     if (!g_dfthr) { g_dfthr = 1; dm_guest_thread_spawn(md_defer_body, NULL, 16, 64 << 10); }
+     for (int i = 0; i < g_ndfq; i++) if (g_dfq[i].d == d && g_dfq[i].ev == ev && g_dfq[i].due <= due) { pthread_mutex_unlock(&g_dfmu); return; }   // already due by then
+     if (g_ndfq < 64) g_dfq[g_ndfq++] = (__typeof__(g_dfq[0])){d, ev, due};
+@@ -175,7 +273,7 @@
+ static void md_defer_body(void *arg) {
+     (void)arg;
+     dm_host_lock(&g_dfmu);
+-    for (;;) {
++    while (!satchel_session_stopping()) {
+         uint64_t now = now_ns(), next = 0; int k = -1;
+         for (int i = 0; i < g_ndfq && k < 0; i++) { if (g_dfq[i].due <= now) k = i; else if (!next || g_dfq[i].due < next) next = g_dfq[i].due; }
+         if (k >= 0) {
+@@ -184,12 +282,14 @@
+             if (d->started) md_event(d, e);   // not after Stop: the game takes its events apart right after Stop (a Stop within 2 ms of a Flush let the deferred signal hit events being torn down)
+             continue;
+         }
+-        if (!next) pthread_cond_wait(&g_dfcv, &g_dfmu);
+-        else { uint64_t w = next - now; struct timespec ts = { (time_t)(w / 1000000000u), (long)(w % 1000000000u) }; pthread_cond_timedwait_relative_np(&g_dfcv, &g_dfmu, &ts); }
+-    }
++        if (!next) { struct timespec tick = {0, 100000000}; pthread_cond_timedwait_relative_np(&g_dfcv, &g_dfmu, &tick); }
++        else { uint64_t w = next - now; if (w > 100000000) w = 100000000; struct timespec ts = { (time_t)(w / 1000000000u), (long)(w % 1000000000u) }; pthread_cond_timedwait_relative_np(&g_dfcv, &g_dfmu, &ts); }
++    }
++    pthread_mutex_unlock(&g_dfmu);
+ }
+ // log the first 12 calls one by one, then every 2^k-th (DM_MOVIE_TRACE=1: every call, with the calling thread and the decoder: Unity drives a movie's audio and video decoders from one thread)
+-static int md_trace_all(void) { static int on = -1; if (on < 0) on = getenv("DM_MOVIE_TRACE") != NULL; return on; }
++static int session_trace = -1;
++static int md_trace_all(void) { if (session_trace < 0) session_trace = getenv("DM_MOVIE_TRACE") != NULL; return session_trace; }
+ #define MD_TRACE(d, slot, fmt, ...) do { unsigned long n_ = ++(d)->ncall[slot]; if (md_trace_all()) LOG("[movie] [%p] [%p] " fmt, (void *)pthread_self(), (void *)(d), ##__VA_ARGS__); \
+                                          else if (n_ <= 12 || !(n_ & (n_ - 1))) LOG("[movie] " fmt, ##__VA_ARGS__); } while (0)
+ 
+@@ -424,6 +524,11 @@
+ // hand one job to the host thread and wait for it (the caller holds dmu)
+ static void md_job(mdec_t *d, int job) {
+     dm_host_mutex_lock(&d->wmu);
++    // A submitted job retains its packet until the decoder acknowledges it.
++    // Stop may skip new work, never pretend an in-flight decode has completed.
++    if (satchel_session_stopping() && (job == MDJ_DECODE || job == MDJ_TAKE)) {
++        d->jgot = 0; pthread_mutex_unlock(&d->wmu); return;
++    }
+     d->job = job; pthread_cond_broadcast(&d->wcv);
+     while (d->job != MDJ_NONE) pthread_cond_wait(&d->wcv, &d->wmu);
+     pthread_mutex_unlock(&d->wmu);
+@@ -431,7 +536,7 @@
+ // while packets are queued and an output slot is free, decode the head packet, until the queue is empty or every slot is taken; signal the input / output events by the result
+ static void md_pump(mdec_t *d) {
+     dm_host_lock(&d->dmu);
+-    for (;;) {
++    while (!satchel_session_stopping()) {
+         dm_host_mutex_lock(&d->mu);
+         if (d->avc_drain) {   // H.264 end of stream: the pictures still queued leave one per free slot, then an output without a picture carries the end-of-stream flag
+             int s = -1; for (int k = 0; k < d->nout; k++) if (!d->out[k].used) { s = k; break; }
+@@ -477,7 +582,7 @@
+ 
+ HLE_FORCE("_ZN5movie7DecoderC1ENS_11DecoderTypeENS_19DecoderOutputFormatENS_11DecoderModeEi", "movie decoder: host implementation (no NVIDIA hardware decoder; VP8 / VP9 with libvpx, AVC with VideoToolbox)",
+           void, h_movie_Decoder, void **self, int type, int fmt, int mode, int prio) {
+-    static void *vt; if (!vt) { uint8_t *t = guest_sym("_ZTVN5movie7DecoderE"); if (!t) die("movie: missing the vtable of movie::Decoder"); vt = t + 0x10; }
++    void *vt = NULL; if (!vt) { uint8_t *t = guest_sym("_ZTVN5movie7DecoderE"); if (!t) die("movie: missing the vtable of movie::Decoder"); vt = t + 0x10; }
+     md_syms();
+     self[0] = vt; self[1] = NULL;
+     // Only video (AVC / VP8 / VP9 = 1..3): NV12 output (Engage's Unity, CPU buffers), or RGBA output into the client's NVN texture (mode 2: Metroid Dread's VP9, Monster Hunter Rise's AVC);
+@@ -508,6 +613,9 @@
+     pthread_attr_t a; pthread_attr_init(&a); pthread_attr_setstacksize(&a, 1 << 20);
+     if (pthread_create(&d->wk, &a, md_worker, d)) die("movie: failed to create the decoder thread");
+     pthread_attr_destroy(&a);
++    pthread_mutex_lock(&session_decoders_mu);
++    d->session_next = session_decoders; session_decoders = d;
++    pthread_mutex_unlock(&session_decoders_mu);
+     self[1] = d;
+     LOG("[movie] decoder %p: type %d output %d mode %d priority %d", (void *)self, type, fmt, mode, prio);
+ }
+@@ -523,6 +631,15 @@
+     h_movie_Decoder(self, type, fmt == 3 ? MD_FMT_NV12 : fmt == 2 ? MD_FMT_ABGR : fmt, 1, 0);
+     mdec_t *d = md_of(self); if (d) d->out_align = 0x20;
+ }
++typedef struct { void (*function)(void *); void * a0;  } session_movie_delete_args;
++static void __attribute__((no_instrument_function)) session_movie_delete_guest(void *p) {
++    session_movie_delete_args *a = p; a->function(a->a0);
++}
++static void session_movie_delete(void (*function)(void *), void * a0) {
++    session_movie_delete_args a = {.function = function, .a0 = a0};
++    satchel_session_call_guest(session_movie_delete_guest, &a);
++}
++
+ static void md_free(void **self) {
+     mdec_t *d = md_of(self); if (!d) return;
+     md_defer_drop(d);
+@@ -531,7 +648,12 @@
+     LOG("[movie] decoder %p destroyed: %lu packets in, %lu frames out; decoded %llu packets, average %.2f ms per packet, longest %.2f ms", (void *)self, d->ncall[7], d->ncall[8],
+         (unsigned long long)d->dec_n, d->dec_n ? d->dec_ns / 1e6 / d->dec_n : 0.0, d->dec_max / 1e6);
+     dm_host_lock(&d->dmu); md_job(d, MDJ_QUIT); pthread_mutex_unlock(&d->dmu);
+-    pthread_join(d->wk, NULL);
++    if (pthread_join(d->wk, NULL)) abort();
++    pthread_mutex_lock(&session_decoders_mu);
++    mdec_t **p = &session_decoders;
++    while (*p != d) { if (!*p) abort(); p = &(*p)->session_next; }
++    *p = d->session_next;
++    pthread_mutex_unlock(&session_decoders_mu);
+     for (int i = 0; i < MD_NIN; i++) free(d->in[i]);
+     for (int k = 0; k < MD_NOUT; k++) free(d->out[k].frm);
+     free(d->vhdr[0]); free(d->vhdr[1]);
+@@ -544,16 +666,16 @@
+ // object itself goes back through the game's operator delete (guest code, called on the calling guest thread)
+ HLE_FORCE("_ZN5movie7DecoderD0Ev", "movie decoder deleting destructor: frees the host object, then the object with operator delete", void, h_movie_DecD0, void **self) {
+     md_free(self);
+-    static void (*del)(void *); if (!del) del = (void (*)(void *))guest_sym("_ZdlPv");
+-    if (del) del(self); else LOG("[RED] movie: no operator delete in the game; the decoder object is not freed");
++    void (*del)(void *) = NULL; if (!del) del = (void (*)(void *))guest_sym("_ZdlPv");
++    if (del) session_movie_delete(del, self); else LOG("[RED] movie: no operator delete in the game; the decoder object is not freed");
+ }
+ 
+ HLE_FORCE("_ZN5movie7Decoder9ConfigureEPNS_9MediaDataE", "movie decoder configure", int, h_movie_Configure, void **self, void *md) {
+     mdec_t *d = md_of(self); if (!d) return 0x1000;
+     if (MD_AUDIO(d)) {   // codec-specific data as Android's MediaCodec takes it: Vorbis csd-0 = identification header, csd-1 = setup header; AAC csd-0 = AudioSpecificConfig
+         for (int k = 0; k < 2 && md; k++) { void *b = NULL; char key[8]; snprintf(key, sizeof key, "csd-%d", k);
+-            if (G.find_buf(md, key, &b) && b && G.data(b) && G.size(b)) { size_t n = G.size(b); free(d->vhdr[k]); d->vhdr[k] = malloc(n); memcpy(d->vhdr[k], G.data(b), n); d->vhdr_n[k] = (int)n; } }
+-        int ch = 0, rate = 0; if (md) { G.find_i32(md, "channel-count", &ch); G.find_i32(md, "sample-rate", &rate); }
++            if (session_movie_find_buf(md, key, &b) && b && session_movie_data(b) && session_movie_size(b)) { size_t n = session_movie_size(b); free(d->vhdr[k]); d->vhdr[k] = malloc(n); memcpy(d->vhdr[k], session_movie_data(b), n); d->vhdr_n[k] = (int)n; } }
++        int ch = 0, rate = 0; if (md) { session_movie_find_i32(md, "channel-count", &ch); session_movie_find_i32(md, "sample-rate", &rate); }
+         if (ch > 0) d->ch = ch; if (rate > 0) d->rate = rate;
+         MD_TRACE(d, 0, "Configure (%s): %d channels %d Hz, headers %d + %d bytes", d->type == MD_TYPE_AAC ? "AAC" : "Vorbis", ch, rate, d->vhdr_n[0], d->vhdr_n[1]);
+         return 0;
+@@ -561,10 +683,10 @@
+     if (d->type == MD_TYPE_AVC && md) {   // SPS / PPS: csd-0 / csd-1 (Annex B, as Android's MediaCodec takes them) or, from this SDK's MP4 demuxer (Super Mario Odyssey), "avcc" = the avcC box
+         md_avc_open(d);
+         void *b = NULL;
+-        for (int k = 0; k < 2; k++) { char key[8]; snprintf(key, sizeof key, "csd-%d", k); if (G.find_buf(md, key, &b) && b && G.data(b) && G.size(b)) mavc_param_sets(d->avc, G.data(b), G.size(b)); }
+-        if (G.find_buf(md, "avcc", &b) && b && G.data(b) && G.size(b)) mavc_avcc(d->avc, G.data(b), G.size(b));
+-    }
+-    int w = 0, h = 0; if (md) { G.find_i32(md, "width", &w); G.find_i32(md, "height", &h); }
++        for (int k = 0; k < 2; k++) { char key[8]; snprintf(key, sizeof key, "csd-%d", k); if (session_movie_find_buf(md, key, &b) && b && session_movie_data(b) && session_movie_size(b)) mavc_param_sets(d->avc, session_movie_data(b), session_movie_size(b)); }
++        if (session_movie_find_buf(md, "avcc", &b) && b && session_movie_data(b) && session_movie_size(b)) mavc_avcc(d->avc, session_movie_data(b), session_movie_size(b));
++    }
++    int w = 0, h = 0; if (md) { session_movie_find_i32(md, "width", &w); session_movie_find_i32(md, "height", &h); }
+     dm_host_mutex_lock(&d->mu); if (w > 0 && h > 0 && !d->fmt_sent) { d->w = w; d->h = h; } pthread_mutex_unlock(&d->mu);
+     MD_TRACE(d, 0, "Configure: MediaData width %d height %d", w, h);
+     return 0;
+@@ -651,7 +773,7 @@
+ HLE_FORCE("_ZN5movie7Decoder14GetInputBufferEiPNS_6BufferE", "movie decoder: hand out an input buffer", int, h_movie_GetIn, void **self, int i, void *buf) {
+     mdec_t *d = md_of(self); if (!d) return 0x1000;
+     if (!buf || i < 0 || i >= MD_NIN) return 0x100b;
+-    G.set_data(buf, d->in[i], MD_INCAP); G.set_range(buf, 0, (int)MD_INCAP);
++    session_movie_set_data(buf, d->in[i], MD_INCAP); session_movie_set_range(buf, 0, (int)MD_INCAP);
+     return 0;
+ }
+ HLE_FORCE("_ZN5movie7Decoder24SendInputBufferForDecodeEiiilj", "movie decoder: send a packet for decoding (VP8 / VP9 with libvpx, AVC with VideoToolbox)", int, h_movie_SendIn,
+@@ -700,17 +822,17 @@
+     return r;
+ }
+ static void md_format(mdec_t *d, void *md) {
+-    if (MD_AUDIO(d)) { G.set_i32(md, "channel-count", d->ch > 0 ? d->ch : 2); G.set_i32(md, "sample-rate", d->rate > 0 ? d->rate : 48000); return; }
++    if (MD_AUDIO(d)) { session_movie_set_i32(md, "channel-count", d->ch > 0 ? d->ch : 2); session_movie_set_i32(md, "sample-rate", d->rate > 0 ? d->rate : 48000); return; }
+     int w, h, stride, slice; md_dims(d, &w, &h, &stride, &slice);
+-    G.set_i32(md, "width", w); G.set_i32(md, "height", h);
+-    G.set_rect(md, "crop", 0, 0, w - 1, h - 1);
+-    G.set_i32(md, "stride", stride); G.set_i32(md, "slice-height", slice);
+-    G.set_i32(md, "nv12-y-stride", stride); G.set_i32(md, "nv12-y-offset", 0); G.set_i32(md, "nv12-uv-offset", stride * slice);
++    session_movie_set_i32(md, "width", w); session_movie_set_i32(md, "height", h);
++    session_movie_set_rect(md, "crop", 0, 0, w - 1, h - 1);
++    session_movie_set_i32(md, "stride", stride); session_movie_set_i32(md, "slice-height", slice);
++    session_movie_set_i32(md, "nv12-y-stride", stride); session_movie_set_i32(md, "nv12-y-offset", 0); session_movie_set_i32(md, "nv12-uv-offset", stride * slice);
+     // The interleaved UV plane has the luma plane's byte stride. CRI Sofdec2's player (Catherine: Full Body, main+0x34e6bc) reads it with the other three and checks none of the results:
+     // without it the chroma stride was stack garbage and its NV12 → RGB conversion read far outside guest memory on the first picture (main+0x344f74); in DRAGON QUEST VII Reimagined
+     // every chroma row was read from the first one (a grey movie with vertical bands). The picture size again, as the SDK's DecoderImpl::GetOutputBufferFormatFromDecoder
+     // (SDK 19 subsdk0+0x121f50) also sets it
+-    G.set_i32(md, "nv12-uv-stride", stride); G.set_i32(md, "nv12-width", w); G.set_i32(md, "nv12-height", h);
++    session_movie_set_i32(md, "nv12-uv-stride", stride); session_movie_set_i32(md, "nv12-width", w); session_movie_set_i32(md, "nv12-height", h);
+ }
+ HLE_FORCE("_ZN5movie7Decoder15GetOutputFormatEPNS_9MediaDataE", "movie decoder: output format (NV12)", int, h_movie_OutFmt, void **self, void *md) {
+     mdec_t *d = md_of(self); if (!d) return 0x1000;
+@@ -761,8 +883,8 @@
+ }
+ static int md_out_tex(mdec_t *d, int i, void *buf) {
+     // SDK 4's Buffer has no sync object (Dark Souls Remastered's subsdk0 exports no GetNvnSync): the game reads the texture once GetOutputBuffer returns, which the CPU write already satisfies
+-    static int sync_looked; if (!sync_looked) { G.nvn_sync = guest_sym("_ZNK5movie6Buffer10GetNvnSyncEv"); sync_looked = 1; }
+-    uint8_t *p = G.data(buf); size_t cap = G.cap(buf);
++    if (!G.nvn_sync) { G.nvn_sync = guest_sym("_ZNK5movie6Buffer10GetNvnSyncEv"); }
++    uint8_t *p = session_movie_data(buf); size_t cap = session_movie_cap(buf);
+     if (!p || cap < 8) { LOG("[RED] movie: client buffer in native-texture mode is %zu bytes, needs 8 (a texture object)", cap); return 0x100b; }
+     void *tex = p; int tw = 0, th = 0, f = nvn_host_write_texture(tex, NULL, 0, 0, 0, &tw, &th);
+     if (f < 0) { LOG("[RED] movie: buffer data %p in native-texture mode is not a texture object", tex); return 0x100b; }
+@@ -771,7 +893,7 @@
+     // No picture (an end-of-stream output): nothing is drawn and the texture keeps the last frame, as the SDK's consumer has no frame to draw. A black frame here flashed at the
+     // end of every loop of Big Brain Academy: Brain vs. Brain's activity previews, which read the end-of-stream output's buffer
+     if (d->out[i].pic && d->out[i].frm) nvn_host_write_texture(tex, d->out[i].frm, w, h, (size_t)d->w * 4, NULL, NULL);
+-    void *sy = G.nvn_sync ? G.nvn_sync(buf) : NULL; if (sy && nvn_host_signal_sync(sy) && !d->red_dec++) LOG("[RED] movie: the buffer's sync object %p is not an NVNsync", sy);
++    void *sy = G.nvn_sync ? session_movie_nvn_sync(buf) : NULL; if (sy && nvn_host_signal_sync(sy) && !d->red_dec++) LOG("[RED] movie: the buffer's sync object %p is not an NVNsync", sy);
+     MD_TRACE(d, 12, "GetOutputBuffer index %d → texture %p (%d×%d format %#x)%s", i, tex, tw, th, f, d->out[i].pic ? "" : " (no picture: the texture keeps its last frame)");
+     // The SDK's texture mode returns the output index here: DecoderImpl::GetOutputBuffer calls CopyOutputBufferToClientTextureAndRelease (MediaCodec::renderOutputBufferAndRelease),
+     // so a client never has to release it. Super Mario Party Jamboree's player (SDK 17.5.9) never calls ReleaseOutputBufferIndex: holding all 16 video slots, the decoder stopped and
+@@ -790,22 +912,22 @@
+     // The decoder writes from the start of the client's buffer. movie::Buffer::Data() is Base() + Offset() and Capacity() the whole buffer (STEINS;GATE RE:BOOT's subsdk0), so a buffer whose
+     // read offset the client advanced was written past its end, over the guest heap (from PR #36): the range is reset first. Not in native-texture mode (md_out_tex),
+     // where Data() is the texture object the client points it at and nothing is written through it
+-    G.set_range(buf, 0, 0);
++    session_movie_set_range(buf, 0, 0);
+     if (MD_AUDIO(d)) {   // PCM16 interleaved; an output without samples (end of stream) is empty
+-        size_t n = d->out[i].pic ? d->out[i].bytes : 0, cap = G.cap(buf); uint8_t *p = G.data(buf);
+-        if (!p || cap < n) { LOG("[RED] movie: client audio output buffer is %zu bytes, this packet needs %zu", cap, n); G.set_range(buf, 0, 0); return 0x100b; }
++        size_t n = d->out[i].pic ? d->out[i].bytes : 0, cap = session_movie_cap(buf); uint8_t *p = session_movie_data(buf);
++        if (!p || cap < n) { LOG("[RED] movie: client audio output buffer is %zu bytes, this packet needs %zu", cap, n); session_movie_set_range(buf, 0, 0); return 0x100b; }
+         if (n) memcpy(p, d->out[i].frm, n);
+-        G.set_range(buf, 0, (int)n);
++        session_movie_set_range(buf, 0, (int)n);
+         MD_TRACE(d, 12, "GetOutputBuffer index %d → PCM %zu bytes", i, n);
+         return 0;
+     }
+     int w, h, stride, slice; md_dims(d, &w, &h, &stride, &slice);
+-    size_t need = (size_t)stride * slice * 3 / 2, cap = G.cap(buf);
+-    uint8_t *p = G.data(buf);
+-    if (!p || cap < need) { LOG("[RED] movie: client output buffer is %zu bytes, a frame needs %zu", cap, need); G.set_range(buf, 0, 0); return 0x100b; }
++    size_t need = (size_t)stride * slice * 3 / 2, cap = session_movie_cap(buf);
++    uint8_t *p = session_movie_data(buf);
++    if (!p || cap < need) { LOG("[RED] movie: client output buffer is %zu bytes, a frame needs %zu", cap, need); session_movie_set_range(buf, 0, 0); return 0x100b; }
+     if (d->out[i].pic && d->out[i].frm) memcpy(p, d->out[i].frm, need);
+     else { memset(p, 16, (size_t)stride * slice); memset(p + (size_t)stride * slice, 128, need - (size_t)stride * slice); }
+-    G.set_range(buf, 0, (int)need);
++    session_movie_set_range(buf, 0, (int)need);
+     MD_TRACE(d, 12, "GetOutputBuffer index %d → %zu bytes%s", i, need, d->out[i].pic ? "" : " (black frame)");
+     return 0;
+ }
+@@ -837,3 +959,16 @@
+     return 0;
+ }
+ HLE_FORCE("_ZN5movie7Decoder12GetLastErrorEv", "movie decoder: last error (none)", int, h_movie_LastErr, void **self) { (void)self; return 0; }
++
++// Coordinator calls request after closing guest admission, before joining guests.
++// Timed waits also cover a broadcast racing entry into the wait.
++void satchel_movie_request_stop(void) { pthread_cond_broadcast(&g_dfcv); }
++int satchel_movie_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    // All guest callers, including the deferred signaller, have joined. Native
++    // decoders remain alive until their explicit QUIT job closes codec callbacks.
++    while (session_decoders) { void *self[2] = {NULL, session_decoders}; md_free(self); }
++    g_ndfq = g_dfthr = 0; memset(g_dfq, 0, sizeof g_dfq);
++    memset(&G, 0, sizeof G); atomic_store(&g_movie_pic_ns, 0); session_trace = -1;
++    return 0;
++}
+--- a/hle_audren.c
++++ b/hle_audren.c
+@@ -12,6 +12,8 @@
+ // Command list format (SDK 16): header +0x04 command count, +0x08 mix buffer address, +0x10 buffer count, +0x14 samples per frame, +0x18 sample rate, commands from +0x20;
+ //   each command +0x00 magic 0xcafebabe, +0x04 enabled, +0x05 command ID (DeviceSink = 0x13), +0x06 size; DeviceSink +0x128 upsampler buffer, +0x130 input count, +0x134 input indices (s16).
+ #include "hle.h"
++#include "SessionBoundary.h"
++#include <errno.h>
+ #include <math.h>
+ #include <stdatomic.h>
+ #include <time.h>
+@@ -29,6 +31,85 @@
+ // P_SIZE: bytes of the game's AudioRendererParameter copied before the two fields are changed. SDK 16's struct is 0x38 bytes; SDK 8's (Link's Awakening) has one more word,
+ // its revision at +0x38: copying only 0x38 left the revision uninitialized and the SDK rejected it (CheckValidRevision, Result 0x499). The SDK reads only its own size of the copy
+ enum { P_DEVICE = 0x2c, P_MODE = 0x30, P_SIZE = 0x40, WORK_PAGE = 0x1000, FRAME_MAX = 1024, NBUF = 4 };
++
++static unsigned session_generation = 1;
++typedef struct { size_t (*function)(const uint8_t *); const uint8_t * a0; size_t result; } session_work_size_args;
++static void __attribute__((no_instrument_function)) session_work_size_guest(void *p) {
++    session_work_size_args *a = p; a->result = a->function(a->a0);
++}
++static size_t session_work_size(size_t (*function)(const uint8_t *), const uint8_t * a0) {
++    session_work_size_args a = {.function = function, .a0 = a0};
++    satchel_session_call_guest(session_work_size_guest, &a); return a.result;
++}
++typedef struct { Result (*function)(void **, void *, const uint8_t *, void *, size_t); void ** a0; void * a1; const uint8_t * a2; void * a3; size_t a4; Result result; } session_open_event_args;
++static void __attribute__((no_instrument_function)) session_open_event_guest(void *p) {
++    session_open_event_args *a = p; a->result = a->function(a->a0, a->a1, a->a2, a->a3, a->a4);
++}
++static Result session_open_event(Result (*function)(void **, void *, const uint8_t *, void *, size_t), void ** a0, void * a1, const uint8_t * a2, void * a3, size_t a4) {
++    session_open_event_args a = {.function = function, .a0 = a0, .a1 = a1, .a2 = a2, .a3 = a3, .a4 = a4};
++    satchel_session_call_guest(session_open_event_guest, &a); return a.result;
++}
++typedef struct { Result (*function)(void **, const uint8_t *, void *, size_t); void ** a0; const uint8_t * a1; void * a2; size_t a3; Result result; } session_open_args;
++static void __attribute__((no_instrument_function)) session_open_guest(void *p) {
++    session_open_args *a = p; a->result = a->function(a->a0, a->a1, a->a2, a->a3);
++}
++static Result session_open(Result (*function)(void **, const uint8_t *, void *, size_t), void ** a0, const uint8_t * a1, void * a2, size_t a3) {
++    session_open_args a = {.function = function, .a0 = a0, .a1 = a1, .a2 = a2, .a3 = a3};
++    satchel_session_call_guest(session_open_guest, &a); return a.result;
++}
++typedef struct { void (*function)(void *); void * a0;  } session_destroy_args;
++static void __attribute__((no_instrument_function)) session_destroy_guest(void *p) {
++    session_destroy_args *a = p; a->function(a->a0);
++}
++static void session_destroy(void (*function)(void *), void * a0) {
++    session_destroy_args a = {.function = function, .a0 = a0};
++    satchel_session_call_guest(session_destroy_guest, &a);
++}
++typedef struct { void (*function)(void *, void *); void * a0; void * a1;  } session_close_args;
++static void __attribute__((no_instrument_function)) session_close_guest(void *p) {
++    session_close_args *a = p; a->function(a->a0, a->a1);
++}
++static void session_close(void (*function)(void *, void *), void * a0, void * a1) {
++    session_close_args a = {.function = function, .a0 = a0, .a1 = a1};
++    satchel_session_call_guest(session_close_guest, &a);
++}
++typedef struct { void * (*function)(void *); void * a0; void * result; } session_allocate_args;
++static void __attribute__((no_instrument_function)) session_allocate_guest(void *p) {
++    session_allocate_args *a = p; a->result = a->function(a->a0);
++}
++static void * session_allocate(void * (*function)(void *), void * a0) {
++    session_allocate_args a = {.function = function, .a0 = a0};
++    satchel_session_call_guest(session_allocate_guest, &a); return a.result;
++}
++typedef struct { Result (*function)(void *, void *, size_t, void *, size_t, const void *, size_t); void * a0; void * a1; size_t a2; void * a3; size_t a4; const void * a5; size_t a6; Result result; } session_update_args;
++static void __attribute__((no_instrument_function)) session_update_guest(void *p) {
++    session_update_args *a = p; a->result = a->function(a->a0, a->a1, a->a2, a->a3, a->a4, a->a5, a->a6);
++}
++static Result session_update(Result (*function)(void *, void *, size_t, void *, size_t, const void *, size_t), void * a0, void * a1, size_t a2, void * a3, size_t a4, const void * a5, size_t a6) {
++    session_update_args a = {.function = function, .a0 = a0, .a1 = a1, .a2 = a2, .a3 = a3, .a4 = a4, .a5 = a5, .a6 = a6};
++    satchel_session_call_guest(session_update_guest, &a); return a.result;
++}
++
++typedef struct session_work { void *pointer, *key; struct session_work *next; } session_work;
++static pthread_mutex_t session_work_mu = PTHREAD_MUTEX_INITIALIZER;
++static session_work *session_works;
++static void session_work_add(void *pointer) {
++    session_work *w = calloc(1, sizeof *w); if (!w) abort(); w->pointer = pointer;
++    pthread_mutex_lock(&session_work_mu); w->next = session_works; session_works = w; pthread_mutex_unlock(&session_work_mu);
++}
++static void session_work_key(void *pointer, void *key) {
++    pthread_mutex_lock(&session_work_mu);
++    session_work *w = session_works; while (w && w->pointer != pointer) w = w->next;
++    if (!w) abort(); w->key = key; pthread_mutex_unlock(&session_work_mu);
++}
++static void session_work_release(void *pointer) {
++    if (!pointer) return;
++    pthread_mutex_lock(&session_work_mu);
++    session_work **p = &session_works; while (*p && (*p)->pointer != pointer) p = &(*p)->next;
++    if (!*p) abort(); session_work *w = *p; *p = w->next;
++    pthread_mutex_unlock(&session_work_mu); free(pointer); free(w);
++}
++
+ static void *gsym(const char *n) { void *p = guest_sym(n); if (!p) die("audren: missing SDK symbol %s", n); return p; }
+ static void cpu_manual(uint8_t *dst, const uint8_t *src) { memcpy(dst, src, P_SIZE); *(int32_t *)(dst + P_DEVICE) = 1; *(int32_t *)(dst + P_MODE) = 1; }
+ 
+@@ -75,8 +156,8 @@
+ 
+ HLE_FORCE("_ZN2nn5audio30GetAudioRendererWorkBufferSizeERKNS0_22AudioRendererParameterE", "renderer work buffer: DSP service budget, with extra local CPU backend storage supplied by the host",
+           size_t, h_ar_WorkSize, const uint8_t *param) {
+-    static size_t (*orig)(const uint8_t *); if (!orig) orig = gsym("_ZN2nn5audio30GetAudioRendererWorkBufferSizeERKNS0_22AudioRendererParameterE");
+-    uint8_t p[P_SIZE]; cpu_manual(p, param); size_t n = orig(p);
++    size_t (*orig)(const uint8_t *); orig = NULL; if (!orig) orig = gsym("_ZN2nn5audio30GetAudioRendererWorkBufferSizeERKNS0_22AudioRendererParameterE");
++    uint8_t p[P_SIZE]; cpu_manual(p, param); size_t n = session_work_size(orig, p);
+     size_t service = *(int32_t *)(param + P_DEVICE) == 0 ? ar_service_work_size(p) : 0;
+     size_t guest_n = service ? service : n;
+     { static int once; if (!once++) LOG("audren: work buffer guest %#zx, local CPU/manual renderer %#zx", guest_n, n); }
+@@ -92,6 +173,10 @@
+ static pthread_mutex_t g_cq_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_cq_cv = PTHREAD_COND_INITIALIZER;   // the render thread signals each frame it takes off the queue (catch-up pacing)
+ static void cq_popped(void) { pthread_mutex_lock(&g_cq_mu); pthread_cond_broadcast(&g_cq_cv); pthread_mutex_unlock(&g_cq_mu); }
+ 
++typedef struct { void (*exec)(void *, void *); void *a, *b; } session_exec_args;
++static void __attribute__((no_instrument_function)) session_exec_guest(void *p) {
++    session_exec_args *a = p; a->exec(a->a, a->b);
++}
+ typedef struct { void *ptr; uint64_t cap, size; } gbuf;       // same as the front of hle_audio.c's AudioOutBuffer
+ static void render_main(void *arg) {
+     (void)arg;
+@@ -101,18 +186,18 @@
+     for (int i = 0; i < NBUF; i++) { bufs[i] = (gbuf){data[i], sizeof data[i], 0}; free_list[i] = &bufs[i]; }
+     dm_pcmout_start(out);
+     LOG("audren: render thread started (%d buffers in flight, paced by the output)", NBUF);
+-    while (atomic_load(&g_open)) {
++    while (atomic_load(&g_open) && !satchel_session_stopping()) {
+         while (!nfree) {   // wait for the output to hand a block back (silent sink / sound card, one every 5 ms); it signals each release, so the thread sleeps until then (it used to poll every 1 ms)
+             gbuf *b = dm_pcmout_released(out);
+             if (b) { free_list[nfree++] = b; break; }
+             dm_pcmout_wait(out, 10);
+-            if (!atomic_load(&g_open)) break;
++            if (!atomic_load(&g_open) || satchel_session_stopping()) break;
+         }
+         if (!nfree) break;
+         const int16_t *src; int got;
+         uint32_t h = atomic_load(&g_cq_head);
+         if (h != atomic_load(&g_cq_tail)) { src = g_cq[h % CQ]; got = g_cq_n[h % CQ]; atomic_store(&g_cq_head, h + 1); cq_popped(); }   // play queued catch-up output first
+-        else { g_frame_n = 0; exec(g_handle[0], g_handle[1]); src = g_frame; got = g_frame_n; }   // SDK: generate commands → CPU processing (output taken in the host takeover) → signal the game's renderer event
++        else { g_frame_n = 0; session_exec_args a = {exec, g_handle[0], g_handle[1]}; if (!satchel_session_call_guest(session_exec_guest, &a)) break; src = g_frame; got = g_frame_n; }   // SDK: generate commands → CPU processing (output taken in the host takeover) → signal the game's renderer event
+         int n = got ? got : 240;
+         gbuf *b = free_list[--nfree];
+         if (got) memcpy(b->ptr, src, (size_t)n * 4); else memset(b->ptr, 0, (size_t)n * 4);
+@@ -131,10 +216,10 @@
+ // renderer. The inner call (t_in_open) goes straight to the SDK with the host's copy of the parameter, as it did before the form without an event was hooked
+ static __thread int t_in_open;
+ static Result ar_open(void **handle, void *ev, const uint8_t *param, void *work, size_t sz) {
+-    static Result (*orig_ev)(void **, void *, const uint8_t *, void *, size_t), (*orig)(void **, const uint8_t *, void *, size_t);
++    Result (*orig_ev)(void **, void *, const uint8_t *, void *, size_t), (*orig)(void **, const uint8_t *, void *, size_t); orig_ev = NULL; orig = NULL;
+     if (!orig_ev) orig_ev = gsym("_ZN2nn5audio17OpenAudioRendererEPNS0_19AudioRendererHandleEPNS_2os11SystemEventERKNS0_22AudioRendererParameterEPvm");
+     if (!orig) orig = gsym("_ZN2nn5audio17OpenAudioRendererEPNS0_19AudioRendererHandleERKNS0_22AudioRendererParameterEPvm");
+-    if (t_in_open) return orig(handle, param, work, sz);
++    if (t_in_open) return session_open(orig, handle, param, work, sz);
+     uint8_t p[P_SIZE]; cpu_manual(p, param);
+     LOG("audren: OpenAudioRenderer%s rate %d samples per frame %d mix buffers %d submixes %d voices %d sinks %d effects %d splitters %d (original device %d mode %d → CPU / manual) work buffer %p+%#zx",
+         ev ? "" : " (no event)", *(int32_t *)param, *(int32_t *)(param + 4), *(int32_t *)(param + 8), *(int32_t *)(param + 0xc), *(int32_t *)(param + 0x10), *(int32_t *)(param + 0x14),
+@@ -144,26 +229,31 @@
+     void *owned = NULL;
+     if (*(int32_t *)(param + P_DEVICE) == 0 && work && !((uintptr_t)work & (WORK_PAGE - 1)) && sz >= WORK_PAGE && !(sz & (WORK_PAGE - 1))) {
+         size_t (*size)(const uint8_t *) = gsym("_ZN2nn5audio30GetAudioRendererWorkBufferSizeERKNS0_22AudioRendererParameterE");
+-        size_t need = size(p);
++        size_t need = session_work_size(size, p);
++        if (satchel_session_stopping()) return RES_FAIL;
+         size_t service = ar_service_work_size(p), guest_need = service ? service : need;
+         if (sz < guest_need) { LOG("[RED] audren: work buffer %#zx is smaller than the service requirement %#zx", sz, guest_need); return RES_FAIL; }
+         if (need > sz) {
+             if (posix_memalign(&owned, WORK_PAGE, need)) { LOG("[RED] audren: cannot allocate local renderer work buffer %#zx", need); return RES_FAIL; }
++            session_work_add(owned);
+             memset(owned, 0, need); work = owned; sz = need;
+             LOG("audren: host backs local renderer work buffer %p+%#zx", work, sz);
+         }
+     }
+-    t_in_open = 1; Result r = ev ? orig_ev(handle, ev, p, work, sz) : orig(handle, p, work, sz); t_in_open = 0;
+-    if (r) { free(owned); LOG("[RED] audren: SDK OpenAudioRenderer failed %#x", r); return r; }
+-    if (owned) objmap_put(handle[0], owned);   // Close releases it only after the render thread and the SDK have finished with it
++    t_in_open = 1; Result r = ev ? session_open_event(orig_ev, handle, ev, p, work, sz) : session_open(orig, handle, p, work, sz); t_in_open = 0;
++    if (satchel_session_stopping()) return RES_FAIL;
++    if (r) { session_work_release(owned); LOG("[RED] audren: SDK OpenAudioRenderer failed %#x", r); return r; }
++    if (owned) { session_work_key(owned, handle[0]); objmap_put(handle[0], owned); }   // Close releases it only after the render thread and the SDK have finished with it
+     // The renderer event as the service gives it. With the DSP service (device 0, what the game asked for) OpenAudioRenderer attaches the service's kernel event (auto-clear,
+     // AttachReadableHandleToSystemEvent); with CPU + manual it creates a local one instead (CreateSystemEvent(ev, AutoClear, false), SDK 4: sdk+0x190b6c). A signal of a local
+     // auto-clear event wakes only its highest-priority waiter, a kernel event wakes every waiter (each tries ResetSignal). Donkey Kong Country: Tropical Freeze waits on it from
+     // two threads: its audio thread (priority 29) every frame, and the main thread while CAudioMemoryPool::Shutdown detaches a pool as a level loads (main+0x6fa8c); the audio
+     // thread took every wake and the main thread waited forever. The renderer signals the event through os::SignalSystemEvent, which takes either kind
+     if (ev && *(int32_t *)(param + P_DEVICE) == 0) {
+-        static void (*destroy)(void *); if (!destroy) destroy = gsym("_ZN2nn2os18DestroySystemEventEPNS0_15SystemEventTypeE");
+-        destroy(ev); hle_bind_system_event(ev, 1);
++        void (*destroy)(void *); destroy = NULL; if (!destroy) destroy = gsym("_ZN2nn2os18DestroySystemEventEPNS0_15SystemEventTypeE");
++        session_destroy(destroy, ev);
++        if (satchel_session_stopping()) return RES_FAIL;
++        hle_bind_system_event(ev, 1);
+     }
+     if (atomic_load(&g_open)) { LOG("[RED] audren: a second renderer (the host drives only one)"); return r; }
+     g_handle[0] = handle[0]; g_handle[1] = handle[1]; atomic_store(&g_open, 1);
+@@ -175,13 +265,13 @@
+ HLE_FORCE("_ZN2nn5audio17OpenAudioRendererEPNS0_19AudioRendererHandleERKNS0_22AudioRendererParameterEPvm", "open the renderer (no event): CPU rendering + manual execution, the host starts a render thread",
+           Result, h_ar_Open0, void **handle, const uint8_t *param, void *work, size_t sz) { return ar_open(handle, NULL, param, work, sz); }
+ HLE_FORCE("_ZN2nn5audio18CloseAudioRendererENS0_19AudioRendererHandleE", "close the renderer: stop the host render thread first, then hand over to the SDK", void, h_ar_Close, void *obj, void *state) {
+-    static void (*orig)(void *, void *); if (!orig) orig = gsym("_ZN2nn5audio18CloseAudioRendererENS0_19AudioRendererHandleE");
++    void (*orig)(void *, void *); orig = NULL; if (!orig) orig = gsym("_ZN2nn5audio18CloseAudioRendererENS0_19AudioRendererHandleE");
+     // Join the render thread first (it checks g_open every round and at most every 10 ms while waiting for the output): it may be inside exec(), which uses the renderer the SDK is about to free.
+     // A fixed 20 ms sleep used to stand in for this, and a renderer reopened inside that window ran a second thread over the first one's static buffers
+-    if (obj == g_handle[0] && g_render_tt) { atomic_store(&g_open, 0); dm_guest_thread_join(g_render_tt); g_render_tt = NULL; }
++    if (obj == g_handle[0] && g_render_tt) { atomic_store(&g_open, 0); dm_guest_thread_join(g_render_tt); if (satchel_session_stopping()) return; g_render_tt = NULL; }
+     void *owned = objmap_del(obj);
+-    orig(obj, state);
+-    free(owned);
++    session_close(orig, obj, state);
++    if (!satchel_session_stopping()) session_work_release(owned);
+ }
+ 
+ // DeviceSink input mix buffers → int16 stereo. The command ID is 0x13 in SDK 16; SDK 20 inserted a command before it, making it 0x14 (written at sdk+0x233f44); SDK 8 (Link's Awakening)
+@@ -224,12 +314,14 @@
+ //   the input's Nyquist) in three phases, evaluated 8 input samples late so every tap is known, with the last 15 samples kept across frames
+ HLE_FORCE("_ZN2nn5audio6server16UpsamplerManager8AllocateEv", "upsampler for a DeviceSink below 48 kHz: none with CPU rendering (no manager), the host resamples its output",
+           void *, h_up_Allocate, void *mgr) {
+-    static void *(*orig)(void *); if (!orig) orig = gsym("_ZN2nn5audio6server16UpsamplerManager8AllocateEv");
+-    return mgr ? orig(mgr) : NULL;
++    void *(*orig)(void *); orig = NULL; if (!orig) orig = gsym("_ZN2nn5audio6server16UpsamplerManager8AllocateEv");
++    return mgr ? session_allocate(orig, mgr) : NULL;
+ }
+ enum { RS_T = 16 };
+ static uint32_t up_3_2(const int32_t *in, uint32_t n, int32_t *out) {
+     static float h[3][RS_T]; static int32_t buf[2 * (RS_T - 1 + FRAME_MAX)]; static uint32_t pos;   // pos: the next output's position in thirds of an input sample, from the frame start
++    static unsigned epoch;
++    if (epoch != session_generation) { memset(buf, 0, sizeof buf); pos = 0; epoch = session_generation; }
+     if (!h[0][RS_T / 2 - 1]) {
+         for (int p = 0; p < 3; p++) {
+             double sum = 0, w[RS_T];
+@@ -256,7 +348,7 @@
+     if (len < 0x20) return 0;
+     uint32_t ncmd = *(const uint32_t *)(cl + 4), samples = *(const uint32_t *)(cl + 0x14), rate = *(const uint32_t *)(cl + 0x18);
+     const int32_t *mix = *(const int32_t *const *)(cl + 8); const uint8_t *cend = cl + len;
+-    static int logged, hist_logged, layout_done;
++    static int logged, hist_logged, layout_done; static unsigned epoch_39; if (epoch_39 != session_generation) { logged = hist_logged = layout_done = 0; epoch_39 = session_generation; }
+     if (!layout_done && ncmd) {   // the header layout, from the first list that walks in exactly one (SDK 21's first lists have 4 commands or fewer, which the old layout would report as malformed)
+         // A list generated before the game's first update need not walk in any layout: Mario Kart 8 Deluxe's (SDK 4.4.0) first list, made by the render thread before the first
+         // RequestUpdate, ends in a zeroed command (first word 0). Taken as the layout, it left the SDK 6 headers read in the newer layout and the game silent; such a list is skipped
+@@ -368,10 +460,39 @@
+     }
+     return 0;
+ }
++typedef struct {
++    int (*mode)(void *), (*device)(void *); uint8_t *(*cbuf)(void *); size_t (*cbsz)(void *), (*gen)(void *, void *, size_t);
++    span_t (*gen20)(void *, void *, size_t); size_t mu_off;
++    void (*tmax)(void *, uint32_t), (*setup)(void *, const void *, size_t), (*process)(void *), (*lock)(void *), (*unlock)(void *);
++    uint8_t *sys, *cl; size_t n; Result result;
++} session_render_args;
++static void __attribute__((no_instrument_function)) session_render_guest(void *p) {
++    session_render_args *a = p;
++    uint8_t *sys = a->sys;
++    int md = a->gen20 ? *(int32_t *)(sys + 0x4c) : a->mode(sys);
++    int dv = a->gen20 ? *(int32_t *)(sys + 0x48) : a->device(sys);
++    if (md != 1 || dv != 1) { a->result = 0x40299; return; }
++    // Only guest locks live inside this scope. Stop abandons the entire guest
++    // renderer, then the native caller releases g_render_mu normally.
++    a->lock(sys + a->mu_off);
++    if (a->gen20) { span_t sp = a->gen20(sys, *(uint8_t **)(sys + 0xf8), *(size_t *)(sys + 0x100)); a->cl = sp.p; a->n = sp.n; }
++    else { a->cl = a->cbuf(sys); a->n = a->gen(sys, a->cl, a->cbsz(sys)); }
++    a->unlock(sys + a->mu_off);
++    uint64_t proc[16] __attribute__((aligned(16))) = {0};
++    a->tmax(proc, 0xffffffffu); a->setup(proc, a->cl, a->n); a->process(proc);
++    a->result = RES_OK;
++}
+ static Result render_once(uint8_t *sys, int16_t *dst, int *nout) {
++    pthread_mutex_lock(&g_render_mu);
+     static int (*mode)(void *), (*device)(void *); static uint8_t *(*cbuf)(void *); static size_t (*cbsz)(void *), (*gen)(void *, void *, size_t);
+     static span_t (*gen20)(void *, void *, size_t); static size_t mu_off;
+     static void (*tmax)(void *, uint32_t), (*setup)(void *, const void *, size_t), (*process)(void *), (*lock)(void *), (*unlock)(void *);
++    static unsigned epoch;
++    if (epoch != session_generation) {
++        mode = device = NULL; cbuf = NULL; cbsz = NULL; gen = NULL; gen20 = NULL;
++        tmax = NULL; setup = NULL; process = lock = unlock = NULL; mu_off = 0;
++        epoch = session_generation;
++    }
+     if (!process) {
+         gen20 =guest_sym("_ZN2nn5audio6server17AudioRenderSystem15GenerateCommandENS_4SpanISt4byteEE");
+         if (!gen20) {
+@@ -388,20 +509,14 @@
+         tmax = gsym("_ZN2nn5audio3dsp20CommandListProcessor17SetProcessTimeMaxEj"); setup = gsym("_ZN2nn5audio3dsp20CommandListProcessor5SetupEPKvm");
+         process = gsym("_ZN2nn5audio3dsp20CommandListProcessor7ProcessEv");
+     }
+-    int md = gen20 ? *(int32_t *)(sys + 0x4c) : mode(sys), dv = gen20 ? *(int32_t *)(sys + 0x48) : device(sys);
+-    if (md != 1 || dv != 1) return 0x40299;   // same as the original: manual rendering needs CPU + manual mode
+-    pthread_mutex_lock(&g_render_mu);
+     uint64_t t0 = now_ns();
+-    // Command generation must exclude the game thread's RequestUpdate (AudioRenderSystem::Update, which holds the mutex at mu_off): the original system thread (SendCommandToDsp) generates under the same lock. Processing (the CPU DSP) stays outside the lock, as in the original.
+-    uint8_t *cl; size_t n;
+-    lock(sys + mu_off);
+-    if (gen20) { span_t sp = gen20(sys, *(uint8_t **)(sys + 0xf8), *(size_t *)(sys + 0x100)); cl = sp.p; n = sp.n; }
+-    else { cl = cbuf(sys); n = gen(sys, cl, cbsz(sys)); }
+-    unlock(sys + mu_off);
++    session_render_args a = {.mode = mode, .device = device, .cbuf = cbuf, .cbsz = cbsz, .gen = gen, .gen20 = gen20, .mu_off = mu_off, .tmax = tmax, .setup = setup, .process = process, .lock = lock, .unlock = unlock, .sys = sys};
++    if (!satchel_session_call_guest(session_render_guest, &a) || a.result) {
++        pthread_mutex_unlock(&g_render_mu);
++        return a.result ? a.result : 0x40299;
++    }
+     atomic_fetch_add(&g_renders, 1);
+-    uint64_t proc[16] __attribute__((aligned(16))) = {0};   // CommandListProcessor (0x58 bytes; 0x60 in SDK 21, whose Process reads +0x58)
+-    tmax(proc, 0xffffffffu); setup(proc, cl, n); process(proc);
+-    if (dst) *nout = capture(cl, n, dst);
++    if (dst) *nout = capture(a.cl, a.n, dst);
+     // render time per frame (budget: 5 ms per frame): mean / max every 2000 frames
+     static uint64_t sum, mx, cnt; uint64_t d = now_ns() - t0; sum += d; if (d > mx) mx = d;
+     if (++cnt == 2000) { LOG("audren: render time mean %.2f ms / max %.2f ms (5 ms budget per frame, last 2000 frames); catch-up renders so far %llu", sum / 2000 / 1e6, mx / 1e6, (unsigned long long)atomic_load(&g_catchups)); sum = mx = cnt = 0; }
+@@ -413,7 +528,7 @@
+ //   the execution mode and rendering device, so every render of the render thread failed with 0x40299 and played silence; only the game's updates rendered (catch-up frames, one per
+ //   update at 60 Hz), heard as chopped sound. Anything not found keeps +0x60
+ static size_t impl_sys_off(void) {
+-    static _Atomic size_t found;   // the offset + 1 once looked up: an `add xd, x0, #0` gives +0
++    static _Atomic size_t found; static unsigned epoch_24; if (epoch_24 != session_generation) { atomic_store(&found, 0); epoch_24 = session_generation; }   // the offset + 1 once looked up: an `add xd, x0, #0` gives +0
+     size_t k = atomic_load(&found);
+     if (k) return k - 1;
+     size_t off = 0x60;
+@@ -446,8 +561,8 @@
+ // queued frame updated with nothing rendered since, which rendered the next catch-up frame, and so on (Big Brain Academy: Brain vs. Brain, one catch-up per update instead of 37 a run)
+ HLE_FORCE("_ZN2nn5audio6server17AudioRenderSystem6UpdateEPvmS3_mPKvm", "renderer update: if nothing was rendered since the last update, render a catch-up frame first (so effects get initialized), then hand over to the SDK",
+           Result, h_ars_Update, uint8_t *sys, void *o, size_t on, void *p, size_t pn, const void *in, size_t inn) {
+-    static Result (*orig)(void *, void *, size_t, void *, size_t, const void *, size_t); if (!orig) orig = gsym("_ZN2nn5audio6server17AudioRenderSystem6UpdateEPvmS3_mPKvm");
+-    static uint64_t last_r = ~0ull;
++    Result (*orig)(void *, void *, size_t, void *, size_t, const void *, size_t); orig = NULL; if (!orig) orig = gsym("_ZN2nn5audio6server17AudioRenderSystem6UpdateEPvmS3_mPKvm");
++    static uint64_t last_r = ~0ull; static unsigned epoch_15; if (epoch_15 != session_generation) { last_r = ~0ull; epoch_15 = session_generation; }
+     uint64_t u = atomic_fetch_add(&g_updates, 1) + 1, r = atomic_load(&g_renders);
+     if (last_r != ~0ull && r == last_r) {
+         uint64_t c = atomic_fetch_add(&g_catchups, 1) + 1;
+@@ -456,15 +571,16 @@
+         if (t - atomic_load(&g_cq_head) >= CQ) {   // queue full: wait for the render thread to play one (every 5 ms), so catch-up frames keep real time; at most 50 ms (an output that stopped)
+             struct timespec dl; clock_gettime(CLOCK_REALTIME, &dl); dl.tv_nsec += 50000000; if (dl.tv_nsec >= 1000000000) { dl.tv_sec++; dl.tv_nsec -= 1000000000; }
+             pthread_mutex_lock(&g_cq_mu);
+-            while (atomic_load(&g_open) && t - atomic_load(&g_cq_head) >= CQ && !pthread_cond_timedwait(&g_cq_cv, &g_cq_mu, &dl)) {}
++            while (atomic_load(&g_open) && !satchel_session_stopping() && t - atomic_load(&g_cq_head) >= CQ && !pthread_cond_timedwait(&g_cq_cv, &g_cq_mu, &dl)) {}
+             pthread_mutex_unlock(&g_cq_mu);
+         }
+         if (t - atomic_load(&g_cq_head) < CQ) { render_once(sys, g_cq[t % CQ], &g_cq_n[t % CQ]); atomic_store(&g_cq_tail, t + 1); }
+         else render_once(sys, NULL, NULL);   // still full (the output stopped): render anyway, output discarded
+     }
++    if (satchel_session_stopping()) return 0x40299;
+     static int tr = -1; if (tr < 0) tr = getenv("DM_AUDREN_TRACE") != NULL;
+     if (tr && u < 200) LOG("audren update #%llu t=%.3f ms, %llu frames rendered since the last update", (unsigned long long)u, now_ns() / 1e6, (unsigned long long)(atomic_load(&g_renders) - (last_r == ~0ull ? 0 : last_r)));
+-    Result res = orig(sys, o, on, p, pn, in, inn);
++    Result res = session_update(orig, sys, o, on, p, pn, in, inn);
+     last_r = atomic_load(&g_renders);
+     return res;
+ }
+@@ -497,3 +613,24 @@
+ // SDK 7 names of the two above (Super Mario Odyssey): the device-switch event and the active channel count
+ HLE_FORCE("_ZN2nn5audio36AcquireAudioDeviceSwitchNotificationEPNS_2os11SystemEventE", "output device switch notification (SDK 7 name): bound, never signaled", void, h_ad_Notify7, void *ev) { hle_bind_system_event(ev, 0); }
+ HLE_FORCE("_ZN2nn5audio21GetActiveChannelCountEv", "output channel count (SDK 7 name): 2", int, h_ad_Channels7, void) { return 2; }
++
++void satchel_audren_request_stop(void) {
++    atomic_store(&g_open, 0);
++    pthread_cond_broadcast(&g_cq_cv);
++}
++int satchel_audren_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    while (session_works) {
++        if (session_works->key) objmap_del(session_works->key);
++        session_work_release(session_works->pointer);
++    }
++    ++session_generation; if (!session_generation) abort();
++    g_handle[0] = g_handle[1] = g_render_tt = NULL;
++    g_frame_n = 0; memset(g_frame, 0, sizeof g_frame); memset(g_cq, 0, sizeof g_cq); memset(g_cq_n, 0, sizeof g_cq_n);
++    atomic_store(&g_open, 0); atomic_store(&g_cq_head, 0); atomic_store(&g_cq_tail, 0);
++    atomic_store(&g_frames, 0); atomic_store(&g_nonsilent, 0);
++    atomic_store(&g_updates, 0); atomic_store(&g_renders, 0); atomic_store(&g_catchups, 0);
++    g_sink_id = 0x13; g_hdr6 = g_hdr21 = g_sink4 = g_sink5 = 0;
++    atomic_store(&g_dev_vol, 1.0f); atomic_store(&g_ad_notify, 0); atomic_store(&g_ad_notify_in, 0);
++    return 0;
++}
+--- a/hle_guestthread.c
++++ b/hle_guestthread.c
+@@ -4,6 +4,8 @@
+ // Constraints: must be called on a guest thread (SDK thread creation goes through the SVC gate); not exposed to the game.
+ // Self-test DM_GUEST_SPAWN_TEST=1: before guest_main enters nnMain, start one thread that does "SDK malloc/free + lock an nn::os mutex and check that the owner is itself", and report the result after WaitThread finishes.
+ #include "hle.h"
++#include "SessionBoundary.h"
++#include <errno.h>
+ #include <stdatomic.h>
+ #include <unistd.h>
+ typedef int (*create_fn)(void *tt, void (*fn)(void *), void *arg, void *stack, size_t size, int prio);
+@@ -11,31 +13,67 @@
+ static void *need(const char *n) { void *p = guest_sym(n); if (!p) die("host guest thread: missing symbol %s", n); return p; }
+ // an entry shim: first register the thread as host-created (hle_thread.c dm_yield_to_core_peers does not wait for them), then run fn
+ typedef struct { void (*fn)(void *); void *arg; } spawn_arg;
+-typedef struct { _Alignas(16) uint8_t tt[0x200]; void *stack_alloc; } host_thread;
++typedef struct host_thread {
++    _Alignas(16) uint8_t tt[0x200]; void *stack_alloc;
++    spawn_arg entry;
++    struct host_thread *next;
++} host_thread;
++static pthread_mutex_t helpers_mu = PTHREAD_MUTEX_INITIALIZER;
++static host_thread *helpers;
++static void helper_remove(host_thread *t) {
++    pthread_mutex_lock(&helpers_mu);
++    host_thread **p = &helpers;
++    while (*p != t) { if (!*p) abort(); p = &(*p)->next; }
++    *p = t->next;
++    pthread_mutex_unlock(&helpers_mu);
++    free(t);
++}
+ void dm_thread_mark_host(void);
+-static void spawn_tramp(void *p) { spawn_arg a = *(spawn_arg *)p; free(p); dm_thread_mark_host(); a.fn(a.arg); }
++static void spawn_tramp(void *p) { spawn_arg a = *(spawn_arg *)p; dm_thread_mark_host(); a.fn(a.arg); }
++typedef struct {
++    host_thread *t; size_t size; int priority, result;
++    void *(*allocate)(size_t); create_fn create; tt_fn start;
++} helper_create_args;
++static void __attribute__((no_instrument_function)) helper_create_guest(void *p) {
++    helper_create_args *a = p; host_thread *t = a->t;
++    t->stack_alloc = a->allocate(a->size + 0xfff);
++    if (!t->stack_alloc) { a->result = ENOMEM; return; }
++    void *stack = (void *)(((uintptr_t)t->stack_alloc + 0xfff) & ~(uintptr_t)0xfff);
++    a->result = a->create(t->tt, spawn_tramp, &t->entry, stack, a->size, a->priority);
++    if (!a->result) a->start(t->tt);
++}
+ void *dm_guest_thread_spawn(void (*fn)(void *), void *arg, int prio, size_t stack_size) {
+-    spawn_arg *sa = malloc(sizeof *sa); if (!sa) die("host guest thread: allocation failed"); sa->fn = fn; sa->arg = arg; fn = spawn_tramp; arg = sa;
+-    stack_size = (stack_size + 0xfff) & ~(size_t)0xfff;
+-    host_thread *t = calloc(1, sizeof *t);                       // ThreadType is first, 0x1c0 bytes with headroom
++    if (satchel_session_stopping()) return NULL;
++    host_thread *t = calloc(1, sizeof *t);
+     if (!t) die("host guest thread: allocation failed");
+-    // CreateThread borrows this range through MapMemory. Host malloc has no
+-    // guest backing/state (the audio worker failed here in Tears of the Kingdom).
+-    // Use SDK malloc, retaining the raw pointer until DestroyThread copies back.
+-    t->stack_alloc = ((void *(*)(size_t))need("malloc"))(stack_size + 0xfff);
+-    if (!t->stack_alloc) die("host guest thread: stack allocation failed");
+-    void *stack = (void *)(((uintptr_t)t->stack_alloc + 0xfff) & ~(uintptr_t)0xfff);
+-    int rc = ((create_fn)need("_ZN2nn2os12CreateThreadEPNS0_10ThreadTypeEPFvPvES3_S3_mi"))(t->tt, fn, arg, stack, stack_size, prio);
+-    if (rc) die("host guest thread: CreateThread failed %#x", rc);
+-    ((tt_fn)need("_ZN2nn2os11StartThreadEPNS0_10ThreadTypeE"))(t->tt);
++    t->entry = (spawn_arg){fn, arg};
++    pthread_mutex_lock(&helpers_mu); t->next = helpers; helpers = t; pthread_mutex_unlock(&helpers_mu);
++    helper_create_args a = {t, (stack_size + 0xfff) & ~(size_t)0xfff, prio, 0,
++        need("malloc"), need("_ZN2nn2os12CreateThreadEPNS0_10ThreadTypeEPFvPvES3_S3_mi"),
++        need("_ZN2nn2os11StartThreadEPNS0_10ThreadTypeE")};
++    // Partial SDK creation is terminal guest state. Retain native ThreadType and
++    // entry storage until every guest pthread is joined, including parked ones.
++    if (!satchel_session_call_guest(helper_create_guest, &a)) return NULL;
++    if (a.result) die("host guest thread: CreateThread failed %#x", a.result);
+     return t;
+ }
++typedef struct { host_thread *t; tt_fn wait, destroy; void (*release)(void *); } helper_join_args;
++static void __attribute__((no_instrument_function)) helper_join_guest(void *p) {
++    helper_join_args *a = p;
++    a->wait(a->t->tt); a->destroy(a->t->tt); a->release(a->t->stack_alloc);
++}
+ void dm_guest_thread_join(void *tt) {
+-    ((tt_fn)need("_ZN2nn2os10WaitThreadEPNS0_10ThreadTypeE"))(tt);
+-    ((tt_fn)need("_ZN2nn2os13DestroyThreadEPNS0_10ThreadTypeE"))(tt);
+-    host_thread *t = tt;
+-    ((void (*)(void *))need("free"))(t->stack_alloc);
+-    free(t);
++    if (!tt || satchel_session_stopping()) return;
++    helper_join_args a = {tt, need("_ZN2nn2os10WaitThreadEPNS0_10ThreadTypeE"),
++        need("_ZN2nn2os13DestroyThreadEPNS0_10ThreadTypeE"), need("free")};
++    if (satchel_session_call_guest(helper_join_guest, &a)) helper_remove(tt);
++}
++int satchel_guest_helpers_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    // SDK stack allocations are reclaimed with the guest address space. Calling
++    // its allocator after termination could wait on a lock whose owner exited.
++    while (helpers) helper_remove(helpers);
++    return 0;
+ }
+ 
+ static struct { int malloc_ok, lock_owned, handle; } g_st;
+@@ -50,7 +88,7 @@
+     ((void (*)(void *))need("_ZN2nn2os11UnlockMutexEPNS0_9MutexTypeE"))(mtx);
+     uint32_t thr_cur_handle(void); g_st.handle = (int)thr_cur_handle();
+ }
+-static void park_body(void *arg) { (void)arg; for (;;) sleep(3600); }   // resident (=2): simulates the pre-decode thread staying alive for the whole run, occupying the handle
++static void park_body(void *arg) { (void)arg; while (!satchel_session_stopping()) usleep(10000); }   // resident (=2): simulates the pre-decode thread staying alive for the whole run, occupying the handle
+ void dm_guest_spawn_selftest(void) {
+     const char *e = getenv("DM_GUEST_SPAWN_TEST"); if (!e) return;
+     if (atoi(e) == 2) { dm_guest_thread_spawn(park_body, NULL, 16, 16 << 10); LOG("host guest thread self-check: start a resident thread (later game thread handles shift up by one)"); }
+--- a/hle_audio.c
++++ b/hle_audio.c
+@@ -3,6 +3,8 @@
+ //       iOS defaults to real audio output (the product must have sound), tests that want silence set DM_AUDIO=0 explicitly; Mac defaults to the silent sink (replay / gate checks are silent), DM_AUDIO=1 for real audio output.
+ // The contents of AudioOut / AudioOutBuffer / AudioOutParameter are read and written only through the interfaces below; the host defines its own internal layout and only writes the front part of the structs (AudioOut: the SDK's own fields, au_info).
+ #include "hle.h"
++#include "SessionBoundary.h"
++#include <errno.h>
+ #include <AudioToolbox/AudioToolbox.h>
+ #include <TargetConditionals.h>
+ #include <dispatch/dispatch.h>
+@@ -17,6 +19,7 @@
+ #define RELMAX QMAX                    // Released max = number of in-flight buffers (the game must take a buffer back before it can append again), same limit as pending
+ typedef struct { uint64_t calls, count, qsum, underruns, zero_bytes; uint32_t fmin, fmax; } audio_stats;
+ typedef struct {
++    void *session_key; int session_host_key;
+     pthread_mutex_t m;
+     void *event;                       // Guest SystemEvent: signaled whenever a buffer is released
+     int ch;
+@@ -48,6 +51,9 @@
+ static aout *g_aos[AOMAX];
+ static pthread_mutex_t g_aos_lock = PTHREAD_MUTEX_INITIALIZER;
+ static int g_suspended;
++static pthread_t session_watchdog;
++static int session_watchdog_started;
++static _Atomic int session_watchdog_run;
+ static aout *ao(const void *g) { aout *a = objmap_get(g); if (!a) die("AudioOut %p was not created by the host", g); return a; }
+ // the call site as "module+offset"; "host" when the host itself calls (in-process audio renderer)
+ static const char *site(void *lr, char *buf, size_t n) {
+@@ -143,6 +149,8 @@
+     }
+ }
+ 
++static int session_mute = -1, session_dump_on = -1;
++static FILE *session_dump;
+ static _Atomic uint64_t g_render_calls;   // Cumulative sound card callbacks (lifecycle verification: must keep growing after resume)
+ uint64_t dm_audio_render_calls(void) { return atomic_load_explicit(&g_render_calls, memory_order_relaxed); }
+ static OSStatus au_render(void *ctx, AudioUnitRenderActionFlags *f, const AudioTimeStamp *ts, UInt32 bus, UInt32 frames, AudioBufferList *bl) {
+@@ -162,7 +170,7 @@
+             a->st_fmin = ~0u; a->st_fmax = 0; a->st_qsum = a->st_count = 0; a->st_u0 = un; a->st_ub0 = ubb;
+         } }
+     pull_device(a, bl->mBuffers[0].mData, bl->mBuffers[0].mDataByteSize);
+-    { static int mute = -1; if (mute < 0) { const char *e = getenv("DM_AUDIO_MUTE"); mute = e && atoi(e); }   // diagnostic: the whole real-output path (AudioUnit callback pacing, background take-over) but with the output silenced (lifecycle tests on the Mac without noise)
++    { int mute = session_mute; if (mute < 0) { const char *e = getenv("DM_AUDIO_MUTE"); session_mute = mute = e && atoi(e); }   // diagnostic: the whole real-output path (AudioUnit callback pacing, background take-over) but with the output silenced (lifecycle tests on the Mac without noise)
+       if (mute) memset(bl->mBuffers[0].mData, 0, bl->mBuffers[0].mDataByteSize); }
+     return noErr;
+ }
+@@ -257,7 +265,7 @@
+ }
+ // Backend changes; callers hold g_aos_lock. pull() takes no lock, so joining a sink under it cannot deadlock
+ static void null_start(aout *a) { atomic_store_explicit(&a->null_run, 1, memory_order_release); pthread_create(&a->null_th, NULL, null_sink, a); a->backend = BK_NULL; }
+-static void null_stop(aout *a) { atomic_store_explicit(&a->null_run, 0, memory_order_release); pthread_join(a->null_th, NULL); a->backend = BK_NONE; }
++static void null_stop(aout *a) { atomic_store_explicit(&a->null_run, 0, memory_order_release); if (pthread_join(a->null_th, NULL)) abort(); a->backend = BK_NONE; }
+ static void backend_stop(aout *a) {
+     if (a->backend == BK_AU) { AudioOutputUnitStop(a->au); a->backend = BK_NONE; }
+     else if (a->backend == BK_NULL) null_stop(a);
+@@ -302,7 +310,7 @@
+ }
+ static void *au_watchdog(void *p) {
+     (void)p; uint64_t last = now_ns();
+-    for (;;) {
++    while (atomic_load(&session_watchdog_run)) {
+         usleep(WD_TICK_MS * 1000);
+         pthread_mutex_lock(&g_aos_lock);
+         uint64_t t = now_ns(), gap = t - last; last = t;
+@@ -327,7 +335,15 @@
+     }
+     return NULL;
+ }
+-static void au_watchdog_start(void) { pthread_t t; if (!pthread_create(&t, NULL, au_watchdog, NULL)) pthread_detach(t); }
++static void au_watchdog_start(void) {
++    pthread_mutex_lock(&g_aos_lock);
++    if (!session_watchdog_started && !satchel_session_stopping()) {
++        atomic_store(&session_watchdog_run, 1);
++        if (pthread_create(&session_watchdog, NULL, au_watchdog, NULL)) abort();
++        session_watchdog_started = 1;
++    }
++    pthread_mutex_unlock(&g_aos_lock);
++}
+ 
+ // AudioOutParameter = { int32 sampleRate; uint16 channelCount; uint16 _r; ... }, 0 = system default (48 kHz / 2 channels)
+ HLE_FORCE("_ZN2nn5audio27InitializeAudioOutParameterEPNS0_17AudioOutParameterE", "audio output parameter defaults", void, h_au_InitParam, uint8_t *p) { memset(p, 0, 8); }
+@@ -346,6 +362,7 @@
+     if (!ch) ch = 2;
+     if (rate && rate != RATE) die("AudioOut sample rate %d not supported (48 kHz only)", rate);
+     aout *a = calloc(1, sizeof *a);
++    a->session_key = g;
+     pthread_mutex_init(&a->m, NULL); a->event = ev; a->ch = ch;
+     atomic_init(&a->state, STATE_STOPPED); atomic_init(&a->vol, 0x3f800000u);
+     atomic_init(&a->q_head, 0); atomic_init(&a->q_tail, 0);
+@@ -367,7 +384,7 @@
+     if (slot < 0) die("more than %d AudioOuts open at once", AOMAX);
+     g_aos[slot] = a;
+     pthread_mutex_unlock(&g_aos_lock);
+-    if (use_au) { static pthread_once_t wd = PTHREAD_ONCE_INIT; pthread_once(&wd, au_watchdog_start); }
++    if (use_au) au_watchdog_start();
+     au_info(g, ch, STATE_STOPPED);
+     return RES_OK;
+ }
+@@ -425,13 +442,33 @@
+     pthread_mutex_unlock(&g_aos_lock);
+ }
+ HLE_FORCE_BIG("_ZN2nn5audio12StopAudioOutEPNS0_8AudioOutE", "stop playback", void, h_au_Stop, void *g) { au_stop_at(g, dm_bigstack_caller(__builtin_return_address(0))); }
+-static void au_close(void *g, void *lr) {
++static int au_close(void *g, void *lr) {
++    if (satchel_session_stopping()) {
++        // A failed driver disposal cannot certify that callbacks stopped. Keep
++        // the registry, notifier and backing buffers intact and refuse reset.
++        pthread_mutex_lock(&g_aos_lock);
++        aout *a = ao(g); OSStatus status = noErr;
++        if (a->au) {
++            status = AudioOutputUnitStop(a->au);
++            if (!status) status = AudioUnitUninitialize(a->au);
++#if !TARGET_OS_IPHONE
++            if (!status) {
++                AudioUnitRemovePropertyListenerWithUserData(a->au, kAudioOutputUnitProperty_CurrentDevice, au_device_changed, NULL);
++                AudioUnitRemovePropertyListenerWithUserData(a->au, kAudioUnitProperty_StreamFormat, au_device_changed, NULL);
++            }
++#endif
++            if (!status) status = AudioComponentInstanceDispose(a->au);
++            if (!status) { a->au = NULL; if (a->backend == BK_AU) a->backend = BK_NONE; }
++        }
++        pthread_mutex_unlock(&g_aos_lock);
++        if (status) { LOG("audio session close retained output after driver error %d", (int)status); return EIO; }
++    }
+     au_note(ao(g), "Close", lr);
+     au_stop_at(g, NULL);
+     aout *a = objmap_del(g);
+     atomic_store_explicit(&a->notify_run, 0, memory_order_release);
+     dispatch_semaphore_signal(a->notify_sem);
+-    pthread_join(a->notify_th, NULL);
++    if (pthread_join(a->notify_th, NULL)) abort();
+     audio_report report;
+     pthread_mutex_lock(&g_aos_lock);
+     int have_report = stats_take(a, &report);
+@@ -442,7 +479,8 @@
+     dispatch_release(a->notify_sem);
+     if (a->rel_sem) dispatch_release(a->rel_sem);
+     pthread_mutex_destroy(&a->m); int ch = a->ch; free(a);
+-    au_info(g, ch, STATE_STOPPED);
++    if (!satchel_session_stopping()) au_info(g, ch, STATE_STOPPED);
++    return 0;
+ }
+ HLE_FORCE_BIG("_ZN2nn5audio13CloseAudioOutEPNS0_8AudioOutE", "close the audio output", void, h_au_Close, void *g) { au_close(g, dm_bigstack_caller(__builtin_return_address(0))); }
+ HLE_FORCE("_ZN2nn5audio16GetAudioOutStateEPKNS0_8AudioOutE", "playback state", int, h_au_State, const void *g) { return atomic_load_explicit(&ao(g)->state, memory_order_acquire); }
+@@ -472,7 +510,7 @@
+     aout *a = ao(g);
+     // Diagnostic switch DM_AUDIO_DUMP=<file>: every PCM block the game appends is written out as is (16-bit, 48 kHz, channel count per the OpenAudioOut log, usually 6). Used to judge "did a given sound play or not":
+     // cross-correlate the original game's audio against it (this is how the tier-one drop sound was verified). The file is opened only when the variable is set; when unset this costs only one extra cached check
+-    { static FILE *df; static int on = -1; if (on < 0) { const char *e = getenv("DM_AUDIO_DUMP"); on = e != NULL; if (on && !(df = fopen(e, "wb"))) LOG("[RED] DM_AUDIO_DUMP cannot open %s", e); }
++    { FILE *df = session_dump; int on = session_dump_on; if (on < 0) { const char *e = getenv("DM_AUDIO_DUMP"); session_dump_on = on = e != NULL; if (on && !(session_dump = df = fopen(e, "wb"))) LOG("[RED] DM_AUDIO_DUMP cannot open %s", e); }
+       if (df && b && b->ptr && b->size) fwrite(b->ptr, 1, (size_t)b->size, df); }
+     pthread_mutex_lock(&a->m);
+     uint32_t qt = atomic_load_explicit(&a->q_tail, memory_order_relaxed);
+@@ -520,13 +558,14 @@
+ void *dm_pcmout_open(int ch) {
+     void *key = calloc(1, 64); uint8_t param[8] = {0}; *(uint16_t *)(param + 4) = (uint16_t)ch;
+     if (au_open_at(key, NULL, "AudioRenderer", param, NULL)) die("host PCM output cannot be opened");
++    ao(key)->session_host_key = 1;
+     ao(key)->rel_sem = dispatch_semaphore_create(0);
+     return key;
+ }
+ // Wait until the output releases a block, at most ms milliseconds (spurious returns are fine: the caller checks dm_pcmout_released again)
+ void dm_pcmout_wait(void *k, int ms) { dispatch_semaphore_wait(ao(k)->rel_sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)ms * 1000000)); }
+ void dm_pcmout_start(void *k) { au_start_at(k, NULL); }
+-void dm_pcmout_close(void *k) { au_close(k, NULL); free(k); }   // stop, take it out of the registry (frees its AOMAX slot), free it and its key
++void dm_pcmout_close(void *k) { if (!au_close(k, NULL)) free(k); }   // stop, take it out of the registry (frees its AOMAX slot), free it and its key
+ int dm_pcmout_append(void *k, void *b) { return (int)h_au_Append(k, b); }
+ void *dm_pcmout_released(void *k) { return h_au_Released(k); }
+ 
+@@ -564,3 +603,24 @@
+     LOG("audio outputs set up again after the media services reset");
+     pthread_mutex_unlock(&g_aos_lock);
+ }
++
++void satchel_audio_request_stop(void) { atomic_store(&session_watchdog_run, 0); }
++int satchel_audio_session_reset(void) {
++    if (!satchel_session_quiescent()) return EBUSY;
++    atomic_store(&session_watchdog_run, 0);
++    if (session_watchdog_started) {
++        int error = pthread_join(session_watchdog, NULL); if (error) return error;
++        session_watchdog_started = 0;
++    }
++    // The front-end must first stop lifecycle calls. Guest callers have joined;
++    // each close stops the output callback and joins its notifier/silent sink.
++    for (int i = 0; i < AOMAX; ++i) if (g_aos[i]) {
++        void *key = g_aos[i]->session_key; int host_key = g_aos[i]->session_host_key;
++        int error = au_close(key, NULL); if (error) return error;
++        if (host_key) free(key);
++    }
++    if (session_dump) { fclose(session_dump); session_dump = NULL; }
++    session_dump_on = session_mute = -1;
++    g_suspended = 0; atomic_store(&g_render_calls, 0);
++    return 0;
++}

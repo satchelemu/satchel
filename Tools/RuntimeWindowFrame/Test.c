@@ -1,0 +1,10 @@
+#include "WindowFrameBridge.h"
+#include "GuestVulkanWindows.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+static unsigned checks;
+#define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"bridge test line%u: %s\n",__LINE__,#x);exit(1);}}while(0)
+static void finish(uint64_t token){SatchelWindowFrameFixtureReport r;for(unsigned i=0;i<1000;i++){uint32_t s=satchel_window_frame_fixture_finish(token,&r);CHECK(s==SATCHEL_WINDOW_FIXTURE_READY||s==SATCHEL_WINDOW_FIXTURE_BUSY);if(!s){CHECK(r.cleanup_matched&&!r.resources_retained&&r.cpu_destroyed);return;}struct timespec t={0,1000000};nanosleep(&t,NULL);}CHECK(0);}
+int main(void){SatchelWindowFrameFixtureReport r,before;memset(&r,0xa5,sizeof(r));before=r;CHECK(satchel_window_frame_fixture_begin(0,0,&r)==SATCHEL_WINDOW_FIXTURE_INVALID&&!memcmp(&r,&before,sizeof(r)));for(unsigned mode=0;mode<2;mode++){uint64_t epoch=7000+mode;uint32_t s=satchel_window_frame_fixture_begin(epoch,mode,&r);if(s)fprintf(stderr,"begin status%u stage%u line%u\n",s,r.stage,r.failure_line);CHECK(s==SATCHEL_WINDOW_FIXTURE_READY&&r.ready&&r.stage==10&&r.fixture_token&&r.window_ticket&&r.epoch==epoch);CHECK(r.cpu_destroyed==mode&&r.resources_retained&&r.width==31&&r.height==17&&r.byte_size==2108);uint64_t owner=r.fixture_token,ticket=r.window_ticket;SatchelFrameInfo info;CHECK(satchel_guest_dispatch_window_take(ticket,epoch,&info)==SATCHEL_GWIN_OK&&info.epoch==epoch&&info.byte_size==2108);uint8_t bytes[2108];CHECK(satchel_guest_dispatch_window_copy(ticket,info.token,0,bytes,sizeof(bytes))==SATCHEL_GWIN_OK);for(unsigned i=0;i<sizeof(bytes);i++)CHECK(bytes[i]==(i%4==0||i%4==3?255:0));if(mode){CHECK(satchel_window_frame_fixture_finish(owner,&r)==SATCHEL_WINDOW_FIXTURE_BUSY&&r.resources_retained&&r.cpu_destroyed);CHECK(satchel_guest_dispatch_window_copy(ticket,info.token,0,bytes,sizeof(bytes))==SATCHEL_GWIN_OK);}CHECK(satchel_guest_dispatch_window_release(ticket,info.token)==SATCHEL_GWIN_OK);finish(owner);}printf("Original Window-to-consumer C fixture: %u assertions, normal and CPU-destroyed READY frames, real leased retirement retry and resources zero.\n",checks);return 0;}

@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "implementation": "satchel-native-v2-geometry-e65a4ebd3322-f11ba9f0",
+  "swiftSources": [
+    "NativeShaders/Text.swift",
+    "NativeShaders/ShaderHelpers.swift",
+    "NativeShaders/Variants.swift",
+    "NativeShaders/Fetch.swift",
+    "NativeShaders/BaseTransforms.swift",
+    "NativeShaders/VertexEntries.swift",
+    "NativeShaders/Feedback.swift",
+    "NativeShaders/Reflection.swift",
+    "NativeShaders/RasterFacts.swift",
+    "NativeShaders/ReflectionJSON.swift",
+    "NativeShaders/Spirv.swift",
+    "NativeShaders/BufferAnalysis.swift",
+    "NativeShaders/ShaderRecord.swift",
+    "NativeShaders/SourcePipeline.swift",
+    "NativeShaders/Geometry.swift",
+    "NativeShaders/Translation.swift",
+    "NativeShaders/ShaderAPI.swift",
+    "NativeShaders/ShaderStore.swift",
+    "NativeShaders/ShaderCompiler.swift",
+    "NativeShaders/ShaderWarmup.swift",
+    "NativeShaders/PipelineArchive.swift",
+    "NativeShaders/ShaderDiscovery.swift",
+    "NativeShaders/ShaderArchiveDecoder.swift",
+    "NativeShaders/ShaderPublication.swift",
+    "NativeShaders/ShaderRuntimeBridge.swift"
+  ],
+  "bridgingHeader": "NativeShaders/ArchiveTranslationBridge.h",
+  "libraries": [
+    "SatchelShaderProbe.framework",
+    "libGameShaderBridge.a",
+    "libShaderArchive.a"
+  ],
+  "frameworks": [
+    "Foundation",
+    "CryptoKit",
+    "Metal"
+  ],
+  "linkerLibraries": [
+    "c++"
+  ],
+  "minimumRuntimeOS": "iOS 18.0",
+  "concurrencyLimit": 2,
+  "supportedPreparationStages": [
+    "vs",
+    "ps",
+    "cs",
+    "gs"
+  ],
+  "unsupportedPreparationStages": [
+    "hs",
+    "ds"
+  ],
+  "notices": [
+    "NativeShaders/Notices",
+    "Tools/MaxwellShaderCompiler/licenses",
+    "Tools/ShaderBridge/LICENSES"
+  ],
+  "gameFrameworkDoesNotExport": [
+    "satchel_shader_fixture_compile"
+  ]
+}

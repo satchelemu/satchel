@@ -1,0 +1,29 @@
+{
+  "status": "read-only production source review clear; final producer gates still owned by GPU agent",
+  "sources": {
+    "Tools/CapturedFlatCompiler/CapturedFlatAdmission.cs": "bbccfae436a1fa8343c276f0ce8d0ff9c2738ed5798dfae487e087c0ff394cb4",
+    "Tools/CapturedFlatCompiler/CapturedFlatAdmission.h": "9eac8c9c2958d921f8431059db99cad5ec4085769e4b63a733d2457a4f9251a1",
+    "Tools/GuestGraphics/GuestCapturedPrograms.c": "89a467c02ec1429627b27a1167ea4d4cf4a6ed3c418452b539abe57ae236a883",
+    "Tools/GuestGraphics/GuestCapturedPrograms.h": "6bd36414187e64496649bfb43ff372d46e0435ea88962c3d28acec677c1fca2d",
+    "Tools/CapturedFlatCompiler/StrictSource.cs": "ad161f781901aac04a998f73df3404462791ce3325fa3bd83fbf0661f822f866"
+  },
+  "findings": [],
+  "reviewed": [
+    "Admission uses shared cold-safe facade gate and bounded WorkBudget; copies both SPH/code inputs before callback and preserves output on every failure",
+    "StrictSource excludes FS PositionY/FrontFacing and resource instructions; published source-unused requirements belong only to current strict pair profile, not arbitrary graphics states",
+    "Compilation still requires complete observed state known255/extra4095 and actual live-target ABI2; unused mask is not silently replaced by guessed false state",
+    "Capture retains bounded full wrapper/SPH/instructions/C1 GPU-visible data and copied controls; two-stage candidate admission precedes atomic replacement; failed cleanup preserves pending lease ownership",
+    "Retain blocks replacement/finalize; old successful capture retires separately; partial release and no-slot forget retry preserve pending cleanup; device children include pending/retired objects",
+    "Compile validates common identity/pool generations/code before and after actual compiler; private output pair and metadata publish only on success",
+    "Code-disjoint and code-bindings return checked physical/generation snapshots; callers must retain/deduplicate later submission leases as documented; no guest handle can be a native token",
+    "CPU-free teardown retains owner on BUSY/failure; callbacks serialized by caller and owner gate"
+  ],
+  "documentation_note": "Clarified source_unused_state mask0x08(bit3), pure cancellation callbacks, and fixed capture deadline/work budget; implementation unchanged.",
+  "validation": "Reviewer performed no builds, edits or device actions. Owner reports5826 captured GPU assertions/8draws and legacy compiler gates; final producer manifest still being assembled.",
+  "limits": [
+    "No real game pipeline/display claim",
+    "Caller composite serialization, common identity validation and actual recorded state remain required",
+    "Review does not approve broadening ABI2 state or arbitrary shader admission"
+  ],
+  "documentation_only_rebinding": {}
+}

@@ -1,0 +1,55 @@
+name: SignLoadProbe
+options:
+  deploymentTarget:
+    iOS: '17.0'
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: YOUR_TEAM_ID
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: '5.0'
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    OPENSSL_ROOT: $(HOME)/SatchelBuild/spike/openssl-ios
+    HEADER_SEARCH_PATHS:
+      - $(SRCROOT)/../../NativePrepare/Signer/Vendor/zsign
+      - $(SRCROOT)/../../NativePrepare/Signer/Vendor/zsign/common
+      - $(OPENSSL_ROOT)/include
+    LIBRARY_SEARCH_PATHS:
+      - $(OPENSSL_ROOT)/lib
+    OTHER_LDFLAGS: ['$(inherited)', '-lcrypto']
+targets:
+  SignLoadProbe:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Native
+      - path: ../../NativePrepare/Signer/Vendor/zsign
+        excludes: ['LICENSE']
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dell.satchel.signprobe
+        TARGETED_DEVICE_FAMILY: '1'
+        SWIFT_OBJC_BRIDGING_HEADER: Native/SignerBridge.h
+        CODE_SIGN_ENTITLEMENTS: Probe.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Sign Load Probe
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: 'UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight'
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+        MARKETING_VERSION: '1.0'
+        CURRENT_PROJECT_VERSION: '1'
+    preBuildScripts:
+      - name: Build and sign synthetic payload
+        script: /bin/zsh "$SRCROOT/Scripts/build-payload.zsh"
+        basedOnDependencyAnalysis: false
+    postBuildScripts:
+      - name: Copy payloads as plain resources
+        script: |
+          cp "$HOME/SatchelBuild/spike2/payload/probe.dylib" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/probe.dylib"
+          cp "$HOME/SatchelBuild/spike2/payload/unsigned-probe.bin" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/unsigned-probe.bin"
+          cp "$SRCROOT/../../NativePrepare/Signer/Vendor/zsign/LICENSE" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/zsign-LICENSE.txt"
+          cp "$SRCROOT/../../NativePrepare/Signer/Vendor/OpenSSL-LICENSE.txt" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/OpenSSL-LICENSE.txt"
+        basedOnDependencyAnalysis: false

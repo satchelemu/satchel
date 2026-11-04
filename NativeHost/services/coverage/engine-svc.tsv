@@ -1,0 +1,38 @@
+number	source	line	note
+0x01	dm/host/hle_svc.c	448	case 0x01: {  // SetHeapSize(out_addr*, size)  → x1 = heap base
+0x02	dm/host/hle_svc.c	479	case 0x02: case 0x03: { // Permission/attribute stubs must not modify a borrowed source.
+0x03	dm/host/hle_svc.c	479	case 0x03: { // Permission/attribute stubs must not modify a borrowed source.
+0x04	dm/host/hle_svc.c	486	case 0x04: {  // MapMemory(dst, src, size): when creating a thread the SDK moves the stack on the heap into the stack region
+0x05	dm/host/hle_svc.c	505	case 0x05: {  // UnmapMemory(dst, src, size): contents are moved back to the source region; a 16K page may be shared with an adjacent mapping, permissions are not revoked
+0x06	dm/host/hle_svc.c	519	case 0x06: {  // QueryMemory(MemoryInfo* out, PageInfo* pout, addr) → x1 = pageinfo
+0x2C	dm/host/hle_svc.c	593	case 0x2C: case 0x2D: {  // MapPhysicalMemory / UnmapPhysicalMemory(addr, size): only allowed inside the alias region (used by the SDK's VammManager)
+0x2D	dm/host/hle_svc.c	593	case 0x2D: {  // MapPhysicalMemory / UnmapPhysicalMemory(addr, size): only allowed inside the alias region (used by the SDK's VammManager)
+0x26	dm/host/hle_svc.c	648	case 0x26: {  // Break(reason, ptr, size): SDK fatal abort
+0x1E	dm/host/hle_svc.c	657	case 0x1E: guest_clock_read_wait(); regs[0] = 0; regs[1] = guest_ns() * 12 / 625; return 0;   // GetSystemTick
+0x27	dm/host/hle_svc.c	658	case 0x27: {  // OutputDebugString(str, len)
+0x29	dm/host/hle_svc.c	662	case 0x29: {  // GetInfo(out*, id, handle, subid) → x1 = value
+0x08	dm/host/hle_thread.c	879	case 0x08: {  // CreateThread(→w1 handle; x1 entry, x2 argument, x3 stack top, w4 priority, w5 core)
+0x09	dm/host/hle_thread.c	897	case 0x09: {  // StartThread(w0)
+0x0A	dm/host/hle_thread.c	904	case 0x0A: thread_exit(cur()); return 1;
+0x0B	dm/host/hle_thread.c	905	case 0x0B: {  // SleepThread(x0 ns); 0/-1/-2 = the various kinds of yield
+0x0C	dm/host/hle_thread.c	917	case 0x0C: { pthread_mutex_lock(&G); thr_t *t = h_get((uint32_t)regs[1], O_THREAD);
+0x0D	dm/host/hle_thread.c	919	case 0x0D: { pthread_mutex_lock(&G); thr_t *t = h_get((uint32_t)regs[0], O_THREAD);   // SetThreadPriority; under DM_QOS_MAP the class follows (now on the calling thread, else at the target's next SVC)
+0x0E	dm/host/hle_thread.c	922	case 0x0E: { thr_t *t = h_get((uint32_t)regs[2], O_THREAD);
+0x0F	dm/host/hle_thread.c	924	case 0x0F: {  // SetThreadCoreMask(w0, w1 ideal core, x2 mask): -2 = use the process default (ideal core 0, mask of just that core), -1 = don't care, -3 = leave the ideal core unchanged (as in the Horizon kernel); the host only keeps the bookkeeping
+0x10	dm/host/hle_thread.c	932	case 0x10: { thr_t *t = cur(); int c = t->core;   // The current core number is always 0..2 (never negative); a thread with no ideal core reports the lowest core its mask allows, not core 0 outside it
+0x32	dm/host/hle_thread.c	934	"case 0x32: {  // SetThreadActivity(w0 thread, w1 0 runnable / 1 paused): see ""Pausing threads"" above"
+0x33	dm/host/hle_thread.c	957	case 0x33: {  // GetThreadContext3(x0 out ThreadContext*, w1 thread): only for stopped threads
+0x25	dm/host/hle_thread.c	966	case 0x25: { thr_t *t = h_get((uint32_t)regs[1], O_THREAD); regs[0] = t ? 0 : R_BAD_HANDLE; regs[1] = t ? t->id : 0; return 1; }
+0x1A	dm/host/hle_thread.c	968	case 0x1A: {  // ArbitrateLock(w0 owner handle, x1 address, w2 this thread's tag)
+0x1B	dm/host/hle_thread.c	982	case 0x1B: pthread_mutex_lock(&G); lock_handoff(regs[0]); pthread_mutex_unlock(&G); regs[0] = 0; return 1;
+0x1C	dm/host/hle_thread.c	983	case 0x1C: {  // WaitProcessWideKeyAtomic(x0 lock address, x1 condition key, w2 tag, x3 timeout)
+0x1D	dm/host/hle_thread.c	1009	case 0x1D: {  // SignalProcessWideKey(x0 condition key, w1 count, <=0 all)
+0x34	dm/host/hle_thread.c	1019	case 0x34: {  // WaitForAddress(x0 address, w1 type, x2 value, x3 timeout): 0 wait if less than, 1 decrement if less than then wait, 2 wait if equal, 3 wait if the 64-bit value is equal
+0x35	dm/host/hle_thread.c	1032	case 0x35: {  // SignalToAddress(x0 address, w1 type, w2 value, w3 count): 0 wake, 1 increment if equal and wake, 2 if equal modify the value by waiter count and wake
+0x45	dm/host/hle_thread.c	1054	case 0x45: {  // CreateEvent(→w1 write end, w2 read end)
+0x11	dm/host/hle_thread.c	1059	case 0x11: case 0x12: case 0x17: {  // SignalEvent(write end) / ClearEvent(either end) / ResetSignal(read end, error if not signaled)
+0x12	dm/host/hle_thread.c	1059	case 0x12: case 0x17: {  // SignalEvent(write end) / ClearEvent(either end) / ResetSignal(read end, error if not signaled)
+0x17	dm/host/hle_thread.c	1059	case 0x17: {  // SignalEvent(write end) / ClearEvent(either end) / ResetSignal(read end, error if not signaled)
+0x18	dm/host/hle_thread.c	1074	case 0x18: {  // WaitSynchronization(→w1 index; x1 handle array, w2 count, x3 timeout)
+0x19	dm/host/hle_thread.c	1094	case 0x19: {  // CancelSynchronization(w0 thread)
+0x16	dm/host/hle_thread.c	1101	case 0x16: {  // CloseHandle(w0): an event is freed only when both ends are closed; after a thread handle is closed the slot is recycled, and the object is freed once the thread has also exited

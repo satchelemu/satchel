@@ -1,0 +1,25 @@
+{
+  "files": {
+    "Tools/CapturedFlatCompiler/GPUTest.cpp": "86d66b366fcd1e88b05bd174731bf6868f0a8886b70da833c256c0842e55c356",
+    "Tools/CapturedFlatCompiler/GPUOriginalPair.h": "b5af7568898921400d593ef30610a3a6e9bb813ca57d5ecb969e98df6509f04c",
+    "Tools/CapturedFlatCompiler/GPU.md": "66475f7ba8155948e7d55bc805b8be1653f2ef5e0f498604f7c5f669c71c5120",
+    "Tools/CapturedFlatCompiler/build_gpu.py": "a1f806b67945399bd7e4ac064da5d12908cad7a61bce87a4b8d7d08afa75eeb4",
+    "scripts/test_captured_flat_gpu.sh": "de2908e5ac374c52e6b90582d4a82a14fe6188fa95224a50558f64aac6ffa1b1"
+  },
+  "compiler_contract": {
+    "CapturedFlat.h": "3d8edae99a38cc3b4ba1bf575f9b96fe7c389e5fbb51cacf3d2fd72b4c1321c7",
+    "CapturedFlat.cs": "1e543a7ca701129afd3ca6d9f395fb73edced2391a4b1c47f834de9866d08e0c",
+    "StrictSource.cs": "ad161f781901aac04a998f73df3404462791ce3325fa3bd83fbf0661f822f866",
+    "SpirvProof.cs": "0aa476d70814e7e549a57cd0cf016aad496e739097c6658f6114602bc6a0f61b",
+    "WorkBudget.cs": "6332e2bc2a465e777f5f5e79e03d2c3b05cf5e46317e337e5e1b9843de071d30",
+    "source-lock.json": "5957e2bbc4e5e42a6b72db5872c18baa5bb33f3e2a9c984cef5a1b32ae770170"
+  },
+  "renderer_contract": {
+    "Tools/VulkanBackend/VulkanFlat.h": "f8a38fc236a9f6604fadc436899156b4a19d53f6dace06a8d3762159555df4b4",
+    "Tools/VulkanBackend/VulkanFlatSchema.inc": "db4a91cd1381bfec5f1892e228afa45a32dffcb0a038f561dbeeeac8a3aa0332",
+    "Tools/VulkanBackend/VulkanFlatCreate.inc": "dad4a1317742fbc4b9aa817086f4e7399c6d4d2e0ad88d9365cfb3cdd243eaf3",
+    "Tools/VulkanBackend/VulkanFlat.inc": "885e4ef3e01cdb3576b77ada4742b325f4812e294f05e564882a48d2a41174eb",
+    "Tools/VulkanBackend/VulkanProvoking.h": "58d7266a01a905133008550d6dcc31532f489ba8414813928072290870e7d4d5",
+    "Tools/VulkanBackend/VulkanProvoking.inc": "46d5324430505980bff5eb577d25078309454b70c1308bf63c6bf01be592bf19"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "status": "clear in documented serialized trusted-host snapshot scope",
+  "source": {
+    "/private/tmp/satchel-texture-frame-staging/Tools/GuestGraphics/GuestTextureFrames.h": "43a517a7456e836234570813db094f0276ecfb2d590b4eb8d3fa085729c0804e",
+    "/private/tmp/satchel-texture-frame-staging/Tools/GuestGraphics/GuestVulkanTextureFrames.h": "1cf102cb7b7a93a81bc6051570adfd059d428d0f6be79d4120ce804e5859a1dc",
+    "/private/tmp/satchel-texture-frame-staging/Tools/GuestGraphics/GuestVulkanTextureFrames.c": "288d45f8f7ebccfcaabf9aaf1a336cbe63577e94ca36fd3ed19311f387630e9e",
+    "/private/tmp/satchel-texture-frame-staging/Tools/GuestGraphics/GuestTextureFrames.c": "50e90f116aef352674ce5b691da3b3a5fa45cba4de31fe248136c50e974581ba"
+  },
+  "producer_manifest": "/tmp/satchel-texture-frame-build01/validation-manifest.json",
+  "producer_manifest_sha256": "41e788ee0cb6992b6bbcefcd26faa5992d5d87228bd5fe15e435ef5d9405415c",
+  "findings": [],
+  "review": [
+    "Checks texture generation/current GPU-visible pool bytes; no stale image fallback. Revalidates before hold with no intervening callback, retains texture/pool references, charges bounded tiled+linear snapshots before allocation.",
+    "Nonzero upload and frame jobs retain owners through errors/cancel; snapshot_drained is distinct from successful snapshot_completed. Cleanup retries each resource independently and preserves immutable leased host bytes.",
+    "Composite gates cached submissions and device children through remaining GPU ownership and temporary admission references; global tickets are monotonic and no CPU/cancel context survives synchronous calls.",
+    "Request is copied before clearing potentially overlapping output. Invalid state/unknown format never fabricates metadata or presentation.",
+    "Independent legacy composite/link path remains separate. No Window/VI/presentation or game-frame claim."
+  ],
+  "validation_scope": "Producer manifest reports normal25034 and fault33987 assertions plus iOS17 compilation; reviewer read source and verified hashes, did not rerun builds/tests. Native host pointers/callbacks are trusted synchronous APIs, not guest-provided addresses."
+}

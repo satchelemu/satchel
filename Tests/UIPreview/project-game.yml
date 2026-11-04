@@ -1,0 +1,77 @@
+# Simulator-only UI preview with the game screen (build-preview.zsh game): project.yml plus
+# the native menu bridge, display controls and touch pad over GameFixture.m's synthetic
+# picture, and the dev screens (prepared games, player settings, Prepare) over
+# DevScreenFixture.swift's stand-ins. __DISPLAY__ is a display build's output (overlays and engine headers).
+name: SatchelPreview
+options:
+  deploymentTarget:
+    iOS: '26.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CODE_SIGN_IDENTITY: '-'
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ''
+targets:
+  SatchelPreview:
+    type: application
+    platform: iOS
+    sources:
+      - path: __REPO__/App
+        excludes:
+          - Info.plist
+          - SatchelApp.swift
+          - GameDiagnostics.swift
+          - SwitchRuntime*.swift
+          - Switch*VulkanReport.swift
+          - SwitchWindowReport.swift
+          - SwitchTime.swift
+          - SwitchDecodedModule.swift
+      - path: __REPO__/Core/HomebrewFormat.c
+      - path: __REPO__/Core/Interpreter.c
+      - path: __REPO__/Core/NROLoader.c
+      - path: __REPO__/Core/NSOLoader.c
+      - path: __REPO__/Core/SwitchCrypto.c
+      - path: __REPO__/Tests/UIPreview/CompressionFixture.c
+      - path: __REPO__/Tests/UIPreview/PreviewStubs.swift
+      - path: __REPO__/Tests/UIPreview/GameFixture.m
+      - path: __REPO__/Tests/UIPreview/CompressedImportFixture.swift
+      - path: __REPO__/Tests/UIPreview/SaveFixture.swift
+      - path: __REPO__/Tests/UIPreview/NavigationFixFixture.swift
+      - path: __REPO__/NativeHost/InGameMenu.m
+      - path: __REPO__/NativeHost/DisplayControls.m
+      - path: __REPO__/NativeHost/PlayerSettings.m
+      - path: __REPO__/NativeHost/SatchelMenuSession.swift
+      - path: __REPO__/NativeHost/NativeMenuBridge.swift
+      - path: __REPO__/NativeHost/PreparedGame.swift
+      - path: __REPO__/NativeHost/PlayerSettingsView.swift
+      - path: __REPO__/NativePrepare/Progress.swift
+      - path: __REPO__/Tests/UIPreview/DiagnosticsFixture.swift
+      - path: __REPO__/Tests/UIPreview/OnboardingDLCFixture.swift
+      - path: __REPO__/NativePrepare/AddOnJob.swift
+      - path: __REPO__/NativePrepare/PrepareJob.swift
+      - path: __REPO__/NativePrepare/WarmupJob.swift
+      - path: __REPO__/NativePrepare/WarmupView.swift
+      - path: __REPO__/NativePrepare/PrepareGameView.swift
+      - path: __REPO__/NativePrepare/Signer/SigningIdentityView.swift
+      - path: __REPO__/Tests/UIPreview/DevScreenFixture.swift
+      - path: __REPO__/NativeHost/PlayerProfiles.plist
+        buildPhase: resources
+      - path: __DISPLAY__/overlays/display/dm/ios/Sources/DmGamepad.m
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dell.satchel.previewgame
+        PRODUCT_NAME: SatchelPreview
+        SWIFT_OBJC_BRIDGING_HEADER: '__REPO__/Tests/UIPreview/PreviewGameBridge.h'
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: 'DEBUG PREVIEW_GAME'
+        CLANG_ENABLE_OBJC_ARC: YES
+        HEADER_SEARCH_PATHS: ['"__REPO__/Core"', '"__REPO__/NativeHost"', '"__REPO__/Tests/UIPreview"', '"__DISPLAY__/engine/dm/host"', '"__DISPLAY__/engine/dm/host/gen/0100F2C0115B6000"', '"__DISPLAY__/engine/dm/gfx"']
+        OTHER_LDFLAGS: ['-framework', 'GameController', '-framework', 'CoreMotion', '-framework', 'CoreText']
+        TARGETED_DEVICE_FAMILY: '1'
+        GENERATE_INFOPLIST_FILE: YES
+        # Merged with the generated keys: the continued processing task identifiers Prepare uses.
+        INFOPLIST_FILE: '__REPO__/Tests/UIPreview/PreviewGameInfo.plist'
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: 'UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight'
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Satchel Game Preview

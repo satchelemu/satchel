@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "reviewer": "core_options",
+  "mode": "independent read-only source/ABI/lifetime review; no builds or tests executed by reviewer",
+  "conclusion": "No remaining blocker found in the bounded opt-in source-admission slice. Captured Bind stops explicitly; no captured game pipeline/frame claim.",
+  "source_hashes": {
+    "/tmp/satchel-nvn-captured-program-staging/GuestVulkanCapturedRaster.c": "63e610c6158f2a6f3e2b69d11034270bb9a1eb1e73db1729980d068b3c861158",
+    "/tmp/satchel-nvn-captured-program-staging/GuestVulkanCapturedRaster.h": "c1e4e2eaa6dcd558a57b668b98bbe9ad348e07880bda34ccc527b1b463361bab",
+    "/tmp/satchel-nvn-captured-program-staging/GuestDispatch.c": "97d1fc90900f450e51bac1222a0fd2d8eda997e37ac6b029bb3b5278e5b1803f",
+    "/tmp/satchel-nvn-captured-program-staging/GuestDispatch.h": "fd9a596b9e507b290eaab2c3d6bb682d589a50a7cdd637107a3f7b9c6a784e68",
+    "/tmp/satchel-nvn-captured-program-staging/GuestTransfers.h": "1e924aa0bc1135131de51797951567d00a3022cc720e94a1c953e33a663d4b7b",
+    "/tmp/satchel-nvn-captured-program-staging/Test.c": "42fa742f3eb6c46ee004b8b2ccac10b9d3789a4143bb0338e2aa5692bd340645",
+    "/tmp/satchel-nvn-captured-program-staging/FaultTest.c": "7c5d8c9c0fff6bd1edbd3f0d596c033d51d1cc8ea1833b7e63cb9ccea0315436",
+    "/tmp/satchel-nvn-captured-program-staging/ComputeTest.c": "ada56e7863c3745427746d71d5785c10e79bb3160334a3c150f4d49dc25d27f4",
+    "/tmp/satchel-nvn-captured-program-staging/build.py": "cd64230af42dd1133a11fe950c655d2a87594705cc2f1996226e1a209a841a2f",
+    "/tmp/satchel-nvn-captured-program-staging/build/validation-manifest.json": "46f1c7c6c64961155af4d267b96984dec919a4b162de47abf2573673448bf165"
+  },
+  "legacy_byte_identical": true,
+  "checks": [
+    "New separate object exports only satchel_guest_dispatch_enable_vulkan_captured_raster; legacy object/source retains original imports and implementation. Separate legacy link recipe excludes new composite, captured owner, host adapter and NativeAOT.",
+    "Fallback is initial clean legacy UNSUPPORTED only, never memory/busy/backend/allocation/cancel; established profile cannot switch.",
+    "Captured replacement commits family/profile only after transactional capture. Actual identity/generation and full GPU-visible code/C1 bytes are rechecked by info before Bind. Failed replacement preserves prior capture.",
+    "Captured Bind emits explicit transfer status11 mapped to dispatcher19 before recording/compilation. Unknown YNegate/provoking state is not inferred from source-unused proof or legacy defaults. Existing status values unchanged.",
+    "Actual refs block Finalize; retiring state survives common-tag removal and permits CPU-free forget retry; child counts include pending/retired captures; cleanup ordering retains owners/pools/device until release.",
+    "Dispatcher return-PC validation precedes transfer mutation; cancellation and result publication preserve failure state. Pure checked reciprocal guards continue through common Program owner."
+  ],
+  "observed_producer_evidence": {
+    "build/test.log": 15502,
+    "build/compute.log": 16174,
+    "build/fault.log": 998,
+    "build/legacy-no-captured.log": 13050
+  },
+  "log_hashes": {
+    "build/test.log": "838c44236ecae54135d851a4f1646f33e66482dc1af5ac1ffdf17781300fabf2",
+    "build/compute.log": "163e1d3428b78ede791a20f7f4eeb37be5d47fdc83b2dc5f6d5bb212666d7121",
+    "build/fault.log": "cc048c1236277b10853376e7240b2b757b0e2596489671ac46b44a13b31a3d21",
+    "build/legacy-no-captured.log": "cc3e612fce3010b930152e59eb949cbf38f2a90a81499b3ffa3f393eec95ab58"
+  },
+  "limitations": [
+    "No actual game NVN calls or device test performed by reviewer.",
+    "Captured source admission is not compilation or draw readiness; actual state remains missing.",
+    "Existing captured source admission has its own bounded deadline/work cap; no stronger asynchronous mid-admission cancellation guarantee.",
+    "Review binds exact current files; final packaging changes need their own provenance."
+  ]
+}

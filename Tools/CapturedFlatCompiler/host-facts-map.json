@@ -1,0 +1,222 @@
+{
+  "scope": "Exact strict flat VS/FS profile only; physical/driver facts are not conflated with implemented renderer support",
+  "device_creation": "VkDeviceCreateInfo has no pNext/pEnabledFeatures; only portability_subset extension, query result does not imply optional features enabled",
+  "facts": [
+    {
+      "bit": 0,
+      "query": "QueryHostReducedPrecision",
+      "classification": "policy",
+      "value": "false",
+      "reason": "Precision reduction is disabled by compiler profile and MoltenVK fast math NEVER.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/ForcePreciseEnable.cs",
+      "sha256": "38ee7389d40d742a3540211aac955ab0dec5b6bb522f25a1fda82952597c69c8"
+    },
+    {
+      "bit": 1,
+      "query": "QueryHostHasFrontFacingBug",
+      "classification": "unknown-device/source-unused",
+      "value": "unknown",
+      "reason": "Only FrontFacing IPA attribute consumer; strict profile admits only user varying IPA.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/InstEmitAttribute.cs",
+      "sha256": "58948c48aa3abdef7f0ad5195acdfbf7df4e9e943f325bdf16d169499011637a"
+    },
+    {
+      "bit": 2,
+      "query": "QueryHostHasVectorIndexingBug",
+      "classification": "unknown-device/source-unused",
+      "value": "unknown",
+      "reason": "Only dynamic constant-buffer vector indexing transform; strict profile has no constant-buffer loads.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/VectorComponentSelect.cs",
+      "sha256": "e860274f60578f916ebec3b127200e2ba63ac027831bdc9b22a914bc9917a67b"
+    },
+    {
+      "bit": 3,
+      "query": "QueryHostSupportsBgraFormat",
+      "classification": "physical+target",
+      "value": "queried true required",
+      "reason": "Actual BGRA optimal COLOR_ATTACHMENT bit plus live native RGBA target; sole remap consumer.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/EmitterContext.cs",
+      "sha256": "7504012b70636916ecc96fc62a504edb77bc9c3ae56dff110e6f9ac2c435be5f"
+    },
+    {
+      "bit": 4,
+      "query": "QueryHostSupportsFragmentShaderInterlock",
+      "classification": "disabled-extension",
+      "value": "false",
+      "reason": "No fragment interlock feature/extension enabled; no resource/interlock op admitted.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/TranslatorContext.cs",
+      "sha256": "90e2f6b9a67f4801ae41619b3a51bced84d457bda7fb626b01acf33fdd494909"
+    },
+    {
+      "bit": 5,
+      "query": "QueryHostSupportsFragmentShaderOrderingIntel",
+      "classification": "disabled-extension",
+      "value": "false",
+      "reason": "INTEL fragment ordering extension not enabled.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/TranslatorContext.cs",
+      "sha256": "90e2f6b9a67f4801ae41619b3a51bced84d457bda7fb626b01acf33fdd494909"
+    },
+    {
+      "bit": 6,
+      "query": "QueryHostSupportsGeometryShader",
+      "classification": "disabled-feature",
+      "value": "false",
+      "reason": "geometryShader core feature not enabled; only VS/FS pipelines implemented.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/IGpuAccessor.cs",
+      "sha256": "812c8c21c8edfc304e88983aa005a173861e4b76b70aebaa7cccda0512d987ad"
+    },
+    {
+      "bit": 7,
+      "query": "QueryHostSupportsGeometryShaderPassthrough",
+      "classification": "disabled-extension",
+      "value": "false",
+      "reason": "No NV geometry passthrough extension or stage.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/EmitterContext.cs",
+      "sha256": "7504012b70636916ecc96fc62a504edb77bc9c3ae56dff110e6f9ac2c435be5f"
+    },
+    {
+      "bit": 8,
+      "query": "QueryHostSupportsImageLoadFormatted",
+      "classification": "disabled-feature/profile",
+      "value": "false",
+      "reason": "shaderStorageImageReadWithoutFormat not enabled; no images/descriptors admitted.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/StructuredIr/ShaderProperties.cs",
+      "sha256": "ff73490622419399927a7a91ccba6b87fcf972c612e5915a25e7b67c0e6b5cf1"
+    },
+    {
+      "bit": 9,
+      "query": "QueryHostSupportsLayerVertexTessellation",
+      "classification": "disabled-extension/profile",
+      "value": "false",
+      "reason": "No shader viewport/layer export feature or layer outputs admitted.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/InstEmitAttribute.cs",
+      "sha256": "58948c48aa3abdef7f0ad5195acdfbf7df4e9e943f325bdf16d169499011637a"
+    },
+    {
+      "bit": 10,
+      "query": "QueryHostSupportsNonConstantTextureOffset",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "No textures or texture descriptor model in flat renderer.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/TexturePass.cs",
+      "sha256": "f5925fe794e8ab02dc332c36fb583436d87a8630c98f7fa112e53972416625d2"
+    },
+    {
+      "bit": 11,
+      "query": "QueryHostSupportsScaledVertexFormats",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "Renderer only accepts R32G32B32A32_SFLOAT; no scaled vertex formats implemented. Float AsAggregate ignores this flag.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/AttributeType.cs",
+      "sha256": "3d4cbabfa22b5ef7e645967ce292948c9061c4ec03334f3e4abfc0621407db60"
+    },
+    {
+      "bit": 12,
+      "query": "QueryHostSupportsSeparateSampler",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "No samplers/texture descriptor support in this renderer profile.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/BindlessElimination.cs",
+      "sha256": "dd43cb441c48b1f40168f464aa30a92189cc43ed8bf4e8cabdfc0254946c1b9a"
+    },
+    {
+      "bit": 13,
+      "query": "QueryHostSupportsShaderBallot",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "Subgroup/ballot capabilities and operations rejected; not a claim physical subgroup support is absent.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/TranslatorContext.cs",
+      "sha256": "90e2f6b9a67f4801ae41619b3a51bced84d457bda7fb626b01acf33fdd494909"
+    },
+    {
+      "bit": 14,
+      "query": "QueryHostSupportsShaderBarrierDivergence",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "No barrier instructions admitted; not a physical convergence claim.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/TranslatorContext.cs",
+      "sha256": "90e2f6b9a67f4801ae41619b3a51bced84d457bda7fb626b01acf33fdd494909"
+    },
+    {
+      "bit": 15,
+      "query": "QueryHostSupportsShaderFloat64",
+      "classification": "disabled-feature",
+      "value": "false",
+      "reason": "shaderFloat64 not enabled; source has no F64 and schema only float32.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/Optimizer.cs",
+      "sha256": "0bab3a96fb925245e5f11e180f2bb9e80e73e96d20f130a9d21ec82d9b9a736c"
+    },
+    {
+      "bit": 16,
+      "query": "QueryHostSupportsShaderNonUniformIndexing",
+      "classification": "disabled-feature/profile",
+      "value": "false",
+      "reason": "No descriptor indexing features enabled; no resource indexing admitted.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/TranslatorContext.cs",
+      "sha256": "90e2f6b9a67f4801ae41619b3a51bced84d457bda7fb626b01acf33fdd494909"
+    },
+    {
+      "bit": 17,
+      "query": "QueryHostSupportsSnormBufferTextureFormat",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "No SNORM texel buffers or texture formats implemented by admitted renderer.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/TexturePass.cs",
+      "sha256": "f5925fe794e8ab02dc332c36fb583436d87a8630c98f7fa112e53972416625d2"
+    },
+    {
+      "bit": 18,
+      "query": "QueryHostSupportsTextureGatherOffsets",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "No texture gather instruction/descriptors implemented.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Transforms/TexturePass.cs",
+      "sha256": "f5925fe794e8ab02dc332c36fb583436d87a8630c98f7fa112e53972416625d2"
+    },
+    {
+      "bit": 19,
+      "query": "QueryHostSupportsTextureShadowLod",
+      "classification": "profile-unsupported/source-unused",
+      "value": "false",
+      "reason": "No shadow sampling/descriptors implemented.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/TranslatorContext.cs",
+      "sha256": "90e2f6b9a67f4801ae41619b3a51bced84d457bda7fb626b01acf33fdd494909"
+    },
+    {
+      "bit": 20,
+      "query": "QueryHostSupportsTransformFeedback",
+      "classification": "disabled-extension",
+      "value": "false",
+      "reason": "Transform feedback extension not enabled; actual admitted state requires disabled.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Translator.cs",
+      "sha256": "d1dfe6fab7e888e1ea34551a7dc6fb49f1866ef4c4a44d2369a14de8e345dd1a"
+    },
+    {
+      "bit": 21,
+      "query": "QueryHostSupportsViewportIndexVertexTessellation",
+      "classification": "disabled-extension/profile",
+      "value": "false",
+      "reason": "No viewport-index export feature; source excludes viewport index outputs.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/AttributeMap.cs",
+      "sha256": "2868d45e4996ff0eea1f9c7bf7146641e52b70899ee4b3bd763c1f4cbe72e255"
+    },
+    {
+      "bit": 22,
+      "query": "QueryHostSupportsViewportMask",
+      "classification": "disabled-extension/profile",
+      "value": "false",
+      "reason": "No NV viewport array feature; source excludes viewport masks.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/AttributeMap.cs",
+      "sha256": "2868d45e4996ff0eea1f9c7bf7146641e52b70899ee4b3bd763c1f4cbe72e255"
+    },
+    {
+      "bit": 23,
+      "query": "QueryHostSupportsDepthClipControl",
+      "classification": "disabled-extension/source-unused",
+      "value": "false",
+      "reason": "VK_EXT_depth_clip_control not enabled; captured state requires ZeroToOne so conversion branch not taken.",
+      "consumer": "Tools/CapturedFlatCompiler/upstream/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/EmitterContext.cs",
+      "sha256": "7504012b70636916ecc96fc62a504edb77bc9c3ae56dff110e6f9ac2c435be5f"
+    }
+  ]
+}

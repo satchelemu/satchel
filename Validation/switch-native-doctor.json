@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "mode": "native_game_development",
+  "status": "ready",
+  "source_commit": "8227f80f9b381c680611303319656c4e0c806a50",
+  "checks": [
+    {
+      "name": "host",
+      "status": "ready",
+      "detail": "Darwin arm64; requires an Apple silicon Mac"
+    },
+    {
+      "name": "source",
+      "status": "ready",
+      "detail": "8227f80f9b381c680611303319656c4e0c806a50"
+    },
+    {
+      "name": "python",
+      "status": "ready",
+      "detail": "Python 3.14.4; Capstone 5.0.7"
+    },
+    {
+      "name": "dotnet",
+      "status": "ready",
+      "detail": "10.0.403"
+    },
+    {
+      "name": "ios_sdk",
+      "status": "ready",
+      "detail": "27.2"
+    },
+    {
+      "name": "xcodebuild",
+      "status": "ready",
+      "detail": "/usr/bin/xcodebuild"
+    },
+    {
+      "name": "xcodegen",
+      "status": "ready",
+      "detail": "/opt/homebrew/bin/xcodegen"
+    },
+    {
+      "name": "zstd",
+      "status": "ready",
+      "detail": "/opt/homebrew/bin/zstd"
+    },
+    {
+      "name": "glslangValidator",
+      "status": "ready",
+      "detail": "/opt/homebrew/bin/glslangValidator"
+    },
+    {
+      "name": "make",
+      "status": "ready",
+      "detail": "/usr/bin/make"
+    },
+    {
+      "name": "content_inspector",
+      "status": "ready",
+      "detail": "Compiled SwitchContent inspector available."
+    },
+    {
+      "name": "shader_tool_lock",
+      "status": "ready",
+      "detail": "Pinned translator, SPIRV-Cross and Metal fingerprints match."
+    },
+    {
+      "name": "minimum_build_space",
+      "status": "ready",
+      "detail": "13.3 GiB available; at least 10 GiB plus twice the selected packages is required."
+    }
+  ],
+  "disk": {
+    "available_bytes": 14321225728,
+    "required_formula": "2 * (base bytes + update bytes) + 10 GiB",
+    "note": "Preparation checks game-specific space before reading package contents."
+  }
+}
