@@ -18,6 +18,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
 assert shutil.disk_usage(OUT).free >= 35 * 1024**3
 assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+shutil.copyfile(ENGINE / 'LICENSE', OUT / 'NXNative-LICENSE.txt')
 # Match the canonical app's privacy overlay before applying session changes.
 privacy = OUT / 'crash-private.c'
 crash = (HOST / 'crash.c').read_text()
@@ -28,9 +29,19 @@ first = crash.index('    {   uint64_t sp = uc->uc_mcontext->__ss.__sp;   // The 
 last = crash.index('    {   uint64_t sp = uc->uc_mcontext->__ss.__sp; int n = 0;', first)
 privacy.write_text(crash[:first] + crash[last:])
 overlay = runpy.run_path(str(HERE / 'overlay.py'))['prepare'](HOST, OUT / 'host', {'crash.c': privacy})
+# Use the app's capture and lifetime overlays for private shader diagnostics too.
+# Captures remain disabled unless the runner requests a private output folder.
+capture = OUT / 'capture-source'
+capture.mkdir(exist_ok=True)
+for name in ['nvn_mtl.m', 'hle_nvn.c']:
+    shutil.copyfile(ENGINE / 'dm/gfx/nvn' / name, capture / name)
+for patch in ['NativeGames/runtime-capture.patch', 'NativeHost/phone-capture-lifetime.patch']:
+    subprocess.run(['patch', '-p4', '--fuzz=0', '-i', ROOT / patch], cwd=capture, check=True)
+shutil.copyfile(ROOT / 'NativeGames/RuntimeCapture.inc', capture / 'RuntimeCapture.inc')
 metal = runpy.run_path(str(HERE / 'graphics_overlay.py'))['prepare'](
-    ENGINE, OUT / 'graphics', ENGINE / 'dm/gfx/nvn/nvn_mtl.m')
+    ENGINE, OUT / 'graphics', capture / 'nvn_mtl.m')
 metal = runpy.run_path(str(ROOT / 'NativeHost/graphics/overlay.py'))['prepare'](metal, OUT / 'graphics-policy')
+metal = runpy.run_path(str(HERE / 'mac_shader_cache.py'))['prepare'](metal)
 runpy.run_path(str(HERE / 'diagnostics_overlay.py'))['prepare'](HOST / 'memstat.m', OUT / 'host/memstat.m')
 sources = [HOST / name for name in ['main.c', 'loader.c', 'hle.c', 'crash.c', 'probe.c', 'thread.c',
                                   'save_sync.c', 'memstat.m', 'haptics_apple.m', 'front_mac.m', 'entry.S']]
@@ -39,7 +50,7 @@ for directory in ['gfx', 'gfx/nvn', 'gfx/tex', 'gfx/vk', 'gfx/gl']:
     sources += sorted(p for p in (ENGINE / 'dm' / directory).iterdir() if p.suffix in ('.c', '.m', '.S'))
 sources = list(dict.fromkeys(sources))
 sources = [overlay / p.name if p.parent == HOST and (overlay / p.name).exists() else p for p in sources]
-nvn = runpy.run_path(str(HERE / 'nvn_overlay.py'))['prepare'](ENGINE / 'dm/gfx/nvn/hle_nvn.c', OUT / 'graphics/hle_nvn.c')
+nvn = runpy.run_path(str(HERE / 'nvn_overlay.py'))['prepare'](capture / 'hle_nvn.c', OUT / 'graphics/hle_nvn.c')
 dirty = runpy.run_path(str(HERE / 'dirty_overlay.py'))['prepare'](ENGINE / 'dm/gfx/nvn/nvn_dirty.c', OUT / 'graphics/nvn_dirty.c')
 sources = [nvn if p.name == 'hle_nvn.c' else dirty if p.name == 'nvn_dirty.c' else p for p in sources]
 sources = [metal if p.name == 'nvn_mtl.m' else p for p in sources]

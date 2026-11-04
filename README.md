@@ -83,6 +83,15 @@ ZIPs, not arbitrary emulator archives. See [the test guide](docs/testing.md).
   and container volume free space. Copy report omits the signing team unless enabled.
   This screen has simulator coverage; its signed hardware readings still need validation.
 
+Long-session validation is still open. After ownership fixes, the Mac harness passed
+an uninterrupted 30-minute Castlevania interval and a 60-minute, 12-stop switching
+loop with zero detected leaks. A retained-cache Zelda retry also passed thirty
+minutes and guest join on main `cd6fbf9`. The historical timeout did not reproduce;
+its cause and live memory growth remain under investigation. Mac results do not
+establish phone memory acceptance. Nine same-process Mac visits across the three
+titles also complete without a launch hang or stop timeout.
+See [session validation](NativeHost/session/README.md).
+
 ## How it works
 
 The route follows [NX2Apple](https://github.com/LNPANDY/NX2Apple) and nxnative (MIT):

@@ -45,6 +45,34 @@ Zelda and Odyssey have Mac gameplay attribution, but optimization acceptance sti
 requires complete target counters, paired comparisons and matched image checks.
 No rendering optimization is enabled by these diagnostics.
 
+The Mac long-session harness is separate from the phone ratings above. After
+ownership fixes, Castlevania passed an uninterrupted 1801.115-second gameplay
+interval with zero detected leaks, shader/fatal/save errors or remaining guest
+resources. Guest join took 1.377 seconds. The shared-Mac average was 27.219 FPS;
+this was not an isolated performance benchmark. The 60-minute, 12-stop switching
+loop also passed zero-leak acceptance.
+
+A matched Castlevania indoor-entry replay reported 13 shader diagnostics on both
+the pre-merge main baseline (`da5830f`) and the fixed host. An earlier Zelda run
+timed out at guest join, and a separate completed 30-minute interval peaked at 14.3 GiB
+live footprint on the Mac. These observations do not raise a phone rating or
+establish phone memory acceptance. See [session validation](NativeHost/session/README.md).
+
+The round 4 retained-cache Zelda retry on main `cd6fbf9` passed 1800.006
+uninterrupted gameplay seconds, zero leaks, zero shader/fatal/save errors and full
+guest retirement. Guest join took 0.521 seconds. Its shared-Mac average was
+27.387 FPS and peak footprint 11.605 GiB. The historical timeout did not reproduce;
+this is not evidence of its cause or a fix, and the live footprint is not a phone
+memory result.
+
+The same new host also passes nine 120-second visits in one Mac process:
+Castlevania twice, Odyssey twice, Zelda twice, then Castlevania, Odyssey and Zelda.
+All nine reach visible gameplay, stop and retire their guest resources. The final
+scan finds zero leaks, with zero shader/fatal/save errors and unchanged original
+saves. The largest guest join is 0.037 seconds. No post-session launch hang appears
+in this matrix; the visits include startup and do not represent two full minutes
+of gameplay each. Phone Quit/relaunch remains unverified by this worker.
+
 ## Homebrew and diagnostics
 
 ### Mac service regression, 2026-11-04

@@ -9,6 +9,9 @@ import subprocess
 import sys
 import time
 import shutil
+import runpy
+
+xcode_is_building = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'NativeApp/build_support.py'))['xcode_is_building']
 
 out = Path(os.environ.get('ANYGAME_OUT', Path.home() / 'SatchelBuild/anygame'))
 out.mkdir(parents=True, exist_ok=True)
@@ -32,7 +35,8 @@ fcntl.flock(lock, fcntl.LOCK_EX)
 while True:
     table = processes()
     heavy = {'xcodebuild', 'metal', 'metallib', 'metalfe', 'shader-harness', 'source-harness', 'pipeline-harness', 'clang', 'clang++', 'swift-frontend', 'dotnet', 'ilc'}
-    busy = any((Path(row[2]).name in heavy or Path(row[2]).name.endswith('-harness')) for row in table.values())
+    busy = any((Path(row[2]).name in heavy or Path(row[2]).name.endswith('-harness')) and
+               (Path(row[2]).name != 'xcodebuild' or xcode_is_building(pid)) for pid, row in table.items())
     pids = [str(p) for p, row in table.items() if Path(row[2]).name.lower().startswith('python') and p != os.getpid()]
     if pids:
         args = subprocess.check_output(['ps', '-p', ','.join(pids), '-o', 'args='], text=True)
