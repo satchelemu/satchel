@@ -750,7 +750,16 @@ static void satchel_mtl_capture_state(void) {
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, S);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, R);
 }
+static void satchel_mtl_release_pending(void) {
+    // These structs own pipelines and descriptors. Release them before the
+    // scalar snapshot restores their counters and keys.
+    for (unsigned i = 0; i < sizeof g_pp / sizeof g_pp[0]; i++) {
+        g_pp[i].ps = nil; g_pp[i].d = nil;
+    }
+    for (unsigned i = 0; i < sizeof g_sm_amp / sizeof g_sm_amp[0]; i++) g_sm_amp[i].ps = nil;
+}
 static void satchel_mtl_release_strong(void) {
+    satchel_mtl_release_pending();
     SATCHEL_RETIRE_MARK(212);
     g_prefetched_drawable = (typeof(g_prefetched_drawable)){0};
     SATCHEL_RETIRE_MARK(211);

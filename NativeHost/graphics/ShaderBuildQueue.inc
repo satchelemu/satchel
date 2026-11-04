@@ -47,7 +47,21 @@ static id<MTLRenderPipelineState> satchel_render_compile(id<MTL4Compiler> compil
                                                   MTL4CompilerTaskOptions *options, NSError **error) {
     return SATCHEL_PIPELINE_RESULT(id<MTLRenderPipelineState>, [compiler newRenderPipelineStateWithDescriptor:descriptor compilerTaskOptions:options error:&failure]);
 }
+static id<MTLRenderPipelineState> satchel_specialize_locked(id<MTL4Compiler> compiler, MTL4RenderPipelineDescriptor *descriptor,
+                                                         id<MTLRenderPipelineState> base, NSError **error) {
+    // Concurrent specialization on the same device loses an AGX dynamic-library
+    // allocation in the Mac reproducer, even after every public owner retires.
+    // Serialize this call inside a worker, so callers never hold this lock while
+    // waiting for a compiler lane. Other pipeline compilation stays concurrent.
+    static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&mutex);
+    @try {
+        return [compiler newRenderPipelineStateBySpecializationWithDescriptor:descriptor pipeline:base error:error];
+    } @finally {
+        pthread_mutex_unlock(&mutex);
+    }
+}
 static id<MTLRenderPipelineState> satchel_render_specialize(id<MTL4Compiler> compiler, MTL4RenderPipelineDescriptor *descriptor,
                                                      id<MTLRenderPipelineState> base, NSError **error) {
-    return SATCHEL_PIPELINE_RESULT(id<MTLRenderPipelineState>, [compiler newRenderPipelineStateBySpecializationWithDescriptor:descriptor pipeline:base error:&failure]);
+    return SATCHEL_PIPELINE_RESULT(id<MTLRenderPipelineState>, satchel_specialize_locked(compiler, descriptor, base, &failure));
 }
