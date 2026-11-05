@@ -14,7 +14,7 @@ static NSString *settingsKey(NSString *titleID) {
     return [@"SatchelPlayerSettings." stringByAppendingString:titleID.uppercaseString];
 }
 static NSArray<NSString *> *keys(void) {
-    return @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE", @"DM_SCREEN_MODE"];
+    return @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE", @"DM_SCREEN_MODE", @"DM_PRESENT_UPSCALE"];
 }
 static NSString *validValue(NSString *key, id value) {
     if (![value isKindOfClass:NSString.class]) return nil;
@@ -35,6 +35,8 @@ static NSString *validValue(NSString *key, id value) {
         if (end == start || *end || !isfinite(scale) || scale < 0.5 || scale > 1.0) return nil;
         return text;
     }
+    if ([key isEqualToString:@"DM_PRESENT_UPSCALE"])
+        return [@[@"off", @"spatial"] containsObject:value] ? value : nil;
     if ([key isEqualToString:@"DM_PIPELINE_MODE"])
         return [@[@"exact", @"async", @"skip", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
     return nil;
@@ -95,7 +97,7 @@ NSDictionary<NSString *, NSString *> *SatchelSavedPlayerSettings(NSString *title
 NSDictionary<NSString *, NSString *> *SatchelPlayerSettings(NSString *titleID) {
     NSMutableDictionary *result = [SatchelSavedPlayerSettings(titleID) mutableCopy];
     // Developer overrides for one launch (devicectl ... -SatchelFPSTarget 60); never saved.
-    NSDictionary *arguments = @{@"-SatchelFPSTarget": @"DM_FPS_TARGET", @"-SatchelRenderScale": @"DM_RENDER_SCALE", @"-SatchelScreenMode": @"DM_SCREEN_MODE", @"-SatchelPipelineMode": @"DM_PIPELINE_MODE"};
+    NSDictionary *arguments = @{@"-SatchelFPSTarget": @"DM_FPS_TARGET", @"-SatchelRenderScale": @"DM_RENDER_SCALE", @"-SatchelScreenMode": @"DM_SCREEN_MODE", @"-SatchelPipelineMode": @"DM_PIPELINE_MODE", @"-SatchelUpscaler": @"DM_PRESENT_UPSCALE"};
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     for (NSUInteger i = 1; i < args.count; i++) {
         NSString *key = arguments[args[i]];
@@ -155,8 +157,8 @@ void SatchelApplyPlayerSettings(NSString *titleID) {
     for (NSString *key in keys()) setenv(key.UTF8String, [values[key] UTF8String], 1);
     atomic_store(&screenMode, modeNumber(values[@"DM_SCREEN_MODE"]));
     atomic_store(&playerHaptics, [values[@"DM_HAPTICS"] isEqualToString:@"on"]);
-    fprintf(stderr, "Satchel settings: title=%s fps=%s scale=%s screen=%s\n", titleID.UTF8String,
-            [values[@"DM_FPS_TARGET"] UTF8String], [values[@"DM_RENDER_SCALE"] UTF8String], [values[@"DM_SCREEN_MODE"] UTF8String]);
+    fprintf(stderr, "Satchel settings: title=%s fps=%s scale=%s screen=%s upscale=%s\n", titleID.UTF8String,
+            [values[@"DM_FPS_TARGET"] UTF8String], [values[@"DM_RENDER_SCALE"] UTF8String], [values[@"DM_SCREEN_MODE"] UTF8String], [values[@"DM_PRESENT_UPSCALE"] UTF8String]);
 }
 void SatchelClearPlayerSession(void) {
     sessionTitle = nil; launchSettings = nil; nextSettings = nil;

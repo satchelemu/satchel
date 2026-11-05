@@ -163,6 +163,9 @@ that automated workers follow in this repository.
 
 Opt-in GPU pass attribution and paired analysis are available in the
 [graphics diagnostics](NativeHost/graphics/README.md#gpu-pass-cost-diagnostics).
+An optional per-title MetalFX spatial presentation setting is available for reduced
+render scales. It defaults to off, falls back to bilinear when unsupported, and
+still needs phone image-quality and GPU-cost acceptance.
 They do not establish a full-resolution speedup or change the compatibility claims.
 
 ## Contributing

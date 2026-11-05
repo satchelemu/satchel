@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 // One per-title store shared by the game page, launch and the in-game menu.
-// FPS, render scale and pipeline mode take effect on the next game launch.
+// FPS, render scale, pipeline mode and spatial upscaling take effect on the next game launch.
 NSDictionary<NSString *, NSString *> *SatchelPlayerSettings(NSString *titleID);
 NSDictionary<NSString *, NSString *> *SatchelSavedPlayerSettings(NSString *titleID);
 NSDictionary<NSString *, NSString *> *SatchelPlayerGlobalDefaults(void);

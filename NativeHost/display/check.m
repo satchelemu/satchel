@@ -55,20 +55,20 @@ int main(int argc, const char **argv) {
             [defaults removeObjectForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-A"];
             [defaults removeObjectForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
             // A game without a profile entry keeps its own frame logic at full scale.
-            assert(([SatchelPlayerSettings(title) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact"}]));
+            assert(([SatchelPlayerSettings(title) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off"}]));
             // Tears of the Kingdom expects 30 (its frame-step patch keeps game time real), at full scale.
             [defaults removeObjectForKey:@"SatchelPlayerSettings.0100F2C0115B6000"];
             assert([SatchelPlayerSettings(@"0100F2C0115B6000")[@"DM_FPS_TARGET"] isEqual:@"30"]);
             assert([SatchelPlayerSettings(@"0100F2C0115B6000")[@"DM_RENDER_SCALE"] isEqual:@"1.0"]);
             // All validated per-title choices are read by both the page and launch.
             [defaults setObject:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
-            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact"}]));
+            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off"}]));
             assert(([SatchelPlayerOverrides(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}]));
             [defaults setObject:@{@"DM_SCREEN_MODE": @"zoom"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
             assert([SatchelPlayerSettings(otherTitle)[@"DM_SCREEN_MODE"] isEqual:@"fit"]);
             assert([[defaults dictionaryForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"][@"DM_SCREEN_MODE"] isEqual:@"fit"]);
             [defaults setObject:@{@"DM_FPS_TARGET": @120, @"DM_RENDER_SCALE": @"nan", @"DM_SCREEN_MODE": @"bad", @"DM_SAVE": @"bad"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
-            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact"}]));
+            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off"}]));
             // Queue frame rate and scale for the next launch without changing the running environment.
             SatchelApplyPlayerSettings(otherTitle);
             assert(!strcmp(getenv("DM_FPS_TARGET"), "0") && !strcmp(getenv("DM_RENDER_SCALE"), "1.0"));

@@ -290,3 +290,46 @@ existing regression allowance is used instead, label it explicitly: eight fresh
 baseline replays set a fixed limit of twice the worst baseline differing-pixel
 count before any candidate validation. Passing that rule is not byte identity,
 a measured speedup, or phone acceptance.
+
+## Spatial presentation upscaling
+
+`DM_PRESENT_UPSCALE` is a per-title player-profile value: `off` (the default) or
+`spatial`. `SatchelSavePlayerSettings` preserves the choice when a screen or haptics
+save omits it. `SatchelQueuePlayerSetting` saves it for the next launch, leaving the
+running renderer unchanged. The developer argument is `-SatchelUpscaler spatial`.
+The game-page worker can show this value through the existing settings bridge; this
+change adds no page UI.
+
+`upscale.patch` reuses the pinned MIT engine's Metal 4 spatial scaler at final
+presentation. It requires a valid render scale from 0.5 up to but excluding 1.0 and
+an output viewport at least as large in both dimensions, larger in one. Raw RGBA8
+and BGRA8 perceptual scan-out formats are supported. Other formats, unavailable
+MetalFX, refused sizes or allocation failure use the existing bilinear filter.
+The engine copies the valid crop into private input storage with the scaler's
+required usage bits, preserves gamma bytes and origin, serializes resource reuse,
+and throttles scaler replacement while the display resizes. MetalFX does not
+supply temporal anti-aliasing or recover scene detail already lost before scan-out.
+
+`upscale-check.py`, after the diagnostic Mac build, checks profile persistence and
+the pinned crop, color, orientation, resize and GPU readback cases with synthetic
+pixels. It also checks scale policy and unsupported-format fallback. No game
+payload is required. The default remains off pending phone acceptance.
+
+For measurement only, build the Mac host with `SATCHEL_UPSCALE_DIAGNOSTICS=1`.
+`DM_UPSCALE_TRIAL=ab` alternates the presentation filter every 120 presents;
+`aa` keeps both phases off. GPU feedback includes the copy, scaler and final
+presentation pass. `upscale-summary.py LOG --first FIRST_GAMEPLAY_PRESENT` discards
+the first quarter of each phase and requires three unique samples per phase and
+five complete adjacent pairs. Fallback, failed or zero-duration GPU samples reject
+the pair. Use `--aa` for the control and `--exclude-phase N` for capture phases.
+The sampled `upscale-time` lines must carry the same wall-clock and load prefix as
+the existing paired tools. This measures presentation, not the game's whole frame.
+
+`DM_UPSCALE_COMPARE=1` writes off and spatial images from the same source texture
+for requested screenshots; set `DM_NVN_SHOT_OUT` to the measured display canvas.
+Keep images outside the repository, and exclude their phases from timing.
+`DM_UPSCALE_AUDIT` optionally names a private TSV of sampled draw-stage identifiers
+for joining against pass counters. It never dumps shader source or buffers.
+These three controls exist only in the explicitly instrumented Mac host, not the
+normal app build. Use a settled Mac shader cache and record shared load. No Mac
+measurement establishes phone cost, thermal behavior or motion quality.

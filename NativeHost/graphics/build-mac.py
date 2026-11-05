@@ -41,6 +41,8 @@ s=s.replace('    int fd = open(path.fileSystemRepresentation, O_RDONLY); struct 
         path = lib;
     }
     int fd = open(path.fileSystemRepresentation, O_RDONLY); struct stat st;''',1)
+if os.environ.get('SATCHEL_UPSCALE_DIAGNOSTICS') == '1':
+ s=runpy.run_path(str(root/'NativeHost/graphics/upscale-diagnostics.py'))['apply'](s)
 (engine/'dm/gfx/nvn/nvn_mtl.m').write_text(s)
 for include in p.parent.glob('*.inc'):
  shutil.copyfile(include, engine/'dm/gfx/nvn'/include.name)

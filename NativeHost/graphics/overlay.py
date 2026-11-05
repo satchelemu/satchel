@@ -17,6 +17,8 @@ def prepare(source, destination):
                    cwd=destination, check=True)
     subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('gpu-cost.patch')],
                    cwd=destination, check=True)
+    subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('upscale.patch')],
+                   cwd=destination, check=True)
     metal = destination / 'nvn_mtl.m'
     text = metal.read_text()
     anchors = {}
