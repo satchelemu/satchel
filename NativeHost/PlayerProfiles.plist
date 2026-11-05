@@ -4,6 +4,8 @@
 <dict>
 	<key>default</key>
 	<dict>
+		<key>DM_PRESENT_UPSCALE</key>
+		<string>off</string>
 		<key>DM_FPS_TARGET</key>
 		<string>0</string>
 		<key>DM_RENDER_SCALE</key>
@@ -13,6 +15,8 @@
 	<dict>
 		<key>0100F2C0115B6000</key>
 		<dict>
+			<key>DM_PRESENT_UPSCALE</key>
+			<string>off</string>
 			<key>DM_FPS_TARGET</key>
 			<string>30</string>
 			<key>DM_RENDER_SCALE</key>

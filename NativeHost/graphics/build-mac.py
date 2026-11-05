@@ -15,7 +15,7 @@ if not engine.exists():
  for name in ['vpx','msl-macosx']:shutil.copytree(build/'graphics/mac-engine/dm/host/gen'/name,gen/name)
 # Refresh task-owned copies before applying the graphics and pause overlay.
 for name in ['hle_thread.c','hle_fs.c','hle_svc.c','romfs_image.h']:shutil.copyfile(source/'dm/host'/name,engine/'dm/host'/name)
-groups={'SatchelNativeHost':[{'path':str(engine/'dm/host'/name)} for name in ['hle_thread.c','hle_fs.c','hle_svc.c']], 'SatchelNativeGraphics':[{'path':str(source/'dm/gfx/nvn/nvn_mtl.m')}]}
+groups={'SatchelNativeHost':[{'path':str(engine/'dm/host'/name)} for name in ['hle_thread.c','hle_fs.c','hle_svc.c']], 'SatchelNativeGraphics':[{'path':str(source/'dm/gfx/nvn'/name)} for name in ['nvn_mtl.m','hle_nvn.c']]}
 runpy.run_path(str(root/'NativeHost/graphics/overlay.py'))['apply'](root,engine,out/'mac',groups)
 for row in groups['SatchelNativeHost']:
  p=Path(row['path'])
@@ -41,9 +41,13 @@ s=s.replace('    int fd = open(path.fileSystemRepresentation, O_RDONLY); struct 
         path = lib;
     }
     int fd = open(path.fileSystemRepresentation, O_RDONLY); struct stat st;''',1)
+if os.environ.get('SATCHEL_UPSCALE_DIAGNOSTICS') == '1':
+ s=runpy.run_path(str(root/'NativeHost/graphics/upscale-diagnostics.py'))['apply'](s)
 (engine/'dm/gfx/nvn/nvn_mtl.m').write_text(s)
 for include in p.parent.glob('*.inc'):
  shutil.copyfile(include, engine/'dm/gfx/nvn'/include.name)
+shutil.copyfile(root/'NativeHost/graphics/FrameTiming.h', engine/'dm/gfx/nvn/FrameTiming.h')
+shutil.copyfile(groups['SatchelNativeGraphics'][1]['path'], engine/'dm/gfx/nvn/hle_nvn.c')
 sys.path[:0]=[str(engine/'dm/games'),str(engine/'dm/tools')]
 import game,profile_guess
 spec=importlib.util.spec_from_file_location('nsp_build',engine/'scripts/build_ipa_from_nsp.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);m.pg=profile_guess

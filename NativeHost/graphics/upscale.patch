@@ -1,0 +1,27 @@
+--- a/nvn_mtl.m
++++ b/nvn_mtl.m
+@@ -11271,9 +11271,12 @@
+ static int fx_mode(void) {
+     if (g_fx_mode >= 0) return g_fx_mode;
+     const char *e = getenv("DM_PRESENT_UPSCALE"); int v = 0;
+-    if (e && (!strcmp(e, "metalfx") || !strcmp(e, "1"))) v = 1;
++    if (e && (!strcmp(e, "spatial") || !strcmp(e, "metalfx") || !strcmp(e, "1"))) v = 1;
+     else if (e && (!strcmp(e, "off") || !strcmp(e, "0"))) v = 0;
+     else if (e && *e) MLOG("[RED] DM_PRESENT_UPSCALE=%s: metalfx or off; keeping %s", e, v ? "metalfx" : "off");
++    const char *scale_text = getenv("DM_RENDER_SCALE"); char *scale_end = NULL;
++    double scale = scale_text ? strtod(scale_text, &scale_end) : 1.0;
++    if (!scale_text || scale_end == scale_text || *scale_end || !isfinite(scale) || scale < 0.5 || scale >= 1.0) v = 0;
+     if (v && !(g_q4 && [MTLFXSpatialScalerDescriptor supportsMetal4FX:g_dev])) { MLOG("present upscaling: this GPU has no Metal 4 MetalFX spatial scaler; the present scales bilinearly"); v = 0; }
+     MLOG("present upscaling (DM_PRESENT_UPSCALE): %s", v ? "metalfx, MetalFX's spatial scaler where the picture is shown larger than the game renders it" : "off, bilinear");
+     return g_fx_mode = v;
+@@ -11288,6 +11291,10 @@
+ static id<MTLTexture> fx_encode(fx_state *fx, id<MTL4CommandBuffer> cb, id<MTLTexture> raw, const NSUInteger r[4], MTLViewport vp, MTLPixelFormat out_pf, int remake_wait) {
+     NSUInteger cw = r[2], ch = r[3], ow = (NSUInteger)vp.width, oh = (NSUInteger)vp.height;
+     if (fx_mode() != 1 || !fx_wanted(vp, cw, ch)) return nil;
++    // Perceptual scan-out uses raw gamma bytes. Other formats retain the current filter.
++    if ((raw.pixelFormat != MTLPixelFormatRGBA8Unorm && raw.pixelFormat != MTLPixelFormatBGRA8Unorm) ||
++        (out_pf != MTLPixelFormatRGBA8Unorm && out_pf != MTLPixelFormatBGRA8Unorm) ||
++        raw.textureType != MTLTextureType2D || raw.sampleCount != 1) return nil;
+     if (!fx->sc || fx->in.width != cw || fx->in.height != ch || fx->in.pixelFormat != raw.pixelFormat || fx->out.width != ow || fx->out.height != oh || fx->out.pixelFormat != out_pf) {
+         NSUInteger key[6] = {cw, ch, raw.pixelFormat, ow, oh, out_pf};
+         if (!memcmp(key, fx->refused, sizeof key)) return nil;

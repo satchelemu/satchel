@@ -56,7 +56,9 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
         } else fprintf(stderr, "Satchel graphics: trial directory failed: %s\n", error.localizedDescription.UTF8String);
     } else if (trial) fprintf(stderr, "Satchel graphics: invalid trial name ignored\n");
     unsetenv("DM_NVN_GPUPROF");
+    unsetenv("DM_SATCHEL_FRAME_TIMING");
     if ([argument(args, @"-SatchelGraphicsProfile") isEqualToString:@"YES"]) {
+        setenv("DM_SATCHEL_FRAME_TIMING", "1", 1);
         setenv("DM_SHADER_EVENTS", [[cacheRoot stringByAppendingPathComponent:@"shader-events.tsv"] fileSystemRepresentation], 1);
         setenv("DM_PSO_SKIP_STATS", [[cacheRoot stringByAppendingPathComponent:@"pipeline-skips.tsv"] fileSystemRepresentation], 1);
         setenv("DM_BOOTPROF", "1", 1);

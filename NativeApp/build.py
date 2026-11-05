@@ -52,6 +52,7 @@ inputs += [ROOT / 'NativeHost/build.py', ROOT / 'NativeHost/display_overlay.py',
 inputs += [ROOT / 'NativeHost/phone-prefetch.patch', ROOT / 'NativeHost/graphics/shader_builds.py', ROOT / 'NativeHost/graphics/ShaderBuildQueue.inc']
 inputs += [ROOT / 'NativeHost/graphics/AsyncPipelines.inc', ROOT / 'NativeHost/graphics/SkipPipelines.inc', ROOT / 'NativeHost/graphics/async_pipelines.py']
 inputs += [ROOT / 'NativeHost/graphics/ShaderMetrics.inc', ROOT / 'NativeHost/graphics/shader_metrics.py']
+inputs += [ROOT / 'NativeHost/graphics' / name for name in ['frame-timing.py', 'FrameTiming.h', 'FrameTiming.inc']]
 inputs += [ROOT / 'NativeHost/services' / name for name in
            ['overlay.py', 'ServiceIPC.inc', 'SessionIPC.inc', 'EngineAdapter.inc', 'RYUJINX-LICENSE.txt', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc', 'ClockState.inc', 'FileQueries.inc', 'MissingServices.inc', 'coverage/MissingServiceNames.inc']]
 inputs += [ROOT / 'NativeHost/controllers' / name for name in ['overlay.py', 'HapticQueue.inc']]
@@ -59,7 +60,7 @@ session = ROOT / 'NativeHost/session'
 inputs += list(session.glob('Session*.c')) + list(session.glob('Session*.h'))
 inputs += list(session.glob('*.inc')) + list(session.glob('*overlay.py')) + list(session.glob('*.patch'))
 inputs += [ROOT / 'NativeHost/graphics' / name for name in
-           ['PipelineSettings.m', 'PipelineSettings.h', 'overlay.py', 'pipeline.patch', 'stalls.patch', 'host-time.patch', 'HostPause.h', 'loading.patch', 'RomFSRead.h', 'gpu-cost.patch']]
+           ['PipelineSettings.m', 'PipelineSettings.h', 'overlay.py', 'pipeline.patch', 'stalls.patch', 'host-time.patch', 'HostPause.h', 'loading.patch', 'RomFSRead.h', 'gpu-cost.patch', 'upscale.patch']]
 inputs += [ROOT / 'NativeHost/memory' / name for name in ['overlay.py', 'SceneMemory.inc', 'GhostPool.inc']]
 # Reusable sessions are the canonical app path. An explicit zero is diagnostic only.
 os.environ.setdefault('SATCHEL_SESSION_BOUNDARY', '1')

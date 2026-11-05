@@ -17,6 +17,8 @@ def prepare(source, destination):
                    cwd=destination, check=True)
     subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('gpu-cost.patch')],
                    cwd=destination, check=True)
+    subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('upscale.patch')],
+                   cwd=destination, check=True)
     metal = destination / 'nvn_mtl.m'
     text = metal.read_text()
     anchors = {}
@@ -40,9 +42,20 @@ def apply(root, engine, out, groups):
             row['compilerFlags'] = (row.get('compilerFlags', '') +
                 ' -iquote ' + shlex.quote(str(source.parent))).strip()
             row['path'] = str(prepare(source, out / 'overlays/graphics'))
+            runpy.run_path(str(root / 'NativeHost/graphics/frame-timing.py'))['metal'](Path(row['path']))
             break
     else:
         raise RuntimeError('Graphics overlay requires the NVN Metal source')
+    for row in groups['SatchelNativeGraphics']:
+        if Path(row['path']).name == 'hle_nvn.c':
+            source = Path(row['path'])
+            destination = out / 'overlays/graphics/hle_nvn.c'
+            runpy.run_path(str(root / 'NativeHost/graphics/frame-timing.py'))['host'](source, destination)
+            row['compilerFlags'] = (row.get('compilerFlags', '') + ' -iquote ' + shlex.quote(str(source.parent))).strip()
+            row['path'] = str(destination)
+            break
+    else:
+        raise RuntimeError('Frame timing requires the NVN frame boundary source')
     # Chain on the current host inputs, including the optional session overlay.
     host = out / 'overlays/graphics-host'
     host.mkdir(parents=True, exist_ok=True)
