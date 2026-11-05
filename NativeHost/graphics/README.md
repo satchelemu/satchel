@@ -333,3 +333,53 @@ for joining against pass counters. It never dumps shader source or buffers.
 These three controls exist only in the explicitly instrumented Mac host, not the
 normal app build. Use a settled Mac shader cache and record shared load. No Mac
 measurement establishes phone cost, thermal behavior or motion quality.
+
+## Phone frame GPU timing
+
+`-SatchelGraphicsProfile YES` enables `[frame-gpu]` summaries in `host.log`, next to
+the existing frame and power lines every 300 frames. The process power field
+`GPU ... ms/s` is a separate OS accounting value, and may be zero on the phone.
+It is not the source of this summary.
+
+The new accounting reads `GPUStartTime` and `GPUEndTime` only from completed Metal
+command buffers or Metal 4 commit feedback. It covers game submission segments,
+tagged legacy buffers, the scan-out snapshot copy and final presentation (including
+MetalFX when used). GPU milliseconds per frame are the sum of those submission
+durations, not exclusive GPU busy time: overlapping execution can count twice.
+The presentation component is also reported separately. Initialization, diagnostic
+readback and unrelated GPU queues are excluded. No GPU wait is added.
+
+CPU time is the present thread's actual CPU clock delta between consecutive
+frames, including guest work and host translation on that thread. It excludes
+sleep and GPU waits, and does not sum other threads. The wall interval is reported
+separately. CPU and GPU samples are matched by frame number and collected eight
+frames later. Missing, incomplete, failed, zero or nonfinite timestamps and frames
+with no completed presentation are counted and excluded, never recorded as zero.
+If none are valid, timing fields read `-1`, with `limit unknown`. Late completions
+are excluded from that window rather than blocking the game. Rings and cached
+enablement reset at renderer initialization for a new session.
+
+The summary gives nearest-rank median and p95 for GPU submission time, CPU time
+and wall interval. `limit` is an inference from their medians and the active frame
+budget, with at least 30 paired samples and at least 80 percent valid coverage:
+
+- `GPU-likely` or `CPU-likely`: that time reaches 90 percent of the budget and is
+  more than 20 percent above the other.
+- `mixed`: both reach 90 percent of the budget without a clear dominant side.
+- `paced`: wall cadence meets the budget within 5 percent and both are below
+  90 percent of it.
+- `unknown`: insufficient evidence, waits, worker-thread limits or another cause.
+
+This is diagnostic evidence, not proof of the critical path. Inspect p95, shader
+events, frame intervals and thermal state as well, especially during loading and
+compilation. Sparse pass counters remain enabled once every 300 frames when the
+iOS Metal 4 device can allocate the timestamp heap. Use
+`-SatchelGraphicsCounters NO` to keep frame timing while disabling pass counters.
+The installed iOS 27.2 SDK declares both Metal 4 feedback and counter heaps for
+iOS 26 onward; phone measurements still need validation.
+
+Without the profile argument, the new hot-path work is a cached enable check:
+no locks, allocations, timestamp accumulation or summary writes. Existing engine
+diagnostics are unchanged. `frame-timing-check.py` checks synthetic accounting and
+real Mac Metal/Metal 4 feedback with generated buffer fills, using the shared
+build wait. Its CPU values are synthetic and establish no gameplay performance.

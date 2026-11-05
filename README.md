@@ -166,6 +166,8 @@ Opt-in GPU pass attribution and paired analysis are available in the
 An optional per-title MetalFX spatial presentation setting is available for reduced
 render scales. It defaults to off, falls back to bilinear when unsupported, and
 still needs phone image-quality and GPU-cost acceptance.
+The graphics profile also provides paired GPU submission and CPU frame timing
+summaries in `host.log`, with phone timing verification still pending.
 They do not establish a full-resolution speedup or change the compatibility claims.
 
 ## Contributing

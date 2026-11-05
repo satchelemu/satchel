@@ -190,6 +190,12 @@ Metal presentation after a diagnostic Mac build. `SATCHEL_UPSCALE_DIAGNOSTICS=1`
 adds private Mac paired-timing and matched-image controls; it does not instrument
 the iOS app. See [spatial presentation upscaling](NativeHost/graphics/README.md#spatial-presentation-upscaling).
 
+`python3 -B NativeHost/graphics/frame-timing-check.py` uses `SATCHEL_OUT` and the
+shared build wait to test timing accounting and real Metal callbacks on synthetic
+Mac buffer fills. `-SatchelGraphicsProfile YES` enables per-frame GPU and CPU
+summaries in the app's `host.log`; phone verification is separate from the unsigned
+build. See [phone frame GPU timing](NativeHost/graphics/README.md#phone-frame-gpu-timing).
+
 ## Signing with your own team
 
 No Apple team ID is stored in the repository. `NativeApp/build_support.py` resolves the

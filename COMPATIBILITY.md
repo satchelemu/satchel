@@ -46,6 +46,8 @@ requires complete target counters, paired comparisons and matched image checks.
 No rendering optimization is enabled by these diagnostics. The optional per-title
 MetalFX spatial presentation setting defaults to off and does not change these
 phone ratings. It still needs matched phone captures and GPU-cost acceptance.
+Opt-in frame GPU timing uses command-buffer feedback rather than the OS power
+counter. Its CPU/GPU limit labels are diagnostic inferences, pending phone checks.
 
 The Mac long-session harness is separate from the phone ratings above. After
 ownership fixes, Castlevania passed an uninterrupted 1801.115-second gameplay
