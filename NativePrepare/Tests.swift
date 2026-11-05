@@ -47,9 +47,27 @@ import Foundation
         guard try Data(contentsOf: root.appendingPathComponent("main.patched.bin")) == before else {
             throw PrepareFailure(message: "Existing package was modified.")
         }
+        do {
+            _ = try PreparePipeline.run(base: root, update: nil, keys: [:], shaderPack: root,
+                destination: root.appendingPathComponent("generic"), signer: DevelopmentUnsignedSigner(),
+                token: token, allowReviewedProfiles: false) { _, _ in }
+            throw PrepareFailure(message: "Generic preparation accepted a reviewed shader pack.")
+        } catch let failure as PrepareFailure {
+            guard failure.message == "Generic profile validation requires runtime shaders, without a reviewed shader pack." else { throw failure }
+            print("PASS rejection: generic profile with reviewed shader pack")
+        }
+        do {
+            _ = try PreparePipeline.run(base: root, update: nil, keys: [:],
+                destination: root.appendingPathComponent("observed"), signer: DevelopmentUnsignedSigner(),
+                token: token, memoryObservation: .init(largestFailedHeap: 0, heapOpened: false, aliasMappedHighWater: 0)) { _, _ in }
+            throw PrepareFailure(message: "Reviewed preparation accepted memory observations.")
+        } catch let failure as PrepareFailure {
+            guard failure.message == "Memory observations require explicit generic profile validation." else { throw failure }
+            print("PASS rejection: memory observation without generic profile mode")
+        }
         token.cancel()
         try reject("cancelled signer") { _ = try DevelopmentUnsignedSigner().sign(root, token: token) }
         try reject("cancelled container") { try PrepareMachO.write(modules: PreparePipeline.moduleNames, from: root, to: root.appendingPathComponent("cancelled.dylib"), token: token) }
-        print("PASS: native container synthetic generation and nine rejection checks")
+        print("PASS: native container synthetic generation and eleven rejection checks")
     }
 }

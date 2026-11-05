@@ -77,6 +77,23 @@ the existing menu path; it does not change any compatibility rating.
 
 ## Homebrew and diagnostics
 
+### Generic runtime profiles on the Mac, 2026-11-04
+
+These are Mac host checks with existing Mac shader libraries and the existing
+rewriter rules. They do not change the phone ratings above or establish unknown
+shader discovery. Reviewed runtime profiles were removed from the diagnostic
+Prepare resources.
+
+| Game | Starter profile alone | Generic memory observation |
+|---|---|---|
+| Super Mario Odyssey 1.4.1 | Fresh unsigned Prepare in RomFS discard mode, then Cap Kingdom gameplay and clean shutdown after 7,238 frames | None needed |
+| Castlevania: Belmont's Curse | Exit 139 after mapping 4.25 GiB of a 4.38 GiB alias region | The title-independent alias-pressure rule selects a 1 GiB pool; fresh discard-mode Prepare reaches opening-area gameplay, movement and attack, then stops cleanly after 7,037 frames |
+| Zelda: Tears of the Kingdom 1.4.3 | `SetHeapSize OOM: req 0x84600000 > cap 0x8000000`, zero frames | The observed request selects a 2.125 GiB heap inside the same 5 GiB reservation; the cached-input probe reaches the open world with severe texture artifacts and ends with `stop-failed result=60` |
+
+The memory rules are bounded recipe inputs, not automatic phone retries. Reviewed
+profiles remain overrides. Zelda still needs generic graphics work. See
+[the diagnostic contract](docs/generic-profiles.md).
+
 ### Mac service regression, 2026-11-04
 
 Three 330-second baseline runs used existing packages and private save copies.

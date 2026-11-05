@@ -172,6 +172,14 @@ xcrun devicectl device process launch --device YOUR_DEVICE_UDID com.dell.satchel
 Do not install over a running Prepare or import; the app's `Documents/prepare-progress.json`
 says whether one is active.
 
+## Generic profile diagnostics
+
+The Mac Prepare harness also supports `--generic-profile` and an optional numeric
+`PREPARE_MEMORY_OBSERVATION` JSON file. This exercises unknown-game settings while
+retaining the bundled overrides. It rejects reviewed shader packs in generic mode.
+See [generic profile diagnostics](docs/generic-profiles.md) for the contract and
+commands. An unsigned Mac diagnostic package is not an installable phone build.
+
 ## GPU diagnostic host
 
 `NativeApp/build.py --graphics-mac-host --unsigned` builds only the private Mac

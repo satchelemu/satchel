@@ -25,7 +25,7 @@ with no computer involved.
 | Library and app UI | 90% | Redesigned library with real artwork, import flow that keeps going in the background with iCloud download progress, home cards for import, Prepare, warm-up and a paused game, shader warm-up on each game page, settings with the bundled install guide, signature expiry warnings, per-title settings and a dated save-backup list with restore, share-sheet export and import. The new settings and save journeys still need hardware validation. |
 | Build reproducibility | 45% | All 45 declared native artifacts rebuilt locally from pinned cached inputs. Five tool source pins added; clean-Mac tool setup and private shader-parity evidence still prevent full app reproduction. See BUILDING.md. |
 | Distribution (IPA, SideStore source, refresh) | 40% | Install guide and source generator exist; no published IPA or source URL yet. |
-| General importer (unknown games boot without a per-game profile) | 50% | A starter profile is generated from the game's own metadata; Castlevania ran on it with one memory rule. More games will find more gaps. |
+| General importer (unknown games boot without a per-game profile) | 50% | Fresh Mac Prepare with reviewed settings removed reaches Odyssey's Cap Kingdom on the starter profile alone and Castlevania gameplay with a generic alias-pressure rule. Bounded boot observations derive memory rules without title lookups. Automatic phone feedback and generic graphics corrections remain open; see the generic profile diagnostics. |
 | Compatibility | 4 games | See COMPATIBILITY.md. |
 
 The simulator UI suite covers import cancellation and restart, system-interrupted

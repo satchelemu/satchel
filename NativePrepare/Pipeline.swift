@@ -100,11 +100,18 @@ enum PreparePipeline {
         guard !titles.isEmpty else { throw SwitchExecutableError.noProgram }
     }
     static func run(base: URL, update: URL?, addOns: [URL] = [], keys: [String: Data], shaderPack: URL? = nil, destination: URL, applicationID: UInt64? = nil,
-                    signer: PreparedGameSigner, token: PrepareCancellation,
+                    signer: PreparedGameSigner, token: PrepareCancellation, allowReviewedProfiles: Bool = true,
+                    memoryObservation: NativePreparationRecipe.MemoryObservation? = nil,
                     details: ((PrepareProgressSnapshot) -> Void)? = nil,
                     progress: @escaping (String, Double?) -> Void) throws -> PrepareSigningState {
         let reporter = PrepareProgress { value in
             details?(value); progress(value.message, value.overallFraction)
+        }
+        guard allowReviewedProfiles || shaderPack == nil else {
+            throw PrepareFailure(message: "Generic profile validation requires runtime shaders, without a reviewed shader pack.")
+        }
+        guard memoryObservation == nil || !allowReviewedProfiles else {
+            throw PrepareFailure(message: "Memory observations require explicit generic profile validation.")
         }
         reporter.update(.planning, 0, 0, message: "Checking shader pack and destination…", force: true)
         let fm = FileManager.default
@@ -161,6 +168,10 @@ enum PreparePipeline {
                 }
             }, identified: { titles in try requireSupportedTitles(titles) }) { content in
             var recipe = try PrepareDiscovery.recipe(content, selection: selection, token: token)
+            // Diagnostic callers can exercise exactly the unknown-game path while
+            // keeping the bundled overrides and existing packages intact.
+            if !allowReviewedProfiles { recipe.reviewedVersion = nil }
+            recipe.memoryObservation = memoryObservation
             let moduleNames = recipe.modules
             if let pack = suppliedPack {
                 guard recipe.contentVersion == pack.contentVersion, recipe.modules == pack.modules, recipe.buildIDs == pack.buildIDs else {

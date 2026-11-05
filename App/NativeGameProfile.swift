@@ -41,6 +41,13 @@ struct NativeGameProfile: Codable, Sendable, Equatable {
 /// Versioned, bounded facts, never arbitrary environment or runtime profile text.
 /// Defaults follow the pinned MIT nxnative game.py and profile_guess.py.
 struct NativePreparationRecipe: Codable, Sendable {
+    /// Numeric host observations from a boot with this recipe's original layout.
+    /// No guest text, arbitrary profile keys or title-specific lookup is accepted.
+    struct MemoryObservation: Codable, Sendable {
+        let largestFailedHeap: UInt64
+        let heapOpened: Bool
+        let aliasMappedHighWater: UInt64
+    }
     struct NRO: Codable, Sendable {
         let name: String
         let sha256: String
@@ -61,6 +68,7 @@ struct NativePreparationRecipe: Codable, Sendable {
     var usedMemory: UInt64
     var nros: [NRO]
     var reviewedVersion: String?
+    var memoryObservation: MemoryObservation? = nil
 
     static let enginePin = "bbc3b73784751d2a706932dc69fd67627e3445d4"
     static let shaderChain = "e65a4ebd3322"
@@ -94,6 +102,13 @@ struct NativePreparationRecipe: Codable, Sendable {
               nros.enumerated().allSatisfy({ i, n in n.name == "nro\(i)" && Self.hex(n.sha256, count: 64) && Self.hex(n.buildID, count: 32) && n.bytes >= 0x80 && n.bytes <= 512 * 1024 * 1024 }) else {
             throw NSError(domain: "NativeRecipe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid or unsupported native preparation recipe."])
         }
+        if let observation = memoryObservation {
+            guard observation.largestFailedHeap <= 0xcd500000,
+                  observation.largestFailedHeap % 0x200000 == 0,
+                  observation.aliasMappedHighWater <= (systemResource > 0 ? 0x118000000 : 0x10000000) else {
+                throw NSError(domain: "NativeRecipe", code: 4, userInfo: [NSLocalizedDescriptionKey: "Invalid native memory observation."])
+            }
+        }
     }
     func reviewed(in profiles: [NativeGameProfile] = NativeGameProfile.all) throws -> NativeGameProfile? {
         try validate()
@@ -119,11 +134,35 @@ struct NativePreparationRecipe: Codable, Sendable {
         }
         let pool: UInt64 = 0xcd500000
         let heap = usesHeap ? max(0x10000000, ((pool - min(pool, 0x4000000 + largeBSS) + 0xfffffff) / 0x10000000) * 0x10000000) : 0x10000000
+        var reserve: UInt64 = systemResource > 0 ? 0x140000000 : 0x30000000 + heap
+        var alias: UInt64 = systemResource > 0 ? 0x118000000 : 0x10000000
+        var applicationPool = pool
+        // Adapted from NX2Apple dm/games/profile_guess.py heap_signals (MIT).
+        // A failed heap request sizes the next boot's partition before any guest
+        // address is exposed. Never move a live heap or alias mapping.
+        if let observation = memoryObservation {
+            let heapCapacity = reserve - 0x20000000 - alias
+            if observation.largestFailedHeap > heapCapacity {
+                let requested = ((observation.largestFailedHeap + 0x7ffffff) / 0x8000000) * 0x8000000
+                if reserve >= 0x60000000 + requested {
+                    alias = reserve - 0x20000000 - requested
+                } else {
+                    alias = 0x40000000
+                    reserve = 0x20000000 + alias + requested
+                }
+            } else if observation.largestFailedHeap == 0, !observation.heapOpened, systemResource > 0,
+                      observation.aliasMappedHighWater > alias - 0x10000000,
+                      usedMemory + largeBSS < 0x40000000 {
+                // A virtual allocator consumes the advertised pool and also
+                // reserves separate regions. Leave space for those regions.
+                applicationPool = 0x40000000
+            }
+        }
         var values = ["title_id": titleID, "program_id": "0x" + titleID, "name": name,
             "romfs_marker": "", "modules": modules.joined(separator: " "),
-            "mem_reserve": String(format: "0x%llx", systemResource > 0 ? 0x140000000 : 0x30000000 + heap),
-            "mem_alias": systemResource > 0 ? "0x118000000" : "0x10000000", "mem_stack": "0x10000000",
-            "app_pool": "0xcd500000", "mem_used": String(format: "0x%llx", usedMemory),
+            "mem_reserve": String(format: "0x%llx", reserve),
+            "mem_alias": String(format: "0x%llx", alias), "mem_stack": "0x10000000",
+            "app_pool": String(format: "0x%llx", applicationPool), "mem_used": String(format: "0x%llx", usedMemory),
             "sys_resource": String(format: "0x%llx", systemResource), "mem_map_limit": "0",
             "present_interval": "0", "core_preempt": "0", "alloc_big_align": "0", "fps_target": "0",
             "fps_hold": "1", "present_snap": "0", "pso_mtl4": "0", "shared_font": "auto", "pad_layout": "0",
