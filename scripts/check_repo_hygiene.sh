@@ -4,6 +4,7 @@
 #    archived history are exempt).
 # 2. No leftover pre-rename project names outside the rename tool and the archive.
 # 3. No console keys, game dumps, signing identities or prepared game code tracked.
+# 4. No game title ID in host or importer code (scripts/check_architecture.py).
 # Exit status is non-zero when any check fails; the offending lines are printed.
 set -u
 cd "$(dirname "$0")/.."
@@ -43,6 +44,14 @@ fi
 
 if git ls-files | grep -E -i '(^|/)(prod|title)\.keys$|\.(p12|pfx|mobileprovision|xci|xcz|nsp|nsz|nca|ncz|ipa|dylib|metallib)$'; then
   echo "FAIL: a key, dump, identity or prepared binary is tracked." >&2
+  status=1
+fi
+
+if ! python3 -B scripts/check_architecture.py; then
+  status=1
+fi
+if ! python3 -B scripts/check_architecture.py --self-test >/dev/null 2>&1; then
+  echo "FAIL: the architecture check's own pattern tests fail (python3 scripts/check_architecture.py --self-test)." >&2
   status=1
 fi
 

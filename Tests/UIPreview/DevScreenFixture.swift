@@ -183,7 +183,8 @@ enum WarmupRunner {
         guard data.count <= maximum else { throw PrepareFailure(message: "Synthetic warm-up metadata is oversized.") }
         return data
     }
-    static func run(package: URL, runtime: URL, cancelled: @escaping () -> Bool,
+    static func run(package: URL, runtime: URL, cancelled: @escaping () -> Bool, captureDirectory: URL? = nil,
+                    execution: () -> SatchelWarmupPolicy = { .conservative },
                     progress: (WarmupProgress) -> Void) throws -> WarmupProgress {
         guard UserDefaults.standard.bool(forKey: "SatchelPreviewWarmupTests") else {
             throw PrepareFailure(message: "Shader warm-up cannot run in the navigation fixture.")

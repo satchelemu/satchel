@@ -131,6 +131,14 @@ def generate(mode, out):
             'try PreviewPackage.verifyWarmup(root: context.package, cancelled: { context.token.cancelled })'))
         for row in project['targets'][app]['sources']:
             if row['path'] == str(warmup_source): row['path'] = str(warmup_staged)
+        # WarmupJob.swift reads the warm-up policy and trial types from the shader module,
+        # which the preview does not build. Stage only those two pure types, unchanged.
+        policy_source = (ROOT / 'NativeShaders/ShaderWarmup.swift').read_text()
+        policy_boundary = '\n// A pure policy so the app and Mac checks share the same bounds.\nstruct SatchelWarmupPolicy'
+        assert policy_source.count(policy_boundary) == 1
+        policy = out / 'WarmupPolicy.swift'
+        write_changed(policy, 'import Foundation\n' + policy_source[policy_source.index(policy_boundary):])
+        project['targets'][app]['sources'].append({'path': str(policy)})
         # Hold one real copy after its first chunk, without large files or timing
         # assumptions. The production cancellation and deferred cleanup stay intact.
         import_source = ROOT / 'App/SwitchPackageImport.swift'
@@ -165,6 +173,20 @@ def generate(mode, out):
             if row['path'] == str(ROOT / 'App'):
                 row.setdefault('excludes', []).append('GameSavePanel.swift')
         project['targets'][app]['sources'].append({'path': str(save_staged)})
+        # Substitute only the folder picker when the synthetic cloud-folder flag is set.
+        # Bookmark storage, resolution, state and the off switch stay production code.
+        cloud_source = ROOT / 'App/CloudSaveSyncPanel.swift'
+        cloud_original = cloud_source.read_text()
+        boundary = '        picking = true\n'
+        assert cloud_original.count(boundary) == 1
+        cloud_staged = out / 'CloudSaveSyncPanel.swift'
+        write_changed(cloud_staged, cloud_original.replace(boundary,
+            '        if let url = CloudSaveFixture.folder() { choose(url); return }\n' + boundary))
+        for row in project['targets'][app]['sources']:
+            if row['path'] == str(ROOT / 'App'):
+                row.setdefault('excludes', []).append('CloudSaveSyncPanel.swift')
+        project['targets'][app]['sources'].append({'path': str(cloud_staged)})
+        project['targets'][app]['sources'].append({'path': str(ROOT / 'Tests/UIPreview/CloudSaveFixture.swift')})
     if mode.startswith('sim-'):
         peer = 'NavigationBackground'
         project['targets'][peer] = {

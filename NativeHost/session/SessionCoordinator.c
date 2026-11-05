@@ -15,6 +15,9 @@ static int restore_services(void) { return satchel_state_restore(SATCHEL_STATE_S
 // The Swift phone compiler overrides this in the app. Mac probes have no compiler.
 __attribute__((weak, noinline)) void satchel_phone_shader_session_reset(void) {}
 static int reset_phone_shaders(void) { satchel_phone_shader_session_reset(); return 0; }
+// save_sync_overlay.py replaces this in the app: flush and join the cloud save sender.
+// Probes built from the pristine engine never enable DM_SAVE_SYNC.
+__attribute__((weak, noinline)) int satchel_save_sync_session_stop(void) { return 0; }
 static int join_diagnostics(void) { return satchel_diagnostics_join(2000); }
 static int join_guest(void) { return satchel_session_join(5000); }
 static int join_hid(void) { return satchel_hid_join(2000); }
@@ -28,8 +31,10 @@ int satchel_host_session_prepare(void) {
         "DM_HITCH", "DM_TLS_KEY_RACE", "DM_TEST_KEYRACE", "DM_FD_LOG", "DM_OODLE_JOB", "DM_OODLE_SERVE", "DM_CHEATS"};
     for (unsigned i = 0; i < sizeof unsupported / sizeof unsupported[0]; i++)
         if (getenv(unsupported[i])) return ENOTSUP;
+    // Cloud save sync is session-scoped only through the app's chosen folder: an absolute
+    // path set by SessionBridge.m. "icloud" (the Mac's iCloud Drive) and anything else stay refused.
     const char *sync = getenv("DM_SAVE_SYNC");
-    if (sync && *sync && strcmp(sync, "0")) return ENOTSUP;
+    if (sync && *sync && strcmp(sync, "0") && sync[0] != '/') return ENOTSUP;
     const char *root = getenv("DM_ROOT");
     if (root && *root) {
         char path[4096]; struct stat st;
@@ -52,7 +57,7 @@ int satchel_host_session_stop(void) {
         stop_stage = 1;
     }
     static const struct { const char *name; int (*run)(void); } stages[] = {
-        {"guest-join", join_guest}, {"diagnostics-join", join_diagnostics},
+        {"guest-join", join_guest}, {"save-sync-stop", satchel_save_sync_session_stop}, {"diagnostics-join", join_diagnostics},
         {"diagnostics-reset", satchel_diagnostics_session_reset}, {"control-join", join_hid}, {"memory-workers-join", join_memory},
         {"notification-join", join_oe}, {"vsync-join", join_sdk}, {"graphics-producers-join", join_graphics},
         {"movie-reset", satchel_movie_session_reset}, {"audren-reset", satchel_audren_session_reset},

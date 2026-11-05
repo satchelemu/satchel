@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings"]
+        let fixtureFamilies = ["testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -1669,6 +1669,7 @@ final class NavigationJourneyTests: XCTestCase {
         try openSettingsDetail()
         let choices = [("DM_FPS_TARGET", "60 FPS", "60"), ("DM_RENDER_SCALE", "75%", "0.75"),
                        ("DM_SCREEN_MODE", "Stretch", "stretch"), ("DM_HAPTICS", "Off", "off"),
+                       ("DM_RUMBLE_GAIN", "200%", "2.0"), ("DM_RUMBLE_MIN", "45%", "0.45"),
                        ("DM_PIPELINE_MODE", "Hybrid", "hybrid")]
         for (key, label, value) in choices {
             try chooseGameSetting(key, label, value: value)
@@ -1688,7 +1689,7 @@ final class NavigationJourneyTests: XCTestCase {
             XCTAssertFalse(app.buttons["game-reset-" + key].exists)
         }
         let expected = ["DM_FPS_TARGET": "0", "DM_RENDER_SCALE": "1.0", "DM_SCREEN_MODE": "fit",
-                        "DM_HAPTICS": "on", "DM_PIPELINE_MODE": "exact"]
+                        "DM_HAPTICS": "on", "DM_RUMBLE_GAIN": "1.0", "DM_RUMBLE_MIN": "0", "DM_PIPELINE_MODE": "exact"]
         app.terminate(); app.launch()
         try openSettingsDetail()
         for (key, value) in expected {
@@ -1697,12 +1698,66 @@ final class NavigationJourneyTests: XCTestCase {
         }
     }
 
+#if NAVIGATION_PREVIEW && NAVIGATION_NATIVE
+    private func openCloudSaves() throws {
+        _ = try button("import-homebrew")
+        try tap("open-settings")
+        try tap("settings-Storage")
+        XCTAssertTrue(app.staticTexts["settings-page-Storage"].waitForExistence(timeout: 5))
+        revealDeviceCheckControl(app.buttons["cloud-saves-choose"], in: app.scrollViews.containing(.button, identifier: "cloud-saves-choose").firstMatch)
+    }
+
+    private func cloudSaveState() -> String { app.staticTexts["cloud-saves-state"].label }
+
+    /// iCloud save sync: off by default, a chosen folder persists across background and
+    /// relaunch in both landscapes, and Turn off returns to off. The folder choice is the
+    /// synthetic fixture; bookmark storage and resolution are production code.
+    func testCloudSaveFolderChooseRelaunchAndOff() throws {
+        app.launchArguments += ["-SatchelPreviewCloudFolder", "YES"]
+        app.launch()
+        try openCloudSaves()
+        if app.buttons["cloud-saves-off"].exists { try tap("cloud-saves-off") }
+        XCTAssertEqual(cloudSaveState(), "Off")
+        absent(app.buttons["cloud-saves-off"])
+        XCTAssertEqual(app.buttons["cloud-saves-choose"].label, "Choose folder")
+        try tap("cloud-saves-choose")
+        XCTAssertEqual(cloudSaveState(), "On: Satchel Saves")
+        XCTAssertEqual(app.buttons["cloud-saves-choose"].label, "Change folder")
+        absent(app.staticTexts["cloud-saves-error"])
+        backgroundAndReturn(app.staticTexts["cloud-saves-state"])
+        XCTAssertEqual(cloudSaveState(), "On: Satchel Saves")
+        app.terminate(); app.launch()
+        XCUIDevice.shared.orientation = .landscapeRight
+        try openCloudSaves()
+        XCTAssertEqual(cloudSaveState(), "On: Satchel Saves", "The bookmark survives a relaunch")
+        revealDeviceCheckControl(app.buttons["cloud-saves-off"], in: app.scrollViews.containing(.button, identifier: "cloud-saves-off").firstMatch)
+        try tap("cloud-saves-off")
+        XCTAssertEqual(cloudSaveState(), "Off")
+        absent(app.buttons["cloud-saves-off"])
+        app.terminate(); app.launch()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        try openCloudSaves()
+        XCTAssertEqual(cloudSaveState(), "Off", "Off persists")
+    }
+
+    /// The real Files folder picker opens and cancels twice, leaving sync off.
+    func testCloudSaveFolderPickerCancellation() throws {
+        app.launch()
+        try openCloudSaves()
+        if app.buttons["cloud-saves-off"].exists { try tap("cloud-saves-off") }
+        try pickerCycle(open: "cloud-saves-choose")
+        XCTAssertEqual(cloudSaveState(), "Off")
+        absent(app.staticTexts["cloud-saves-error"])
+    }
+#endif
+
     func testGameSettingsShareMenuValues() throws {
         app.launchArguments += ["-SatchelPreviewSessionTests", "YES"]
         app.launch()
         try openSettingsDetail()
         try chooseGameSetting("DM_SCREEN_MODE", "Stretch", value: "stretch")
         try chooseGameSetting("DM_HAPTICS", "Off", value: "off")
+        try chooseGameSetting("DM_RUMBLE_GAIN", "200%", value: "2.0")
         try tap("close-game-detail")
         try tap("play-focused")
         try button("player-play").tap()
@@ -1714,11 +1769,28 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertEqual(haptics.value as? String, "0", "The menu reads the game page's haptics choice")
         haptics.tap()
         XCTAssertEqual(haptics.value as? String, "1")
+        // Rumble strength sits beside haptics, reads the page's choice and writes back live.
+        let menuScroll = app.scrollViews.containing(.switch, identifier: "Haptics").firstMatch
+        let strong = app.buttons["200%"].firstMatch
+        revealDeviceCheckControl(strong, in: menuScroll)
+        XCTAssertTrue(strong.isSelected, "The menu reads the game page's rumble strength")
+        let half = app.buttons["50%"].firstMatch
+        revealDeviceCheckControl(half, in: menuScroll)
+        half.tap()
+        XCTAssertTrue(half.isSelected)
+        let cutoff = app.buttons["45%"].firstMatch
+        revealDeviceCheckControl(cutoff, in: menuScroll)
+        cutoff.tap()
+        XCTAssertTrue(cutoff.isSelected)
         try tap("menu-library")
         try openSettingsDetail()
         revealDeviceCheckControl(app.buttons["game-setting-DM_SCREEN_MODE"], in: app.scrollViews["detail-scroll"])
         XCTAssertEqual(app.buttons["game-setting-DM_SCREEN_MODE"].value as? String, "fit")
         XCTAssertEqual(app.buttons["game-setting-DM_HAPTICS"].value as? String, "on")
+        revealDeviceCheckControl(app.buttons["game-setting-DM_RUMBLE_GAIN"], in: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(app.buttons["game-setting-DM_RUMBLE_GAIN"].value as? String, "0.50", "The page reads the menu's live rumble strength")
+        revealDeviceCheckControl(app.buttons["game-setting-DM_RUMBLE_MIN"], in: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(app.buttons["game-setting-DM_RUMBLE_MIN"].value as? String, "0.45")
         try chooseGameSetting("DM_SCREEN_MODE", "Stretch", value: "stretch")
         try tap("close-game-detail")
         try tap("play-focused")
@@ -1726,7 +1798,7 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("menu-quit")
         try tap("Quit game")
         try openSettingsDetail()
-        for key in ["DM_SCREEN_MODE", "DM_HAPTICS"] {
+        for key in ["DM_SCREEN_MODE", "DM_HAPTICS", "DM_RUMBLE_GAIN", "DM_RUMBLE_MIN"] {
             revealDeviceCheckControl(app.buttons["game-reset-" + key], in: app.scrollViews["detail-scroll"])
             try tap("game-reset-" + key)
         }

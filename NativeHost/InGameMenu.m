@@ -49,6 +49,7 @@ NSDictionary *SatchelMenuState(void) {
     return @{@"state": state, @"paused": @(![state isEqualToString:@"running"] && ![state isEqualToString:@"opening"]), @"attached": @(surfaceAttached), @"current": SatchelCurrentPlayerSettings(),
              @"nextLaunch": SatchelNextPlayerSettings(), @"fps": @(showFPS), @"opacity": @(touchOpacity),
              @"size": @(touchSize), @"haptics": @(SatchelMenuHaptics()), @"volume": @(SatchelMenuVolume()),
+             @"rumbleGain": SatchelNextPlayerSettings()[@"DM_RUMBLE_GAIN"] ?: @"1.0", @"rumbleMin": SatchelNextPlayerSettings()[@"DM_RUMBLE_MIN"] ?: @"0",
              @"thermalLimited": @(thermalLimited), @"thermalMessage": thermalMessage(), @"restartRequired": @YES};
 }
 static void redraw(void);
@@ -204,6 +205,8 @@ BOOL SatchelMenuPerform(NSString *action, NSString *value) {
         if (![state isEqualToString:@"menu"]) return NO;
         double n;
         if ([action isEqualToString:@"screen"]) { if (!SatchelQueuePlayerSetting(@"DM_SCREEN_MODE", value)) return NO; }
+        else if ([action isEqualToString:@"rumble-gain"]) { if (!SatchelQueuePlayerSetting(@"DM_RUMBLE_GAIN", value)) return NO; }
+        else if ([action isEqualToString:@"rumble-min"]) { if (!SatchelQueuePlayerSetting(@"DM_RUMBLE_MIN", value)) return NO; }
         else if ([action isEqualToString:@"fps"] || [action isEqualToString:@"haptics"]) {
             if (![@[@"on", @"off"] containsObject:value]) return NO;
             BOOL on = [value isEqualToString:@"on"];
@@ -283,6 +286,11 @@ static void redraw(void) {
         addButton([NSString stringWithFormat:@"Touch opacity: %.0f%% (tap to cycle)", touchOpacity * 100], @"opacity", touchOpacity > 0.9 ? @"0.4" : touchOpacity < 0.5 ? @"0.7" : @"1");
         addButton([NSString stringWithFormat:@"Touch size: %.0f%% (tap to cycle)", touchSize * 100], @"size", touchSize > 1.1 ? @"0.75" : touchSize < 0.9 ? @"1" : @"1.25");
         addButton(SatchelMenuHaptics() ? @"Haptics: on" : @"Haptics: off", @"haptics", SatchelMenuHaptics() ? @"off" : @"on");
+        double gain = [next[@"DM_RUMBLE_GAIN"] doubleValue], cutoff = [next[@"DM_RUMBLE_MIN"] doubleValue];
+        addButton([NSString stringWithFormat:@"Rumble strength: %.0f%% (tap to cycle)", gain * 100], @"rumble-gain",
+                  gain < 0.75 ? @"1.0" : gain < 1.25 ? @"1.5" : gain < 1.75 ? @"2.0" : gain < 2.5 ? @"3.0" : @"0.5");
+        addButton(cutoff > 0 ? [NSString stringWithFormat:@"Rumble cutoff: %.0f%% (tap to cycle)", cutoff * 100] : @"Rumble cutoff: off (tap to cycle)", @"rumble-min",
+                  cutoff < 0.1 ? @"0.2" : cutoff < 0.35 ? @"0.45" : cutoff < 0.55 ? @"0.6" : @"0");
         addButton([NSString stringWithFormat:@"Game volume: %.0f%% (tap to cycle)", SatchelMenuVolume() * 100], @"volume", SatchelMenuVolume() > 0.9 ? @"0" : SatchelMenuVolume() < 0.1 ? @"0.5" : @"1");
         addButton(@"Cycle touch controller layout", @"layout-next", nil);
         addButton(@"Quit game…", @"quit", nil);

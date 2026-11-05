@@ -3,14 +3,21 @@
 #include <math.h>
 
 // A single rectangle defines both presentation and the inverse touch transform.
-static inline CGRect SatchelPictureRect(CGRect bounds, int mode) {
+// aspect is the presented picture's width / height: 16:9 unless the game presents another
+// shape (nxnative front_picture_shape, upstream 600c0b37; a 1.43:1 picture under
+// DM_SCREEN_ASPECT). Invalid shapes fall back to 16:9.
+static inline CGRect SatchelPictureRectAspect(CGRect bounds, int mode, CGFloat aspect) {
     CGFloat w = bounds.size.width, h = bounds.size.height;
     if (w <= 0 || h <= 0 || mode == 1) return bounds;
-    int wide = w / h > 16.0 / 9.0;
-    if (wide) w = h * 16.0 / 9.0;
-    else h = w * 9.0 / 16.0;
+    if (!(aspect >= 1.0 && aspect <= 3.0)) aspect = 16.0 / 9.0;
+    int wide = w / h > aspect;
+    if (wide) w = h * aspect;
+    else h = aspect == 16.0 / 9.0 ? w * 9.0 / 16.0 : w / aspect;
     return CGRectMake(bounds.origin.x + floor((bounds.size.width - w) / 2),
                       bounds.origin.y + floor((bounds.size.height - h) / 2), w, h);
+}
+static inline CGRect SatchelPictureRect(CGRect bounds, int mode) {
+    return SatchelPictureRectAspect(bounds, mode, 16.0 / 9.0);
 }
 static inline CGPoint SatchelPictureTouch(CGPoint point, CGRect picture) {
     if (picture.size.width <= 0 || picture.size.height <= 0) return CGPointZero;

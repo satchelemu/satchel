@@ -54,6 +54,7 @@ host = OUT / 'host'
 inputs = list((ROOT / 'NativeHost').glob('*.m')) + list((ROOT / 'NativeHost').glob('*.h'))
 inputs += [ROOT / 'NativeHost/build.py', ROOT / 'NativeHost/display_overlay.py',
            ROOT / 'NativeHost/display/screen-modes.patch', ROOT / 'NativeHost/display/frame-shot.patch',
+           ROOT / 'NativeHost/display/picture-shape.patch', ROOT / 'App/CloudSaveFolder.m', ROOT / 'App/CloudSaveFolder.h',
            ROOT / 'NativeGames/runtime-capture.patch', ROOT / 'NativeGames/RuntimeCapture.inc',
            ROOT / 'NativeHost/phone-capture-lifetime.patch', ROOT / 'NativeHost/phone-shaders.patch',
            ROOT / 'NativeHost/PhoneShaderRuntime.inc', ROOT / 'project.yml']

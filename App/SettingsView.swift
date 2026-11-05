@@ -272,6 +272,7 @@ struct SettingsView: View {
                     .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            CloudSaveSyncPanel()
             SatchelPanel(title: "Library") {
                 Text("\(library.items.count) library entries use \(satchelBytes(used)). Remove a game from its page to free space; the original in Files stays put.")
                     .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)

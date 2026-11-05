@@ -111,7 +111,7 @@
 -    if (w <= 0 || h <= 0) return;
 -    if (w / h > 16.0 / 9.0) w = h * 16.0 / 9.0; else h = w * 9.0 / 16.0;
 -    CGFloat x0 = (b.size.width - w) / 2, y0 = (b.size.height - h) / 2;
-+    CGRect picture = SatchelPictureRect(SatchelGameBounds(self.bounds), SatchelScreenMode());
++    CGRect picture = SatchelCurrentPictureRect(SatchelGameBounds(self.bounds));
 +    if (picture.size.width <= 0 || picture.size.height <= 0) return;
      dm_touch t[16]; int n = 0;
      for (int i = 0; i < 16; i++) if (_game[i]) {

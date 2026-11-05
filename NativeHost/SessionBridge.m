@@ -2,6 +2,7 @@
 #import "SessionBridge.h"
 #import "PlayerSettings.h"
 #import "InGameMenu.h"
+#import "../App/CloudSaveFolder.h"
 #import <Metal/Metal.h>
 #include <dlfcn.h>
 #include <mach-o/loader.h>
@@ -227,6 +228,7 @@ static BOOL prepare_native_session(NSString *package, NSError **error) {
     if (result) {
         for (int i = 0; i < g_argc; i++) { free(g_argv[i]); g_argv[i] = NULL; }
         g_argc = 0; g_package = nil; g_image_handle = NULL; dm_set_game_image_header(NULL); dlclose(handle); restore_session_environment();
+        SatchelCloudSavesSessionEnd();
         return fail(error, [NSString stringWithFormat:@"Cannot prepare the session (%d).", result]);
     }
     satchel_host_session_load(g_argc, g_argv);
@@ -284,7 +286,10 @@ const char *front_ios_boot_message(void) { return NULL; }
 const char *front_ios_device_message(void) { return NULL; }
 int dm_locate_game_data(void) { return g_prepared; }
 bool dm_show_launcher(void *controller, void (*done)(void)) { (void)controller; (void)done; return false; }
-void dm_cloud_saves_env(void) { setenv("DM_SAVE_SYNC", "0", 1); }
+// The engine's front end calls this at startGame too; both reach the same idempotent setter.
+// The reviewed profile's DM_SAVE_SYNC=0 stays in the manifest binding; the Settings choice
+// replaces it here, after the manifest environment and before the guest's first save mount.
+void dm_cloud_saves_env(void) { SatchelCloudSavesSessionBegin(); }
 
 static void report_session(NSString *stage, NSString *result) {
     NSDictionary *row = @{@"package": g_package.lastPathComponent ?: @"", @"stage": stage, @"result": result,
@@ -391,6 +396,7 @@ void SatchelStopNativeSession(void (^completion)(NSError *)) {
 #endif
             SatchelClearPlayerSession();
             restore_session_environment();
+            SatchelCloudSavesSessionEnd(); // The sender was flushed and joined by the save-sync-stop stage.
             NSString *package = g_package.lastPathComponent ?: @"";
             g_image_handle = NULL; g_package = nil;
             for (int i = 0; i < g_argc; i++) { free(g_argv[i]); g_argv[i] = NULL; }

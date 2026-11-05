@@ -23,6 +23,7 @@ render scale are not player choices: each game runs as it expects (see Player pr
 
 Snapshot keys: `state` (running, opening, menu, library, confirmQuit), `paused`,
 `current` (launch settings), `nextLaunch`, `fps`, `opacity`, `size`, `haptics`, `volume`,
+`rumbleGain`, `rumbleMin`,
 `restartRequired`, `attached`, `thermalLimited`, `thermalMessage`.
 `thermalLimited` and `thermalMessage` follow the engine's actual cap. `restartRequired` describes the engine's frame-cap/render-scale limitation,
 not whether every preference differs. While `opening`, paused is false and input is blocked while capture and
@@ -42,6 +43,8 @@ pause finish. Menu changes do not write process environment variables.
 | opacity | decimal 0.2 through 1.0 | Live touch-layer opacity |
 | size | decimal 0.75 through 1.25 | Live touch geometry and hit targets |
 | haptics | on, off | Live touch feedback and game rumble |
+| rumble-gain | decimal 0 through 3 | Live rumble strength (`DM_RUMBLE_GAIN`), saved for the title |
+| rumble-min | decimal 0 through 0.9 | Live controller rumble cutoff (`DM_RUMBLE_MIN`), saved for the title |
 | volume | decimal 0 through 1 | Live game audio gain, independent of device volume |
 | layout-next | none | Cycle the engine's touch layouts |
 

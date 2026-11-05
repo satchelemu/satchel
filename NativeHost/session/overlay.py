@@ -58,6 +58,9 @@ def apply(root, engine, out, groups):
         if Path(row['path']).name == 'memstat.m':
             row['path'] = str(runpy.run_path(str(session / 'diagnostics_overlay.py'))['prepare'](
                 Path(row['path']), overlay / 'memstat.m'))
+        if Path(row['path']).name == 'save_sync.c':
+            row['path'] = str(runpy.run_path(str(session / 'save_sync_overlay.py'))['prepare'](
+                Path(row['path']), overlay / 'save_sync.c'))
         if Path(row['path']).name == 'front_ios.m':
             row['path'] = str(runpy.run_path(str(session / 'frontend_overlay.py'))['prepare'](
                 Path(row['path']), overlay / 'front_ios.m'))
