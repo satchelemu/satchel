@@ -49,6 +49,7 @@ inputs += [ROOT / 'NativeHost/phone-prefetch.patch', ROOT / 'NativeHost/graphics
 inputs += [ROOT / 'NativeHost/graphics/ShaderMetrics.inc', ROOT / 'NativeHost/graphics/shader_metrics.py']
 inputs += [ROOT / 'NativeHost/services' / name for name in
            ['overlay.py', 'ServiceIPC.inc', 'SessionIPC.inc', 'EngineAdapter.inc', 'RYUJINX-LICENSE.txt', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc', 'ClockState.inc', 'FileQueries.inc', 'MissingServices.inc', 'coverage/MissingServiceNames.inc']]
+inputs += [ROOT / 'App/ControllerProfiles.h', ROOT / 'App/ControllerProfiles.m']
 inputs += [ROOT / 'NativeHost/controllers' / name for name in ['overlay.py', 'HapticQueue.inc']]
 session = ROOT / 'NativeHost/session'
 inputs += list(session.glob('Session*.c')) + list(session.glob('Session*.h'))

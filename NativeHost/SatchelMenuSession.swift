@@ -21,6 +21,18 @@ final class NativeSessionControl: InGameSessionControl {
     // The host shows its own FPS counter but does not publish a measured value.
     var framesPerSecond: Double? { nil }
 
+    var currentSettings: InGameSettings {
+        let state = SatchelMenuState()
+        var settings = InGameSettings.load(titleID: titleID)
+        settings.screenMode = SatchelScreenMode() == 1 ? .stretch : .fit
+        settings.showFPS = (state["fps"] as? Bool) ?? settings.showFPS
+        settings.haptics = (state["haptics"] as? Bool) ?? settings.haptics
+        settings.touchOpacity = (state["opacity"] as? Double) ?? settings.touchOpacity
+        settings.touchSize = (state["size"] as? Double) ?? settings.touchSize
+        settings.volume = (state["volume"] as? Double) ?? settings.volume
+        return settings
+    }
+
     func apply(_ settings: InGameSettings) {
         let old = applied
         applied = settings
@@ -35,7 +47,7 @@ final class NativeSessionControl: InGameSessionControl {
 
     func resume() { bridge.perform("resume") }
     func pauseAndReturnToLibrary() { bridge.perform("library") }
-    // The menu's own alert already asked; the bridge only quits from its confirm state.
+    // The menu already confirmed; the bridge only quits from its confirm state.
     func quit() { bridge.perform("quit"); bridge.perform("confirm-quit") }
 
     private static func decimal(_ value: Double) -> String { String(format: "%.2f", value) }

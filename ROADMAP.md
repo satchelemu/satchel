@@ -19,8 +19,8 @@ with no computer involved.
 | Horizon services | 60% | Eight IPC rounds plus a measured SDK file-flush correction from NX2Apple and Ryujinx (fs, hid, time, settings, account, applet, audio, parental control, friends, network stubs, play reports, DLC). Each new game reports what it still misses; all three phone-prepared games reported none on 2026-11-04. |
 | Graphics (NVN on Metal) | 65% | Zelda, Odyssey, Castlevania and Mario Kart render correctly. Zelda at 100% render scale does not hold 30 FPS yet; anti-aliasing at low render scale is rough. Opt-in Mac pass attribution is validated; no new full-resolution speedup is established. |
 | Performance and stability | 60% | Two hour Zelda session without a crash. Mac 30-minute Castlevania and retained-cache Zelda runs pass zero-leak checks. Nine same-process visits across the three titles on main cd6fbf9 show no launch hang or stop timeout. Live memory growth and phone Quit/relaunch validation remain open. |
-| Controllers and input | 80% | Xbox, DualSense and Pro Controller; touch controls; rumble. Controller mapping UI and a controller shortcut for the menu are missing. |
-| In-game menu | 75% | Pause, resume, library, quit, screen fit, FPS counter, DLC. Audio volume, touch control size and opacity, controller layout are missing. |
+| Controllers and input | 80% | Xbox, DualSense and Pro Controller; touch controls; rumble. Controller mapping UI, category JSON profiles with global and title defaults, live stick testing, dead zone, menu shortcut with normal Plus/Minus taps and chord takeover and controller focus navigation pass Mac synthetic and simulator checks. Physical controller validation remains. |
+| In-game menu | 75% | Pause, resume, library, quit, screen fit, FPS counter, DLC. Audio volume, touch size and opacity use the native bridge; the displayed size percentage is corrected. Controller layout and per-title remapping are available from the menu. Synthetic simulator checks pass; hardware acceptance remains. |
 | iPhone Duo postures (closed, open, half folded) | 60% | Open and closed screens work; half folded layout and live relayout while playing are built but not fully verified. |
 | Library and app UI | 85% | Redesigned library with real artwork, import flow that keeps going in the background with iCloud download progress, home cards for import, Prepare, warm-up and a paused game, shader warm-up on each game page, settings with the bundled install guide, signature expiry warnings, per-title settings and a dated save-backup list with restore, share-sheet export and import. The new settings and save journeys still need hardware validation. |
 | Build reproducibility | 45% | All 45 declared native artifacts rebuilt locally from pinned cached inputs. Five tool source pins added; clean-Mac tool setup and private shader-parity evidence still prevent full app reproduction. See BUILDING.md. |
@@ -68,12 +68,16 @@ pull request. Open an issue first if you want to claim one.
    experiments are excluded. Mac gameplay attribution is available for
    Zelda and Odyssey; no full-resolution phone speedup is established. Validate
    matched pixels and GPU cost before promoting a candidate.
-7. **Controller remapping and controller navigation.** A physical input list keyed to
-   GameController input names, one JSON profile per controller product category, a
-   settings page with a stick visualizer and dead zone, and a button combination that
-   opens the pause menu without reaching the game. Then a small navigator that turns
-   d-pad and stick edges into focus moves, so the library and the pause menu work
-   without touching the screen. The per-title player profiles plist is the storage.
+7. **Controller hardware acceptance.** Settings > Controllers provides a physical input
+   list keyed to GameController names, one JSON profile per product category in the
+   player settings plist, global defaults, a live tester and radial dead zone. Holding
+   Home opens the menu; Menu + Options is the fallback and an explicit alternative.
+   Home stays reserved. Plus/Minus taps reach the game; a complete chord suppresses both
+   until both are released. The first button can reach the game before chord completion.
+   D-pad and stick edges navigate
+   the library, game actions and pause menu. Physical Xbox, DualSense and Pro Controller
+   checks on the phone are still needed, including system Home gesture handling and
+   disconnect/reconnect. See the controller checks in `docs/testing.md`.
 8. **Entitlement and memory self-check, hardware validation remaining.** Settings >
    Device check queries both entitlements in the running signature and measures
    remaining memory, the current process limit, address span and a bounded contiguous

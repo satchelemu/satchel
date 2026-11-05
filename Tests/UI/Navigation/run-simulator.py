@@ -17,6 +17,10 @@ command = ['nice', '-n', '10', 'xcodebuild', 'test-without-building', '-project'
            '-destination', 'platform=iOS Simulator,id=' + simulator,
            '-derivedDataPath', str(project / 'DerivedData'), '-resultBundlePath', str(result),
            '-parallel-testing-enabled', 'NO', '-jobs', '2', 'ONLY_ACTIVE_ARCH=YES']
+diagnostics = os.environ.get('SATCHEL_UI_DIAGNOSTICS')
+if diagnostics:
+    assert diagnostics in {'on-failure', 'never'}
+    command += ['-collect-test-diagnostics', diagnostics]
 build = command.copy()
 build[4] = 'build-for-testing'
 result_index = build.index('-resultBundlePath')

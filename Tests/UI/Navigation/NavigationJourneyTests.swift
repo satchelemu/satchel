@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings"]
+        let fixtureFamilies = ["testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -42,6 +42,151 @@ final class NavigationJourneyTests: XCTestCase {
     }
 
 #if NAVIGATION_PREVIEW && NAVIGATION_NATIVE
+    private func launchControls(_ screen: String) {
+        app.launchArguments += ["-SatchelPreviewScreen", screen, "-SatchelPreviewControllerTests", "YES",
+            "-SatchelPreviewPrepared", "NO", "-SatchelPreviewTouch", "NO", "-SatchelPreviewPreparedOnlyTile", "NO"]
+        app.launch()
+        XCTAssertTrue(app.buttons["fixture-pad-down"].waitForExistence(timeout: 10))
+    }
+
+    private func pad(_ input: String) throws {
+        try tap("fixture-pad-" + input)
+        XCTAssertEqual(app.staticTexts["fixture-last-pulse"].label, input, "Transport must send the requested physical input")
+    }
+
+    func testControlsSettingsAndPersistence() throws {
+        launchControls("settings")
+        try button("settings-Controllers").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["controller-connected"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["controller-connected"].label.contains("Connected"))
+        try pad("stick")
+        let stick = app.descendants(matching: .any)["controller-stick-lx"].firstMatch
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (stick.value as? String) == "0.80, 0.40"
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 3), .completed)
+        try pad("clear")
+        let released = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (stick.value as? String) == "0.00, 0.00"
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [released], timeout: 3), .completed)
+        let scroll = app.scrollViews.containing(.slider, identifier: "controller-dead-zone").firstMatch
+        let slider = app.sliders["controller-dead-zone"]
+        revealDeviceCheckControl(slider, in: scroll)
+        slider.adjust(toNormalizedSliderPosition: 0.6)
+        let saved = app.staticTexts["controller-dead-zone-value"].label
+        XCTAssertNotEqual(saved, "15% (both sticks)")
+        app.terminate(); app.launch()
+        try button("settings-Controllers").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        revealDeviceCheckControl(app.staticTexts["controller-dead-zone-value"], in: scroll)
+        XCTAssertEqual(app.staticTexts["controller-dead-zone-value"].label, saved)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Controller settings"; shot.lifetime = .keepAlways; add(shot)
+    }
+
+    func testControlsLibraryDetailAndBack() throws {
+        launchControls("home")
+        try pad("down")
+        let focus = app.staticTexts["controller-focus"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        for _ in 0..<6 {
+            if focus.label.hasPrefix("game-") { break }
+            try pad("down")
+        }
+        XCTAssertTrue(focus.label.hasPrefix("game-"), "Library focus: \(focus.label)")
+        try pad("accept")
+        _ = try button("close-game-detail")
+        try pad("back")
+        _ = try button("import-homebrew")
+        XCTAssertFalse(app.buttons["close-game-detail"].exists)
+    }
+
+    func testControlsMenuShortcutAndLayout() throws {
+        launchControls("game")
+        try pad("accept")
+        let delivered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.app.staticTexts["fixture-controls-state"].label.contains("buttons=2")
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [delivered], timeout: 4), .completed, "Ordinary input must reach the synthetic guest")
+        for (name, bits) in [("plus", 1024), ("minus", 2048)] {
+            try pad("clear")
+            try pad(name)
+            let delivered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                self.app.staticTexts["fixture-controls-state"].label.contains("buttons=\(bits)")
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [delivered], timeout: 4), .completed, "Short \(name) must reach the game")
+            XCTAssertFalse(app.buttons["menu-resume"].exists)
+        }
+        try pad("clear")
+        try pad("chord")
+        _ = try button("menu-resume")
+        XCTAssertTrue(app.staticTexts["fixture-controls-state"].label.contains("buttons=0"), "Shortcut must never reach the game")
+        try pad("clear")
+        try pad("down")
+        XCTAssertTrue(app.staticTexts["controller-focus"].firstMatch.waitForExistence(timeout: 5))
+        let focus = app.staticTexts["controller-focus"].firstMatch
+        for _ in 0..<12 {
+            if focus.label == "menu-controller-layout" { break }
+            try pad("down")
+        }
+        XCTAssertEqual(focus.label, "menu-controller-layout")
+        XCTAssertTrue(app.buttons["menu-controller-layout"].isHittable, "Focus must scroll the layout action into view")
+        try pad("accept")
+        _ = try button("close-controller-layout")
+        XCTAssertTrue(app.staticTexts["controller-profile-scope"].exists)
+        try pad("back")
+        _ = try button("menu-resume")
+        // These are real menu controls connected to the native bridge.
+        let volume = app.sliders["menu-volume"]
+        revealDeviceCheckControl(volume, in: app.scrollViews.containing(.slider, identifier: "menu-volume").firstMatch)
+        let before = app.staticTexts["fixture-controls-state"].label
+        volume.adjust(toNormalizedSliderPosition: 0.35)
+        let expectedVolume = Double(volume.normalizedSliderPosition)
+        XCTAssertLessThan(expectedVolume, 0.8)
+        let opacity = app.sliders["menu-opacity"]
+        revealDeviceCheckControl(opacity, in: app.scrollViews.containing(.slider, identifier: "menu-opacity").firstMatch)
+        opacity.adjust(toNormalizedSliderPosition: 0.5)
+        let expectedOpacity = 0.2 + Double(opacity.normalizedSliderPosition) * 0.8
+        XCTAssertLessThan(expectedOpacity, 0.9)
+        let size = app.sliders["menu-size"]
+        revealDeviceCheckControl(size, in: app.scrollViews.containing(.slider, identifier: "menu-size").firstMatch)
+        size.adjust(toNormalizedSliderPosition: 0.8)
+        let expectedSize = 0.75 + Double(size.normalizedSliderPosition) * 0.5
+        XCTAssertGreaterThan(expectedSize, 1.01)
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.app.staticTexts["fixture-controls-state"].label != before
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 4), .completed)
+        let state = app.staticTexts["fixture-controls-state"].label
+        let fields = Dictionary(uniqueKeysWithValues: state.split(separator: " ").compactMap { field -> (String, Double)? in
+            let parts = field.split(separator: "=")
+            guard parts.count == 2, let value = Double(parts[1]) else { return nil }
+            return (String(parts[0]), value)
+        })
+        XCTAssertEqual(try XCTUnwrap(fields["volume"]), expectedVolume, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(fields["opacity"]), expectedOpacity, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(fields["size"]), expectedSize, accuracy: 0.01)
+        try pad("back")
+        XCTAssertFalse(app.buttons["menu-resume"].waitForExistence(timeout: 2))
+        try pad("chord")
+        _ = try button("menu-resume")
+        XCTAssertEqual(app.staticTexts["fixture-controls-state"].label, state)
+        try pad("clear")
+        try pad("down")
+        XCTAssertEqual(app.staticTexts["controller-focus"].firstMatch.label, "menu-resume")
+        try pad("down")
+        XCTAssertEqual(app.staticTexts["controller-focus"].firstMatch.label, "menu-library")
+        try pad("down")
+        XCTAssertEqual(app.staticTexts["controller-focus"].firstMatch.label, "menu-quit")
+        try pad("accept")
+        _ = try button("menu-confirm-quit")
+        try pad("down")
+        XCTAssertEqual(app.staticTexts["controller-focus"].firstMatch.label, "quit-cancel")
+        try pad("accept")
+        _ = try button("menu-resume")
+        try pad("back")
+        XCTAssertFalse(app.buttons["menu-resume"].waitForExistence(timeout: 2))
+    }
+
     // XCTest on iOS 27.1 can throw while asking for an offscreen element's
     // activation point. Reveal by geometry first, then require real hittability.
     private func revealDeviceCheckControl(_ control: XCUIElement, in scroll: XCUIElement) {

@@ -39,6 +39,7 @@ struct PlayerSettingsView: View {
             .background { SatchelBackdrop(glow: SatchelTheme.ember) }
             .satchelMenuStatus()
         }
+        .controllerNavigation(back: { dismiss() })
         .onAppear {
             let settings = SatchelPlayerSettings(titleID)
             mode = settings["DM_SCREEN_MODE"] ?? "fit"
@@ -76,7 +77,8 @@ struct PlayerSettingsView: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityIdentifier("player-play")
-        Label("While playing, tap the pause button or double tap with three fingers to open the menu. Controller: hold Options and Menu for one second.",
+        .controllerAction("player-play") { save(); play() }
+        Label("While playing, tap the pause button or double tap with three fingers to open the menu. Controller: hold Home, or configure the shortcut in Settings, Controllers.",
               systemImage: "hand.tap.fill")
             .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
             .fixedSize(horizontal: false, vertical: true)

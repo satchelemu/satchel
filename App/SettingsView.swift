@@ -52,7 +52,7 @@ final class KeyStore: ObservableObject {
 
 struct SettingsView: View {
     enum Page: String, CaseIterable, Identifiable {
-        case keys = "Console keys", storage = "Storage", prepared = "Prepared games", device = "Device check", about = "About"
+        case keys = "Console keys", storage = "Storage", prepared = "Prepared games", device = "Device check", controllers = "Controllers", about = "About"
         var id: String { rawValue }
         var icon: String {
             switch self {
@@ -60,6 +60,7 @@ struct SettingsView: View {
             case .storage: return "internaldrive.fill"
             case .prepared: return "hammer.fill"
             case .device: return "checkmark.shield.fill"
+            case .controllers: return "gamecontroller.fill"
             case .about: return "info.circle.fill"
             }
         }
@@ -69,6 +70,7 @@ struct SettingsView: View {
             case .storage: return SatchelTheme.tide
             case .prepared: return SatchelTheme.leaf
             case .device: return SatchelTheme.tide
+            case .controllers: return SatchelTheme.leaf
             case .about: return SatchelTheme.violet
             }
         }
@@ -135,6 +137,7 @@ struct SettingsView: View {
                 case .storage: storagePage
                 case .prepared: preparedPage
                 case .device: DeviceCheckView()
+                case .controllers: ControllersView()
                 case .about: aboutPage
                 }
             }

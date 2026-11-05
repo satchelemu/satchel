@@ -10,8 +10,11 @@ OUT = Path(os.environ.get('SATCHEL_SETTINGS_TEST_OUT', Path.home() / 'SatchelBui
 OUT.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(ROOT / 'NativeHost/PlayerProfiles.plist', OUT / 'PlayerProfiles.plist')
 base = ['nice', '-n', '10', 'xcrun', 'clang', '-fobjc-arc', '-fmodules', '-framework', 'Foundation',
-        '-framework', 'CoreGraphics', '-I', str(ROOT / 'NativeHost'), str(ROOT / 'NativeHost/PlayerSettings.m')]
-exe = OUT / 'uitests3-player-settings-check'
+        '-framework', 'CoreGraphics', '-I', str(ROOT / 'NativeHost'), str(ROOT / 'NativeHost/PlayerSettings.m'),
+        str(ROOT / 'App/ControllerProfiles.m'), '-framework', 'GameController']
+# Command-line preferences use the executable name. Keep worker domains separate.
+prefix = OUT.parent.name
+exe = OUT / (prefix + '-player-settings-check')
 subprocess.run(base + [str(ROOT / 'NativeHost/display/check.m'), '-o', str(exe)], check=True)
 subprocess.run([exe, 'setup'], check=True)
 
@@ -36,7 +39,7 @@ check(['-SatchelPipelineMode', 'hybrid'], pipeline='hybrid')
 check(['-SatchelPipelineMode', 'legacy'], pipeline='legacy')
 check(['-SatchelPipelineMode', 'invalid'])
 check([])
-pipeline = OUT / 'uitests3-pipeline-check'
+pipeline = OUT / (prefix + '-pipeline-check')
 subprocess.run(base + ['-framework', 'Metal', str(ROOT / 'NativeHost/graphics/PipelineSettings.m'),
     str(ROOT / 'Tests/PlayerSettings/pipeline.m'), '-o', str(pipeline)], check=True)
 subprocess.run([pipeline], check=True)

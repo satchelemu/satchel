@@ -68,6 +68,7 @@ struct InGameSettings: Codable, Equatable {
     var thermalFrameCap: Int? { get }
     /// Latest measured frame rate, or nil if the host does not report one.
     var framesPerSecond: Double? { get }
+    var currentSettings: InGameSettings { get }
     /// Applies settings while the game is paused or running.
     func apply(_ settings: InGameSettings)
     /// Closes the menu and continues the game.
@@ -76,6 +77,10 @@ struct InGameSettings: Codable, Equatable {
     func pauseAndReturnToLibrary()
     /// Ends the game session and returns to the library.
     func quit()
+}
+
+@MainActor extension InGameSessionControl {
+    var currentSettings: InGameSettings { InGameSettings.load(titleID: titleID) }
 }
 
 @MainActor final class InGameMenuModel: ObservableObject {
@@ -93,13 +98,13 @@ struct InGameSettings: Codable, Equatable {
 
     init(session: InGameSessionControl) {
         self.session = session
-        settings = InGameSettings.load(titleID: session.titleID)
+        settings = session.currentSettings
         framesPerSecond = session.framesPerSecond
         thermalFrameCap = session.thermalFrameCap
     }
 
     func startUpdating() {
-        settings = InGameSettings.load(titleID: session.titleID)
+        settings = session.currentSettings
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -144,6 +149,7 @@ struct InGameMenuView: View {
     /// The close button is a bar item (InGameMenuScreen) rather than drawn here.
     var barClose = false
     @State private var confirmQuit = false
+    @State private var showControllerLayout = false
 
     /// Room on the trailing side for a close button over the content (44 points plus spacing).
     private func closeStrip(_ cut: ScreenTraits) -> CGFloat {
@@ -215,13 +221,26 @@ struct InGameMenuView: View {
                 }
             }
         }
+        .controllerNavigation(enabled: !confirmQuit && !showControllerLayout, back: { model.session.resume() })
+        .sheet(isPresented: $showControllerLayout) { ControllerLayoutView(titleID: model.session.titleID) }
         .onAppear { model.startUpdating() }
         .onDisappear { model.stopUpdating() }
-        .alert("Quit \(model.session.gameTitle)?", isPresented: $confirmQuit) {
-            Button("Quit game", role: .destructive) { Haptics.click(); model.session.quit() }
-            Button("Keep playing", role: .cancel) {}
-        } message: {
-            Text("Progress since your last save is lost. Quitting returns to your library.")
+        .accessibilityHidden(confirmQuit)
+        .overlay {
+            if confirmQuit {
+                ZStack {
+                    Color.black.opacity(0.8).ignoresSafeArea()
+                    VStack(spacing: 20) {
+                        Text("Quit \(model.session.gameTitle)?").font(.headline)
+                        Text("Progress since your last save is lost. Quitting returns to your library.")
+                        Button("Keep playing") { confirmQuit = false }
+                            .controllerAction("quit-cancel") { confirmQuit = false }
+                        Button("Quit game", role: .destructive) { model.session.quit() }
+                            .accessibilityIdentifier("menu-confirm-quit")
+                            .controllerAction("quit-confirm") { model.session.quit() }
+                    }.padding(30).frame(maxWidth: 420).background(SatchelTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 20))
+                }.controllerNavigation(back: { confirmQuit = false })
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -265,6 +284,7 @@ struct InGameMenuView: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityIdentifier("menu-resume")
+        .controllerAction("menu-resume") { model.session.resume() }
     }
 
     private func actionButtons(includeResume: Bool) -> some View {
@@ -275,6 +295,7 @@ struct InGameMenuView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("menu-resume")
+                .controllerAction("menu-resume") { model.session.resume() }
             }
             Button { model.session.pauseAndReturnToLibrary() } label: {
                 SatchelButtonLabel(title: "Library", systemImage: "square.grid.2x2.fill", kind: .secondary, height: 44, fill: includeResume)
@@ -282,15 +303,17 @@ struct InGameMenuView: View {
             .buttonStyle(PressableStyle())
             .accessibilityHint("The game stays paused")
             .accessibilityIdentifier("menu-library")
+            .controllerAction("menu-library") { model.session.pauseAndReturnToLibrary() }
             Button { confirmQuit = true } label: {
                 SatchelButtonLabel(title: "Quit game", systemImage: "xmark", kind: .danger, height: 40, fill: includeResume)
             }
             .buttonStyle(PressableStyle())
             .accessibilityIdentifier("menu-quit")
+            .controllerAction("menu-quit") { confirmQuit = true }
             Text("Library keeps the game paused. Quit ends it and returns to your library.")
                 .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
-            Label("Open this menu any time: three-finger double tap, or hold Options and Menu on a controller.",
+            Label("Open this menu: three-finger double tap, or hold Home on a controller. Configure the shortcut in Settings, Controllers.",
                   systemImage: "hand.tap.fill")
                 .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -313,6 +336,11 @@ struct InGameMenuView: View {
                 sliderRow("Size", value: $model.settings.touchSize, range: 0.75...1.25,
                           low: "smallcircle.filled.circle", high: "largecircle.fill.circle")
                 toggleRow("Haptics", isOn: $model.settings.haptics)
+            }
+            SatchelPanel(title: "Controller", tint: SatchelTheme.leaf) {
+                Button("Controller layout and remapping") { showControllerLayout = true }
+                    .accessibilityIdentifier("menu-controller-layout")
+                    .controllerAction("menu-controller-layout") { showControllerLayout = true }
             }
             SatchelPanel(title: "Sound", tint: SatchelTheme.violet) {
                 sliderRow("Volume", value: $model.settings.volume, range: 0...1,
@@ -342,6 +370,7 @@ struct InGameMenuView: View {
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
+        .controllerAction("mode-" + mode.rawValue) { model.settings.screenMode = mode }
         .accessibilityLabel("\(mode.title): \(mode.detail)")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -383,6 +412,7 @@ struct InGameMenuView: View {
             Text(title).font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.text)
         }
         .tint(SatchelTheme.leaf)
+        .controllerAction("toggle-" + title) { isOn.wrappedValue.toggle() }
         .frame(minHeight: 36)
     }
 
@@ -392,13 +422,17 @@ struct InGameMenuView: View {
             HStack {
                 Text(title).font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.text)
                 Spacer()
-                Text("\(Int(((value.wrappedValue - range.lowerBound) / (range.upperBound - range.lowerBound)) * 100))%")
+                Text("\(Int(value.wrappedValue * 100))%")
                     .font(SatchelTheme.mono(12)).foregroundStyle(SatchelTheme.textDim)
             }
             HStack(spacing: 10) {
                 Image(systemName: low).font(.system(size: 12)).foregroundStyle(SatchelTheme.textDim)
                 Slider(value: value, in: range).tint(SatchelTheme.tide)
                     .accessibilityLabel(title)
+                    .accessibilityIdentifier("menu-" + title.lowercased())
+                    .controllerAction("slider-" + title) {
+                        value.wrappedValue = value.wrappedValue + 0.1 > range.upperBound + 0.001 ? range.lowerBound : min(range.upperBound, value.wrappedValue + 0.1)
+                    }
                 Image(systemName: high).font(.system(size: 14)).foregroundStyle(SatchelTheme.textDim)
             }
         }

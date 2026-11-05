@@ -42,8 +42,14 @@ int nvn_thermal_limited(void) { return 0; }
 const struct dm_profile *dm_profile(void) { static struct dm_profile profile = {.pad_layout = 1}; return &profile; }
 void dm_input_set(uint64_t b, int32_t x, int32_t y, int32_t rx, int32_t ry) {}
 void dm_pad_set(uint64_t b, int32_t x, int32_t y, int32_t rx, int32_t ry) {}
-void dm_pad_set_player(int p, uint64_t b, int32_t x, int32_t y, int32_t rx, int32_t ry) {}
+static uint64_t guestButtons;
+uint64_t SatchelPreviewGuestButtons(void) { return guestButtons; }
+void SatchelPreviewResetGuestButtons(void) { guestButtons = 0; }
+void dm_pad_set_player(int p, uint64_t b, int32_t x, int32_t y, int32_t rx, int32_t ry) { guestButtons |= b; }
 void dm_pad_players(uint32_t mask) {}
+void satchel_hid_controllers(uint32_t mask) {}
+void satchel_hid_suppress_player(int p, uint64_t buttons) {}
+void satchel_hid_release(void) {}
 uint32_t dm_player_npad(int p) { return p; }
 void dm_motion_set(int p, const float a[3], const float r[3]) {}
 void dm_motion_set_switch(int p, const float a[3], const float r[3]) {}
@@ -56,6 +62,7 @@ int dm_opmode(void) { return 0; }
 void SatchelNativeSetMenuPaused(BOOL value) { paused = value; }
 // Only the game screen has a running session; the dev screens start before one.
 BOOL SatchelNativeSessionStarted(void) { return started || [[NSUserDefaults.standardUserDefaults stringForKey:@"SatchelPreviewScreen"] isEqualToString:@"game"]; }
+BOOL SatchelNativeSessionAcceptsEvents(void) { return SatchelNativeSessionStarted(); }
 void SatchelNativeFocusEvent(int event) {}
 BOOL SatchelPrepareNativeSession(NSString *package, NSError **error) {
     dispatch_sync(dispatch_get_main_queue(), ^{

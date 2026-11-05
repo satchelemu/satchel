@@ -244,3 +244,25 @@ failed run results intact when separately reporting a later gameplay interval.
 `--diagnostic-stop` samples the host and its owned compiler helpers after a failed
 stop. It omits arguments, paths, guest frames and addresses and does not retry stop
 or change the five-second guest-join deadline.
+
+## Controller checks
+
+No new dependency is required. Controller profile and input code uses the installed
+GameController SDK. The simulator suite compiles the production controller overlay
+against synthetic snapshots, without game data. Use a dedicated simulator through
+`SATCHEL_UI_SIMULATOR`; the `controls` worker uses its own “Satchel controls” iPhone Duo
+on iOS 27.1. `SATCHEL_UI_ONLY_TESTING` can select `testControlsSettingsAndPersistence`,
+`testControlsLibraryDetailAndBack` and `testControlsMenuShortcutAndLayout`.
+
+The small macOS remapping check is `NativeHost/controllers/check_remapping.py`, with
+`SATCHEL_OUT` set to the worker's output directory. Run it through
+`NativePrepare/guard.py` with a worker-owned `ANYGAME_OUT` directory. The existing
+`NativeHost/controllers/check.py` additionally checks HID, rumble and player settings.
+The remapping suite covers short Plus/Minus taps, complete-chord suppression through
+release, the 0.75 second hold and reserved Home input.
+See [docs/testing.md](docs/testing.md) for hardware acceptance steps. Simulator results
+establish UI behavior and synthetic input routing, not physical controller behavior.
+
+For a disk-constrained UI run, `SATCHEL_UI_DIAGNOSTICS=never` omits Xcode's verbose
+failure sysdiagnostics. Assertions, failure screenshots and test result bundles remain
+in place. The default diagnostics policy is unchanged when the variable is absent.

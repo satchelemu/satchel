@@ -28,7 +28,7 @@ exe = OUT / 'display-settings-check'
 shutil.copyfile(ROOT / 'NativeHost/PlayerProfiles.plist', OUT / 'PlayerProfiles.plist')
 subprocess.run(['nice', '-n', '10', 'xcrun', 'clang', '-fobjc-arc', '-fmodules', '-framework', 'Foundation',
                 '-framework', 'CoreGraphics', '-I', ROOT / 'NativeHost', ROOT / 'NativeHost/PlayerSettings.m',
-                ROOT / 'NativeHost/display/check.m', '-o', exe], check=True)
+                ROOT / 'App/ControllerProfiles.m', '-framework', 'GameController', ROOT / 'NativeHost/display/check.m', '-o', exe], check=True)
 subprocess.run([exe, 'setup'], check=True)
 def check(args, fps='0', scale='1.0', mode='fit'):
     result = subprocess.run([exe, 'read', *args], env=dict(os.environ, EXPECT_FPS=fps, EXPECT_SCALE=scale, EXPECT_MODE=mode), check=True, capture_output=True, text=True)

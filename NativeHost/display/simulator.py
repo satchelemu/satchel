@@ -15,7 +15,7 @@ settings = {'PRODUCT_BUNDLE_IDENTIFIER': 'com.dell.satchel.displayfixture', 'COD
             'OTHER_LDFLAGS': ['-framework', 'UIKit', '-framework', 'GameController', '-framework', 'CoreMotion', '-framework', 'CoreText']}
 project = {'name': 'DisplayFixture', 'targets': {'DisplayFixture': {'type': 'application', 'platform': 'iOS',
     'settings': {'base': settings}, 'sources': [{'path':str(ROOT/'NativeHost'/n)} for n in ['DisplayControls.m','PlayerSettings.m','InGameMenu.m','display/simulator.m']] +
-        [{'path':str(OUT/'overlays/display/dm/ios/Sources/DmGamepad.m')}, {'path':str(ROOT/'NativeHost/PlayerProfiles.plist'), 'buildPhase':'resources'}],
+        [{'path':str(ROOT/'App/ControllerProfiles.m')}, {'path':str(OUT/'overlays/display/dm/ios/Sources/DmGamepad.m')}, {'path':str(ROOT/'NativeHost/PlayerProfiles.plist'), 'buildPhase':'resources'}],
     'info': {'path':str(SIM/'Info.plist'), 'properties': {'CFBundleDisplayName':'Satchel display fixture', 'UILaunchScreen':{},
         'UISupportedInterfaceOrientations':['UIInterfaceOrientationLandscapeLeft','UIInterfaceOrientationLandscapeRight'],
         'UIApplicationSceneManifest':{'UIApplicationSupportsMultipleScenes':False, 'UISceneConfigurations':{}}}}}}}

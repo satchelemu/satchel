@@ -130,3 +130,11 @@ hidden behind Developer controls (Settings, About, tap the Satchel name seven ti
 
 A report with a missing service list is more valuable than a rating: each service ported
 helps every game that needs it.
+
+## Controller acceptance
+
+Controller remapping and navigation do not change the game ratings above. The controller
+checks use synthetic GameController snapshots, not gameplay. Plus and Minus remain
+normal game inputs until both are pressed for the menu chord; Home stays reserved.
+Physical Xbox, DualSense and Pro Controller acceptance, audible volume changes and touch layout on the phone
+remain separate checks in [the test guide](docs/testing.md).

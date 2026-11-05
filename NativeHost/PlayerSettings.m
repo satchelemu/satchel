@@ -1,4 +1,5 @@
 #import "PlayerSettings.h"
+#import "../App/ControllerProfiles.h"
 #include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -150,6 +151,7 @@ BOOL SatchelResetPlayerSetting(NSString *titleID, NSString *key) {
 void SatchelApplyPlayerSettings(NSString *titleID) {
     NSDictionary *values = SatchelPlayerSettings(titleID);
     sessionTitle = titleID.uppercaseString;
+    SatchelControllerSetTitle(titleID);
     launchSettings = [values copy]; nextSettings = [values mutableCopy];
     // Called once, after the manifest and before any guest, renderer or UI worker starts.
     for (NSString *key in keys()) setenv(key.UTF8String, [values[key] UTF8String], 1);
@@ -159,6 +161,7 @@ void SatchelApplyPlayerSettings(NSString *titleID) {
             [values[@"DM_FPS_TARGET"] UTF8String], [values[@"DM_RENDER_SCALE"] UTF8String], [values[@"DM_SCREEN_MODE"] UTF8String]);
 }
 void SatchelClearPlayerSession(void) {
+    SatchelControllerSetTitle(@"");
     sessionTitle = nil; launchSettings = nil; nextSettings = nil;
     atomic_store(&screenMode, 0); atomic_store(&playerHaptics, 1);
 }

@@ -40,7 +40,7 @@ print('PASS: synthetic HID, haptic state and fake Apple engine suites')
 import shutil
 shutil.copyfile(ROOT / 'NativeHost/PlayerProfiles.plist', OUT / 'PlayerProfiles.plist')
 settings = OUT / 'controller-settings'
-subprocess.run(base + ['-fobjc-arc', '-fmodules', '-framework', 'Foundation', '-framework', 'CoreGraphics', '-I' + str(ROOT / 'NativeHost'), str(ROOT / 'NativeHost/PlayerSettings.m'), str(ROOT / 'NativeHost/display/check.m'), '-o', str(settings)], check=True)
+subprocess.run(base + ['-fobjc-arc', '-fmodules', '-framework', 'Foundation', '-framework', 'CoreGraphics', '-I' + str(ROOT / 'NativeHost'), str(ROOT / 'NativeHost/PlayerSettings.m'), str(ROOT / 'App/ControllerProfiles.m'), '-framework', 'GameController', str(ROOT / 'NativeHost/display/check.m'), '-o', str(settings)], check=True)
 subprocess.run([str(settings), 'setup'], check=True)
 for args, fps, scale, mode in [([], '0', '1.0', 'fit'), (['-SatchelScreenMode', 'stretch'], '0', '1.0', 'stretch'), ([], '0', '1.0', 'fit')]:
     subprocess.run([str(settings), 'read', *args], env=dict(os.environ, EXPECT_FPS=fps, EXPECT_SCALE=scale, EXPECT_MODE=mode), check=True)

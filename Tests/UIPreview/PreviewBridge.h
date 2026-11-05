@@ -8,3 +8,5 @@
 #include "SwitchStorage.h"
 
 #include "SwitchCompression.h"
+
+#import "../../App/ControllerProfiles.h"

@@ -49,8 +49,15 @@ Measured on one iPhone Duo (A20 Pro, iOS 27.1). Dates are in the compatibility l
   Drive, with updates and DLC. Titles and artwork are read from your own game files.
 - Prepare runs as a background task with system progress, and signs the game code on the
   phone with your Apple Development identity.
-- A pause menu (three-finger double tap, on-screen button, or Options plus Menu on a
-  controller) with resume, return to library, quit, screen fit and an FPS counter.
+- A pause menu (three-finger double tap, on-screen button, or holding Home on a
+  controller) with resume, return to library, quit, screen fit, an FPS counter, audio
+  volume, touch size and opacity, and a controller layout view. Settings > Controllers
+  configures the shortcut. Home stays reserved; Menu and Options work normally alone,
+  then both are suppressed from chord completion until both are released.
+- Controller profiles use GameController input names, saved as JSON per product
+  category beside each title's player settings, with global defaults. The settings
+  page includes live inputs, stick visualization and a radial dead zone. D-pad and
+  stick edges move focus through the library, game actions and pause menu.
 - Xbox, DualSense and Pro Controller support. Touch controls hide when a controller is
   connected.
 
