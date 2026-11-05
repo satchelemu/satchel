@@ -17,7 +17,12 @@ def stage(root, output, platform='iphoneos'):
     products = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home()/'SatchelDeps/m5'))
     sys.path.insert(0, str(root / 'NativeShaders'))
     from public_parity import validate_proof
-    mode = os.environ.get('SATCHEL_SHADER_PARITY', 'public')
+    # Default: the public proof when this dependency root has one (fresh bootstrap),
+    # otherwise the maintainer's private corpus result. One of them must exist.
+    default = 'public' if (products / 'public-parity/result.json').is_file() else 'private'
+    if default == 'private' and not (products / 'pipeline-full/result.json').is_file():
+        raise RuntimeError('No shader parity proof in ' + str(products) + ': run the public parity check (NativeShaders/PublicParity.md)')
+    mode = os.environ.get('SATCHEL_SHADER_PARITY', default)
     if mode not in ('public', 'private'):
         raise RuntimeError('SATCHEL_SHADER_PARITY must be public or private')
     validation = validate_proof(products, source) if mode == 'public' else {'kind': 'private-maintainer'}
