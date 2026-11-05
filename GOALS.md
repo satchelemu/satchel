@@ -132,7 +132,10 @@ rendering smaller. A manual frame setting may come back later.
   folded and back to landscape when opened, closed or sent to the library (user report
   2026-11-05: the landscape split put both halves across the fold). The app turns the game
   itself and fills the screen; asking iOS for a portrait scene only gave a small upright
-  window inside the landscape screen (second user report, same day): `display`
+  window inside the landscape screen (second user report, same day). On the real hinge
+  (2026-11-05) the picture turns upright on the top half at full screen size and returns to
+  landscape when opened; touch controls while half folded are not yet confirmed on the
+  phone (the simulator journey passes): `display`
 - [~] Switching between states while playing keeps the game running and relayouts at once:
   built with `UIHingeInteraction`; the phone reports the open posture correctly: `display`
 
