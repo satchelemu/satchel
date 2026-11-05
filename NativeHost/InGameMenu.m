@@ -23,6 +23,8 @@ static UILabel *thermalView;
 int nvn_thermal_limited(void);
 static NSString *thermalMessage(void) { return thermalLimited ? @"Phone is warm: limited to 30 FPS to cool down" : @""; }
 static NSUInteger generation;
+static BOOL developerQuitPending;
+static NSUInteger developerQuitGeneration;
 static __weak UIView *rootView, *padView;
 static __weak UILabel *fpsView;
 static UIView *customView;
@@ -91,6 +93,50 @@ void SatchelMenuDebugShot(NSString *filename) {
     NSString *runtime = [NSFileManager.defaultManager currentDirectoryPath];
     BOOL ok = [UIImagePNGRepresentation(image) writeToFile:[runtime stringByAppendingPathComponent:filename] atomically:YES];
     fprintf(stderr, "Satchel view shot: %s %s\n", filename.UTF8String, ok ? "ok" : "failed");
+}
+
+static BOOL developerQuitEnabled(void) {
+    NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
+    for (NSInteger i = (NSInteger)arguments.count - 1; i >= 0; i--) {
+        if ([arguments[i] isEqualToString:@"-SatchelDeveloperControls"])
+            return i + 1 < (NSInteger)arguments.count &&
+                [@[@"yes", @"true", @"1"] containsObject:arguments[i + 1].lowercaseString];
+    }
+    return NO;
+}
+
+// A queued request belongs to this menu generation. It cannot stop a later session.
+static void finishDeveloperQuit(NSUInteger ticket, unsigned attempts) {
+    if (!developerQuitPending || ticket != developerQuitGeneration) return;
+    if (ticket != generation) { developerQuitPending = NO; return; }
+    if (!attempts || !developerQuitEnabled()) {
+        developerQuitPending = NO; return;
+    }
+    if ([state isEqualToString:@"menu"]) {
+        developerQuitPending = NO;
+        if (SatchelMenuPerform(@"quit", nil)) SatchelMenuPerform(@"confirm-quit", nil);
+        return;
+    }
+    if ([state isEqualToString:@"confirmQuit"]) {
+        developerQuitPending = NO; SatchelMenuPerform(@"confirm-quit", nil); return;
+    }
+    if ([state isEqualToString:@"library"] && surfaceAttached) {
+        SatchelMenuPerform(@"open", nil);
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        finishDeveloperQuit(ticket, attempts - 1);
+    });
+}
+BOOL SatchelMenuRequestDeveloperQuit(void) {
+    NSCAssert(NSThread.isMainThread, @"Developer Quit requires the main thread");
+    if (!developerQuitEnabled() || !rootView ||
+        !SatchelNativeSessionStarted() || [@[@"quitting", @"stopFailed", @"ended"] containsObject:state]) return NO;
+    if (developerQuitPending && developerQuitGeneration == generation) return YES;
+    if ([state isEqualToString:@"library"]) SatchelMenuPerform(@"return-to-game", nil);
+    else if (![state isEqualToString:@"confirmQuit"] && !SatchelMenuPerform(@"open", nil)) return NO;
+    developerQuitPending = YES; developerQuitGeneration = generation;
+    finishDeveloperQuit(generation, 100);
+    return YES;
 }
 
 BOOL SatchelMenuPerform(NSString *action, NSString *value) {
@@ -322,6 +368,7 @@ void SatchelMenuInstall(UIView *root, UIView *pad, UILabel *fps) {
 }
 
 void SatchelMenuBeginSession(void) {
+    developerQuitPending = NO;
     NSCAssert(NSThread.isMainThread, @"Menu state requires the main thread");
     generation++; state = @"running"; surfaceAttached = YES;
     atomic_store(&blocked, 0); [controllerStates removeAllObjects];
@@ -329,6 +376,7 @@ void SatchelMenuBeginSession(void) {
 }
 
 void SatchelMenuEndSession(void) {
+    developerQuitPending = NO;
     NSCAssert(NSThread.isMainThread, @"Menu state requires the main thread");
     generation++; surfaceAttached = NO; state = @"ended";
     atomic_store(&blocked, 1); [controllerStates removeAllObjects]; changed();

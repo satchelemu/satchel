@@ -139,3 +139,14 @@ games again and runs Prepare again. There are no old-name aliases, old ABI expor
 or rename migration. History under `Validation/history` and third-party code and
 notices remain unchanged. Prior milestone notes are historical evidence, not a
 promise that renamed artifacts have been built or tested on the phone.
+
+## Developer phone cycle handoff (2026-11-04)
+
+Worker `session`, branch `phone-cycle`, adds developer control-file `quit` and
+`SatchelCyclePreparedGames` with seconds and rounds. Both reuse the in-game menu's
+open, quit and confirm-quit actions, preserving the existing stop, save flush and end
+notification. Cycles wait for matching end notifications and write one TSV row per
+visit with frame count, footprint, timing and result. Mac policy tests and synthetic
+UI journeys cover sequencing and failure handling. Hardware acceptance stays with
+the orchestrator, using [docs/phone-cycle.md](docs/phone-cycle.md). No new gameplay,
+phone memory or save correctness result is claimed by this automation change.

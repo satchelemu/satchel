@@ -918,7 +918,7 @@ private struct NativeGameHooks: ViewModifier {
             // Second-launch check: after the first game quits, start another in this process.
             // devicectl ... -- -SatchelAutoLaunchPreparedGame YES -SatchelPreparedGame A -SatchelThenPreparedGame B
             .onReceive(NotificationCenter.default.publisher(for: .SatchelNativeSessionDidEnd)) { _ in
-                guard UserDefaults.standard.bool(forKey: "SatchelDeveloperControls"), !Self.thenUsed,
+                guard !NativePreparedCycle.requested, UserDefaults.standard.bool(forKey: "SatchelDeveloperControls"), !Self.thenUsed,
                       let next = UserDefaults.standard.string(forKey: "SatchelThenPreparedGame"),
                       PreparedGame.scan().contains(where: { $0.folder == next }) else { return }
                 Self.thenUsed = true
@@ -928,6 +928,10 @@ private struct NativeGameHooks: ViewModifier {
             // devicectl device process launch ... com.dell.satchel -- -SatchelAutoLaunchPreparedGame YES
             .onAppear {
                 let developer = UserDefaults.standard.bool(forKey: "SatchelDeveloperControls")
+                if NativePreparedCycle.requested {
+                    NativePreparedCycle.start { open(.preparedPackage($0)) }
+                    return
+                }
                 if developer { PreparedGameCleanup.runRequested() }
                 if developer && PreparedLaunch.launchFlag("SatchelAutoPrepare") && !SatchelNativeSessionStarted() { open(.prepare) }
                 else if developer && PreparedLaunch.launchFlag("SatchelAutoLaunchPreparedGame") && !SatchelNativeSessionStarted() {

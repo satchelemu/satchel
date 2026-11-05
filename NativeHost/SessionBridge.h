@@ -7,6 +7,8 @@ void SatchelNativeFocusEvent(int event);
 BOOL SatchelNativeSessionStarted(void);
 void SatchelStopNativeSession(void (^completion)(NSError * _Nullable error));
 FOUNDATION_EXPORT NSNotificationName const SatchelNativeSessionDidEnd;
+FOUNDATION_EXPORT NSNotificationName const SatchelNativeSessionDidFail;
+NSDictionary *SatchelNativeSessionMetrics(void);
 void SatchelNativeSetMenuPaused(BOOL paused);
 // Hold across save operations so preparation cannot race a restore. A paused or
 // stopping session still owns its save until stop and join have succeeded.

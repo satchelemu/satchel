@@ -72,6 +72,8 @@ private struct PreviewRoot: View {
             .overlay(alignment: .bottomLeading) {
                 if UserDefaults.standard.bool(forKey: "SatchelPreviewSessionTests") {
                     TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+                        Text((try? String(contentsOf: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("cycle-log.tsv"), encoding: .utf8)) ?? "no cycle")
+                            .font(.system(size: 1)).accessibilityIdentifier("fixture-cycle-log").allowsHitTesting(false)
                         Text(SatchelPreviewSessionState()).font(.system(size: 1))
                             .accessibilityIdentifier("fixture-session-state")
                             .allowsHitTesting(false)

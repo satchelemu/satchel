@@ -213,3 +213,11 @@ For device validation with the plain fallback, enable Developer controls and
 launch with `-SatchelPlainNativeMenu YES`. `SatchelMenu.install` leaves the native
 menu in place. Launch with `-SatchelPlainNativeMenu NO` to test the SwiftUI menu.
 Both paths call the same `SatchelStopNativeSession` coordinator.
+
+## Developer remote Quit
+
+The control-file command `quit` calls `SatchelMenuRequestDeveloperQuit` on the main
+thread. It requires Developer controls, opens the same menu, waits for asynchronous
+pause and performs `quit` plus `confirm-quit`. Requests are tied to the menu generation
+so delayed work cannot quit a replacement session. The prepared-game cycle uses the
+same entry point. See [the cycle procedure](../../docs/phone-cycle.md).

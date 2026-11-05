@@ -22,3 +22,6 @@ void SatchelMenuEndSession(void);
 void SatchelMenuStopping(BOOL failed);
 
 void SatchelMenuControllerDisconnected(void);
+
+// Developer requests reuse open, quit and confirm-quit, including asynchronous pause.
+BOOL SatchelMenuRequestDeveloperQuit(void);

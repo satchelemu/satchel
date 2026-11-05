@@ -33,6 +33,7 @@ final class NavigationJourneyTests: XCTestCase {
             "testGamePagePrepareSelectsBase", "testPrepareKeyAndStorageRecoveryMessages",
             "testRemovePreparedGameRemovesAllContentAndTile", "testRemoveOnlyUpdateKeepsPreparedGameAndDLC",
             "testPrepareDLCRowTracksBaseSelection", "testControllerRumblePersistsPerGame",
+            "testDeveloperQuitGateAndMenuStillWorks", "testDeveloperQuitReturnsHome", "testDeveloperCycleTwoRounds", "testDeveloperCycleMissingPackage",
             "testQuitReturnsHomeAndCanLaunchAgain", "testQuitThenStartDifferentPreparedGame",
             "testPlainMenuQuitReturnsHome", "testLibraryPausesAndResumes", "testPausedGameCardResumes", "testSwitchingGameStopsFirst"]
         if (fixtureFamilies + fixtureJourneys).contains(where: { name.contains($0) }) { return }
@@ -1754,8 +1755,12 @@ final class NavigationJourneyTests: XCTestCase {
         if plain { app.launchArguments[1] = "YES" }
         app.launch()
         _ = try button("import-homebrew")
-        try focus(where: { self.app.buttons["open-focused"].exists && self.app.buttons["play-focused"].exists },
-                  reason: "synthetic imported and prepared game")
+        // Select the known synthetic tile even when the whole shelf fits onscreen.
+        // A scroll cannot change focus when there is no remaining scroll distance.
+        try tap("homebrew-Lantern Drift [Base]", scroll: app.scrollViews["collection-panel"])
+        // Tapping the already selected tile opens its detail page.
+        if app.buttons["close-game-detail"].waitForExistence(timeout: 1) { try tap("close-game-detail") }
+        _ = try button("open-focused")
         _ = try button("play-focused")
         try tap("play-focused")
         // Session start is authorized only in the synthetic Simulator fixture.
@@ -1770,6 +1775,64 @@ final class NavigationJourneyTests: XCTestCase {
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 8), .completed,
                        "Expected synthetic host state: \(value); actual: \(marker.exists ? marker.label : "missing")")
+    }
+
+    func testDeveloperQuitGateAndMenuStillWorks() throws {
+        try startSessionFixture()
+        try tap("fixture.remote-quit")
+        _ = try button("game.pause")
+        // A rejected remote command must leave the ordinary menu usable.
+        try tap("game.pause")
+        try tap("menu-quit")
+        try tap("Keep playing")
+        try tap("menu-quit")
+        try tap("Quit game")
+        _ = try button("import-homebrew")
+        sessionState("started=0 paused=0 package=none events=start:LanternDrift-1.2.0,stop-request:LanternDrift-1.2.0,stop-complete:LanternDrift-1.2.0", exact: true)
+    }
+
+    func testDeveloperQuitReturnsHome() throws {
+        app.launchArguments[1] = "YES"
+        try startSessionFixture()
+        try tap("fixture.remote-quit")
+        _ = try button("import-homebrew")
+        assertHomeContent()
+        sessionState("started=0 paused=0 package=none events=start:LanternDrift-1.2.0,stop-request:LanternDrift-1.2.0,stop-complete:LanternDrift-1.2.0", exact: true)
+        try tap("play-focused")
+        try button("player-play").tap()
+        _ = try button("game.pause")
+    }
+
+    func testDeveloperCycleTwoRounds() throws {
+        app.terminate()
+        app.launchArguments[1] = "YES"
+        let packages = ["LanternDrift-1.2.0", "Navigation-Orphan", "LanternDrift-1.2.0"]
+        app.launchArguments += ["-SatchelPreviewSessionTests", "YES", "-SatchelCyclePreparedGames", packages.joined(separator: ","),
+                                "-SatchelCycleSeconds", "1", "-SatchelCycleRounds", "2"]
+        app.launch()
+        let log = app.staticTexts["fixture-cycle-log"]
+        let complete = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            log.exists && log.label.components(separatedBy: "\n").filter { $0.hasSuffix("\tok") }.count == 6
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [complete], timeout: 60), .completed, log.exists ? log.label : "missing cycle log")
+        _ = try button("import-homebrew")
+        let events = (packages + packages).flatMap { ["start:" + $0, "stop-request:" + $0, "stop-complete:" + $0] }.joined(separator: ",")
+        sessionState("started=0 paused=0 package=none events=" + events, exact: true)
+        XCTAssertEqual(log.label.split(separator: "\n").count, 7)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    func testDeveloperCycleMissingPackage() throws {
+        app.terminate(); app.launchArguments[1] = "YES"
+        app.launchArguments += ["-SatchelPreviewSessionTests", "YES", "-SatchelCyclePreparedGames", "Missing,Navigation-Orphan",
+                                "-SatchelCycleSeconds", "1", "-SatchelCycleRounds", "2"]
+        app.launch()
+        _ = try button("import-homebrew")
+        let log = app.staticTexts["fixture-cycle-log"]
+        XCTAssertTrue(log.waitForExistence(timeout: 8))
+        XCTAssertTrue(log.label.contains("package-not-found"), log.label)
+        XCTAssertEqual(log.label.split(separator: "\n").count, 2)
+        sessionState("started=0 paused=0 package=none events=", exact: true)
     }
 
     func testQuitReturnsHomeAndCanLaunchAgain() throws {

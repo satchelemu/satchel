@@ -207,6 +207,12 @@ Screen capture: `xcrun devicectl device capture screenshot` returns a black imag
 the game view on the tested phone. The host writes its own frame captures when asked
 through its control file; `NativeGames/ctl.zsh` wraps that.
 
+Remote Quit and repeated prepared-game visits are described in
+[Developer Quit and prepared-game cycles](phone-cycle.md). It includes exact
+orchestrator commands for one Quit/relaunch, two three-game rounds and a 60-minute
+cycle, with the TSV columns and failure rules. No phone result is implied by the
+synthetic Mac and simulator checks.
+
 ### What to report
 
 For a compatibility report: game, version, title ID, phone model and iOS version, the
