@@ -11,3 +11,7 @@ Existing Satchel dependencies and notices remain as supplied by the original tar
 Satchel's Horizon settings and account service overlay adapts command behavior and IPC descriptor layouts from Ryujinx 1.3.3, copyright Ryujinx Team and Contributors, under MIT. The complete notice is retained in NativeHost/services/RYUJINX-LICENSE.txt and distributed as NativeAssets/Notices/Ryujinx-services.txt. Source attribution and scope are recorded in NativeHost/services/README.md.
 
 Satchel controller style selection and update notifications also follow Ryujinx 1.3.3 NpadDevices, with the same retained MIT notice. Controller vibration reuses the pinned MIT engine. Scope and reference paths are in NativeHost/controllers/README.md.
+
+Pieces taken from nxnative after the pin (github.com/seedds/nxnative, MIT, same notice; reimplemented or adapted for Satchel, the pinned engine snapshot is unchanged):
+
+- Title-ID architecture check (`scripts/check_architecture.py`): adapted from `dm/tools/tests/test_architecture.py`, upstream commit c7da003c.

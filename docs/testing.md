@@ -14,6 +14,13 @@ sh scripts/check_repo_hygiene.sh
 ```
 
 Em dashes, leftover pre-rename names and tracked secrets. Runs in CI.
+It also runs `scripts/check_architecture.py`, which fails when host or importer code
+(`NativeHost/`, except the generated coverage tables, and `App/`) names a game by its title
+ID. Per-game values belong in the profile data (`App/NativeGameProfiles.json`,
+`App/NativeRuntimeProfiles.json`, `NativeHost/PlayerProfiles.plist`) and the compatibility
+documents, which are not scanned. Tests, probes and simulator fixtures are left out; the lines
+that engine patches add are scanned. `python3 scripts/check_architecture.py --self-test` runs
+the pattern's own tests.
 
 ```bash
 python3 -m unittest Tools/Rename/test_rename.py
