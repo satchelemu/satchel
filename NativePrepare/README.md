@@ -13,6 +13,13 @@ it still checks signatures, module builds, every file hash and escaping paths.
 Format 1 reviewed packages retain their existing contract. Bundled runtime profile
 text is checked against the reviewed registry digest.
 
+The Mac harness's `--generic-profile` option bypasses those overrides for a new
+diagnostic package. Optional bounded memory observations derive a heap partition
+or an alias-pressure pool correction using the pinned engine's generic rules.
+Existing recipes without observations and reviewed runtime digests stay unchanged.
+The phone does not yet collect observations or retry automatically. See
+[generic profile diagnostics](../docs/generic-profiles.md).
+
 A matching existing shader pack is optional. Without one, format 2 starts with an
 explicitly empty shader inventory and enables private first-use translation. The
 NVN submit thread passes owned control/code snapshots to M5's Swift, NativeAOT and

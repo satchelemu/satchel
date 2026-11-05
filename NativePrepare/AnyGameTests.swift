@@ -18,9 +18,39 @@ import Foundation
         let profile = try recipe.profile(profiles: [])
         try check(profile.shaderInputs == "runtime-capture-v1", "experimental capture identity")
         let runtime = String(decoding: try recipe.runtime(profiles: []), as: UTF8.self)
+        // Baseline main 01eb22d, including the complete legacy runtime text.
+        try check(NativePreparationRecipe.hash(Data(runtime.utf8)) == "08aeb575b28f70d4cfdb042accc7a4989e682953fe4ec191e46e75674c695304", "legacy starter runtime digest")
         try check(runtime.contains("mem_alias\t0x118000000\n"), "documented virtual alias default")
         try check(runtime.contains("display_version\t" + recipe.buildIDs["main"]! + "\t1.0\n"), "display version keyed by main build")
         try check(runtime.contains("render_cond\t0\n") && runtime.contains("device_api\t0.0\n") && runtime.contains("game_env\t\n"), "no Zelda default leakage")
+        func memory(_ recipe: NativePreparationRecipe) throws -> [String: UInt64] {
+            let text = String(decoding: try recipe.runtime(profiles: []), as: UTF8.self)
+            return Dictionary(uniqueKeysWithValues: text.split(separator: "\n").compactMap { row in
+                let columns = row.split(separator: "\t")
+                guard columns.count == 2, columns[1].hasPrefix("0x"), let value = UInt64(columns[1].dropFirst(2), radix: 16) else { return nil }
+                return (String(columns[0]), value)
+            })
+        }
+        var observed = recipe
+        observed.memoryObservation = .init(largestFailedHeap: 0x86000000, heapOpened: false, aliasMappedHighWater: 0)
+        let sized = try memory(observed)
+        try check(sized["mem_alias"] == 0x98000000 && sized["mem_reserve"] == 0x140000000, "observed heap fits inside unchanged reservation")
+        try check(sized["app_pool"] == 0xcd500000, "heap correction preserves application pool")
+        observed.memoryObservation = .init(largestFailedHeap: 0, heapOpened: false, aliasMappedHighWater: 0x110000000)
+        try check(try memory(observed)["app_pool"] == 0x40000000, "alias pressure without heap selects bounded pool")
+        observed.memoryObservation = .init(largestFailedHeap: 0, heapOpened: true, aliasMappedHighWater: 0x110000000)
+        try check(try memory(observed)["app_pool"] == 0xcd500000, "opened heap forbids alias-only pool reduction")
+        observed.memoryObservation = .init(largestFailedHeap: 0, heapOpened: false, aliasMappedHighWater: 0x108000000)
+        try check(try memory(observed)["app_pool"] == 0xcd500000, "alias pressure threshold is strict")
+        for observation in [
+            NativePreparationRecipe.MemoryObservation(largestFailedHeap: UInt64.max, heapOpened: false, aliasMappedHighWater: 0),
+            .init(largestFailedHeap: 1, heapOpened: false, aliasMappedHighWater: 0),
+            .init(largestFailedHeap: 0, heapOpened: false, aliasMappedHighWater: 0x118000001)
+        ] {
+            observed.memoryObservation = observation
+            try reject("invalid memory observation") { _ = try observed.profile(profiles: []) }
+        }
+        try check(try JSONDecoder().decode(NativePreparationRecipe.self, from: JSONEncoder().encode(recipe)).runtime(profiles: []) == recipe.runtime(profiles: []), "legacy recipe without observations retains its runtime bytes")
         var manyModules = recipe
         manyModules.nros = (0..<1432).map { .init(name: "nro\($0)", sha256: String(format: "%064x", $0), bytes: 4096, buildID: String(repeating: "a", count: 32)) }
         try check(try manyModules.profile(profiles: []).nroBuildIDs?.count == 1432, "dynamic loader inventory beyond 128 modules")
@@ -36,10 +66,12 @@ import Foundation
             let nros = (reviewed.nroBuildIDs ?? [:]).keys.sorted().enumerated().map { i, name in
                 NativePreparationRecipe.NRO(name: name, sha256: String(repeating: String(i + 1), count: 64), bytes: 4096, buildID: reviewed.nroBuildIDs![name]!)
             }
-            let r = NativePreparationRecipe(schema: 1, titleID: reviewed.titleID, version: reviewed.version, contentVersion: 0, name: reviewed.name,
+            var r = NativePreparationRecipe(schema: 1, titleID: reviewed.titleID, version: reviewed.version, contentVersion: 0, name: reviewed.name,
                 modules: reviewed.modules, buildIDs: reviewed.buildIDs, sdkVersions: [], systemResource: 0, usesHeap: false,
                 largeBSS: 0, usedMemory: 0x4000000, nros: nros, reviewedVersion: reviewed.version)
             try check(try NativePreparationRecipe.hash(r.runtime()) == reviewed.profileSHA256, "reviewed runtime digest")
+            r.memoryObservation = .init(largestFailedHeap: 0x86000000, heapOpened: false, aliasMappedHighWater: 0)
+            try check(try NativePreparationRecipe.hash(r.runtime()) == reviewed.profileSHA256, "reviewed overrides retain priority over memory observations")
         }
         var nro = Data(repeating: 0, count: 0x3000)
         func word(_ at: Int, _ value: UInt32) { for i in 0..<4 { nro[at + i] = UInt8(truncatingIfNeeded: value >> (i * 8)) } }

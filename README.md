@@ -127,6 +127,11 @@ run the game's own ARM64 code natively instead of interpreting or JIT compiling 
    (Ryujinx's translator through .NET NativeAOT, then SPIRV-Cross to Metal Shading
    Language) and compiled with the phone's own Metal compiler, cached per game.
 
+Unknown builds receive a starter profile from their metadata. The Mac diagnostic
+path can now apply bounded memory observations without adding a title-specific
+profile. Automatic phone feedback and generic graphics corrections remain open.
+See [generic profile diagnostics](docs/generic-profiles.md).
+
 The folders map onto those steps:
 
 | Folder | What is in it |
