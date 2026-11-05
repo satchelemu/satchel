@@ -56,7 +56,7 @@ Objective-C `id<MTLLibrary>` or null. Transfer it to ARC with `CFBridgingRelease
 Release a snapshot exactly once with `satchel_shader_runtime_release_snapshot`.
 
 Retain the snapshot on the renderer's `NvShader` object until it is destroyed.
-Later bp/bv/ba/bl/bf/bg0/bg1/bg2/bg3/bg4/bgv loads must use that same snapshot, even if a newer request for
+Later bp/bv/bx/bf/bg0/bg1/bg2/bg3/bg4/bgv loads must use that same snapshot, even if a newer request for
 the canonical shader key is published. The immutable snapshot also remains valid
 after the service is uninstalled or another request is published.
 

@@ -96,7 +96,7 @@ NSString *SatchelPipelineArchiveDirectory(NSString *runtime) {
     NSString *gpu = device.architecture.name ?: @"unknown";
     char build[128] = {0}; size_t size = sizeof build;
     if (sysctlbyname("kern.osversion", build, &size, NULL, 0)) snprintf(build, sizeof build, "unknown");
-    NSString *identity = [NSString stringWithFormat:@"bbc3b737-e65a4ebd3322-v1-%@-%s", gpu, build];
+    NSString *identity = [NSString stringWithFormat:@"f8a5618d-26dc2fa9477c-v2-%@-%s", gpu, build];
     NSCharacterSet *safe = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"];
     identity = [[identity componentsSeparatedByCharactersInSet:safe.invertedSet] componentsJoinedByString:@"_"];
     NSString *archive = [[runtime stringByAppendingPathComponent:@"pipelines"] stringByAppendingPathComponent:identity];

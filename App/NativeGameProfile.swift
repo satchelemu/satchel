@@ -70,8 +70,10 @@ struct NativePreparationRecipe: Codable, Sendable {
     var reviewedVersion: String?
     var memoryObservation: MemoryObservation? = nil
 
-    static let enginePin = "bbc3b73784751d2a706932dc69fd67627e3445d4"
-    static let shaderChain = "e65a4ebd3322"
+    static let enginePin = "f8a5618d5f505a4c0a0bcac7c413872d3a53c009"
+    static let shaderChain = "26dc2fa9477c"
+    // The integration patches applied to the pinned engine (scripts/deps/upstream/nxnative-queue/series).
+    static let forkPatchCount = 29
     // The pinned loader sizes its tables from the inventory, including titles
     // with 1,432 NROs. Keep a bounded recipe without the former 128-module limit.
     static let maximumNROs = 4096
@@ -164,7 +166,7 @@ struct NativePreparationRecipe: Codable, Sendable {
             "mem_alias": String(format: "0x%llx", alias), "mem_stack": "0x10000000",
             "app_pool": String(format: "0x%llx", applicationPool), "mem_used": String(format: "0x%llx", usedMemory),
             "sys_resource": String(format: "0x%llx", systemResource), "mem_map_limit": "0",
-            "present_interval": "0", "core_preempt": "0", "alloc_big_align": "0", "fps_target": "0",
+            "present_interval": "0", "core_preempt": "0", "alloc_big_align": "0", "fps_target": "0", "fps_max": "60",
             "fps_hold": "1", "present_snap": "0", "pso_mtl4": "0", "shared_font": "auto", "pad_layout": "0",
             "op_mode": "1", "perf_mode": "0", "feedback_snap": "", "tex_flush_upload": "0", "render_cond": "0",
             "tex_dirty_upload": "0", "tex_dyn_slots": "0", "gpu_timestamps": "0", "vconv_range": "0",

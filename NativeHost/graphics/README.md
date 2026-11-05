@@ -1,6 +1,6 @@
 # Satchel graphics overlay
 
-This reuses nxnative bbc3b737's hybrid render pipelines, pending-build queue,
+This reuses nxnative f8a5618d's hybrid render pipelines, pending-build queue,
 vertex pulling, archive serialization and shader-pair preparation. It does not
 change shader translation, resolution or game time. Exact and Async preserve
 rendering semantics; the separate opt-in Skip mode can omit a terminal draw.

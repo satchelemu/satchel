@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Exercise the pinned pipeline structs with the real typed retirement helper."""
+import os
 from pathlib import Path
 import re
 import runpy
 import subprocess
 
 HERE = Path(__file__).resolve().parent
-OUT = Path.home() / 'SatchelBuild/session/soak-pipeline-check'
-ENGINE = Path.home() / 'SatchelDeps/NX2Apple/engine/dm/gfx/nvn/nvn_mtl.m'
+OUT = Path(os.environ.get('SESSION_CHECK_OUT', Path.home() / 'SatchelBuild/session')) / 'soak-pipeline-check'
+ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine/dm/gfx/nvn/nvn_mtl.m'
 source = ENGINE.read_text()
 state = (HERE / 'SessionGraphicsState.inc').read_text()
 helper = re.search(r'static void satchel_mtl_release_pending\(void\) \{[\s\S]*?\n\}', state)[0]

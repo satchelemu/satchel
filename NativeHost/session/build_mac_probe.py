@@ -11,13 +11,13 @@ import subprocess
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-ENGINE = Path.home() / 'SatchelDeps/NX2Apple/engine'
+ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
 OUT = Path(os.environ.get('SESSION_MAC_OUT', Path.home() / 'SatchelBuild/session/mac-stop'))
 OUT.mkdir(parents=True, exist_ok=True)
 runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
 assert shutil.disk_usage(OUT).free >= 35 * 1024**3
-assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 shutil.copyfile(ENGINE / 'LICENSE', OUT / 'NXNative-LICENSE.txt')
 # Match the canonical app's privacy overlay before applying session changes.
 privacy = OUT / 'crash-private.c'

@@ -12,7 +12,7 @@ The native execution path calls SDK takeovers, not a new HID shared-memory servi
 
 ## References and license
 
-- NX2Apple engine `bbc3b73784751d2a706932dc69fd67627e3445d4`, MIT: `dm/host/hle_hid.c`, `hle_haptics.c`, `haptics_apple.m`, `pad_slots.h`, and `dm/ios/Sources/DmGamepad.m`.
+- nxnative engine `f8a5618d5f505a4c0a0bcac7c413872d3a53c009`, MIT: `dm/host/hle_hid.c`, `hle_haptics.c`, `haptics_apple.m`, `pad_slots.h`, and `dm/ios/Sources/DmGamepad.m`.
 - Ryujinx 1.3.3, copyright Ryujinx Team and Contributors, MIT: `src/Ryujinx.HLE/HOS/Services/Hid/HidDevices/NpadDevices.cs` for accepted styles and style-event transitions; `IHidServer.cs` commands 200, 201, 202, 203, 205, 206 and 211 and `HidServer/Types/Vibration` for vibration layout and routing review. The existing SDK layout already matches these structures. MIT text is retained in `../services/RYUJINX-LICENSE.txt` and bundled as `NativeAssets/Notices/Ryujinx-services.txt`.
 - Installed iPhoneOS27.2 SDK: `GCDeviceHaptics.h` and `CHHapticEngine.h` verify controller engine creation, localities, and phone audio-session initialization.
 

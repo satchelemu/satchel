@@ -13,7 +13,7 @@ assert not out.is_relative_to(root), 'Keep test products outside the repository'
 out.mkdir(parents=True, exist_ok=True)
 # The view file also contains the shared verifier. Compile that exact implementation
 # with only the iOS session bridge stubbed and all storage redirected into this test.
-source = (root / 'NativeHost/PreparedGame.swift').read_text().split('\nstruct PreparedGameView: View {')[0]
+source = (root / 'NativeHost/PreparedGame.swift').read_text().split('\n/// The background time around the package check')[0].split('\nstruct PreparedGameView: View {')[0]
 source = source.replace('import SwiftUI', 'import Foundation')
 source = source.replace('FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]', 'testRoot.appendingPathComponent("Support")')
 source = source.replace('fm.urls(for: .documentDirectory, in: .userDomainMask)[0]', 'testRoot.appendingPathComponent("Documents")')

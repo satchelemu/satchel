@@ -8,7 +8,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ['SATCHEL_OUT']) / 'control-check'
 assert not OUT.resolve().is_relative_to(ROOT)
-source = Path.home() / 'SatchelDeps/NX2Apple/engine'
+source = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 overlay = OUT / 'overlay'
 for name in ['hle_nvn.c', 'nvn_mtl.m']:
     destination = overlay / 'dm/gfx/nvn' / name

@@ -1,6 +1,8 @@
 # Metadata for the reviewed Mac-prepared profile. Phone Prepare is disabled.
 # Unity 2022.3.62f2 IL2CPP, SDK 19.3.16. No game code or shader data.
-# app_pool follows NX2Apple heap_signals from the bounded Mac run.
+# Fields follow nxnative's checked profile (dm/games/0100BA4026E94000/game.tsv at f8a5618d,
+# written for update 1.1.0) wherever the two overlap: files, memory, graphics and the
+# shader split. The build row stays the reviewed 1.0.0 build, which upstream does not list.
 title_id	0100BA4026E94000
 program_id	0100BA4026E94000
 
@@ -13,14 +15,17 @@ package	v0
 shader_versions	v0
 
 modules	main subsdk0 sdk
-romfs_marker	Data/StreamingAssets/Master.bank
+romfs_marker	Data/resources.assets
 zip_store	.assets:.bank:.bundle:.dat:.json:.nro:.ress:.metallib
 
+sys_resource	0x1000000
 mem_reserve	0x140000000
 mem_alias	0x118000000
 mem_stack	0x10000000
 app_pool	0x40000000
-sys_resource	0x1000000
 
-shader_groups	/Data/=data /.nrr/=nrr /Plugins/=plugins
-shader_note	Castlevania: Belmont's Curse shaders (provisional profile)
+# The game sets nvnDeviceSetDepthMode(near = 0); pipeline bases made before it runs use that mode.
+depth_mode	zero
+
+shader_groups	/Data/=data
+shader_note	Castlevania: Belmont's Curse shaders

@@ -28,7 +28,7 @@ for name in ['SatchelReadController', 'SatchelSaveControllerProfile', 'SatchelCo
 linked = subprocess.check_output(['otool', '-L', binary], text=True)
 assert '/GameController.framework/' in linked and '/CoreHaptics.framework/' in linked
 # The complete pinned source, including its MIT notice, remains pristine.
-engine = Path.home() / 'SatchelDeps/NX2Apple/engine'
+engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 for name, digest in json.loads((OUT / 'host/engine-source-hashes.json').read_text()).items():
     assert hashlib.sha256((engine / name).read_bytes()).hexdigest() == digest, name
     assert hashlib.sha256((OUT / 'host/engine' / name).read_bytes()).hexdigest() == digest, name

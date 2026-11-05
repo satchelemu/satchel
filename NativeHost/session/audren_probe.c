@@ -28,14 +28,17 @@ void *media_probe_symbol(const char *name) {
 }
 static void render_body(void *unused) {
     (void)unused;
-    assert(render_once(system_fixture, NULL, NULL) == 0x40299);
+    assert(render_once(&g_ar[0], system_fixture, NULL, NULL) == 0x40299);
     atomic_store(&render_cleaned, 1);
 }
 void media_audren_start(void) {
     memset(&execute, 0, sizeof execute); memset(system_fixture, 0, sizeof system_fixture);
     atomic_store(&render_cleaned, 0);
-    g_handle[0] = &execute; g_handle[1] = NULL; atomic_store(&g_open, 1);
-    media_start_guest(render_main, NULL); media_await(&execute.ready);
+    // One renderer slot, set up as the open path does before it starts the render thread.
+    ar_t *a = &g_ar[0]; memset(a, 0, sizeof *a);
+    pthread_mutex_init(&a->cq_mu, NULL); pthread_cond_init(&a->cq_cv, NULL);
+    a->handle[0] = &execute; a->handle[1] = NULL; atomic_store(&a->open, 1);
+    media_start_guest(render_main, a); media_await(&execute.ready);
     media_start_guest(render_body, NULL);
     media_await(&((media_fixture *)(system_fixture + 0x1f0))->ready);
     assert(atomic_load(&execute.ready) == selected_title + 1);
@@ -44,7 +47,8 @@ void media_audren_start(void) {
 void media_audren_verify(void) {
     assert(atomic_load(&render_cleaned));
     assert(!pthread_mutex_trylock(&g_render_mu)); pthread_mutex_unlock(&g_render_mu);
-    assert(!atomic_load(&g_open));
+    assert(!atomic_load(&g_ar[0].open));
     assert(!satchel_audren_session_reset());
-    assert(!g_handle[0] && !session_works && !atomic_load(&g_cq_tail));
+    for (int i = 0; i < AR_MAX; i++) assert(!g_ar[i].handle[0] && !g_ar[i].sys && !atomic_load(&g_ar[i].cq_tail));
+    assert(!session_works);
 }

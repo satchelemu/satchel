@@ -2,11 +2,12 @@
 """Exercise real scalar restoration and ARC retirement after cache rewriting."""
 import argparse
 from pathlib import Path
+import os
 import runpy
 import subprocess
 
 HERE = Path(__file__).resolve().parent
-OUT = Path.home() / 'SatchelBuild/session/soak-state-check'
+OUT = Path(os.environ.get('SESSION_CHECK_OUT', Path.home() / 'SatchelBuild/session')) / 'soak-state-check'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--baseline-ref', help='Also reproduce the defect from this git revision')
 args = parser.parse_args()

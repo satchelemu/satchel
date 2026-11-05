@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "loader_image.h"
 #include "front.h"
 #ifdef SATCHEL_MANAGED_SESSION
 #include "session/SessionBoundary.h"
@@ -136,7 +135,7 @@ static BOOL prepare_native_session(NSString *package, NSError **error) {
         NSDictionary *generated = manifest[@"preparedProfile"];
         if (![generated isKindOfClass:NSDictionary.class] || ![manifest[@"signingStatus"] isEqual:@"signed"] ||
             ![generated[@"titleID"] isEqual:manifest[@"titleID"]] ||
-            ![generated[@"enginePin"] isEqual:@"bbc3b73784751d2a706932dc69fd67627e3445d4"] ||
+            ![generated[@"enginePin"] isEqual:@"f8a5618d5f505a4c0a0bcac7c413872d3a53c009"]   /* the pin of NativeHost/build.py and App/NativeGameProfile.swift */ ||
             ![generated[@"shaderInputs"] isEqual:@"runtime-capture-v1"]) return fail(error, @"Invalid native preparation contract.");
         profile = generated;
     }
@@ -283,7 +282,10 @@ void SatchelNativeSetMenuPaused(BOOL paused) {
 }
 int front_ios_boot_ok(void) { return g_prepared; }
 const char *front_ios_boot_message(void) { return NULL; }
-const char *front_ios_device_message(void) { return NULL; }
+// The engine asks at startGame why this device cannot run games (upstream 9f74a1d6 renamed and
+// moved the question; it was front_ios_device_message). Satchel answers on its own Device check
+// screen and never refuses here.
+const char *front_ios_device_check(void) { return NULL; }
 int dm_locate_game_data(void) { return g_prepared; }
 bool dm_show_launcher(void *controller, void (*done)(void)) { (void)controller; (void)done; return false; }
 // The engine's front end calls this at startGame too; both reach the same idempotent setter.

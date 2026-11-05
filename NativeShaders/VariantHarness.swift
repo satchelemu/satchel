@@ -13,8 +13,7 @@ import Foundation
                 switch kind {
                 case "bv": variant = ShaderVariants.vin(source)
                 case "bp": variant = ShaderVariants.pull(source)
-                case "ba": variant = ShaderVariants.alpha(source)
-                case "bl": variant = ShaderVariants.logic(source)
+                case "bx": variant = ShaderVariants.side(source)
                 case "bf": variant = ShaderVariants.fetch(source, bindings: job["bindings"] as? [[String: Any]] ?? [], mappingOnly: job["mappingOnly"] as? Bool ?? false)
                 default: throw NSError(domain: "ShaderJob", code: 2)
                 }

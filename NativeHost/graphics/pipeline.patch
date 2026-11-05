@@ -1,6 +1,6 @@
 --- a/nvn_mtl.m
 +++ b/nvn_mtl.m
-@@ -5707,6 +5707,16 @@
+@@ -6584,6 +6584,16 @@
  // g_arch4: the files that may hold bases with a vertex layout, g_arch4p: the files that hold none (p<seq>.mtl4a: the prebuild's, and any flush whose bases all read their vertices
  // themselves). A base with a layout is looked up in g_arch4 alone: each file a lookup misses in costs about 0.06 ms, and a cold start's misses were for such bases, in the 13 prebuilt files
  static NSArray<id<MTL4Archive>> *g_arch4, *g_arch4p; static NSString *g_arch_dir; static int g_arch_seq;
@@ -17,7 +17,7 @@
  // Compaction: every start writes a file or more (each flush captures only what is new), Breath of the Wild 5-7 per start, and each file a base is not in costs a lookup about 0.06 ms.
  // With more than PSO_ARCH_COMPACT files of bases with a vertex layout, the bases the prewarm takes from them are captured again from the original shader functions, so the flush
  // after the prewarm writes them into one file; the old files are then removed (open archives stay usable for the rest of the run). Bases the
-@@ -5892,13 +5902,8 @@
+@@ -6771,13 +6781,8 @@
          if (g_arch_dir) {
              g_arch_q = dispatch_queue_create("dm.nvn.pso-archive", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
              g_arch_pending = dispatch_group_create();
@@ -33,7 +33,7 @@
              uint64_t t0 = bp_now(); unsigned long long bytes = 0;
              NSMutableArray<NSString *> *runf = [NSMutableArray array];
              NSArray<NSString *> *names = [[[NSFileManager.defaultManager contentsOfDirectoryAtPath:g_arch_dir error:nil] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"self ENDSWITH '.mtl4a'"]]
-@@ -5943,6 +5948,15 @@
+@@ -6823,6 +6828,15 @@
      if (!ok) { MLOG("[RED] pipeline archive: writing %s failed%s%s", path.UTF8String, e ? ": " : "", e ? e.localizedDescription.UTF8String : ""); unlink(tmp.fileSystemRepresentation); }
      else {
          g_arch_flush_ok = 1;
@@ -49,7 +49,7 @@
          MLOG("pipeline archive: %d new pipeline bases written to %s (%.1f MB, %.0f ms)", n, path.lastPathComponent.UTF8String,
               [[NSFileManager.defaultManager attributesOfItemAtPath:path error:nil] fileSize] / 1048576.0, (bp_now() - t0) / 1e6);
      }
-@@ -6060,9 +6074,9 @@
+@@ -6947,9 +6961,9 @@
      else {
          uint64_t t0 = bp_now();
          int vd = 0; for (int i = 0; i < 31 && !vd; i++) vd = bk.va[i][0] != 0;   // a vertex layout (MTLVertexFormatInvalid is 0)
@@ -61,7 +61,7 @@
          uint64_t t1 = bp_now();
          if (base) { g_pb_archived++; g_pt_hit_n++; g_pt_hit_ns += t1 - t0; }
          if (base && from_run && g_compact_enabled && atomic_load(&g_warm_running)) {
-@@ -6072,7 +6086,7 @@
+@@ -6959,7 +6973,7 @@
              if (cb) { base = cb; g_compacted++; }
          }
          if (!base) {
@@ -70,7 +70,7 @@
              if (compile) {
                  NSError *be = nil; base = arch_capture(b, &be, vd); job->error = be; job->compiled = 1;
                  g_pt_comp_ns += bp_now() - t1;
-@@ -6129,7 +6143,7 @@
+@@ -7016,7 +7030,7 @@
  static dispatch_queue_t pp_bg_queue(void) {
      static dispatch_queue_t q[8]; static int n; static _Atomic unsigned rr; static dispatch_once_t once;
      dispatch_once(&once, ^{ int pc = 0; size_t sz = sizeof pc; if (sysctlbyname("hw.perflevel0.physicalcpu", &pc, &sz, NULL, 0) || pc < 2) pc = 2;
@@ -79,7 +79,7 @@
          for (int i = 0; i < n; i++) q[i] = dispatch_queue_create("dm.nvn.pso-bg", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0)); });
      return q[atomic_fetch_add(&rr, 1) % (unsigned)n];
  }
-@@ -6317,13 +6331,14 @@
+@@ -7206,13 +7220,14 @@
          a.rgbBlendOperation = a.alphaBlendOperation = MTLBlendOperationUnspecialized; }
      return m;
  }
@@ -97,7 +97,7 @@
          NSError *e = nil; id ps = arch_capture(m, &e, 0);
          if (ps) g_pre_built++;
          else {
-@@ -6334,12 +6349,20 @@
+@@ -7223,12 +7238,20 @@
          }
      }
  }
@@ -119,15 +119,16 @@
  }
  static NSArray<NSArray<NSString *> *> *pre_parse(NSString *txt) {   // (vertex key, pixel key) per line, without empty lines, comments and repeated lines
      NSMutableArray<NSArray<NSString *> *> *pairs = [NSMutableArray array]; NSMutableSet<NSString *> *seen = [NSMutableSet set];
-@@ -6759,7 +6782,10 @@
+@@ -7680,11 +7703,10 @@
+         // A profile without a bundled seed list still warms what this device recorded: returning here left pso_user.tsv growing at every start and never read, and the
+         // pipeline archive never compacted (Donkey Kong Bananza: 2,132 lines unread, 88 archive files opened in 7 s)
+         if ([NSFileManager.defaultManager fileExistsAtPath:seed]) [all addObject:seed];
+-        else MLOG("[RED] pipeline prewarm: seed list does not exist: %s", seed.UTF8String);
++        else MLOG("pipeline prewarm: no seed list, using recorded pipelines and available shader pairs");   // Satchel: a phone-prepared package has none, and the prewarm goes on without any list
          NSString *user = pso_user_path();
          if (user && [NSFileManager.defaultManager fileExistsAtPath:user]) [all addObject:user];
          else MLOG("pipeline prewarm: this device's user list %s%s", user ? "does not exist yet: " : "has no path (neither DM_PSO_USER nor DM_SAVE is set)", user ? user.UTF8String : "");
--        if (![NSFileManager.defaultManager fileExistsAtPath:seed]) { MLOG("[RED] pipeline prewarm: seed list does not exist: %s", seed.UTF8String); return; }
-+        if (![NSFileManager.defaultManager fileExistsAtPath:seed]) {
-+            [all removeObject:seed];
-+            MLOG("pipeline prewarm: no seed list, using recorded pipelines and available shader pairs");
-+        }
+-        if (!all.count) return;
          paths = all;
      }
-     if (!g_warm_items) g_warm_items = [NSMutableArray array];
+     warm_load_begin();

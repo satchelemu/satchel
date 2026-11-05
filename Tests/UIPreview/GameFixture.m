@@ -73,6 +73,7 @@ void dm_haptics_apple_controller(int p, GCController *controller) {}
 void dm_haptics_suspend(unsigned reason, int on) {}
 void satchel_haptics_suspend(unsigned reason, int on) {}
 int dm_opmode(void) { return 0; }
+int front_web_touch(void) { return 0; } // no offline HTML page is ever shown over the picture here
 void SatchelNativeSetMenuPaused(BOOL value) { paused = value; }
 // Only the game screen has a running session; the dev screens start before one.
 BOOL SatchelNativeSessionStarted(void) { return started || [[NSUserDefaults.standardUserDefaults stringForKey:@"SatchelPreviewScreen"] isEqualToString:@"game"]; }

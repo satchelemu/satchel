@@ -19,6 +19,15 @@ See [warm-up measurement steps](NativeShaders/WarmupSpeed.md).
 
 Test hardware so far: one iPhone Duo (iPhone19,4, A20 Pro), iOS 27.1, landscape.
 
+Engine update of 2026-11-05: the native engine moved from nxnative `bbc3b737` to
+`f8a5618d`. Every row below was measured with the previous engine and has not been
+repeated. A build with the new engine refuses packages prepared before it and starts with
+empty shader caches, so each game has to be prepared again and will stutter on first play
+until its caches refill. Castlevania's reviewed profile now follows upstream's checked
+profile where the two overlap (files, memory, depth mode, shader split); its tested phone
+settings (30 FPS cap, handheld mode) are unchanged. See
+[BUILDING.md](BUILDING.md#the-engine-pin).
+
 ## Ratings
 
 The rating is a percentage of "fully working", judged on five things that each count

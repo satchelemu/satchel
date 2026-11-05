@@ -420,6 +420,10 @@ static uint32_t satchel_ipc_dispatch(const char *service, SatchelIPCRequest *r, 
     } else if (!strcmp(service, "olsc:u")) {
         // Preserve the pinned engine's cloud-backup-off compatibility behavior.
         satchel_ipc_once(service, cmd, "stub", caller); *n = 16; return 0;
+    } else if (!strncmp(service, "caps:", 5)) {
+        // The pinned engine's capture service sessions (nxnative df7fa667): every request succeeds with
+        // zeroed output, so a game that reaches the album or screenshot service at start does not abort.
+        satchel_ipc_once(service, cmd, "stub", caller); *n = 16; return 0;
     }
     satchel_missing_record(r->state && r->state->service ? r->state->service : service, service, cmd);
     satchel_ipc_once(service, cmd, "unknown", caller);

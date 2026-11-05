@@ -9,7 +9,9 @@ ENGINE = OUT / 'engine'
 ZELDA = Path(os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS', Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'zelda'))
 TOOLS = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 GAME = '0100F2C0115B6000'
-PIN = 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+PIN = 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
+CHAIN = '26dc2fa9477c'
+PATCHES = 29
 
 def quoted(path):
     # Xcode splits unquoted build-setting values on spaces; the checkout lives under "Repo - Personal".
@@ -29,7 +31,7 @@ def heavy_guard():
 def prepare(unsigned=False):
     source = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'NX2Apple/engine'
     material = json.loads((ZELDA / 'engine-materialization.json').read_text())
-    assert material['pin'] == PIN and len(material['patches']) == 34
+    assert material['pin'] == PIN and len(material['patches']) == PATCHES
     assert subprocess.check_output(['git', '-C', source, 'rev-parse', 'HEAD'], text=True).strip() == PIN
     if not ENGINE.exists():
         shutil.copytree(source, ENGINE, ignore=shutil.ignore_patterns('.git', 'gen', '__pycache__', '.DS_Store'))
@@ -141,7 +143,7 @@ def prepare(unsigned=False):
     target['dependencies'] += [{'target': name} for name in groups]
     target['dependencies'] += [{'sdk': name + '.framework'} for name in dict.fromkeys(frameworks + ['UIKit', 'AVFAudio']) if name != 'Metal']
     target['info']['path'] = str(OUT / 'Info.plist')
-    target['info']['properties'].update(CFBundleDisplayName='Satchel Dev', DMCommit=PIN[:12], DMChain='e65a4ebd3322',
+    target['info']['properties'].update(CFBundleDisplayName='Satchel Dev', DMCommit=PIN[:12], DMChain=CHAIN,
         DMShowFPS=True, LSSupportsGameMode=True, GCSupportsControllerUserInteraction=True,
         GCSupportedGameControllers=[{'ProfileName':'ExtendedGamepad'}], CADisableMinimumFrameDurationOnPhone=True)
     base['name'] = 'SatchelDev'
@@ -157,24 +159,27 @@ def prepare(unsigned=False):
                 'IPHONEOS_DEPLOYMENT_TARGET': '26.0'}}}
     resources = OUT / 'NativeAssets'; resources.mkdir(exist_ok=True)
     font = resources / 'font'; font.mkdir(exist_ok=True)
-    # A fresh bootstrap supplies verified/generated fonts without a network fetch.
+    # The standard font is the pinned Noto Sans file from the dependency lock (the bootstrap
+    # stages it under the build inputs). Nothing is fetched here.
+    noto = '478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823'
     for name in ['standard.ttf', 'nintendo_ext.ttf']:
         cached = ZELDA / 'fonts' / name
         if os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS') and not cached.is_file():
             raise RuntimeError('Missing bootstrap font: ' + name)
-        if os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS') and not (font / name).exists():
-            if name == 'standard.ttf':
-                assert hashlib.sha256(cached.read_bytes()).hexdigest() == '478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823', 'Bootstrap font hash mismatch'
+        if cached.is_file() and not (font / name).exists():
             shutil.copyfile(cached, font / name)
-    if not (font / 'standard.ttf').exists():
-        run(['python3', ENGINE / 'dm/tools/compact_font.py', font / 'standard.ttf'], env=env)
-    shutil.copyfile(font / 'standard.ttf', font / 'standard_small.ttf')
+    if not (font / 'standard.ttf').is_file():
+        raise RuntimeError('Missing standard font: stage the pinned Noto Sans file as ' + str(ZELDA / 'fonts/standard.ttf') + ' (scripts/bootstrap_deps.py does this)')
+    assert hashlib.sha256((font / 'standard.ttf').read_bytes()).hexdigest() == noto, 'Standard font hash mismatch'
+    (font / 'standard_small.ttf').unlink(missing_ok=True)
     if not (font / 'nintendo_ext.ttf').exists():
         run([TOOLS / 'venv/bin/python3', ENGINE / 'dm/tools/make_ext_font.py', font / 'nintendo_ext.ttf'], env=env)
     notices = resources / 'Notices'; notices.mkdir(exist_ok=True)
     for name, relative in {'nxnative': 'LICENSE', 'libvpx': 'dm/third_party/libvpx/LICENSE',
                            'libvpx-patents': 'dm/third_party/libvpx/PATENTS',
-                           'stb_vorbis': 'dm/third_party/stb_vorbis/LICENSE', 'bcdec': 'dm/third_party/bcdec/LICENSE'}.items():
+                           'stb_vorbis': 'dm/third_party/stb_vorbis/LICENSE', 'bcdec': 'dm/third_party/bcdec/LICENSE',
+                           'dav1d': 'dm/third_party/dav1d/COPYING', 'vulkan-headers': 'dm/third_party/vulkan-headers/LICENSE.md',
+                           'macnativegames': 'dm/third_party/macnativegames/LICENSE'}.items():
         shutil.copyfile(ENGINE / relative, notices / (name + '.txt'))
     shutil.copyfile(ROOT / 'NativeHost/THIRD_PARTY.md', notices / 'SatchelNativeHost.txt')
     shutil.copyfile(ROOT / 'NativeHost/OFL.txt', notices / 'SIL-OFL.txt')

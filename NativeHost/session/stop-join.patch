@@ -30,24 +30,24 @@
      uintptr_t prev = (uintptr_t)pthread_getspecific(g_keygslot);
 --- a/hle_thread.c
 +++ b/hle_thread.c
-@@ -10,6 +10,7 @@
- // Semantics follow the public Horizon kernel behavior (KConditionVariable / KAddressArbiter / KSynchronization of Atmosphère mesosphère).
+@@ -11,6 +11,7 @@
  // All waits hang on one global lock G, with one condition variable per thread; correctness first, performance to be measured later.
+ #include <unistd.h>
  #include "dm.h"
 +#include "SessionBoundary.h"
  #include <errno.h>
  #include <sched.h>
  #include <signal.h>
-@@ -51,7 +52,7 @@
+@@ -52,7 +53,7 @@
      uint32_t handle; uint64_t id;
      uint64_t entry, arg, stack_top; int prio, core; uint64_t mask;
      uint64_t born_ns, exit_ns; uint32_t born_tick, exit_tick;   // Time of creation / exit and the game tick at that time (for the state dump: did the job worker exit before the stall)
--    int started, exited, cancel;
-+    int started, exited, cancel, session_root_gate;
+-    int started, entered, exited, cancel;   // entered: its pthread has been dispatched and goes on to guest code
++    int started, entered, exited, cancel, session_root_gate;   // entered: its pthread has been dispatched and goes on to guest code
      pthread_t pt; pthread_cond_t cv;
      // Current wait: kind 0=none 1=lock 2=condition 3=address 4=synchronization object
      int wkind, woke; uint64_t waddr, wkey; uint32_t wtag; int64_t wres;
-@@ -96,6 +97,18 @@
+@@ -98,6 +99,18 @@
  #define MAX_H 4096
  static struct { int type; void *obj; } g_h[MAX_H];
  static pthread_key_t g_keythr;
@@ -66,7 +66,7 @@
  static uint64_t g_next_id = 0x51;
  static thr_t *g_wait;          // All waiting threads (lock / condition / address / synchronization)
  
-@@ -168,7 +181,7 @@
+@@ -215,7 +228,7 @@
          for (thr_t *t = g_all; t && !busy; t = t->all)
              if (t != self && t->started && !t->exited && !t->host_owned && t->mask == bit && t->prio < self->prio && thr_runnable(t) && (all || thr_in_handoff(t, self))) busy = 1;
          pthread_mutex_unlock(&G);
@@ -75,7 +75,7 @@
          { struct timespec ts = {0, 50000}; nanosleep(&ts, 0); } waited = 1;
      }
  }
-@@ -217,6 +230,7 @@
+@@ -264,6 +277,7 @@
  }
  // Suspend until woken or timed out (ns<0 infinite, 0 immediate timeout); returns wres or R_TIMEOUT
  static int64_t block(thr_t *t, int kind, int64_t ns) {
@@ -83,7 +83,7 @@
      t->wkind = kind; t->woke = 0; t->next = g_wait; g_wait = t; t->wseq = ++g_wseq;
      if (ns == 0) { wait_unlink(t); t->wkind = 0; return R_TIMEOUT; }
      hand_leave(t);
-@@ -291,6 +305,12 @@
+@@ -338,6 +352,12 @@
  // A host helper thread (audio notify / silent sink, vsync, movie decode) created from a guest thread inherits that thread's class; under DM_QOS_MAP it sets its own instead
  void dm_host_helper_qos(qos_class_t q) { if (g_qos_map) pthread_set_qos_class_self_np(q, 0); }
  static const char *thr_name(thr_t *t, char *buf, size_t n);
@@ -96,13 +96,13 @@
  static void *thread_main(void *p) {
      thr_t *t = p;
      pthread_setspecific(g_keythr, t);
-@@ -303,10 +323,11 @@
+@@ -350,10 +370,11 @@
      pthread_mutex_unlock(&G);
      crash_thread_init();
      guest_thread_init(); guest_thread_set_id(t->id);
 -    guest_gate_stack(1);   // the guest runs on its own stack from dm_thread_enter on: this pthread's stack below this frame is where its SVCs run
--    pthread_mutex_lock(&G); while (!t->started) pthread_cond_wait(&t->cv, &G); pthread_mutex_unlock(&G);
-+    pthread_mutex_lock(&G); while (!t->started && !satchel_session_stopping()) pthread_cond_wait(&t->cv, &G); pthread_mutex_unlock(&G);
+-    pthread_mutex_lock(&G); while (!t->started) pthread_cond_wait(&t->cv, &G); t->entered = 1; pthread_mutex_unlock(&G);
++    pthread_mutex_lock(&G); while (!t->started && !satchel_session_stopping()) pthread_cond_wait(&t->cv, &G); t->entered = 1; pthread_mutex_unlock(&G);
 +    if (satchel_session_stopping()) thread_exit(t);
      { char nb[48], hn[64]; snprintf(hn, sizeof hn, "%#x %s", t->handle, thr_name(t, nb, sizeof nb)); pthread_setname_np(hn); }   // the guest's name (set before StartThread) for sample / Instruments
 -    dm_thread_enter(t->entry, t->arg, t->stack_top);   // Does not return: the guest must exit through ExitThread
@@ -111,7 +111,7 @@
      die("guest thread entry returned");
  }
  static void thr_free(thr_t *t) {   // Holding G; unlink from the all-threads chain and free
-@@ -377,7 +398,8 @@
+@@ -427,7 +448,8 @@
  static void pause_install(void) {
      struct sigaction sa = {.sa_sigaction = on_pause_sig, .sa_flags = SA_SIGINFO | SA_ONSTACK | SA_RESTART};
      sigemptyset(&sa.sa_mask);
@@ -121,7 +121,7 @@
  }
  // Horizon svc::ThreadContext (arm64, 0x320 bytes)
  typedef struct { uint64_t r[29], fp, lr, sp, pc; uint32_t pstate, pad; __uint128_t v[32]; uint32_t fpcr, fpsr; uint64_t tpidr; } hz_ctx_t;
-@@ -470,13 +492,14 @@
+@@ -520,13 +542,14 @@
      return NULL;
  }
  static void hitch_init(void) {
@@ -137,7 +137,7 @@
      qos_map_init();
      { const char *e = getenv("DM_PREEMPT"); g_core_preempt = e ? atoi(e) != 0 : dm_profile()->core_preempt; }
      pause_install();
-@@ -714,14 +737,14 @@
+@@ -764,14 +787,14 @@
  // Mac frame p95 34.5 → 41 ms with 7 drops per 300 frames; on the iPhone the threads also looked idle to the performance controller, which kept them on efficiency cores at 1.5 GHz.
  // Waits under 2 ms are handoffs between threads that do work; waits beyond it are limiters and idle polls. Returns the sleep for a yield whose run started `run_ns` ago (0 = plain yield).
  // DM_YIELD_BACKOFF=0 turns it off; DM_YIELD_BACKOFF=<cap µs>[:<start µs>] sets the cap and the run length after which it starts (default 250:2000)
@@ -158,7 +158,7 @@
  }
  // sched_yield, or a short sleep once the wait has lasted run_ns past the back-off's start
  static void yield_for(thr_t *me, uint64_t run_ns) {
-@@ -759,17 +782,17 @@
+@@ -809,17 +832,17 @@
  // (yield_backoff_ns, DM_YIELD_BACKOFF), which leaves the core to the threads doing the work. A sched_yield on every pass instead (DM_SPIN_POLL=0) raised the Mac's frame p95 by 2-5 ms,
  // as a yield there hands the core to other processes. DM_SPIN=0: no sleeps either. gate = the gate's address, site = the loop head (module offset)
  #define SPIN_GAP_NS 20000
@@ -180,7 +180,7 @@
      me->spin_ret = now_ns();
  }
  // Short timed waits as polls. A wait with a timeout under 20 µs (a condition variable, WaitSynchronization or WaitForAddress) that times out is a poll, as a SleepThread that short is
-@@ -841,6 +864,7 @@
+@@ -891,6 +914,7 @@
  // Each step sleeps only 3/4 of the remaining time (the slack is at most about 25%, so it never oversleeps), looping until within 20 µs: a 33 ms sleep takes about 4 system calls with an error of tens of microseconds, and nothing spins
  static void sleep_precise(uint64_t dl) {
      for (int i = 0; i < 16; i++) {
@@ -188,7 +188,7 @@
          uint64_t now = now_ns(); if (now + 20000 >= dl) return;
          uint64_t rem = dl - now, s = rem < 100000 ? rem : rem - rem / 4;
          struct timespec ts = {(time_t)(s / 1000000000u), (long)(s % 1000000000u)}; nanosleep(&ts, 0);
-@@ -852,7 +876,7 @@
+@@ -902,7 +926,7 @@
      if (ns <= 0) return;
      if (dm_detclock_enabled()) {
          uint64_t deadline = guest_ns() + (uint64_t)ns;
@@ -197,7 +197,7 @@
          return;
      }
      thr_t *me = pthread_getspecific(g_keythr); if (me) me->sleeping = 1;
-@@ -884,13 +908,25 @@
+@@ -934,13 +958,25 @@
          //   SMBW's font engine picks its per-core engine slot by the current core number and crashed indexing with -2 (main +0x107dbc0, SequenceBackgroundWorker thread)
          t->prio = (int)regs[4]; t->core = (int)regs[5] >= 0 ? (int)regs[5] : 0; t->mask = 1ull << t->core;
          t->born_ns = now_ns(); t->born_tick = dm_thread_tick_fn ? dm_thread_tick_fn() : 0;
@@ -228,7 +228,7 @@
          if (g_flag.thr) LOG("CreateThread h=%#x entry=%#llx arg=%#llx sp=%#llx prio=%d core=%d", t->handle, t->entry, t->arg, t->stack_top, t->prio, t->core);
          regs[0] = 0; regs[1] = t->handle; return 1;
      }
-@@ -937,12 +973,12 @@
+@@ -991,12 +1027,12 @@
          thr_t *t = h_get((uint32_t)regs[0], O_THREAD); int64_t r = 0;
          if (!t) r = R_BAD_HANDLE;
          else if (t == me) r = R_BAD_STATE;
@@ -243,7 +243,7 @@
                  pthread_mutex_unlock(&G); pthread_kill(t->pt, SIGUSR2); pthread_mutex_lock(&G);
                  if (t->paused || t->exited) break;
                  struct timespec dl; clock_gettime(CLOCK_REALTIME, &dl); dl.tv_nsec += 100000; if (dl.tv_nsec >= 1000000000) { dl.tv_sec++; dl.tv_nsec -= 1000000000; }
-@@ -1085,7 +1121,7 @@
+@@ -1139,7 +1175,7 @@
              int64_t left = ns < 0 ? -1 : ns == 0 ? 0 : deadline - (dm_detclock_enabled() ? (int64_t)guest_ns() : now_mono_ns());
              if (ns > 0 && left <= 0) { r = R_TIMEOUT; break; }
              t->whs = hs; t->whn = n; int64_t br = block(t, 4, left); t->whs = NULL; t->whn = 0;
@@ -252,7 +252,7 @@
          }
          pthread_mutex_unlock(&G);
          poll_wait_end((int64_t)regs[3], r);
-@@ -1197,3 +1233,45 @@
+@@ -1264,3 +1300,45 @@
      }
      pthread_mutex_unlock(&G);
  }
@@ -321,7 +321,7 @@
  // Runtime game profile: see hle_profile.h. One IPA for every game reads its layout, switches and tables from DM_PROFILE
  // instead of having them compiled in (game_profile.h stays the fallback, so a build without DM_PROFILE is unchanged).
  #include "dm.h"
-@@ -310,3 +312,8 @@
+@@ -311,3 +313,8 @@
      LOG("  more stdalloc_cap %#llx key_skip %#x+%#x bc_cpu %d ue_pool %d enc_thread %d",
          (unsigned long long)p->stdalloc_cap, p->shader_skip_off, p->shader_skip_len, p->tex_bc_cpu, p->ue_texture_pool, p->enc_thread);
  }
@@ -347,7 +347,7 @@
  
  static const char *envdir(const char *var, const char *rel, char *buf, size_t n) {
      const char *v = getenv(var);
-@@ -918,7 +920,12 @@
+@@ -989,7 +991,12 @@
  }
  
  // ---------- Directories ----------
@@ -361,7 +361,7 @@
  static void dir_snapshot(dirh_t *h, const mount_t *m, const char *rest) {
      char fwd[1024]; rest = fwd_slashes(rest, fwd, sizeof fwd);
      char *roots = strdup(m->overlay);
-@@ -978,7 +985,7 @@
+@@ -1049,7 +1056,7 @@
              memcpy(o->name, m->names + c->name, c->nlen < sizeof o->name ? c->nlen : sizeof o->name - 1);
              o->type = c->type ? ENT_FILE : ENT_DIR; o->size = c->type ? (int64_t)c->b : 0;
          }
@@ -370,18 +370,18 @@
      }
      HP(path); DIR *d = opendir(hp);
      if (!d) return err_res("opendir", hp);
-@@ -987,7 +994,7 @@
+@@ -1060,7 +1067,7 @@
      if (c) for (int i = 0; i < g_nmnt; i++) if (g_mnt[i].overlay[0] && strlen(g_mnt[i].name) == (size_t)(c - path) && !strncmp(g_mnt[i].name, path, (size_t)(c - path))) {
          dir_snapshot(h, &g_mnt[i], c + 1); break;
      }
 -    *out = (uint64_t)h; return RES_OK;
 +    dir_track(h); *out = (uint64_t)h; return RES_OK;
  }
- HLE_FORCE("_ZN2nn2fs13ReadDirectoryEPlPNS0_14DirectoryEntryENS0_15DirectoryHandleEl", "fsp-srv → readdir(3)", Result, h_fs_ReadDirectory, int64_t *count, DirectoryEntry *ents, uint64_t hh, int64_t max) {
+ HLE_FORCE("_ZN2nn2fs13ReadDirectoryEPlPNS0_14DirectoryEntryENS0_15DirectoryHandleEl", "fsp-srv → readdir(3)", Result, h_fs_ReadDirectory, int64_t *count, DirectoryEntry *ents, uint64_t hh, int64_t max) { dm_thread_service_request();
      if (!hh) { *count = 0; return RES_FAIL; }
-@@ -1009,7 +1016,11 @@
+@@ -1082,7 +1089,11 @@
  }
- HLE_FORCE("_ZN2nn2fs14CloseDirectoryENS0_15DirectoryHandleE", "fsp-srv → closedir(3)", void, h_fs_CloseDirectory, uint64_t hh) {
+ HLE_FORCE("_ZN2nn2fs14CloseDirectoryENS0_15DirectoryHandleE", "fsp-srv → closedir(3)", void, h_fs_CloseDirectory, uint64_t hh) { dm_thread_service_request();
      if (!hh) return;   // the game also closes after a failed open (handle 0): nothing to do in the original either
 -    dirh_t *h = (dirh_t *)hh; if (h->d) closedir(h->d); if (h->od) closedir(h->od); free(h->snap); free(h);
 +    dirh_t *h = (dirh_t *)hh;
@@ -392,7 +392,7 @@
  }
  
  // ---------- Overloads from newer SDKs (SDK 16: MountRom without a cache, ReadFile without the bytes-read output / with read options, directory entry count) ----------
-@@ -1042,3 +1053,37 @@
+@@ -1124,3 +1135,37 @@
  HLE_FORCE("_ZN2nn2fs26SetPriorityOnCurrentThreadENS0_8PriorityE", "fsp-srv; file read priority, ignored by the host", void, h_fs_SetPrio, int prio) { (void)prio; }
  HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEj", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLogMask, unsigned mask) { (void)mask; return 0; }
  HLE_FORCE("_ZN2nn2fs6detail18IsEnabledAccessLogEv", "fsp-srv; access log always off (returns bool)", unsigned, h_fs_AccessLog, void) { return 0; }
@@ -450,7 +450,7 @@
  }
  static uint64_t wall_guest_ns(void) { return atomic_load(&g_gfz) ? atomic_load(&g_gfrozen) : now_ns() - atomic_load(&g_glag); }
  uint64_t guest_ns(void) { return atomic_load(&g_gdet_on) ? atomic_load(&g_gdet) : wall_guest_ns(); }
-@@ -80,7 +82,7 @@
+@@ -84,7 +86,7 @@
  void guest_clock_read_wait(void) {
      if (!atomic_load(&g_gfz_bg) || atomic_load(&dm_host_work)) return;
      pthread_mutex_lock(&g_gfz_mu);
@@ -459,7 +459,7 @@
      pthread_mutex_unlock(&g_gfz_mu);
  }
  void guest_clock_freeze_for(int reason, int on) {
-@@ -159,3 +161,16 @@
+@@ -164,3 +166,16 @@
      pthread_once(&g_sa_once, sa_init);
      return g_sa_big_align && size >= 0x10000 ? g_sa_alloc_al(self, size, 0x10000) : g_sa_alloc(self, size);
  }
@@ -478,7 +478,7 @@
 +}
 --- a/crash.c
 +++ b/crash.c
-@@ -186,7 +186,12 @@
+@@ -204,7 +204,12 @@
  // The alternate stack is released when the thread exits: the pthread key destructor is called at thread exit (disable the alternate stack first, then free). The game frequently starts short-lived threads, and without releasing each one leaks 64 KiB.
  static pthread_key_t g_altstack_key;
  static pthread_once_t g_altstack_once = PTHREAD_ONCE_INIT;

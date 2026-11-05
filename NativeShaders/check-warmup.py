@@ -11,7 +11,7 @@ import tempfile
 from oracle import jobs, PROFILE, PACKAGES
 
 WORK=Path.home()/'SatchelBuild/m5'
-CORPUS=Path.home()/'SatchelBuild/shaders/package/TOTK-1.4.3-src/msl/b-e65a4ebd3322'
+CORPUS=Path.home()/'SatchelBuild/shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 
 def main():
     if not os.environ.get('SATCHEL_M5_WATCHDOG_PID'):raise RuntimeError('Run through guard.py')

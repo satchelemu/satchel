@@ -27,7 +27,7 @@ final class GameArtworkStore {
 def run(a): subprocess.run([str(x) for x in a],check=True,cwd=root)
 for c,o in [('SwitchCrypto.c','crypto.o'),('NSOLoader.c','nso.o')]:
     run(['xcrun','clang','-O1','-Wall','-Wextra','-Werror','-c',root/'Core'/c,'-o',out/o])
-verifier=(root/'NativeHost/PreparedGame.swift').read_text().split('\nstruct PreparedGameView: View {')[0].replace('import SwiftUI','import Foundation')
+verifier=(root/'NativeHost/PreparedGame.swift').read_text().split('\n/// The background time around the package check')[0].split('\nstruct PreparedGameView: View {')[0].replace('import SwiftUI','import Foundation')
 for scope in ['fm','FileManager.default']:
     for directory in ['documentDirectory','applicationSupportDirectory']:
         verifier=verifier.replace(f'{scope}.urls(for: .{directory}, in: .userDomainMask)[0]', 'URL(fileURLWithPath: CommandLine.arguments[1]).appendingPathComponent("verification")')

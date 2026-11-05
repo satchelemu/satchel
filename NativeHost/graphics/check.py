@@ -88,10 +88,10 @@ queue += r'''int main(void) { @autoreleasepool {
 (tests / 'satchel.mk').write_text('include Makefile\n' + ''.join(
     name + ': ' + name + '.m $(MTL_T_DEP)\n\tclang $(CFLAGS) -fobjc-arc -o $@ ' + name + '.m $(MTL_T_SRC) $(FW)\n'
     for name in ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']))
-tools = Path.home() / 'SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
+tools = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 env = runpy.run_path(str(root / 'scripts/switch_native.py'))['tool_environment'](tools)
 import json
-env.update(SATCHEL_METAL_TOOLCHAIN=json.loads((Path.home() / 'SatchelBuild/zelda/native-toolchain.json').read_text())['metal_toolchain'],
+env.update(SATCHEL_METAL_TOOLCHAIN=json.loads((Path(os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS', Path.home() / 'SatchelBuild/zelda')) / 'native-toolchain.json').read_text())['metal_toolchain'],
            GAME='0100BA4026E94000', DM_GAME='0100BA4026E94000', DM_GAMES_FIRST='1',
            DM_GAMES_DIR=str(Path.home() / 'SatchelBuild/castlevania/profile'),
            TMPDIR=str(a.output / 'tmp'), PYTHONDONTWRITEBYTECODE='1', MAKEFLAGS='-j2')
@@ -136,9 +136,15 @@ def executable(name):
 baseline = subprocess.run([executable('t_satchel_seed_base')], cwd=tests,
     env=dict(env, MTL_DEBUG_LAYER='1', DM_PSO_MTL4='1'), capture_output=True, text=True)
 print(baseline.stdout, end=''); print(baseline.stderr, end='')
-if baseline.returncode != 1 or 'recorded pipeline warmed without seed: expected 1, got 0' not in baseline.stderr:
-    raise RuntimeError('The unmodified engine did not reproduce the missing-seed regression')
-print('Expected negative control: unmodified engine fails the missing-seed assertion.')
+# Until the engine pin move of 2026-11-05 the unmodified engine failed this fixture and only the
+# overlay warmed a recorded pipeline without a seed list. Upstream c4b0618c (in the pin) does the
+# same, so the control now pins that fact: the unmodified engine passes every assertion and still
+# reports the absent list as an error, which the overlay words as a notice. If a later pin loses
+# the upstream fix, this fails and the overlay's own handling has to come back.
+if baseline.returncode != 0 or 't_satchel_seed: 12 checks, 0 failed' not in baseline.stdout or \
+        '[RED] pipeline prewarm: seed list does not exist' not in baseline.stdout + baseline.stderr:
+    raise RuntimeError('The unmodified engine no longer warms recorded pipelines without a seed list as upstream c4b0618c does')
+print('Control: the pinned engine warms a recorded pipeline without a seed list (upstream c4b0618c) and logs the absent list in red.')
 baseline = subprocess.run([executable('t_satchel_archive_live_base')], cwd=tests,
     env=dict(env, MTL_DEBUG_LAYER='1'), capture_output=True, text=True)
 print(baseline.stdout, end=''); print(baseline.stderr, end='')

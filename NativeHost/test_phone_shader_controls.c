@@ -23,6 +23,11 @@ static int mapped;
 static int mtl_addr(uint64_t address, size_t size, void **buffer, uint64_t *offset) { return mapped; }
 static uint64_t nvn_new_serial(void) { static uint64_t serial; return ++serial; }
 static void mtl_prog_release(prog_t *program) {}
+// The pinned engine drops a program from its submit-thread tables at Finalize and starts a
+// background library load at SetShaders. Neither is under test here.
+static pthread_mutex_t g_sub_mu = PTHREAD_MUTEX_INITIALIZER;
+static void mtl_prog_forget(const prog_t *program) {}
+static void mtl_prog_prefetch(prog_t *program) {}
 static void dm_backtrace(uint64_t frame) { abort(); }
 static unsigned prefetch_count;
 static uint8_t copied_control[0x880], copied_code[64];

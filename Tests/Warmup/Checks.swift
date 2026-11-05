@@ -172,8 +172,8 @@ import Metal
         let compiler = SatchelShaderCompiler(device: device)
         let vertex = try compiler.compile(source: "#include <metal_stdlib>\nusing namespace metal; vertex float4 v(uint id [[vertex_id]]) { return float4(float(id),0,0,1); }")
         let fragment = try compiler.compile(source: "#include <metal_stdlib>\nusing namespace metal; fragment float4 f() { return float4(1); }")
-        let vi: [AnyHashable: Any] = ["chain":"e65a4ebd3322","entry":"v","entry_z":"v","vertex_inputs":[]]
-        let fi: [AnyHashable: Any] = ["chain":"e65a4ebd3322","entry":"f"]
+        let vi: [AnyHashable: Any] = ["chain":"26dc2fa9477c","entry":"v","entry_z":"v","vertex_inputs":[]]
+        let fi: [AnyHashable: Any] = ["chain":"26dc2fa9477c","entry":"f"]
         let path = root.appendingPathComponent("archives")
         let archive = try SatchelWarmupPipelines(directory: path, reserveBytes: 35 * 1024 * 1024 * 1024)
         var error: NSError?
@@ -204,8 +204,8 @@ import Metal
         let compiler = SatchelShaderCompiler(device: device)
         let vertex = try compiler.compile(source: "#include <metal_stdlib>\nusing namespace metal; vertex float4 v(uint id [[vertex_id]]) { return float4(float(id),0,0,1); }")
         let fragment = try compiler.compile(source: "#include <metal_stdlib>\nusing namespace metal; fragment float4 f() { return float4(1); }")
-        let vi: [AnyHashable: Any] = ["chain":"e65a4ebd3322","entry":"v","entry_z":"v","vertex_inputs":[]]
-        let fi: [AnyHashable: Any] = ["chain":"e65a4ebd3322","entry":"f"]
+        let vi: [AnyHashable: Any] = ["chain":"26dc2fa9477c","entry":"v","entry_z":"v","vertex_inputs":[]]
+        let fi: [AnyHashable: Any] = ["chain":"26dc2fa9477c","entry":"f"]
         let archive = try SatchelWarmupPipelines(directory: root.appendingPathComponent("archives"), reserveBytes: 35 * 1024 * 1024 * 1024)
         for coverage in [false, true] {
             var error: NSError?

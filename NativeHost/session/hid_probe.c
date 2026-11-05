@@ -21,6 +21,10 @@ void dm_ctl_peek(uint64_t a, int n) { (void)a; (void)n; abort(); }
 void dm_ctl_memdump(uint64_t a, uint64_t n, const char *p) { (void)a; (void)n; (void)p; abort(); }
 void dm_ctl_cvar_i32(uint64_t a, int32_t n) { (void)a; (void)n; abort(); }
 void dm_ctl_cvar_f32(uint64_t a, float n) { (void)a; (void)n; abort(); }
+// Control commands the pinned engine added (residency list, program switch, web applet shot).
+void dm_gfx_restop(void) { abort(); }
+void dm_oe_execute(int index, const void *param, size_t n) { (void)index; (void)param; (void)n; abort(); }
+void front_web_shot(const char *path) { (void)path; abort(); }
 
 void owners_hid_start(const char *root, int cycle) {
     int publisher = satchel_input_enter(); assert(publisher);

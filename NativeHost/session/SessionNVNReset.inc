@@ -23,6 +23,7 @@ int satchel_nvn_session_reset(void) {
     g_ntpb = g_nspb = g_tnext = g_snext = 0;
     if (g_tsv) fclose(g_tsv); g_tsv = NULL;
     g_frame = 0; g_hz = g_present_cap = g_fs_pshare = -1;
+    g_fps_high = -1; atomic_store(&g_high_cap, 60);   // the 120 fps decision of the f8a5618d pin, taken again per game
     g_display_mode = g_susp = g_fs_k = 0; g_game_itv = 1; g_itv2_since = 0;
     g_fs = (nvn_fstep){0}; g_fg = (nvn_fgpu){0};
     g_rt_comp_ms = g_rt_period_ms = 0;

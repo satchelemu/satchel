@@ -23,6 +23,7 @@ int satchel_hid_session_reset(void) {
     g_sampling = 1 << 16; g_shake_t0 = g_shake_end = 0; g_shake_on = 0;
     g_players = 1; g_ids_supported = 0x3ff; g_styles_supported = 0xffffffffu;
     g_hold_type = g_comm_mode = g_hh_mode = 0;
+    atomic_store(&g_peek_latch, 0); atomic_store(&g_hold, 0); g_nmouse_range[0] = g_nmouse_range[1] = 0;
     for (int p = 0; p < DM_PLAYERS; p++) {
         g_pad_btn[p] = g_pad_axes[p] = g_pad_latch[p] = 0;
         atomic_store(&g_style_ev[p], NULL);

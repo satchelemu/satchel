@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 OUT = Path(os.environ.get('SAVE_SYNC_CHECK_OUT', Path.home() / 'SatchelBuild/session/save-sync-check'))
 OUT.mkdir(parents=True, exist_ok=True)
-assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 runpy.run_path(str(HERE / 'save_sync_overlay.py'))['prepare'](ENGINE / 'dm/host/save_sync.c', OUT / 'save_sync.c')
 shutil.copyfile(HERE / 'save_sync_probe.c', OUT / 'save_sync_probe.c')
 exe = OUT / 'save-sync-probe'

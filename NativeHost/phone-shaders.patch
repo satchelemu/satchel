@@ -1,6 +1,6 @@
 --- a/dm/gfx/nvn/nvn_mtl.m
 +++ b/dm/gfx/nvn/nvn_mtl.m
-@@ -3842,8 +3842,10 @@
+@@ -4577,8 +4577,10 @@
  }
  // Build the library from a .metallib file without permanently occupying a file descriptor: newLibraryWithURL keeps that file open for as long as the library object lives (one per game shader - of the 258 descriptors the iOS app permanently holds in a run, 213 are these,
  // while the default soft limit of an iOS process is 256; new shaders created in other acts raise it further). Here the file is mapped into memory and closed immediately, and the library is built from the in-memory data; the mapping is released when the library's data object is freed
@@ -11,7 +11,7 @@
      int fd = open(path.fileSystemRepresentation, O_RDONLY); struct stat st;
      if (fd < 0 || fstat(fd, &st) || st.st_size <= 0) { if (fd >= 0) close(fd); if (err) *err = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"cannot open %@", path]}]; return nil; }
      size_t len = (size_t)st.st_size; void *m = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0); close(fd);
-@@ -3928,7 +3930,7 @@
+@@ -4663,7 +4665,7 @@
  static NvShader *shader_load(NSString *pc, int stage, int layer) {
      NSError *e = nil;
      NSData *jd = [NSData dataWithContentsOfFile:[NSString stringWithFormat:@"%@/%@.json", g_msl_dir, pc]];
@@ -20,9 +20,9 @@
      if (j && stage == 2 && [j[@"gs_slice"] isKindOfClass:[NSDictionary class]] && [j[@"chain"] isEqual:@DMSH_CHAIN]) {   // a slice-writing geometry shader has no library: a stub prog_fold_gs replaces
          NvShader *o = [NvShader new]; o->stage = 2; o->lay_loc = -1; strlcpy(o->key, pc.UTF8String, sizeof o->key);
          o->gs_loc = [j[@"gs_slice"][@"loc"] intValue]; o->gs_comp = [[j[@"gs_slice"][@"comp"] description] UTF8String][0];
-@@ -4108,9 +4110,11 @@
-     return nil;
+@@ -4858,9 +4860,11 @@
  }
+ static void up_mfx_read_color(NvShader *cs, const NVNshaderData *sd);
  #include "RuntimeCapture.inc"
 +#include "PhoneShaderRuntime.inc"
  
@@ -32,7 +32,7 @@
      static const prog_t *lp; static uint64_t lser, lgen; static NvProg *lpr;   // Last result: same object, same serial and unchanged serial table means it is used directly
      uint64_t gen = g_ser_gen;
      if (p == lp && p->serial == lser && gen == lgen && lpr) return lpr;
-@@ -4969,6 +4973,11 @@
+@@ -5781,6 +5785,11 @@
      if (same && S.bst[1] == v) return v;
      enum { NCMP = 64 };
      static prog_t cp[NCMP]; static const prog_t *ck[NCMP][5]; static uint64_t cs[NCMP][5]; static int ncp, next;
@@ -44,9 +44,9 @@
      for (int i = 0; i < ncp; i++) {
          int hit = 1; for (int st = 0; st < 5 && hit; st++) hit = ck[i][st] == S.bst[st] && (!S.bst[st] || cs[i][st] == S.bst[st]->serial);
          if (hit) return &cp[i];
-@@ -9524,6 +9533,15 @@
+@@ -10853,6 +10862,15 @@
  static void draw_(const p_draw *dw, const p_draw_idx *di);
- static void draw(const p_draw *dw, const p_draw_idx *di) { cp_stamp start = cp_begin(); draw_(dw, di); cp_end(5, start); }
+ static void draw(const p_draw *dw, const p_draw_idx *di) { cp_stamp start = cp_begin(); if (dw && dw->prim == DM_PRIM_MESH_TASKS) mesh_tasks_draw(dw); else draw_(dw, di); cp_end(5, start); }
  static void draw_(const p_draw *dw, const p_draw_idx *di) {
 +    if (satchel_phone_enabled()) {
 +        satchel_phone_prepare_program(S.bst[1], 0);
@@ -60,3 +60,14 @@
      satchel_capture_draw(S.bst);
      g_draw_binst = (uint32_t)(dw ? dw->base_instance : di ? di->base_instance : 0);   // c0 + 0x644 of the stages that read the driver segment (encode_args)
      if (passdump()) { NvProg *p = g_geo_program ? g_geo_program : S.prog ? prog_get(S.prog) : nil;
+@@ -11242,7 +11260,9 @@
+ static int prefetch_on(void) { static int v = -1; if (v < 0) { const char *e = getenv("DM_NVN_PREFETCH"); v = !(e && !strcmp(e, "0")); } return v; }
+ void mtl_prog_prefetch(const prog_t *cp) {
+     prog_t *p = (prog_t *)cp;
+-    if (!g_dev || !prefetch_on()) return;
++    // Phone translation adds to the shader map on the submit thread and has its own registration
++    // prefetch (hle_nvn.c), so the engine's background lookup of that map stays off there.
++    if (!g_dev || !prefetch_on() || satchel_phone_enabled()) return;
+     shmap_read_once();   // the map only: the prewarm starts on the submit thread (shmap_load)
+     for (unsigned i = 0; i < p->nstage; i++) {
+         uint8_t md[8]; prog_key(p, i, md);

@@ -22,7 +22,7 @@ def run(args):
     (OUT / 'check-results.json').write_text(json.dumps(results, indent=2) + '\n')
     print(result.stdout + result.stderr, end='', flush=True)
     result.check_returncode()
-engine = Path.home() / 'SatchelDeps/NX2Apple/engine'
+engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 fsout = OUT / 'filesystem'; fsout.mkdir(exist_ok=True)
 runpy.run_path(str(HERE / 'overlay.py'))['prepare_fs'](engine / 'dm/host/hle_fs.c', fsout)
 (fsout / 'game_profile.h').write_text('/* Synthetic profile declared in test_fs_backend.c. */\n')
@@ -40,7 +40,7 @@ run([OUT / 'test-ipc', OUT])
 run(['nice', '-n', '10', 'xcrun', 'swiftc', '-j', '2', '-num-threads', '2', ROOT / 'App/NativeGameProfile.swift', ROOT / 'App/NativeGameReport.swift',
      HERE / 'test_report.swift', '-o', OUT / 'test-report'])
 run([OUT / 'test-report', OUT / 'report-fixtures'])
-engine = Path.home() / 'SatchelDeps/NX2Apple/engine'
+engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 overlay = runpy.run_path(str(HERE / 'overlay.py'))['prepare'](engine / 'dm/host/hle_sf.c', OUT / 'adapter')
 clock = runpy.run_path(str(HERE / 'overlay.py'))['prepare_time'](engine / 'dm/host/hle_time.c', OUT / 'adapter')
 # The engine header only needs profile declarations in this synthetic translation unit.

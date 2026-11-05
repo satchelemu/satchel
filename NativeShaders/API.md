@@ -71,7 +71,10 @@ bytes. The handle unpacking and bank checks in `GameShaderTranslator.Accessor`
 are authoritative. A new title's binding state must supply these answers;
 the successful opening-screen checks do not prove later queries are covered.
 
-The output's source dictionary uses `b`, `bv`, `bp`, `ba`, `bl`, `bf` suffixes.
+The output's source dictionary uses `b`, `bv`, `bp`, `bx`, `bf` suffixes. `bx` is the one side
+source for a pixel shader's alpha test (`<entry>_a`) and logic operation (`<entry>_l`) entry
+points, as the pinned engine's `dmsh_side.py` writes it; it replaced the separate `ba` and `bl`
+sources at the engine pin move of 2026-11-05.
 Use the reflection entry names. Do not assume every variant exists. c1 proof,
 constant-buffer extents and unwritten-storage binding analysis accompany it.
 MSL and reflection are private game-derived artifacts, never diagnostic logs.

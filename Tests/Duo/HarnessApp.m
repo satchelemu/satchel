@@ -40,6 +40,7 @@ void dm_haptics_apple_controller(int p, GCController *controller) {}
 void dm_haptics_suspend(unsigned reason, int on) {}
 void satchel_haptics_suspend(unsigned reason, int on) {}
 int dm_opmode(void) { return 0; }
+int front_web_touch(void) { return 0; } // no offline HTML page is ever shown over the picture here
 void SatchelNativeSetMenuPaused(BOOL value) {}
 BOOL SatchelNativeSessionStarted(void) { return YES; }
 int SatchelNativeSessionAcceptsEvents(void) { return 1; }

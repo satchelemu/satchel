@@ -52,7 +52,7 @@ int satchel_host_session_stop(void) {
     if (!stop_stage) {
         satchel_session_request_stop(); satchel_kernel_request_stop(); satchel_clock_request_stop();
         satchel_hid_request_stop(); satchel_memory_request_stop(); satchel_diagnostics_request_stop(); satchel_oe_request_stop(); satchel_sdk16_request_stop();
-        satchel_movie_request_stop(); satchel_audren_request_stop(); satchel_audio_request_stop(); satchel_mtl_request_stop();
+        satchel_movie_request_stop(); satchel_audren_request_stop(); satchel_audio_request_stop(); satchel_web_request_stop(); satchel_mtl_request_stop();
         void dm_gfx_suspend(int); dm_gfx_suspend(0);
         stop_stage = 1;
     }
@@ -68,7 +68,9 @@ int satchel_host_session_stop(void) {
         {"notification-reset", satchel_oe_session_reset}, {"sf-reset", satchel_sf_session_reset},
         {"addons-reset", satchel_misc_session_reset}, {"network-reset", satchel_net_session_reset},
         {"friends-reset", satchel_friends_session_reset}, {"offline-reset", satchel_offline_session_reset},
-        {"keyboard-reset", satchel_swkbd_session_reset}, {"fps-reset", satchel_fpslock_session_reset},
+        {"keyboard-reset", satchel_swkbd_session_reset}, {"web-reset", satchel_web_session_reset},
+        {"jit-reset", satchel_jit_session_reset}, {"codec-video-reset", satchel_codec_video_session_reset},
+        {"fps-reset", satchel_fpslock_session_reset},
         {"ue-reset", satchel_uemalloc_session_reset}, {"service-caches-reset", restore_services},
         {"dirty-reset", satchel_dirty_session_reset}, {"nvn-reset", satchel_nvn_session_reset},
         {"files-reset", satchel_fs_session_reset}, {"kernel-reset", satchel_kernel_session_reset},

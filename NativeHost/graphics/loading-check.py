@@ -4,7 +4,7 @@ from pathlib import Path
 import argparse, os, struct, subprocess
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--out', type=Path, required=True)
-p.add_argument('--engine', type=Path, default=Path.home()/'SatchelDeps/NX2Apple/engine')
+p.add_argument('--engine', type=Path, default=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine')
 a=p.parse_args(); a.out=a.out.resolve(); root=Path(__file__).resolve().parents[2]
 if a.out.is_relative_to(root): p.error('Use a private output directory outside the repository')
 a.out.mkdir(parents=True,exist_ok=True)
@@ -52,6 +52,7 @@ static kern_return_t test_read_overwrite(vm_map_read_t task, vm_address_t source
 #undef vm_read_overwrite
 #undef mmap
 #define HLE_FORCE(sym,desc,ret,name,...) ret name(__VA_ARGS__)
+static void dm_thread_service_request(void) {} // the pinned engine yields the guest core here; no guest thread in this fixture
 typedef uint32_t Result;
 #define RES_OK 0
 #define RES_FAIL 1

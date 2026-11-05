@@ -132,7 +132,7 @@ enum PreparePipeline {
             let pack = try JSONDecoder().decode(PrepareShaderPack.self, from: Data(contentsOf: packFile))
             guard let reviewed = NativeGameProfile.find(titleID: title, version: pack.version),
                   pack.format == 1, pack.titleID == title, pack.enginePin == reviewed.enginePin,
-                  pack.forkPatchCount == 34, pack.shaderChain == reviewed.shaderChain, pack.shaderInputs == reviewed.shaderInputs,
+                  pack.forkPatchCount == NativePreparationRecipe.forkPatchCount, pack.shaderChain == reviewed.shaderChain, pack.shaderInputs == reviewed.shaderInputs,
                   pack.modules == reviewed.modules, pack.environment == reviewed.environment, pack.buildIDs == reviewed.buildIDs,
                   pack.files["profile.tsv"]?.sha256 == reviewed.profileSHA256,
                   pack.files.count < 250_000,
@@ -328,7 +328,7 @@ enum PreparePipeline {
             let fileJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(files))
             let profile = suppliedPack == nil ? preparedProfile : NativeGameProfile.find(titleID: title, version: suppliedPack!.version)!
             var manifest: [String: Any] = ["format": suppliedPack == nil ? 2 : 1, "titleID": title, "version": profile.version,
-                "enginePin": profile.enginePin, "forkPatchCount": 34, "shaderChain": profile.shaderChain,
+                "enginePin": profile.enginePin, "forkPatchCount": NativePreparationRecipe.forkPatchCount, "shaderChain": profile.shaderChain,
                 "shaderInputs": profile.shaderInputs, "modules": moduleNames, "environment": profile.environment,
                 "addOnContent": try JSONSerialization.jsonObject(with: JSONEncoder().encode(dlc)),
                 "layout": layout, "buildIDs": recipe.buildIDs, "contentVersion": recipe.contentVersion, "signingStatus": state.rawValue, "files": fileJSON]

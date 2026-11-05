@@ -28,7 +28,7 @@ trees are removed on the next operation for that title. Successful import swaps 
 atomically on the same filesystem, so process interruption cannot expose half a save.
 
 The native adapter calls the existing MIT-licensed NX2Apple
-`dm_fs_clone_committed` API at engine pin `bbc3b737`. That function uses the same locks as
+`dm_fs_clone_committed` API of the pinned engine (`f8a5618d`). That function uses the same locks as
 Commit and preserves the engine's guest-name extended attribute. No engine source is copied
 or modified. Only `save` is included, not the sibling unfinished `save.work` or `save.new`.
 Separate device-save siblings are outside this task's specified `save` folder contract.

@@ -26,7 +26,7 @@ inferred from submission counts. The sections below are historical host mileston
 
 The `host-in-app` worktree adds a dev-only Workshop action, **Dev: launch prepared game**, to Satchel's existing library screen. The Release app is `com.dell.satchel.dev`, display name **Satchel Dev**, the maintainer's team, landscape only. The normal target is unaffected. The dev target resolves its existing binary dependencies through the durable dependency snapshot.
 
-Build products, generated Xcode project, source snapshot, signed game container and prepared package live under `~/SatchelBuild/host/`. No game content belongs in this worktree. The source pin is nxnative `bbc3b73784751d2a706932dc69fd67627e3445d4` with exactly the Zelda worker's 34 materialized fork patches. The build verifies the copied runtime sources against that tree before applying the two documented diagnostic overlays. It does not modify the shared engine.
+Build products, generated Xcode project, source snapshot, signed game container and prepared package live under `~/SatchelBuild/host/`. No game content belongs in this worktree. The source pin is nxnative `f8a5618d5f505a4c0a0bcac7c413872d3a53c009` with exactly the 29 fork patches of `scripts/deps/upstream/nxnative-queue`, materialized by `scripts/bootstrap_deps.py`. The build verifies the copied runtime sources against that tree before applying the two documented diagnostic overlays. It does not modify the shared engine.
 
 ```zsh
 cd "$HOME/SatchelBuild/host/wt"
@@ -63,7 +63,7 @@ The app looks only at `Documents/PreparedGames/TOTK-1.4.3/`:
 | `game.dylib` | Separate Apple Development signed, constructor-free module container |
 | `profile.tsv` | All runtime profile fields exported by the pinned `game.py profile` |
 | `dm/` | Fixup/gate tables, shader map, PSO seed/pairs and shader analysis |
-| `msl/b-e65a4ebd3322/` | iPhoneOS metallibs, reflection JSON and matching `inputs.tsv` |
+| `msl/b-26dc2fa9477c/` | iPhoneOS metallibs, reflection JSON and matching `inputs.tsv` |
 | `romfs.img` | Existing composed `DMROMFS1` image, APFS-cloned on the Mac |
 
 The app hashes all package files on a background task before loading, including the large RomFS. Initial verification can take several minutes. It rejects missing, altered, extra or escaping files and mismatched identity/settings. The manifest is copied last. Keep the app closed during transfer and replacement. A partial copy cannot launch successfully.

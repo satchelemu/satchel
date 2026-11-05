@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise pinned dirty-range growth and safe reclamation across sessions."""
+import os
 from pathlib import Path
 import argparse
 import runpy
@@ -9,8 +10,8 @@ HERE = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--baseline-ref', help='Also reproduce retained arrays from this git revision')
 args = parser.parse_args()
-ENGINE = Path.home() / 'SatchelDeps/NX2Apple/engine'
-OUT = Path.home() / 'SatchelBuild/session/soak-dirty-check'
+ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+OUT = Path(os.environ.get('SESSION_CHECK_OUT', Path.home() / 'SatchelBuild/session')) / 'soak-dirty-check'
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / 'NXNative-LICENSE.txt').write_bytes((ENGINE / 'LICENSE').read_bytes())
 runpy.run_path(str(HERE.parents[1] / 'NativeApp/build_support.py'))['wait']()

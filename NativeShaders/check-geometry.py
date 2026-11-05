@@ -13,7 +13,7 @@ from oracle import functions
 
 WORK=Path.home()/'SatchelBuild/m5'
 PACKAGES=Path.home()/'SatchelBuild/games/odyssey/shader/pkg'
-CORPUS=PACKAGES.parent/'cache/b-e65a4ebd3322'
+CORPUS=PACKAGES.parent/'cache/b-26dc2fa9477c'
 
 def main():
     if not os.environ.get('SATCHEL_M5_WATCHDOG_PID'): raise RuntimeError('Run through guard.py')

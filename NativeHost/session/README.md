@@ -8,8 +8,8 @@ the signed-dylib reload path require the orchestrator's device test.
 Round 4 harness: `soak-4`, based on public `main` at `cd6fbf9`, which already
 contains the ownership and cancellation fixes. Historical round 2 work was based
 on `0856739`. The earlier `soak` changes were renamed in isolated throwaway worktrees before porting. Runtime pin:
-`bbc3b73784751d2a706932dc69fd67627e3445d4`, including the canonical build's
-34 materialized patches. `overlay.py` applies the two lifetime patches with zero
+`f8a5618d5f505a4c0a0bcac7c413872d3a53c009`, including the canonical build's
+29 materialized patches. `overlay.py` applies the two lifetime patches with zero
 fuzz, then exact-anchor overlays. Generated copies change, the shared engine does
 not. The existing privacy, display, audio-volume, shader-capture and graphics
 policy overlays remain composed. No dependency or Ryujinx code was added.

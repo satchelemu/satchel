@@ -4,11 +4,13 @@
 the pinned engine source hashes. The dependency tree and the task's engine copy stay pristine.
 The patch touches `front_ios.m`, `DmGamepad.m`, `hle_hid.c`, `hle_audio.c` and the small thermal telemetry hook in `hle_nvn.c`.
 `frame-shot.patch` separately updates only `nvn_mtl.m` frame readback.
-`picture-shape.patch` (after `frame-shot.patch`) adds two small pieces from nxnative after the pin:
-`nvn_mtl.m` present_now reports the presented picture's shape through `front_picture_shape`
-when its width / height changes (upstream 600c0b37), and `loader.c` writes the screen-shape
-state (`DM_SCREEN_ASPECT`, output and layout heights) into the frame-step state page
-(upstream 48d79ced). `DisplayControls.m` implements `front_picture_shape`: the picture and its
+The pinned engine has the two pieces the former `picture-shape.patch` carried, so that patch
+is gone since the f8a5618d pin: `nvn_mtl.m` present_now reports the presented picture's shape
+through `front_picture_shape` when its width / height changes (upstream 600c0b37), and
+`loader.c` writes the screen-shape state (`DM_SCREEN_ASPECT`) into the frame-step state page
+(upstream 48d79ced, which also writes the field-of-view and HUD values that only builds with
+screen-shape stubs read). `DisplayControls.m` implements `front_picture_shape`, and the
+display patch removes the engine front end's own copy: the picture and its
 touch projection take the presented shape (`SatchelPictureRectAspect`), so a 16:9 game keeps
 its layout. The legacy `display/build.py` partial rebuild recompiles only `hle_nvn.c`; the
 patch reaches the app through the full host build (`NativeApp/build.py`).
@@ -24,7 +26,8 @@ Picture Fill (upstream `DM_PICTURE_FIT=fill`, e2fadf22) is left out on purpose; 
 port it. It crops a 16:9 picture to cover the screen, which is the same rectangle as
 Satchel's former zoom mode. The maintainer tested zoom and removed it (GOALS.md G5: it
 crops too much; a saved zoom migrates to fit), so Fill stays removed, not hidden behind a
-switch. Screen mode stays fit or stretch. The live presentation path is otherwise unchanged. `NativeApp/build.py` fingerprints both patches.
+switch. The pinned engine now has Fill itself; Satchel's layout never reads it and the app never sets
+`DM_PICTURE_FIT`. Screen mode stays fit or stretch. The live presentation path is otherwise unchanged. `NativeApp/build.py` fingerprints both patches.
 `PlayerSettings.m`, `DisplayControls.m` and `InGameMenu.m` join `libSatchelNativeHost.a`.
 The Swift settings view and menu adapter join the dev app.
 

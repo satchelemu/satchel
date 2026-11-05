@@ -26,7 +26,7 @@ simulator = os.environ.get('SATCHEL_DUO_SIMULATOR')
 if not simulator:
     raise SystemExit('Set SATCHEL_DUO_SIMULATOR to a private simulator UDID (xcrun simctl create ... iPhone-Duo ...).')
 OUT.mkdir(parents=True, exist_ok=True)
-assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 
 subprocess.run([sys.executable, '-B', str(HERE / 'test_orientation_policy.py')], check=True)
 
@@ -46,7 +46,7 @@ settings = {
     'GCC_PREPROCESSOR_DEFINITIONS': ['$(inherited)', 'DEBUG=1'],
     # Xcode splits unquoted build-setting values on spaces; the checkout lives under "Repo - Personal".
     'HEADER_SEARCH_PATHS': [f'"{p}"' for p in [OUT / 'overlays/controllers', HERE / 'Fixtures', ROOT / 'NativeHost',
-                            ROOT / 'App', ENGINE / 'dm/host', ENGINE / 'dm/gfx']],
+                            ROOT / 'App', ENGINE / 'dm/host', ENGINE / 'dm/gfx', ENGINE / 'dm/ios/Sources']],
     'OTHER_LDFLAGS': ['-framework', 'UIKit', '-framework', 'GameController', '-framework', 'CoreMotion',
                       '-framework', 'CoreText', '-Wl,-U,_satchel_pipeline_skipped_draws'],
 }

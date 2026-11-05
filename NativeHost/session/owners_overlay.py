@@ -11,6 +11,28 @@ def replace(text, old, new):
     return text.replace(old, new)
 
 
+def hoist(text, signature, declaration, names):
+    """Move a function's static caches to file scope under satchel_ names, so a reset can reach them.
+    declaration is the function's static declaration line; names maps each cache to (file-scope name, C declaration)."""
+    import re
+    start = text.index(signature)
+    brace = text.index('{', start)
+    depth, end = 0, None
+    for token in re.finditer(r'//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|[{}]', text[brace:]):
+        if token[0] == '{': depth += 1
+        elif token[0] == '}':
+            depth -= 1
+            if not depth: end = brace + token.end(); break
+    assert end is not None, signature
+    body = text[brace:end]
+    assert body.count(declaration) == 1, declaration
+    body = body.replace(declaration, '')
+    for old, (new, _) in names.items():
+        body, count = re.subn(r'\b' + old + r'\b', new, body)
+        assert count, old
+    return text[:start] + ''.join(c + '\n' for _, c in names.values()) + text[start:brace] + body + text[end:]
+
+
 def control(text):
     text = '#include "SessionInputGate.h"\n' + text
     import re
@@ -41,8 +63,8 @@ static void satchel_hid_sleep_us(uint64_t us) {
                    'while (dm_guest_frame() < end && !satchel_native_stopping(&satchel_hid_workers)) satchel_hid_sleep_us(5000);')
     text = replace(text, 'pthread_t th; if (g_nsteps && !pthread_create(&th, NULL, keys_main, NULL)) { pthread_detach(th);',
                    'if (g_nsteps && !satchel_native_create(&satchel_hid_workers, NULL, keys_main, NULL)) {')
-    text = replace(text, 'const char *path = arg; long off = 0; char line[1100];\n    for (;;) {',
-                   'const char *path = arg; long off = 0; char line[1100];\n    while (!satchel_native_stopping(&satchel_hid_workers)) {')
+    text = replace(text, '    for (;;) {\n        FILE *f = fopen(path, "r");\n        if (f && !fseek(f, off, SEEK_SET)) {',
+                   '    while (!satchel_native_stopping(&satchel_hid_workers)) {\n        FILE *f = fopen(path, "r");\n        if (f && !fseek(f, off, SEEK_SET)) {')
     text = replace(text, 'while (fgets(line, sizeof line, f)) {',
                    'while (!satchel_native_stopping(&satchel_hid_workers) && fgets(line, sizeof line, f)) {')
     text = replace(text, 'for (int i = 0; i <= n; i++) { dm_touch t',
@@ -117,13 +139,23 @@ def touch(text):
 
 
 def loader(text):
-    text = replace(text, '#include "loader_image.h"',
-                   '#include "loader_image.h"\n#include "SessionBoundary.h"\n#include <errno.h>')
+    text = replace(text, '#include <mach-o/ldsyms.h>',
+                   '#include <mach-o/ldsyms.h>\n#include "SessionBoundary.h"')
+    # The app clears the image after dlclose: the engine's setter then names the executable again.
+    text = replace(text, 'void dm_set_game_image_header(const void *mh) { g_game_image = mh; }',
+                   'void dm_set_game_image_header(const void *mh) { g_game_image = mh ? mh : (const void *)&_mh_execute_header; }')
     text = replace(text, '    create_keys();',
                    '    static pthread_once_t keys_once = PTHREAD_ONCE_INIT; pthread_once(&keys_once, create_keys);')
     text = replace(text, 'int dm_sdk_major(void) {\n    static int major = -1;',
                    'static int satchel_sdk_major = -1;\nint dm_sdk_major(void) {\n#define major satchel_sdk_major')
     text = replace(text, '    return major;\n}', '    return major;\n#undef major\n}')
+    # The same for the SDK generation, the NVN2 constant table and the JIT image folder of the f8a5618d pin.
+    text = hoist(text, 'int dm_sdk_ounce(void) {', '    static int ounce = -1;\n',
+                 {'ounce': ('satchel_sdk_ounce', 'static int satchel_sdk_ounce = -1;')})
+    text = hoist(text, 'int dm_sdk_nvn2_item(unsigned item, int *out) {', ' static int found = -1;',
+                 {'found': ('satchel_nvn2_found', 'static int satchel_nvn2_found = -1;')})
+    text = hoist(text, 'const char *dm_jit_serve_dir(void) {', '    static int init; static char dir[1024];\n',
+                 {'init': ('satchel_jit_dir_init', 'static int satchel_jit_dir_init;'), 'dir': ('satchel_jit_dir', 'static char satchel_jit_dir[1024];')})
     text = replace(text, 'static void map_image(module_t *m, const char *dir);',
                    'static void map_image(module_t *m, const char *dir);\nstatic void satchel_loader_ranges(module_t *m);')
     text = replace(text, 'read_layout(m, dir); map_image(m, dir); parse_dynamic(m); register_gates(m, dir);',

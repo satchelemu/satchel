@@ -61,7 +61,7 @@ def safe_path(path):
         return  # Repository-authored synthetic homebrew, never an imported game.
     require(path.suffix.lower() not in {'.p12', '.pfx', '.key', '.keys', '.pem', '.cer', '.crt',
             '.xci', '.nsp', '.xcz', '.nsz', '.nca', '.ncz', '.nso', '.nro', '.romfs', '.spv', '.xcent'}
-            and path.name.lower() not in {'romfs.img', 'game.dylib', 'preparedgames', 'saves', 'b-e65a4ebd3322'}
+            and path.name.lower() not in {'romfs.img', 'game.dylib', 'preparedgames', 'saves', 'b-26dc2fa9477c'}
             and not path.name.endswith('.patched.bin'), 'Private input found in build; refusing export')
 
 

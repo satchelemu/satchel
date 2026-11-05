@@ -13,11 +13,14 @@ def host(destination):
     text = replace(text, 'static int g_suspended;', 'static int g_suspended;\nstatic _Atomic int satchel_audio_held;')
     text = replace(text, 'static void null_start(aout *a) {',
                    'static void null_start(aout *a) { if (atomic_load(&satchel_audio_held)) { a->backend = BK_NONE; return; }')
-    # Reset every started output, including the silent fallback, without two consumers.
+    # A held output starts no device: its start waits for the release below.
+    text = replace(text, 'if (!a->au || g_suspended || a->start_phase != AU_IDLE || satchel_session_stopping()) return;',
+                   'if (!a->au || g_suspended || a->start_phase != AU_IDLE || satchel_session_stopping() || atomic_load(&satchel_audio_held)) return;')
+    # Reset every output, including one that has no unit yet. The engine keeps a started output
+    # on its one silent consumer through the reset; a held output stays without a consumer.
+    text = replace(text, 'static void au_replace(aout *a) {\n    au_dispose(a->au);', 'static void au_replace(aout *a) {\n    if (a->au) au_dispose(a->au);')
     first = text.index('void dm_audio_reset(void)')
     text = text[:first] + text[first:].replace('aout *a = g_aos[i]; if (!a || !a->au) continue;', 'aout *a = g_aos[i]; if (!a) continue;', 1)
-    text = replace(text, '        int playing = a->backend == BK_AU;\n        if (playing) { AudioOutputUnitStop(a->au); a->backend = BK_NONE; }\n        AudioUnitUninitialize(a->au); AudioComponentInstanceDispose(a->au);',
-                   '        int playing = a->state == STATE_STARTED;\n        backend_stop(a);\n        if (a->au) { au_dispose(a->au); a->au = NULL; }')
     text = replace(text, 'g_suspended = 0; atomic_store(&g_render_calls, 0);', 'g_suspended = 0; atomic_store(&satchel_audio_held, 0); atomic_store(&g_render_calls, 0);')
     text += '''
 // A full guest pause retains queued PCM at its exact consumer position.
@@ -27,9 +30,10 @@ void satchel_audio_hold(int on) {
     atomic_store(&satchel_audio_held, on != 0);
     for (int i = 0; i < AOMAX; i++) {
         aout *a = g_aos[i]; if (!a) continue;
-        if (on) backend_stop(a);
+        if (on) { au_halt(a); if (a->backend == BK_NULL) null_stop(a); }   // the device, a start in flight and the silent sink
         else if (a->state == STATE_STARTED && a->backend == BK_NONE) {
-            if (a->au && !g_suspended) au_go(a, now_ns()); else null_start(a);
+            // As the engine's own start: the silent sink consumes until the device calls back.
+            null_start(a); au_request_start(a);
         }
     }
     pthread_mutex_unlock(&g_aos_lock);

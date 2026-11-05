@@ -13,9 +13,9 @@ import time
 sys.dont_write_bytecode = True
 ROOT = Path.home() / 'SatchelBuild/m5'
 TOOLS = Path.home() / 'SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/NX2Apple/dm/gfx/tools'
-CORPUS = Path.home() / 'SatchelBuild/shaders/package/TOTK-1.4.3-src/msl/b-e65a4ebd3322'
+CORPUS = Path.home() / 'SatchelBuild/shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 sys.path.insert(0, str(TOOLS))
-import dmsh_vin, dmsh_pull, dmsh_alpha, dmsh_logic, dmsh_fetch
+import dmsh_vin, dmsh_pull, dmsh_fetch
 
 def main():
     parser = argparse.ArgumentParser()
@@ -29,9 +29,11 @@ def main():
     start = time.monotonic()
     counts = collections.Counter()
     differences = []
-    modules = {'bv': dmsh_vin, 'bp': dmsh_pull, 'ba': dmsh_alpha, 'bl': dmsh_logic, 'bf': dmsh_fetch}
+    # The alpha test and logic operation entry points share one side source since the f8a5618d pin;
+    # NativeShaders/check-side.py compares it with the pinned tool on the public corpus.
+    modules = {'bv': dmsh_vin, 'bp': dmsh_pull, 'bf': dmsh_fetch}
     try:
-        files = sorted(p for p in CORPUS.glob('*.metal') if not p.name.endswith('_b.metal'))
+        files = sorted(p for p in CORPUS.glob('*.metal') if p.stem.rsplit('_', 1)[-1] in modules)
         if args.limit: files = files[:args.limit]
         for index, path in enumerate(files):
             stem, kind = path.stem.rsplit('_', 1)

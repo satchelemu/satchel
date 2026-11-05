@@ -10,10 +10,10 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 OUT = Path(os.environ.get('SESSION_OUT', Path.home() / 'SatchelBuild/session/stop-probe'))
-ENGINE = Path.home() / 'SatchelDeps/NX2Apple/engine'
+ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
 OUT.mkdir(parents=True, exist_ok=True)
-assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
 if shutil.disk_usage(OUT).free < 35 * 1024**3:
     raise SystemExit('Probe blocked: less than 35 GiB free')
@@ -32,7 +32,9 @@ for i, path in enumerate([HERE / 'stop_probe.c', HERE / 'SessionBoundary.c', HER
     obj = OUT / ('probe-' + str(i) + '.o')
     flags = ['-finstrument-functions'] if path.suffix == '.c' and path.name not in ('SessionBoundary.c', 'SessionNativeWorkers.c', 'SessionInputGate.c', 'SessionState.c') else []
     if path.name == 't_fs_stub.c':
-        flags += ['-Ddm_guest_as_contains=fs_stub_guest_as_contains']
+        # The probe links the real kernel and thread code, so the engine stub's own copies get private names.
+        flags += ['-Ddm_guest_as_contains=fs_stub_guest_as_contains', '-Dguest_sym=fs_stub_guest_sym',
+                  '-Ddm_thread_service_request=fs_stub_thread_service_request']
     subprocess.run(base + flags + ['-c', str(path), '-o', str(obj)], check=True)
     objects.append(str(obj))
 binary = OUT / 'stop-probe'

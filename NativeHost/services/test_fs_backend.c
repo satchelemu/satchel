@@ -22,7 +22,9 @@ module_t *g_mod; int g_nmod;
 #ifndef SATCHEL_FS_EXTERNAL_GUEST
 int dm_guest_as_contains(uintptr_t a) { (void)a; return 0; }
 #endif
-int dm_main_imports(const char *prefix) { (void)prefix; return 0; }
+int dm_game_imports(const char *prefix) { (void)prefix; return 0; }
+void dm_thread_service_request(void) {} // no guest thread gives up a core in this fixture
+void *guest_sym(const char *name) { (void)name; return NULL; } // no SDK module: Unmount takes the host path
 int dm_mii_standin(const char *dir) { (void)dir; return 0; }
 const struct dm_profile *dm_profile(void) {
     static const struct dm_profile p = {.id = "synthetic", .program_id = 0x0100123400000000ull}; return &p;

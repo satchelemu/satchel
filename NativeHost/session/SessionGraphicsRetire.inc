@@ -73,14 +73,14 @@ int satchel_mtl_session_retire(void) {
         satchel_hm_retire(&g_vc, vc_set_free);
     SATCHEL_RETIRE_MARK(7);
         nvn_hmap *objects[] = {&g_by_serial, &g_alias, &g_ghost, &g_pso, &g_dss,
-            &g_pbase, &g_pso_hy, &g_cps, &g_pso_mesh};
+            &g_pbase, &g_pso_hy, &g_cps, &g_pso_mesh, &g_pso_mtk};
         for (unsigned i = 0; i < sizeof objects / sizeof objects[0]; i++) satchel_hm_retire(objects[i], hm_rel);
     SATCHEL_RETIRE_MARK(8);
         nvn_hmap *allocations[] = {&g_image_desc, &g_vbuf_unaligned, &g_ir, &g_geo_ix};
         for (unsigned i = 0; i < sizeof allocations / sizeof allocations[0]; i++) satchel_hm_retire(allocations[i], free);
     SATCHEL_RETIRE_MARK(9);
         nvn_hmap *indices[] = {&g_alias_seen, &g_tex_live, &g_cpu_tex, &g_cpu_tex_retired,
-            &g_treg_serial, &g_pso_fail, &g_pbase_pending};
+            &g_treg_serial, &g_pso_fail, &g_pbase_pending, &g_cpu_unc};
         for (unsigned i = 0; i < sizeof indices / sizeof indices[0]; i++) satchel_hm_retire(indices[i], NULL);
     SATCHEL_RETIRE_MARK(10);
         if (g_alias_set) CFRelease(g_alias_set); g_alias_set = NULL;
@@ -101,6 +101,8 @@ int satchel_mtl_session_retire(void) {
         SATCHEL_FREE(g_srid); SATCHEL_FREE(g_srid_w); SATCHEL_FREE(g_sbk);
         SATCHEL_FREE(g_sdx); SATCHEL_FREE(g_sdx_tmp); SATCHEL_FREE(g_sdx_op);
         SATCHEL_FREE(g_rtx_seq); SATCHEL_FREE(g_drx_seq);
+        // The f8a5618d pin: placement sparse tile tables and the inline uniform update pages.
+        SATCHEL_FREE(g_sp_free); SATCHEL_FREE(g_sp_late); SATCHEL_FREE(g_sp_tl); SATCHEL_FREE(g_sp_ph); SATCHEL_FREE(g_um);
 #undef SATCHEL_FREE
     SATCHEL_RETIRE_MARK(13);
         if (g_pg_f) fclose(g_pg_f);

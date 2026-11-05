@@ -17,6 +17,19 @@ Python and profile file hashes are in `profiles/source-lock.json`. The different
 checks those hashes before using the oracle. The older integration-design revision is not
 this task's oracle.
 
+The host engine pin has since moved to nxnative `f8a5618d5f505a4c0a0bcac7c413872d3a53c009`
+(see BUILDING.md, "Moving the engine pin"). This port and its oracle deliberately stay at
+`bbc3b737`: byte parity with the oracle is what the differential run proves, and repeating
+it needs the maintainer's private modules. The newer host loads this port's output unchanged.
+Its loader reads the same section names and table keys, and the keys upstream added since
+(`FPS_TARGET_PTR`, `FPS_TARGET_FIELD`) are optional. What the port does not have is upstream's
+later rewriter work: stricter register-write tracking in jump table and tail call proofs,
+two more tail call forms (Unity IL2CPP), the larger back patch area split, the frame rate
+target lookup, Snowdrop's page pools and two Switch 2 SDK node cuts. A title that needs one
+of those still stops in Prepare with the same message as before. Moving the oracle is a
+separate task: update `profiles/source-lock.json` from the new snapshot, port the changes
+above, and rerun the differential check on the private modules.
+
 Capstone 5.0.7 is pinned to commit `d2e5739cbb43df93d589a3a726c8f878b95beccb` and a SHA-256
 archive digest in CMake. The installed oracle reports Capstone 5.0.7. Only ARM64 is compiled.
 Capstone is necessary to reproduce its operand spelling, register accesses and rejection

@@ -36,7 +36,7 @@ enum ShaderSourcePipeline {
         let bindings = try ShaderReflection.bindings(stage: stage, source: source, resources: resources)
         var notes = resources["notes"] as? [String] ?? []
         if job["no_facts"] as? Bool == true { notes.append("not in the answer table, queries use defaults") }
-        var reflection: [String: Any] = ["key": key + "_b", "route": "B", "chain": "e65a4ebd3322", "dm_ctl": key,
+        var reflection: [String: Any] = ["key": key + "_b", "route": "B", "chain": "26dc2fa9477c", "dm_ctl": key,
             "source": job["source"] ?? "native", "pc_paired": job["pc_paired"] ?? "", "stage": stage,
             "entry": entry?[2] ?? "main0", "msl_entry_kind": entry.map { $0[1] as Any } ?? NSNull(),
             "threadgroup_size": job["local"] ?? NSNull(), "c1": job["c1"] ?? "", "notes": notes,
@@ -58,8 +58,12 @@ enum ShaderSourcePipeline {
             if let v = ShaderVariants.pull(full) { sources["bp"] = v.source; reflection["pull"] = v.info }
         }
         if stage == "ps" {
-            if let v = ShaderVariants.alpha(full) { sources["ba"] = v.source; reflection["alpha"] = ["entries": v.info] }
-            if let v = ShaderVariants.logic(full) { sources["bl"] = v.source; reflection["logic"] = ["entries": v.info] }
+            // One side library for the alpha test and logic operation entry points (<entry>_a, <entry>_l), as the pinned host loads it.
+            if let v = ShaderVariants.side(full), let info = v.info as? [String: [String]] {
+                sources["bx"] = v.source
+                if let names = info["alpha"], !names.isEmpty { reflection["alpha"] = ["entries": names] }
+                if let names = info["logic"], !names.isEmpty { reflection["logic"] = ["entries": names] }
+            }
             // The retained Mac bf corpus was generated from the final base text.
             // Truncating its integer entry preserves one final newline, as in
             // NativeShaders/package.py's proven source recovery.

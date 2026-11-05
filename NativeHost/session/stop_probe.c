@@ -44,6 +44,7 @@ module_t *module_of(const void *p) {
     return (uintptr_t)p >= (uintptr_t)fixture_begin && (uintptr_t)p < (uintptr_t)fixture_end ? &synthetic : NULL;
 }
 void dm_prof_add(int id, uint64_t ns, uint64_t bytes) { (void)id; (void)ns; (void)bytes; }
+int dm_sdk_ounce(void) { return 0; } // the synthetic guest is a Switch 1 program
 static void (*write_prepare)(void *, size_t);
 void dm_guest_write_prep_register(void (*fn)(void *, size_t)) { write_prepare = fn; }
 void dm_fault_hook_register(int (*fn)(void *, int, void *)) { (void)fn; }

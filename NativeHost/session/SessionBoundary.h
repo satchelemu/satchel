@@ -77,6 +77,10 @@ int satchel_net_session_reset(void);
 int satchel_friends_session_reset(void);
 int satchel_offline_session_reset(void);
 int satchel_swkbd_session_reset(void);
+void satchel_web_request_stop(void);
+int satchel_web_session_reset(void);
+int satchel_jit_session_reset(void);
+int satchel_codec_video_session_reset(void);
 
 int satchel_nvn_session_reset(void);
 int satchel_dirty_session_reset(void);

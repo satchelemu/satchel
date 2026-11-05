@@ -111,7 +111,7 @@ def compile_library(requested, library):
             allowed.append(path)
     assert any(requested.resolve().is_relative_to(p.resolve()) for p in allowed)
     assert library.resolve().is_relative_to(Path(os.environ.get('SATCHEL_MAC_CACHE_ROOT', BUILD / 'session/soak-mac/libraries')).resolve())
-    match = re.fullmatch(r'([0-9a-f]{16})_(b|bp|bv|ba|bl|bf)\.metallib', requested.name)
+    match = re.fullmatch(r'([0-9a-f]{16})_(b|bp|bv|bx|bf)\.metallib', requested.name)
     assert match
     key, kind = match.groups()
     library.parent.mkdir(parents=True, exist_ok=True)
@@ -136,22 +136,29 @@ def compile_library(requested, library):
             temporary = Path(temporary)
             source = requested.with_suffix('.metal')
             if not source.is_file():
-                sys.path.insert(0, str(Path.home() / 'SatchelDeps/NX2Apple/engine/dm/gfx/tools'))
+                deps = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps'))
+                sys.path.insert(0, str(deps / 'NX2Apple/engine/dm/gfx/tools'))
                 base = requested.with_name(key + '_b.metal').read_text()
                 reflection = json.loads(requested.with_name(key + '_b.json').read_text())
-                modules = {'bp': ('pull', 'dmsh_pull'), 'bv': ('vin', 'dmsh_vin'),
-                           'ba': ('alpha', 'dmsh_alpha'), 'bl': ('logic', 'dmsh_logic'),
-                           'bf': ('fetch', 'dmsh_fetch')}
-                assert kind in modules
-                field, module = modules[kind]
-                variant = importlib.import_module(module).variant
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    text, info = variant(base, reflection['bindings'], om_only_ok=True) if kind == 'bf' else variant(base)
-                assert text
-                if kind == 'bp': info = {k: v for k, v in info.items() if v is not None}
-                if kind == 'bv': info = {'entry': 'main0', 'entry_z': 'main0_z', 'shadow': info}
-                if kind in {'ba', 'bl'}: info = {'entries': info}
-                assert json.dumps(info, sort_keys=True) == json.dumps(reflection[field], sort_keys=True)
+                modules = {'bp': ('pull', 'dmsh_pull'), 'bv': ('vin', 'dmsh_vin'), 'bf': ('fetch', 'dmsh_fetch')}
+                if kind == 'bx':
+                    # The alpha test and logic operation entry points: the pinned tool's compile unit (dmsh_side.py).
+                    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                        text, info = importlib.import_module('dmsh_side').unit(base)
+                    assert text
+                    for field in ('alpha', 'logic'):
+                        expected = {'entries': info[field]} if info[field] else None
+                        assert json.dumps(expected, sort_keys=True) == json.dumps(reflection.get(field), sort_keys=True)
+                else:
+                    assert kind in modules
+                    field, module = modules[kind]
+                    variant = importlib.import_module(module).variant
+                    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                        text, info = variant(base, reflection['bindings'], om_only_ok=True) if kind == 'bf' else variant(base)
+                    assert text
+                    if kind == 'bp': info = {k: v for k, v in info.items() if v is not None}
+                    if kind == 'bv': info = {'entry': 'main0', 'entry_z': 'main0_z', 'shadow': info}
+                    assert json.dumps(info, sort_keys=True) == json.dumps(reflection[field], sort_keys=True)
                 source = temporary / (key + '_' + kind + '.metal')
                 source.write_text(text)
             air, partial = temporary / 'library.air', temporary / 'library.metallib'

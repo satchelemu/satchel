@@ -15,7 +15,7 @@ CGRect SatchelInteractiveBounds(UIView *view, CGRect region);
 CGFloat SatchelPictureAspect(void);
 // The picture rectangle for the current screen mode and presented shape, in a game region.
 CGRect SatchelCurrentPictureRect(CGRect region);
-// front.h's report from the present thread (display/picture-shape.patch); main-thread safe.
+// front.h's report from the engine's present thread (nvn_mtl.m present_now); main-thread safe.
 void front_picture_shape(int w, int h);
 
 // A game on screen on a half-folded iPhone Duo plays upright (portrait). The hinge crosses the

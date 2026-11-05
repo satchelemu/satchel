@@ -19,8 +19,11 @@ def prepare(source, destination):
     last = text.index('#include "hle.h"', first)
     text = text[:first] + '// Satchel Horizon service HIPC adapter. See NativeHost/services/README.md.\n' + text[last:]
     text = replace(text, '#include "hle.h"', '#include "hle.h"\n#include "EngineAdapter.inc"')
+    # The engine's own session table goes, and with it the Switch 2 camera session that is built on it
+    # (nn::camera and the applet camera resource, f8a5618d pin): Satchel serves Switch titles only.
     start = text.index('#define SF_H0')
-    end = text.index('HLE_FORCE(', start)
+    end = text.index('HLE_FORCE("_ZN2nn2sf4hipc31InitializeHipcServiceResolutionEv"', start)
+    if text.count('sf_new(') != 4 or 'camera_answer' not in text[start:end]: raise RuntimeError('Service overlay anchor mismatch: engine session table')
     text = text[:start] + '#include "SessionIPC.inc"\n\n' + text[end:]
     bodies = {
         'h_sf_Connect': 'return satchel_session_connect(out, name, dm_bigstack_caller(__builtin_return_address(0)));',
@@ -87,8 +90,8 @@ def prepare_fs(source, destination):
                    'return satchel_fs_sdk_free_space(out, path);')
     text = replace(text, 'fsp-srv; free space of a mount: 256 MB (the host directory has no size limit of its own)',
                    'fsp-srv; available bytes on a registered mount filesystem')
-    text = replace(text, 'h_fs_FlushFile, uint64_t h) { (void)h; return RES_OK; }',
-                   'h_fs_FlushFile, uint64_t h) { return satchel_fs_sdk_flush(h); }')
+    text = replace(text, 'h_fs_FlushFile, uint64_t h) { dm_thread_service_request(); (void)h; return RES_OK; }',
+                   'h_fs_FlushFile, uint64_t h) { dm_thread_service_request(); return satchel_fs_sdk_flush(h); }')
     text = replace(text, 'host writes are already in the page cache, flushing is a no-op',
                    'flush the backing file and propagate failure')
     text = replace(text, 'if (g_nmnt >= MAX_MOUNT) die("mount table full");',

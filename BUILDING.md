@@ -77,6 +77,18 @@ reference root.
 The observed differences are archive metadata, build paths, managed module identifiers
 and reviewed notice/checkpoint changes. This is not bit-for-bit reproducibility.
 
+The bootstrap was repeated on 2026-11-05 for the engine pin move (nxnative `f8a5618d`,
+see "The engine pin" below), into a fresh root from the same caches plus clones of the
+two engine repositories. Every step exited 0, all 19 inputs verified, 125 output files
+with none missing, the same CPU and scalar gate counts, public shader parity passed on
+its 23 requests against the regenerated lock, and the comparison with the previous
+dependency root again found 78 identical files, 44 differing and three absent there.
+The engine it materialized is byte-identical to the snapshot the Mac checks ran against.
+A signed Release device build and the simulator suite were then built from that root
+with the variables listed below; the host build checked 1,329 copied engine source
+files against the snapshot before applying Satchel's overlays. The simulator suite ran
+105 tests with 3 skipped and no failures. Nothing was installed on a phone.
+
 Remaining closure requirements:
 
 - Obtain matching .NET SDK 10.0.403 and fontTools 4.68.0 distribution hashes. Their
@@ -88,8 +100,7 @@ Remaining closure requirements:
   is a build input. See [the tool pin notes](scripts/deps/README.md).
 - Pin the font environment used to generate app fonts. Local validation generates
   host metadata and fonts inside the new root, using an explicitly supplied local
-  Python environment. The 34 recorded engine patches apply without commits; 1,106
-  runtime source files matched the existing engine byte for byte.
+  Python environment. The 29 engine queue patches apply without commits.
 - Complete the unsigned app validation with the fresh root and public proof.
   Use a new `SATCHEL_OUT` for validation so an existing host-archive cache is not reused.
   Set
@@ -153,7 +164,7 @@ named next to it. The pins are the ones the maintainer validated against.
 
 | Dependency | Pin | Expected location | Override |
 |---|---|---|---|
-| NX2Apple / nxnative engine source | commit `bbc3b73784751d2a706932dc69fd67627e3445d4` plus the 34 recorded integration patches | `~/SatchelDeps/NX2Apple/engine` | `SATCHEL_DEPS_ROOT` |
+| nxnative engine source with the NX2Apple fork patches | commit `f8a5618d5f505a4c0a0bcac7c413872d3a53c009` plus the 29 patches of [the tracked queue](scripts/deps/upstream/nxnative-queue/README.md) | `~/SatchelDeps/NX2Apple/engine` | `SATCHEL_DEPS_ROOT` |
 | Interpreter-era libraries (VIXL CPU probe, shader bridge, Vulkan backend, guest graphics) | see each `Tools/*/README.md` | `~/SatchelDeps/tmp-snapshot-2026-11-01/...`, referenced from `project.yml` | `SATCHEL_DEPS_ROOT` through `NativeApp/build.py` |
 | Capstone | 5.0.7 | `~/SatchelBuild/rewriter/capstone-src` | `SATCHEL_CAPSTONE_SOURCE` (otherwise `SATCHEL_BUILD_ROOT`) |
 | OpenSSL for iOS | 3.6.3, static | `~/SatchelBuild/spike/openssl-ios` | `SATCHEL_OPENSSL_IOS` |
@@ -166,6 +177,89 @@ The per-component READMEs under `Tools/` describe how each library was fetched a
 (`Tools/CPUProbe/README.md`, `Tools/MaxwellShaderCompiler/README.md`,
 `Tools/ShaderBridge/README.md`, `Tools/VulkanBackend/README.md`). The bootstrap wraps those recipes rather than duplicating their compiler commands.
 The legacy rename staging mode remains available for historical workflows.
+
+## The engine pin
+
+The native host is built from one engine snapshot: nxnative at the pinned commit with the
+fork patches applied, without commits. `scripts/bootstrap_deps.py` materializes it at
+`<root>/NX2Apple/engine` and records what it applied in
+`<root>/NX2Apple/engine-materialization.json`. `NativeHost/build.py` refuses any other
+commit or patch list, copies the runtime sources, checks every copy against the snapshot,
+and only then applies Satchel's own overlays to the copy. The snapshot is never edited.
+
+| Item | Value | Recorded in |
+|---|---|---|
+| Engine commit | `f8a5618d5f505a4c0a0bcac7c413872d3a53c009` (seedds/nxnative main, 2026-11-05) | `scripts/deps/upstream/nxnative-queue/.upstream-ref`, `scripts/deps/inputs.lock.json`, `PIN` in `NativeHost/build.py` |
+| Fork patches | 29 (25 as published by NX2Apple `8d13135e`, 4 ported) | `scripts/deps/upstream/nxnative-queue/series` and `ports/`, `PATCHES` in `NativeHost/build.py` |
+| Shader chain | `26dc2fa9477c` | `CHAIN` in `NativeHost/build.py`, `shaderChain` in `App/NativeGameProfile.swift` and `App/NativeGameProfiles.json` |
+| Pipeline cache namespace | `f8a5618d-26dc2fa9477c-v2-<GPU>-<OS build>` | `NativeHost/graphics/PipelineSettings.m`, described in `NativeHost/ShaderStalls.md` |
+| Shader implementation identity | `satchel-native-v3-side-26dc2fa9477c-f11ba9f0` | `NativeShaders/ShaderAPI.swift`, `NativeShaders/integration.json` |
+
+Two pins did not move with it, on purpose. The shader translator sources stay at NX2Apple
+`8227f80f` (see `Tools/MaxwellShaderCompiler`), so upstream's later translator fixes reach
+shaders built on a Mac with the engine's own tools but not shaders translated on the
+phone. The on-phone rewriter's reference stays at `bbc3b737`
+(see `Tools/NativeRewriter/README.md`); the new host loads its output unchanged.
+
+### Clean break of 2026-11-05
+
+The pin moved from `bbc3b73784751d2a706932dc69fd67627e3445d4` (34 patches, chain
+`e65a4ebd3322`) to the values above: 265 upstream commits. Nothing is migrated:
+
+- A package prepared with an earlier build is refused, because its manifest records the
+  engine commit, the patch count and the chain. Prepare each game again. Imported game
+  files, keys, saves and per-game settings are not touched.
+- Shader caches start empty. Translated sources, Metal libraries and pipeline archives
+  are keyed by the chain, the implementation identity and the namespace above, so
+  nothing made by the earlier engine is read. First play stutters again until they refill.
+- A Mac-prepared package (format 1) has to be rebuilt with the new engine's tools. The
+  reviewed runtime profiles in `App/NativeRuntimeProfiles.json` were regenerated
+  (`fps_max` is a new key), so an old `profile.tsv` no longer matches either.
+
+### Moving the engine pin
+
+The steps that were needed for the move above, in order. Work in a new folder under
+`~/SatchelBuild` and never edit the snapshot the current main builds from.
+
+1. Clone seedds/nxnative and LNPANDY/NX2Apple outside the checkout. Treat both as data:
+   read them, do not run their scripts from the clone. Pick the engine commit.
+2. Read what changed for a front end. Upstream's `docs/frontends.md` ("Following main")
+   gives the commands; with `A` the old commit and `B` the new one they are
+   `git log A..B --grep='^Front-ends:'`,
+   `git log -p A..B -- docs/frontends.md docs/launcher.schema.json dm/games/settings.tsv`,
+   `git diff A..B -- scripts/build_ipa_from_nsp.py | grep add_argument`,
+   `git diff A..B -- docs/env_switches.tsv` and
+   `git log --oneline A..B -- dm/gfx/nvn/dmsh_chain.h` (the shader chain).
+3. Rebase the patch queue as `scripts/deps/upstream/nxnative-queue/README.md` describes,
+   then update the two rows of `scripts/deps/inputs.lock.json`.
+4. Materialize the snapshot into a fresh root with the bootstrap command above, passing a
+   `--source-cache` folder that holds the two clones as `NX2Apple` and `NX2Apple/engine`.
+5. Update the identities in the table above. The chain is `DMSH_CHAIN` in the snapshot's
+   `dm/gfx/nvn/dmsh_chain.h`. `git grep` the old commit and
+   the old chain to find the test fixtures and check scripts that repeat them.
+6. Rebase Satchel's overlays. `NativeHost/build.py --prepare-only` applies every patch
+   with `patch --fuzz=0` and every text overlay with an exact anchor, and stops at the
+   first one that no longer fits. Fix them one at a time; do not add fuzz.
+7. Review new process-wide state. Every file-scope or function-scope variable the new
+   engine added has to be reset, retired or refused (`EBUSY`) by the session overlays
+   under `NativeHost/session`, or a second game in the same app process inherits it.
+8. Regenerate what is derived from the snapshot:
+   `python3 -B NativeGames/runtime_profiles.py --engine <root>/NX2Apple/engine --write`
+   (reviewed runtime profiles and their hashes),
+   `python3 -B NativeHost/services/inventory.py --engine <root>/NX2Apple/engine`
+   (service coverage tables), and, if lock-covered shader sources changed,
+   `NativeShaders/public-parity-lock.json` through the `--candidate` review in
+   `NativeShaders/PublicParity.md`.
+9. If the engine's shader build tools changed, port the change to `NativeShaders`
+   (the Swift side of the phone pipeline) and bump the implementation identity.
+   `NativeShaders/check-side.py` compares the side library with the engine's own.
+10. Bump the pipeline namespace revision, rebuild, run the checks in
+    [docs/testing.md](docs/testing.md), and document the clean break here and in
+    `README.md`, `ROADMAP.md` and `COMPATIBILITY.md`.
+11. Switch over after the merge: either point `SATCHEL_DEPS_ROOT` (and the variables in
+    "Dependency bootstrap" above) at the new root, or move the new root's
+    `NX2Apple/engine` and `NX2Apple/engine-materialization.json` into place under
+    `~/SatchelDeps` once no build uses the old snapshot.
 
 ## The app build
 

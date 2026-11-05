@@ -27,25 +27,32 @@ def prepare(source, destination, reclaim=True):
                        '    image_desc_drop_pool(pool);\n    satchel_ghost_drop_pool(pool);')
         text = replace(text, 'static nvn_hmap g_ghost = {.klen = 8};',
                        'static nvn_hmap satchel_ghost_pool = {.klen = 8};\nstatic nvn_hmap g_ghost = {.klen = 8};')
+        # SATCHEL_POOL_KEEP: a texture registered again by its serial alone keeps the pool recorded for it.
         text = replace(text, 'static void tex_put(uint64_t k, id o) {',
-                       'static void tex_put(uint64_t k, id o, const void *pool) {')
+                       '#define SATCHEL_POOL_KEEP ((const void *)-1)\nstatic void tex_put(uint64_t k, id o, const void *pool) {')
         text = replace(text, 'hm_del_id(&g_ghost, slot);',
                        'hm_del_id(&g_ghost, slot); nvn_hm_del(&satchel_ghost_pool, slot);')
-        text = replace(text, '    hm_put_id(m, &k, o); g_ser_gen++;',
-                       '    if (m == &g_ghost) { if (pool) nvn_hm_put(&satchel_ghost_pool, &k, (void *)pool); else nvn_hm_del(&satchel_ghost_pool, &k); }\n'
-                       '    hm_put_id(m, &k, o); g_ser_gen++;')
+        text = replace(text, '    hm_put_id(m, &k, o); ser_note(k);',
+                       '    if (m == &g_ghost && pool != SATCHEL_POOL_KEEP) { if (pool) nvn_hm_put(&satchel_ghost_pool, &k, (void *)pool); else nvn_hm_del(&satchel_ghost_pool, &k); }\n'
+                       '    hm_put_id(m, &k, o); ser_note(k);')
         for old, new, count in [('tex_put(t->serial, upgraded)', 'tex_put(t->serial, upgraded, t->pool)', 1),
-                                ('tex_put(t->serial, pk)', 'tex_put(t->serial, pk, t->pool)', 1),
+                                ('tex_put(t->serial, nv)', 'tex_put(t->serial, nv, t->pool)', 1),
+                                ('tex_put(t->serial, pk)', 'tex_put(t->serial, pk, t->pool)', 2),
                                 ('tex_put(t->serial, mt)', 'tex_put(t->serial, mt, t->pool)', 2),
-                                ('tex_put(t->serial, shared)', 'tex_put(t->serial, shared, t->pool)', 1)]:
+                                ('tex_put(t->serial, shared)', 'tex_put(t->serial, shared, t->pool)', 1),
+                                ('tex_put(t->serial, v)', 'tex_put(t->serial, v, t->pool)', 1),
+                                ('tex_put(ser[i], mt)', 'tex_put(ser[i], mt, SATCHEL_POOL_KEEP)', 1)]:
             if text.count(old) != count: raise RuntimeError('Texture ownership anchor mismatch: ' + old)
             text = text.replace(old, new)
+        # Every registration names its pool: a call site this overlay does not know must not compile silently.
+        import re
+        if len(re.findall(r'\btex_put\(', text)) != 10: raise RuntimeError('Texture ownership: unexpected tex_put call count')
         anchor = '// Host record of a packaged texture:'
         text = replace(text, anchor, Path(__file__).with_name('GhostPool.inc').read_text() + '\n' + anchor)
         # Session teardown owns the map allocation too, before scalar restoration.
         if 'int satchel_mtl_session_retire(void)' in text:
-            text = replace(text, '&g_treg_serial, &g_pso_fail, &g_pbase_pending};',
-                           '&g_treg_serial, &g_pso_fail, &g_pbase_pending, &satchel_ghost_pool};')
+            text = replace(text, '&g_treg_serial, &g_pso_fail, &g_pbase_pending, &g_cpu_unc};',
+                           '&g_treg_serial, &g_pso_fail, &g_pbase_pending, &g_cpu_unc, &satchel_ghost_pool};')
         text = replace(text,
             '    for (NSUInteger i = g_arenas.count; i-- > 0;) { NvArena *a = g_arenas[i];',
             '    size_t idle_bytes = 0;\n'

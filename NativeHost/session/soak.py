@@ -139,7 +139,7 @@ def main():
     cache_cancellations = [0]
     cache_waits = []
     from soak_diagnostics import red_templates, red_category
-    templates = red_templates(Path.home() / 'SatchelDeps/NX2Apple/engine')
+    templates = red_templates(Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine')
     red_categories = {}
     unmapped_translations = {title: 0 for title in TITLES}
     cycle_shader_errors = [0] * len(args.titles)

@@ -76,7 +76,7 @@ def validate_proof(work, root=ROOT):
 def run_corpus(work, output):
     spec = importlib.util.spec_from_file_location('translation_build', ROOT / 'NativeShaders/build-translation.py')
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)
-    swift = [ROOT / 'NativeShaders' / (name + '.swift') for name in builder.SOURCES if name != 'TranslationHarness']
+    swift = [ROOT / 'NativeShaders' / (name + '.swift') for name in builder.SOURCES + builder.METRICS if name != 'TranslationHarness']
     aot = work / 'aot/repro/host-publish/SatchelShaderProbe.dylib'
     executable = output / 'public-parity-harness'
     subprocess.run(['xcrun', '--sdk', 'macosx', 'swiftc', '-O', '-j', '2', '-import-objc-header',

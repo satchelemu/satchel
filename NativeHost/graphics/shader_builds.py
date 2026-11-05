@@ -14,7 +14,7 @@ def apply(root, source):
         (r'\[g_dev newRenderPipelineStateWithDescriptor:(\w+) error:(&?\w+)\]',
          r'satchel_render_device(g_dev, \1, \2)', 7),
         (r'\[(g_comp4|ep->comp) newRenderPipelineStateWithDescriptor:(\w+) compilerTaskOptions:(\w+) error:(\w+)\]',
-         r'satchel_render_compile(\1, \2, \3, \4)', 2),
+         r'satchel_render_compile(\1, \2, \3, \4)', 3),   # the third: a pipeline built whole (a pixel shader that reads the primitive ID)
         (r'\[g_comp4 newRenderPipelineStateBySpecializationWithDescriptor:(\w+) pipeline:(\w+) error:(\w+)\]',
          r'satchel_render_specialize(g_comp4, \1, \2, \3)', 1),
     ]

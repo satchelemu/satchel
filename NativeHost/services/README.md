@@ -1,6 +1,6 @@
 # Horizon service coverage
 
-This overlay extends the pinned NX2Apple host at `bbc3b73784751d2a706932dc69fd67627e3445d4`.
+This overlay extends the pinned nxnative host at `f8a5618d5f505a4c0a0bcac7c413872d3a53c009`.
 It follows the session and graphics overlays and never edits the dependency checkout.
 
 ## Coverage and priority

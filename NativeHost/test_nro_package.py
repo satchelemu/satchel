@@ -59,7 +59,7 @@ def main():
     rejected(lambda: package.reviewed_nros(rewrite))
     package.PROFILE = profile
     checker = out / 'verify'; checker.mkdir()
-    source = (root / 'NativeHost/PreparedGame.swift').read_text().split('\nstruct PreparedGameView: View {')[0].replace('import SwiftUI', 'import Foundation')
+    source = (root / 'NativeHost/PreparedGame.swift').read_text().split('\n/// The background time around the package check')[0].split('\nstruct PreparedGameView: View {')[0].replace('import SwiftUI', 'import Foundation')
     for directory in ['documentDirectory', 'applicationSupportDirectory']:
         source = source.replace(f'fm.urls(for: .{directory}, in: .userDomainMask)[0]', 'URL(fileURLWithPath: CommandLine.arguments[3])')
     source += '''

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Exercise pinned AOC count/list, mount routing and DMROMFS1 reading with synthetic bytes."""
+import os
 from pathlib import Path
 import ast
 import runpy
 import subprocess
 import sys
-engine=Path.home()/'SatchelDeps/NX2Apple/engine/dm/host'
+engine=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine/dm/host'
 out=Path(sys.argv[1]); out.mkdir(parents=True,exist_ok=True)
 misc=(engine/'hle_misc.c').read_text()
 aoc=misc[misc.index('static int g_aoc['):misc.index('// The event object')]
@@ -17,7 +18,11 @@ for node in ast.walk(ast.parse(overlay.read_text())):
         for key, value in zip(node.keys, node.values):
             if isinstance(key, ast.Constant) and key.value == 'hle_misc.c':
                 transform = eval(compile(ast.Expression(value), str(overlay), 'eval'), namespace)
-                aoc = transform(aoc)
+                # The transform covers the whole file since the engine pin move (purchase and
+                # stream play events too), so it runs on the whole file and the reset it appends
+                # joins the add-on content slice. The other state it clears is declared below.
+                whole = transform(misc)
+                aoc += whole[whole.rindex('\nint satchel_misc_session_reset(void) {'):]
 fs=(engine/'hle_fs.c').read_text()
 lookup=fs[fs.index('static int aoc_dir('):fs.index('HLE_FORCE("_ZN2nn2fs31QueryMountAddOnContentCacheSize')]
 mount=fs[fs.index('HLE_FORCE("_ZN2nn2fs17MountAddOnContent'):fs.index('// System data archives')]
@@ -28,6 +33,11 @@ source='''#include <assert.h>
 #include <unistd.h>
 static int quiescent = 1;
 static int satchel_session_quiescent(void) { return quiescent; }
+#include <stdatomic.h>
+#include <stdint.h>
+// Stand-ins for the non add-on state the same reset clears (hle_misc.c purchase and stream play events).
+static uint8_t purchase_event[0x80], g_stpl_ev[0x80]; static int satchel_purchase_ready;
+static _Atomic uint32_t g_stpl_styles, g_stpl_hold;
 #include "romfs_image.h"
 #define LOG(...) do { if (0) printf(__VA_ARGS__); } while (0)
 #define HLE_FORCE_BIG(symbol, doc, ret, name, ...) ret name(__VA_ARGS__)

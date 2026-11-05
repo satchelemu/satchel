@@ -45,7 +45,7 @@ static MTL4FunctionDescriptor *function(id<MTLLibrary> library, NSString *name) 
 - (NSInteger)warmVertex:(id<MTLLibrary>)vertex fragment:(id<MTLLibrary>)fragment
             vertexInfo:(NSDictionary *)vj fragmentInfo:(NSDictionary *)fj zero:(BOOL)zero coverage:(BOOL)coverage error:(NSError **)error {
     // The caller supplies the pulling library when reflection declares one.
-    if (![vj[@"chain"] isEqual:@"e65a4ebd3322"] || ![fj[@"chain"] isEqual:@"e65a4ebd3322"]) return 0;
+    if (![vj[@"chain"] isEqual:@"26dc2fa9477c"] || ![fj[@"chain"] isEqual:@"26dc2fa9477c"]) return 0;
     if (![vj[@"pull"] isKindOfClass:NSDictionary.class] && [vj[@"vertex_inputs"] count]) return 0;
     MTL4FunctionDescriptor *vf = function(vertex, zero && vj[@"entry_z"] ? vj[@"entry_z"] : vj[@"entry"]);
     MTL4FunctionDescriptor *ff = function(fragment, fj[@"entry"] ?: @"main0");

@@ -2,7 +2,7 @@
 
 Where Satchel stands and what is left, with a rough completion percentage per area. The
 percentages are the maintainer's judgment of how much of the end state is done and
-verified on the phone, not a count of tasks. Updated 2026-11-04.
+verified on the phone, not a count of tasks. Updated 2026-11-05.
 
 The end state: one sideloaded app. Import any Switch game you own from iCloud, prepare it
 on the phone, and play it with a controller or touch at the frame rate the game expects,
@@ -32,6 +32,27 @@ The simulator UI suite covers import cancellation and restart, system-interrupte
 warm-up, paused-game Resume after backgrounding, and Prepare availability after Quit.
 These synthetic journeys do not replace phone checks of iCloud delivery, native session
 teardown or shader cache reuse. See [the test guide](docs/testing.md).
+
+## Engine update (2026-11-05)
+
+The native engine pin moved from nxnative `bbc3b737` to `f8a5618d`, with the fork patch
+queue now tracked in `scripts/deps/upstream/nxnative-queue` (29 patches). It is built and
+checked on the Mac only. The percentages above were judged on the previous engine and are
+unchanged until the four games are prepared and played again on the phone: every prepared
+package and every shader cache from before the move is invalid by design (see
+[BUILDING.md](BUILDING.md#the-engine-pin)).
+
+Left open by the move:
+
+- The phone's shader translator still follows NX2Apple `8227f80f`. Upstream's translator
+  fixes since then (denormal comparisons, bank selection at run time, storage words read
+  whole, Switch 2 shaders) need that pin to move and `dmsh_build` to be ported again.
+- The on-phone rewriter still reproduces `patch_nso.py` at `bbc3b737`. Upstream's newer
+  tail call and jump table proofs, the frame rate target lookup and Snowdrop's page pools
+  need the differential run on private modules before the port can follow.
+- Upstream's multi-program games, `nn::jit` images, Switch 2 video codec and 120 FPS
+  profiles are compiled in but not offered: the session reset refuses a second game in
+  the same process while one of them is active, and Prepare does not produce their inputs.
 
 ## Help wanted
 

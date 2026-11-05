@@ -73,7 +73,7 @@ assert 'PlayerSettingsViewV4body' in all_symbols, 'Settings view body was not li
 linked = subprocess.check_output(['otool', '-L', app / 'SatchelDev'], text=True)
 assert '/GameController.framework/' in linked
 # Neither the dependency source nor this task's engine copy was mutated by the overlays.
-source_engine = Path.home() / 'SatchelDeps/NX2Apple/engine'
+source_engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 for path, digest in json.loads((OUT / 'engine-source-hashes.json').read_text()).items():
     assert hashlib.sha256((source_engine / path).read_bytes()).hexdigest() == digest
     assert hashlib.sha256((OUT / 'engine' / path).read_bytes()).hexdigest() == digest

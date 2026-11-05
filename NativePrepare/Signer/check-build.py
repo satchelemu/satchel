@@ -42,7 +42,7 @@ assert (app / 'PrepareAssets/zsign-LICENSE.txt').read_bytes() == (root / 'Native
 assert (app / 'PrepareAssets/OpenSSL-LICENSE.txt').read_bytes() == (root / 'NativePrepare/Signer/Vendor/OpenSSL-LICENSE.txt').read_bytes()
 for pattern in ['*.p12', '*.pfx', '*-key.pem', '*.patched.bin', 'romfs.img', 'game.dylib']:
     assert not list(app.rglob(pattern)), pattern
-assert not list(app.rglob('b-e65a4ebd3322'))
+assert not list(app.rglob('b-26dc2fa9477c'))
 for listing in (out / 'DerivedData/Build/Intermediates.noindex').rglob('*.SwiftFileList'):
     for line in listing.read_text().splitlines():
         if '/App/' in line or '/NativeHost/' in line or '/NativePrepare/' in line:

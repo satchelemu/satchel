@@ -1,14 +1,14 @@
 --- a/hle_fs.c
 +++ b/hle_fs.c
-@@ -20,6 +20,7 @@
+@@ -21,6 +21,7 @@
  #include <sys/clonefile.h>
  #include <sys/xattr.h>
  #include "romfs_image.h"
 +#include "RomFSRead.h"
  #include "save_sync.h"
-
+ 
  // Every take-over in this file runs on the big host stack (hle_bigstack.c): path buffers are sized by PATH_MAX and one file open takes 6-7 KB of stack, while a game's save thread can have as little as 8 KB (Super Mario 3D World + Bowser's Fury)
-@@ -768,6 +769,7 @@
+@@ -834,6 +835,7 @@
      satchel_pause_scope prepare_scope = satchel_pause_begin(&prepare_stat, "ReadPrepare", 1);
      dm_guest_write_prepare(buf, sz);   // The destination may be a texture pool page write-protected by the graphics layer: a kernel write to a read-only page returns EFAULT instead of page-faulting, so unprotect and mark dirty first
      satchel_pause_end(&prepare_scope);
@@ -26,16 +26,16 @@
  #include <stdlib.h>
  #include <string.h>
  #include <sys/stat.h>
-@@ -10,7 +11,7 @@
-
- typedef struct { uint64_t a, b; uint32_t name; uint16_t nlen; uint8_t type, pad; } __attribute__((packed)) img_ent;   // directory: a = first child, b = children; file: a = offset, b = size
+@@ -12,7 +13,7 @@
  _Static_assert(sizeof(img_ent) == 24, "RomFS image entry layout");
--typedef struct { int fd; uint64_t n; img_ent *e; const char *names; } romfs_img;
-+typedef struct { int fd; uint64_t n; img_ent *e; const char *names; uint64_t loading_id, loading_size; } romfs_img;
-
+ #define IMG_ENT_DAMAGED 1    // in the image: this file failed the NCA's hash check and was written as read (nx_extract --allow-damaged)
+ #define IMG_ENT_REPORTED 2   // in memory only: the host has named this damaged file in its log
+-typedef struct { int fd; uint64_t n, damaged; img_ent *e; const char *names; } romfs_img;
++typedef struct { int fd; uint64_t n, damaged; img_ent *e; const char *names; uint64_t loading_id, loading_size; } romfs_img;
+ 
  static void romfs_image_close(romfs_img *m) {
      if (m) { close(m->fd); free(m->e); free(m); }
-@@ -36,6 +37,9 @@
+@@ -38,6 +39,9 @@
      if (!n || n > UINT32_MAX || ioff < sizeof h || ioff > (uint64_t)st.st_size || isz != (uint64_t)st.st_size - ioff || isz > SIZE_MAX || n > isz / sizeof(img_ent)) goto bad;
      if (!(m = calloc(1, sizeof *m))) goto bad;
      m->fd = fd;

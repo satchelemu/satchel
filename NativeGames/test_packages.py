@@ -18,6 +18,7 @@ def main():
     OUT = args.out_root; OUT.mkdir(parents=True, exist_ok=True)
     EXE = OUT / 'verify/verify-prepared-package'
     profiles = json.loads(REGISTRY.read_text())
+    reviewed = json.loads((ROOT / 'App/NativeRuntimeProfiles.json').read_text())
     cases = Path(tempfile.mkdtemp(prefix='package-tests-', dir=OUT))
     count = 0
     def check(package, expected=None):
@@ -28,16 +29,18 @@ def main():
     for profile in profiles:
         package = cases / profile['packageName']; package.mkdir()
         files = {name: b'synthetic fixture\n' for name in profile['requiredFiles']}
+        # Without --package-root the runtime profile is the reviewed text itself, so the check does
+        # not depend on a private package built for one engine pin. With it, each real package's
+        # profile.tsv is used, which also shows that the packager wrote the reviewed bytes.
         if args.package_root:
             source = args.package_root / profile['packageName'] / 'profile.tsv'
-        elif profile['titleID'] == '0100BA4026E94000':
-            source = Path.home() / 'SatchelBuild/castlevania/package/Castlevania-1.0.0/profile.tsv'
+            files['profile.tsv'] = source.read_bytes()
         else:
-            source = OUT / 'odyssey-profile.tsv' if profile['titleID'] == '0100000000010000' else Path.home() / 'SatchelBuild/host/package/TOTK-1.4.3/profile.tsv'
+            source = Path.home() / 'SatchelBuild/castlevania/package/Castlevania-1.0.0/profile.tsv'
+            files['profile.tsv'] = reviewed[profile['titleID'] + ':' + profile['version']].encode()
         nros = profile.get('nroBuildIDs', {})
         if nros:
             files['dm/nro.tsv'] = (source.parent / 'dm/nro.tsv').read_bytes()
-        files['profile.tsv'] = source.read_bytes()
         builds = profile['buildIDs'] | nros
         for module in profile['modules'] + list(nros):
             files[f'dm/{module}.fixups.tsv'] = ('# BUILD_ID ' + builds[module] + '\n').encode()
@@ -50,7 +53,7 @@ def main():
         write(manifest); check(package); check(package)  # Full hash, then cached launch.
         (package / 'unbound.metallib').write_text('synthetic')
         check(package, 'Unbound prepared file'); (package / 'unbound.metallib').unlink()
-        for key, value, error in [('titleID', '010000000000FFFF', 'no supported profile'), ('version', '99', 'no supported profile'),
+        for key, value, error in [('titleID', '010000000000FFFF', 'no valid preparation recipe'), ('version', '99', 'no valid preparation recipe'),
                                   ('signingStatus', 'needs signature', 'needs signature'), ('modules', ['sdk', 'main'], 'reviewed profile'),
                                   ('environment', {'DM_SAVE': '/escape'}, 'reviewed profile')]:
             write(dict(manifest, **{key: value})); check(package, error)

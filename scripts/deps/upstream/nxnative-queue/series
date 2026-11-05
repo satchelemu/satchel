@@ -1,0 +1,31 @@
+# Applied in this order onto the commit in .upstream-ref. A name with a file in ports/ uses that file;
+# every other name is the file of the same name in the pinned NX2Apple queue. See README.md.
+0001-runtime-profile.patch
+0003-ios-game-data-folder.patch
+0004-ios-slim-ipa.patch
+0005-nsp-dotnet-home.patch
+0008-bc-cpu-decode.patch
+0009-mac-keymap.patch
+0010-mac-library-folder.patch
+0011-hades2-update-profile.patch
+0012-env-switches-verify.patch
+0014-ios-probe.patch
+0015-fork-docs.patch
+0016-ref-hle-hid-d2r.patch
+0017-fork-patches-stamp.patch
+0018-nsp-dotnet-root-verify.patch
+0024-games-md-gallery.patch
+0031-front-mac-dm-screen.patch
+0032-front-mac-hide-the-pointer-after-a-few-idle-seco.patch
+0033-lint-c-test-without-workflow.patch
+0034-metal-a-newer-compiler-of-the-recorded-generatio.patch
+0037-totk-1.4.2-frame-step-sites.patch
+0042-ios-launcher-present-the-document-picker-once-pe.patch
+0046-route-c-game-framework.patch
+0047-route-c-framework-build.patch
+0048-route-c-framework-tests.patch
+0049-dm-framework-env-switch-row.patch
+0050-route-c-shell.patch
+0051-nsp-shell-framework.patch
+0053-runtime-profile-every-site.patch
+0054-front-mac-start-with-the-pointer-hidden-when-the.patch

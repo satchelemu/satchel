@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "implementation": "satchel-native-v2-geometry-e65a4ebd3322-f11ba9f0",
+  "implementation": "satchel-native-v3-side-26dc2fa9477c-f11ba9f0",
   "swiftSources": [
     "NativeShaders/Text.swift",
     "NativeShaders/ShaderHelpers.swift",

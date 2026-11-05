@@ -10,14 +10,22 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(os.environ['SATCHEL_OUT']).resolve()
 if OUT.is_relative_to(ROOT): raise SystemExit('Outputs must be outside the checkout.')
-source = Path.home() / 'SatchelDeps/NX2Apple/engine'
+source = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 OUT.mkdir(parents=True, exist_ok=True)
 runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
 engine = OUT / 'engine'
 if not engine.exists(): shutil.copytree(source, engine, ignore=shutil.ignore_patterns('.git', 'gen', '__pycache__'), symlinks=True)
-reference = Path.home() / 'SatchelBuild/castlevania/engine/dm/host/gen'
-for name in ['0100BA4026E94000/game_profile.h', 'msl-macosx/host_msl_gen.h']:
-    path = engine / 'dm/host/gen' / name; path.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(reference / name, path)
+# The profile header and the host's own shader header come from this snapshot's tools, since the
+# engine decides which macros the header carries. The profile is the tracked Castlevania one.
+import json
+tools = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
+inputs = Path(os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS', Path.home() / 'SatchelBuild/zelda'))
+generate = runpy.run_path(str(ROOT / 'scripts/switch_native.py'))['tool_environment'](tools)
+generate.update(SATCHEL_METAL_TOOLCHAIN=json.loads((inputs / 'native-toolchain.json').read_text())['metal_toolchain'],
+                GAME='0100BA4026E94000', DM_GAME='0100BA4026E94000', DM_GAMES_FIRST='1',
+                DM_GAMES_DIR=str(ROOT / 'NativeGames/profiles'), TMPDIR=str(OUT / 'tmp'), PYTHONDONTWRITEBYTECODE='1')
+(OUT / 'tmp').mkdir(exist_ok=True)
+subprocess.run(['make', '-j1', 'game_profile', 'host_msl'], cwd=engine / 'dm/host', env=generate, check=True)
 tests = engine / 'dm/gfx/tests'
 env = dict(os.environ, GAME='0100BA4026E94000', MAKEFLAGS='-j2', MTL_DEBUG_LAYER='1')
 # Resolve the installed fixture's exact compile recipe, without rebuilding shaders.

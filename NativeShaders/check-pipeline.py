@@ -22,7 +22,7 @@ _spec=importlib.util.spec_from_file_location("check_translator",Path(__file__).w
 _translator=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_translator)
 native=_translator.native
 ROOT = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5')))
-CORPUS = Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'shaders/package/TOTK-1.4.3-src/msl/b-e65a4ebd3322'
+CORPUS = Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 
 def main():
     parser = argparse.ArgumentParser()

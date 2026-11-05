@@ -37,7 +37,7 @@ the whole package, so this is not a constant-time operation.
 
 ## Runtime behavior
 
-Pinned NX2Apple `bbc3b737` implements `CountAddOnContent` and `ListAddOnContent` in
+The pinned engine (nxnative `f8a5618d`) implements `CountAddOnContent` and `ListAddOnContent` in
 `dm/host/hle_misc.c`. The first query caches numeric indices from `DM_AOC_DIR`; an empty
 result is cached too. Its list-changed event is never signalled. Mounting resolves
 `aoc/<index>.img` through `hle_fs.c`.

@@ -47,6 +47,12 @@ static inline uint4 dm_logic(uint4 s, uint4 d, constant dm_logic_state& l, uint 
     }
     return r & l.mask[n];
 }
+static inline float4 dm_logic_norm(float4 s, float4 d, constant dm_logic_state& l, uint n)
+{
+    if (all(l.mask[n] == uint4(0u))) return s;   // not a normalized target: the operation does not apply
+    float4 scale = float4(l.mask[n]);
+    return float4(dm_logic(uint4(floor(saturate(s) * scale + 0.5f)), uint4(floor(saturate(d) * scale + 0.5f)), l, n)) / scale;
+}
 
 """#
     static let pull = #"""

@@ -5,9 +5,9 @@ import argparse, hashlib, json, os, re, runpy, shlex, shutil, struct, subprocess
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "NativeGames"))
 from registry import profile as reviewed_profile
 from heavy import wait_for_slot
-from build import ENGINE, GAME, OUT, PIN, ZELDA, heavy_guard, run
+from build import ENGINE, GAME, OUT, PATCHES, PIN, ZELDA, heavy_guard, run
 
-CHAIN = 'e65a4ebd3322'
+CHAIN = '26dc2fa9477c'
 MODULES = ['main', 'subsdk0', 'sdk']
 IDENTITY = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'NativeApp/build_support.py'))['mac_signing_identity'](Path(__file__).resolve().parents[1])
 PROFILE = reviewed_profile(GAME, '1.4.3')
@@ -223,7 +223,7 @@ def pack(dylib):
     with romfs.open('rb') as f: assert f.read(8) == b'DMROMFS1', 'Expected composed DMROMFS1 image'
     clone(romfs, package / 'romfs.img')
     files = {str(p.relative_to(package)): {'bytes': p.stat().st_size, 'sha256': digest(p)} for p in sorted(package.rglob('*')) if p.is_file()}
-    manifest = {'format': 1, 'signingStatus': 'signed', 'titleID': GAME, 'version': PROFILE['version'], 'enginePin': PIN, 'forkPatchCount': 34,
+    manifest = {'format': 1, 'signingStatus': 'signed', 'titleID': GAME, 'version': PROFILE['version'], 'enginePin': PIN, 'forkPatchCount': PATCHES,
                 'shaderChain': CHAIN, 'shaderInputs': inputs, 'modules': MODULES,
                 'environment': PROFILE['environment'],
                 'layout': json.loads((OUT / 'container/layout.json').read_text()), 'files': files}

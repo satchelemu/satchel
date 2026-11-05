@@ -81,7 +81,6 @@ static void satchel_mtl_capture_state(void) {
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_c1_alloc_bytes);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_c1_data_bytes);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_c1_count);
-    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_c1_exclusive);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_c1_full_valid);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_pidx);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_pidx_cap);
@@ -617,7 +616,6 @@ static void satchel_mtl_capture_state(void) {
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_pass);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_wmask);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_rmask);
-    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fbc_next);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ixc);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ixc_n);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ixc_epoch);
@@ -694,7 +692,6 @@ static void satchel_mtl_capture_state(void) {
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrb_n);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrb_untracked);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_cut_draw0);
-    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_cut_sub);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_cuts);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_copy_cuts);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_clr_tri);
@@ -749,6 +746,83 @@ static void satchel_mtl_capture_state(void) {
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_snap_n);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, S);
     SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, R);
+    // State the f8a5618d pin added: chunked large pools, placement sparse tiles, the deferred uniform
+    // update memo, learned global memory ranges, same-pass tile reads, mesh runs and the game upscaler.
+    // The serial epochs (g_treg_ep, g_ser_synced, g_gmem_gen) are monotonic generations and persist.
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_big_n);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_nbig);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_rc_pcap);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_rc_ocap);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_rc_on);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gsr);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gsr_n);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_on);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_drw_lo);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_drw_hi);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_drain_sub);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_drain_other);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_wr_geo);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ndrw);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_drw_over);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ubd_bm);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ubd_ver);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ubd_memo);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_ubd_memo_on);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gwx);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gww);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_um);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_snote);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_nsnote);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_free);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_nfree);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_freecap);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_late);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_nlate);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_latecap);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_live);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_peak);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_tl);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_ntl);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_ph);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_phcap);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_phn);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_sp_shared);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_cpu_unc);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_pool_gpuw_new);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_rp_aw);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_rp_ah);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_rp_whole);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_lo);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_hi);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_n);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_stable);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_over);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_logs);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_miss);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_gml_full);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_samples_fb_left);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_dread);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fbc_use);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_tile_draws);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_tile_wait);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_tseq);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_tlmap);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_tdesc);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_fb_tp_n);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mdx_range);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_progpf_loaded);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrbuf_n);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrbuf_bytes);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_up_mfx_next);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_up_mfx_n);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_up_mfx_kept);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrun);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrun_draws);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrun_runs);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mrun_ends);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mtk_n);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_mtk_wait);
+    SATCHEL_STATE(SATCHEL_STATE_GRAPHICS, g_pso_mtk);
 }
 static void satchel_mtl_release_pending(void) {
     // These structs own pipelines and descriptors. Release them before the
@@ -760,6 +834,43 @@ static void satchel_mtl_release_pending(void) {
 }
 static void satchel_mtl_release_strong(void) {
     satchel_mtl_release_pending();
+    // Owners the f8a5618d pin added. Raw allocations inside them go first.
+    SATCHEL_RETIRE_MARK(330);
+    for (unsigned i = 0; i < sizeof g_big / sizeof g_big[0]; i++) { free(g_big[i].chunk); g_big[i] = (typeof(g_big[0])){0}; }
+    SATCHEL_RETIRE_MARK(329);
+    for (unsigned i = 0; i < sizeof g_tb2_gone / sizeof g_tb2_gone[0]; i++) { if (g_tb2_gone[i].v) CFRelease(g_tb2_gone[i].v); g_tb2_gone[i] = (typeof(g_tb2_gone[0])){0}; }
+    SATCHEL_RETIRE_MARK(328);
+    for (unsigned i = 0; i < sizeof g_up_mfx / sizeof g_up_mfx[0]; i++) g_up_mfx[i] = (typeof(g_up_mfx[0])){0};
+    SATCHEL_RETIRE_MARK(327);
+    for (unsigned i = 0; i < sizeof g_dlss / sizeof g_dlss[0]; i++) g_dlss[i] = (typeof(g_dlss[0])){0};
+    SATCHEL_RETIRE_MARK(326);
+    g_dlss_comp = (typeof(g_dlss_comp)){0};
+    SATCHEL_RETIRE_MARK(325);
+    for (unsigned i = 0; i < sizeof g_mrbuf / sizeof g_mrbuf[0]; i++) g_mrbuf[i] = (typeof(g_mrbuf[0])){0};
+    SATCHEL_RETIRE_MARK(324);
+    g_mtk = (typeof(g_mtk)){0};
+    SATCHEL_RETIRE_MARK(323);
+    g_pso_mtk_building = (typeof(g_pso_mtk_building)){0};
+    SATCHEL_RETIRE_MARK(322);
+    g_geo_mesh_runfn = (typeof(g_geo_mesh_runfn)){0};
+    SATCHEL_RETIRE_MARK(321);
+    g_geo_mesh_last = (typeof(g_geo_mesh_last)){0};
+    SATCHEL_RETIRE_MARK(320);
+    for (unsigned i = 0; i < sizeof g_fb_tp / sizeof g_fb_tp[0]; i++) g_fb_tp[i] = (typeof(g_fb_tp[0])){0};
+    SATCHEL_RETIRE_MARK(319);
+    g_fb_tfn = (typeof(g_fb_tfn)){0};
+    SATCHEL_RETIRE_MARK(318);
+    g_gml_free = (typeof(g_gml_free)){0};
+    SATCHEL_RETIRE_MARK(317);
+    g_gmem_buf = (typeof(g_gmem_buf)){0};
+    SATCHEL_RETIRE_MARK(316);
+    g_warm_loads = (typeof(g_warm_loads)){0};
+    SATCHEL_RETIRE_MARK(315);
+    g_progpf_seen = (typeof(g_progpf_seen)){0};
+    SATCHEL_RETIRE_MARK(314);
+    g_sp_heaps = (typeof(g_sp_heaps)){0};
+    SATCHEL_RETIRE_MARK(313);
+    g_ot = (typeof(g_ot)){0};
     SATCHEL_RETIRE_MARK(212);
     g_prefetched_drawable = (typeof(g_prefetched_drawable)){0};
     SATCHEL_RETIRE_MARK(211);

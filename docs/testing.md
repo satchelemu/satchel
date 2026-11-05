@@ -50,6 +50,23 @@ python3 NativeApp/Distribution/test_source.py
 
 The SideStore source generator.
 
+```bash
+python3 -B NativeGames/runtime_profiles.py --engine "$SATCHEL_DEPS_ROOT/NX2Apple/engine"
+```
+
+The reviewed runtime profile texts and their hashes against what the pinned engine
+writes. It needs the engine snapshot and reads only `game.tsv` files. Exit 1 names the
+titles that differ; `--write` is for an engine pin move (see `NativeGames/README.md`).
+
+```bash
+python3 -B NativeShaders/check-side.py --products "$SATCHEL_SHADER_DEPS" --output ~/SatchelBuild/side-check
+```
+
+The alpha test and logic operation side library (`_bx`): the Swift port's source is
+compared byte for byte with the pinned engine's `dmsh_side.unit` for every pixel shader
+of the public synthetic set, and each is compiled with Metal to confirm its `_a` and `_l`
+entry points exist. Needs the engine snapshot and the built shader dependencies.
+
 ## Simulator UI suite
 
 `SatchelNavigation` runs every app screen against synthetic library data in the iOS
@@ -311,8 +328,8 @@ landscape and no input sticks across a change.
 
 ### Picture shape, motion and TV
 
-The game view follows the shape of the picture a game presents
-(`NativeHost/display/picture-shape.patch`); 16:9 games keep their layout. The Duo picture
+The game view follows the shape of the picture a game presents (the pinned engine reports it
+to `front_picture_shape` in `NativeHost/DisplayControls.m`); 16:9 games keep their layout. The Duo picture
 shape setting (`DM_SCREEN_ASPECT`) is hidden for every tested title (`PlayerProfiles.plist`
 `screenAspectTitles` is empty) and each launch gets 0; `NativeHost/display/check.m` covers the
 gate and the taller-picture geometry. Phone motion is on for every game (no `DM_MOTION`

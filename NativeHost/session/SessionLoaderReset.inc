@@ -14,6 +14,9 @@ static void satchel_loader_ranges(module_t *m) {
 // module record for retry. No guest destructor runs after terminal cancellation.
 int satchel_loader_session_reset(void) {
     if (!satchel_session_quiescent()) return EBUSY;
+    // A JIT image layout (nn::jit served from a capture) reserves one region for several
+    // modules. No owner unmaps it yet: refuse, as the nn::jit reset does.
+    if (g_jit_base || g_njit_mod) return EBUSY;
     pthread_rwlock_wrlock(&g_modules_mu);
     int result = 0;
     for (int i = 0; i < g_nmod; i++) {
@@ -35,8 +38,9 @@ int satchel_loader_session_reset(void) {
         free(g_loaded); g_loaded = NULL; g_nloaded = g_mod_capacity = 0;
         free(g_force_hits); g_force_hits = NULL;
         free(g_fidx); g_fidx = NULL; g_fmask = g_nforce = 0; g_force = NULL;
-        g_module_image_mh = NULL; g_module_dir[0] = 0;
+        g_game_image = &_mh_execute_header; g_module_dir[0] = 0;
         g_fps_mod = NULL; dm_fps_state = NULL; satchel_sdk_major = -1;
+        satchel_sdk_ounce = satchel_nvn2_found = -1; satchel_jit_dir_init = 0; satchel_jit_dir[0] = 0;
         memset(g_refused, 0, sizeof g_refused); g_nrefused = 0;
         g_symchk_n = g_symchk_bad = 0;
     }

@@ -23,9 +23,9 @@ for name, sources in [
 # Real transactional save code, killed by the parent at exact commit boundaries.
 import shutil
 import signal
-ENGINE = Path.home() / 'SatchelDeps/NX2Apple/engine'
+ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
-assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 source = runpy.run_path(str(HERE / 'overlay.py'))['prepare'](HOST, OUT / 'overlay')
 (source / 'tests').mkdir(exist_ok=True)
 shutil.copyfile(HOST / 'tests/t_fs_commit_list.c', source / 'tests/t_fs_commit_list.c')

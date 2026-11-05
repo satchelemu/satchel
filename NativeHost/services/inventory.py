@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Reproduce the source inventory from the two local MIT references, without game reads."""
+import os
 from pathlib import Path
 import csv
 import hashlib
@@ -10,11 +11,11 @@ import argparse
 
 HERE = Path(__file__).resolve().parent
 p = argparse.ArgumentParser(description=__doc__)
-p.add_argument('--engine', type=Path, default=Path.home() / 'SatchelDeps/NX2Apple/engine')
+p.add_argument('--engine', type=Path, default=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine')
 p.add_argument('--ryujinx', type=Path, default=Path.home() / 'SatchelDeps/reference/ryujinx-1.3.3')
 p.add_argument('--output', type=Path, default=HERE / 'coverage')
 a = p.parse_args(); a.output.mkdir(parents=True, exist_ok=True)
-PIN = 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+PIN = 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 assert subprocess.check_output(['git', '-C', str(a.engine), 'rev-parse', 'HEAD'], text=True).strip() == PIN
 
 def balanced(text, start, opening='(', closing=')'):

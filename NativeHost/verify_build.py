@@ -2,7 +2,7 @@
 """Check the signed Release artifact without contacting a device."""
 from pathlib import Path
 import fnmatch, json, os, plistlib, runpy, struct, subprocess
-from build import OUT, PIN, ROOT
+from build import CHAIN, OUT, PIN, ROOT
 
 app_name = os.environ.get('SATCHEL_VERIFY_APP', 'SatchelDev')
 bundle_id = os.environ.get('SATCHEL_VERIFY_BUNDLE', 'com.dell.satchel.dev')
@@ -14,7 +14,7 @@ info = plistlib.loads((app / 'Info.plist').read_bytes())
 assert info['CFBundleIdentifier'] == bundle_id
 assert info['CFBundleDisplayName'] == display_name
 assert set(info['UISupportedInterfaceOrientations']) == {'UIInterfaceOrientationLandscapeRight', 'UIInterfaceOrientationLandscapeLeft'}
-assert info['DMCommit'] == PIN[:12] and info['DMChain'] == 'e65a4ebd3322'
+assert info['DMCommit'] == PIN[:12] and info['DMChain'] == CHAIN
 signed = plistlib.loads(subprocess.run(['codesign', '-d', '--entitlements', ':-', app], capture_output=True, check=True).stdout)
 profile = plistlib.loads(subprocess.run(['security', 'cms', '-D', '-i', app / 'embedded.mobileprovision'], capture_output=True, check=True).stdout)
 # The team comes from the artifact itself; the repository holds no team ID.
@@ -58,7 +58,7 @@ symbols = subprocess.check_output(['nm', '-gU', exe], text=True)
 for name in ['_dm_main', '_dm_set_game_image_header', '_SatchelPrepareNativeSession', '_unimpl_stubs', '_front_metal_layer']:
     assert any(line.endswith(' ' + name) for line in symbols.splitlines()), 'Missing linked host symbol ' + name
 assert not list(app.rglob('*.patched.bin')) and not list(app.rglob('romfs.img'))
-assert not list(app.rglob('game.dylib')) and not list(app.rglob('b-e65a4ebd3322'))
+assert not list(app.rglob('game.dylib')) and not list(app.rglob('b-' + CHAIN))
 result = {'status': 'built_signed_verified_not_installed', 'app': str(app), 'configuration': 'Release',
           'bundleID': info['CFBundleIdentifier'], 'displayName': info['CFBundleDisplayName'], 'enginePin': PIN,
           'shaderChain': info['DMChain'], 'team': team, 'signatureEntitlements': signed,

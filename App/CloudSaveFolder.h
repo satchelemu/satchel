@@ -1,5 +1,5 @@
 // iCloud save sync: the folder the player chose in Settings, kept as a security-scoped
-// bookmark. Adapted from nxnative's dm/ios/Sources/CloudSaves.m (MIT, pinned engine
+// bookmark. Adapted from nxnative's dm/ios/Sources/CloudSaves.m (MIT, taken at engine
 // bbc3b737); see NativeHost/THIRD_PARTY.md.
 //
 // The engine's save_sync.c packs one file per game, <folder>/<title ID>/save.dmsync, brings

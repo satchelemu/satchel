@@ -86,6 +86,14 @@ def generate(mode, out):
             sys.path.insert(0, str(ROOT / 'NativeHost'))
             from display_overlay import apply
             apply(ROOT, engine, out, {'SatchelNativeHost': [], 'SatchelNativeGraphics': []})
+            # The engine gamepad reads a compiled profile header. Write it from the pinned engine's
+            # own public profile, as NativeHost/build.py does, instead of expecting a leftover
+            # build folder inside the dependency snapshot (a fresh bootstrap root has none).
+            header = out / 'gen/0100F2C0115B6000/game_profile.h'
+            header.parent.mkdir(parents=True, exist_ok=True)
+            env = {k: v for k, v in os.environ.items() if not k.startswith('DM_')}
+            subprocess.run([sys.executable, '-B', str(engine / 'dm/games/game.py'), 'header', '0100F2C0115B6000', str(header)],
+                           env=dict(env, PYTHONDONTWRITEBYTECODE='1'), check=True, stdout=subprocess.DEVNULL)
         if dev:
             # Exercise the exact controller overlay and native menu with synthetic snapshots.
             import runpy

@@ -5,13 +5,15 @@ import runpy
 HERE = Path(__file__).resolve().parent
 replace = runpy.run_path(str(HERE / 'owners_overlay.py'))['replace']
 FILES = ['hle_cheats.c', 'hle_codec.c', 'hle_glslc.c', 'hle_sdk16.c', 'hle_oe.c', 'hle_sf.c',
-         'hle_misc.c', 'hle_net.c', 'hle_friends.c', 'hle_offline.c', 'hle_swkbd.c', 'hle_fpslock.c', 'hle_time.c', 'hle_uemalloc.c', 'hle_lifecycle.c']
+         'hle_misc.c', 'hle_net.c', 'hle_friends.c', 'hle_offline.c', 'hle_swkbd.c', 'hle_fpslock.c', 'hle_time.c', 'hle_uemalloc.c', 'hle_lifecycle.c',
+         'hle_web.c', 'hle_jit.c', 'hle_codec_video.c']   # the last three: services the f8a5618d pin added
 PREAMBLE = '\n#include "SessionBoundary.h"\n#include "SessionState.h"\n#include "SessionNativeWorkers.h"\n#include <errno.h>\n'
 
 
 def remember(text, declaration, names):
-    return replace(text, declaration, declaration + ' ' + ' '.join(
-        'SATCHEL_STATE(SATCHEL_STATE_SERVICES, ' + n + ');' for n in names.split()))
+    code = ' ' + ' '.join('SATCHEL_STATE(SATCHEL_STATE_SERVICES, ' + n + ');' for n in names.split())
+    if declaration.endswith('\n'): return replace(text, declaration, declaration[:-1] + code + '\n')
+    return replace(text, declaration, declaration + code)
 
 
 def reset(text, name, body):
@@ -68,9 +70,11 @@ def glslc(text):
 def sdk16(text):
     text = replace(text, 'static pthread_once_t font_load_once = PTHREAD_ONCE_INIT;',
                    'static int satchel_font_ready;')
-    assert text.count('pthread_once(&font_load_once, font_load_init);') == 2
-    text = text.replace('pthread_once(&font_load_once, font_load_init);',
-                        'pthread_mutex_lock(&font_mu); if (!satchel_font_ready) { font_load_init(); satchel_font_ready = 1; } pthread_mutex_unlock(&font_mu);')
+    text = replace(text, 'pthread_once(&font_load_once, font_load_init);',
+                   'pthread_mutex_lock(&font_mu); if (!satchel_font_ready) { font_load_init(); satchel_font_ready = 1; } pthread_mutex_unlock(&font_mu);')
+    # The engine's font engine hooks keep the guest's Initialize and GetPointerToWorkBuffer: per game.
+    text = remember(text, 'static void (*init)(void *, void *, unsigned);', 'init')
+    text = remember(text, 'static void *(*get)(void *);', 'get')
     text = remember(text, 'static int std_done, ext_done;', 'std_done ext_done')
     text = replace(text, 'static vsync_event_t *g_vs_events;',
                    'static vsync_event_t *g_vs_events;\nstatic SatchelNativeWorkers satchel_vsync_workers = SATCHEL_NATIVE_WORKERS_INIT;')
@@ -91,15 +95,16 @@ int satchel_sdk16_join(unsigned ms) { return satchel_native_join(&satchel_vsync_
 '''
     return reset(text, 'sdk16', '''    int rc = satchel_native_join(&satchel_vsync_workers, 0); if (rc) return rc;
     if (g_vs_events) return EBUSY;
-    font_t *fonts[] = {&std_f, &ext_f, &small_f};
-    for (unsigned i = 0; i < 3; i++) if (fonts[i]->p) {
+    font_t *fonts[] = {&std_f, &ext_f};
+    for (unsigned i = 0; i < 2; i++) if (fonts[i]->p) {
         if (munmap(fonts[i]->p, fonts[i]->n)) return errno;
         *fonts[i] = (font_t){0};
     }
-    small_done = satchel_font_ready = font_neng = 0;
-    font_load = NULL; font_err = NULL; font_init = NULL; font_fini = NULL;
-    memset(font_eng, 0, sizeof font_eng); memset(g_ev_netclock, 0, sizeof g_ev_netclock);
-    g_nfp_state = 0;
+    satchel_font_ready = 0; font_load = NULL;
+    // The engines and their own buffers were the game's; the host's work buffers go with them.
+    for (int i = 0; i < FONT_ENGINES; i++) free(font_work[i].host);
+    memset(font_work, 0, sizeof font_work); memset(g_ev_netclock, 0, sizeof g_ev_netclock);
+    g_nfp_state = 0; atomic_store(&g_nfc_state, 0); atomic_store(&g_nfp_lib, 0);
     return satchel_native_reset(&satchel_vsync_workers);''')
 
 
@@ -112,7 +117,7 @@ def prepare(host, destination, overrides=None):
         'hle_uemalloc.c': lambda s: simple(s, 'uemalloc', '    if (g_zone) malloc_destroy_zone(g_zone); g_zone = NULL; g_used = g_peak = 0; memset(g_vt, 0, sizeof g_vt); g_what = NULL;'),
         'hle_lifecycle.c': lifecycle,
         'hle_sf.c': lambda s: simple(s, 'sf', '    memset(g_sf, 0, sizeof g_sf);'),
-        'hle_misc.c': lambda s: simple(s, 'misc', '    memset(g_aoc, 0, sizeof g_aoc); g_naoc = -1;'),
+        'hle_misc.c': misc, 'hle_web.c': web, 'hle_jit.c': jit, 'hle_codec_video.c': codec_video,
         'hle_net.c': lambda s: simple(s, 'net', '    g_nifm_hold = 0;'),
         'hle_friends.c': lambda s: simple(s, 'friends', '    memset(g_ev_notify, 0, sizeof g_ev_notify); memset(g_ev_invite, 0, sizeof g_ev_invite);'),
         'hle_offline.c': lambda s: simple(s, 'offline', '    memset(g_ev_ldn, 0, sizeof g_ev_ldn);'),
@@ -139,6 +144,7 @@ def oe(text):
                    'static pthread_mutex_t satchel_oe_mu = PTHREAD_MUTEX_INITIALIZER;\nstatic int satchel_oe_ready;\nstatic void satchel_oe_start(void) { pthread_mutex_lock(&satchel_oe_mu); if (!satchel_oe_ready) { satchel_oe_ready = 1; oe_script_start(); } pthread_mutex_unlock(&satchel_oe_mu); }')
     assert text.count('pthread_once(&g_oe_once, oe_script_start);') == 3
     text = text.replace('pthread_once(&g_oe_once, oe_script_start);', 'satchel_oe_start();')
+    text = remember(text, 'static prog_plan P; static char *tsv;', 'P tsv')
     text = replace(text, '        while (!g_mqn) {',
                    '        while (!g_mqn && !satchel_session_stopping()) {')
     text = replace(text, '        if (h_oe_TryPopMsg(&m)) return m;',
@@ -162,12 +168,65 @@ def simple(text, name, body):
     return reset(text, name, body)
 
 
+def misc(text):
+    # The borrowed purchase event is a kernel event of one session's handle table: bind it again per game.
+    text = replace(text, 'static pthread_once_t purchase_event_once = PTHREAD_ONCE_INIT;',
+                   'static pthread_mutex_t satchel_purchase_mu = PTHREAD_MUTEX_INITIALIZER;\nstatic int satchel_purchase_ready;')
+    text = replace(text, '    pthread_once(&purchase_event_once, bind_purchase_event);',
+                   '    pthread_mutex_lock(&satchel_purchase_mu); if (!satchel_purchase_ready) { bind_purchase_event(); satchel_purchase_ready = 1; } pthread_mutex_unlock(&satchel_purchase_mu);')
+    return reset(text, 'misc', '''    memset(g_aoc, 0, sizeof g_aoc); g_naoc = -1;
+    memset(purchase_event, 0, sizeof purchase_event); satchel_purchase_ready = 0;
+    memset(g_stpl_ev, 0, sizeof g_stpl_ev); atomic_store(&g_stpl_styles, 0); atomic_store(&g_stpl_hold, 0);''')
+
+
+def web(text):
+    # Offline HTML pages (f8a5618d pin). A thread waiting for a page's end leaves on stop.
+    text = replace(text, 'while ((g_web_state == 1 || g_web_state == 2)) pthread_cond_wait(&g_web_cv, &g_web_mu);',
+                   'while ((g_web_state == 1 || g_web_state == 2) && !satchel_session_stopping()) pthread_cond_wait(&g_web_cv, &g_web_mu);')
+    text += '''
+void satchel_web_request_stop(void) { pthread_mutex_lock(&g_web_mu); pthread_cond_broadcast(&g_web_cv); pthread_mutex_unlock(&g_web_mu); }
+'''
+    return reset(text, 'web', '''    pthread_mutex_lock(&g_web_mu);
+    if (g_web_real) front_web_close();   // a page the game left open
+    msg_clear(); g_web_state = g_web_real = g_web_held = 0; g_web_reason = 0; g_web_url[0] = 0;
+    memset(g_ev_web, 0, sizeof g_ev_web);   // the input hold goes with the input reset
+    pthread_mutex_unlock(&g_web_mu);''')
+
+
+def jit(text):
+    # nn::jit (f8a5618d pin) keeps a plugin, its environment and served code. No owner retires
+    # them yet, so a session that used it is not reset: the app then asks for a restart.
+    return reset(text, 'jit', '    if (g_jit_env || g_req || g_nreq || g_out) return EBUSY;')
+
+
+def codec_video(text):
+    # The Switch 2 SDK's video decoders (f8a5618d pin): guest function caches follow the game,
+    # and live decoders, pools or sync events veto the reset, as nn::jit does.
+    declaration = 'static void (*destroy)(void *);'
+    assert text.count(declaration) == 2
+    text = text.replace(declaration, declaration + ' SATCHEL_STATE(SATCHEL_STATE_SERVICES, destroy);')
+    text = remember(text, 'static void (*init)(void *, void *);', 'init')
+    text = remember(text, 'static uint32_t (*tw)(void *);', 'tw')
+    return reset(text, 'codec_video', '''    for (unsigned i = 0; i < sizeof g_cv / sizeof g_cv[0]; i++) if (g_cv[i]) return EBUSY;
+    for (unsigned i = 0; i < sizeof g_cv_pools / sizeof g_cv_pools[0]; i++) if (g_cv_pools[i]) return EBUSY;
+    for (unsigned i = 0; i < sizeof g_spt / sizeof g_spt[0]; i++) if (g_spt[i]) return EBUSY;
+    // Blank native images: their textures were retired with the graphics owner.
+    for (unsigned i = 0; i < BLANK_MAX; i++) { if (g_blank[i].mem && munmap(g_blank[i].mem, g_blank[i].size)) return errno; memset(&g_blank[i], 0, sizeof g_blank[i]); }''')
+
+
 def fpslock(text):
-    text = remember(text, 'static uint8_t *base;', 'base') if text.count('static uint8_t *base;') == 1 else text.replace('static uint8_t *base;', 'static uint8_t *base; SATCHEL_STATE(SATCHEL_STATE_SERVICES, base);')
-    text = remember(text, 'static lock_t ue[3];', 'ue')
-    text = remember(text, 'static const lock_t *rows[NLOCKS + 3];', 'rows')
+    # dynamic_resolution_tick's module base is a function cache. The limiter rows are file state
+    # since the f8a5618d pin (the graphics layer may ask before the first present): reset below.
+    text = remember(text, '    static uint8_t *base;\n', 'base')
     text = remember(text, 'static const char *src;', 'src')
-    return reset(text, 'fpslock', '    memset(&fb, 0, sizeof fb);')
+    text = replace(text, 'static pthread_once_t g_found = PTHREAD_ONCE_INIT;',
+                   'static pthread_mutex_t satchel_found_mu = PTHREAD_MUTEX_INITIALIZER;\nstatic int satchel_found;')
+    assert text.count('pthread_once(&g_found, lock_find);') == 2
+    text = text.replace('pthread_once(&g_found, lock_find);',
+                        'pthread_mutex_lock(&satchel_found_mu); if (!satchel_found) { lock_find(); satchel_found = 1; } pthread_mutex_unlock(&satchel_found_mu);')
+    return reset(text, 'fpslock', '''    memset(&fb, 0, sizeof fb);
+    memset(ue, 0, sizeof ue); memset(&target_lock, 0, sizeof target_lock); memset(rows, 0, sizeof rows);
+    nrow = nier = ue_missing = 0; base = NULL; display = 0; satchel_found = 0;''')
 
 
 def lifecycle(text):

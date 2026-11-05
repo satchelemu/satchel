@@ -1,6 +1,6 @@
 --- a/dm/gfx/nvn/hle_nvn.c
 +++ b/dm/gfx/nvn/hle_nvn.c
-@@ -666,6 +666,19 @@
+@@ -736,6 +736,19 @@
          }
      }
      for (int i = 0; i < 6; i++) free(previous[i]);
@@ -18,5 +18,5 @@
 +        satchel_phone_shader_prefetch(key, o->sd[i].control, controls, (const void *)(uintptr_t)o->sd[i].data, count);
 +    }
      OLOG("ProgramSetShaders %p n=%d data0=%#llx", (void *)p, n, n ? (unsigned long long)sd[0].data : 0ull);
+     mtl_prog_prefetch(o);   // its libraries load in the background now, not at its first draw
      return 1;
- }

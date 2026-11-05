@@ -1,54 +1,121 @@
 --- a/dm/ios/Sources/front_ios.m
 +++ b/dm/ios/Sources/front_ios.m
-@@ -12,6 +12,7 @@
+@@ -14,6 +14,7 @@
  #include "haptics_apple.h"
  #include "save_sync.h"
  #import "CloudSaves.h"
 +#import "DisplayControls.h"
-
- UIView *dm_gamepad_view(CGRect frame);
- void dm_gamepad_reset(void);
-@@ -116,6 +117,7 @@
+ 
+ void dm_gamepad_active(void);
+ #import "DmLayout.h"
+@@ -97,7 +98,6 @@
+ - (void)showFPS:(BOOL)on;
+ @end
+ static DmRootVC *g_root;
+-static CGFloat g_picture_aspect = DM_PICTURE_16_9;   // the presented picture's width / height (front_picture_shape); main thread
+ static void launcher_done(void) { [g_root startGame]; }
+ @implementation DmRootVC
+ - (void)loadView { self.view = [DmRootView new]; }
+@@ -163,7 +163,6 @@
+     self.fill = dm_picture_fill(getenv("DM_PICTURE_FIT"));
+     if (self.fill) LOG("front end: picture Fill (DM_PICTURE_FIT=fill), the 16:9 picture covers the screen in landscape and its edges are cropped");
+     self.view.clipsToBounds = YES;   // with Fill the game view is larger than the screen
+-    self.view.window.traitOverrides.preferredContentSizeCategory = UIContentSizeCategorySmall;   // UIKit draws the in-game menu (GameMenu.swift) in this window: it keeps one compact text size over the game, whatever the system's text size
+     self.game = [[DmGameView alloc] initWithFrame:self.view.bounds];
+     [self.view addSubview:self.game];
+     g_layer = (CAMetalLayer *)self.game.layer;
+@@ -175,6 +174,7 @@
      [self.view addSubview:self.pad];
-     self.fps = front_ios_fps_label();   // above the pad, which hides while a controller is connected
-     if (self.fps) [self.view addSubview:self.fps];
+     const char *fps = getenv("DM_SHOW_FPS");
+     [self showFPS:fps ? atoi(fps) != 0 : [[NSBundle.mainBundle objectForInfoDictionaryKey:@"DMShowFPS"] boolValue]];
 +    SatchelInstallDisplayControls(self.view, self.game, self.pad, self.fps);
      [self.view setNeedsLayout]; [self.view layoutIfNeeded];
      UIApplication.sharedApplication.idleTimerDisabled = YES;
      tv_attach();   // a TV connected while the launcher showed
-@@ -124,9 +126,10 @@
+@@ -183,31 +183,12 @@
  - (void)viewDidLayoutSubviews {
      [super viewDidLayoutSubviews];
      CGRect b = self.view.bounds; if (!self.game) return;
--    if (self.game.superview == self.view) self.game.frame = fit_16_9(b);   // on a TV the TV's view lays it out
+-    CGRect division = CGRectNull;   // an iPhone Duo's fold, as UIKit reports it (iOS 27.1)
+-    NSMutableArray<NSString *> *regionLog = [NSMutableArray array];
+-#if __has_include(<UIKit/UIHingeInteraction.h>)
+-    if (@available(iOS 27.1, *)) {
+-        for (UIViewReservedRegion *region in [self.view reservedRegionsOfKind:UIViewReservedRegionKind.divisionRegionKind options:UIViewReservedRegionQueryOptionsIncludeInactive]) {
+-            [regionLog addObject:[NSString stringWithFormat:@"%@ active=%d", NSStringFromCGRect(region.frame), region.isActive]];
+-            CGRect candidate = dm_horizontal_division(b, region.frame);
+-            if (CGRectIsNull(division) && !CGRectIsNull(candidate)) division = candidate;
+-        }
+-    }
+-#endif
+-    BOOL duoPortrait = b.size.height > b.size.width && (self.hingeStatus != 0 || !CGRectIsNull(division));
+-    UIEdgeInsets gameInsets = dm_game_safe_insets(b, self.view.safeAreaInsets, duoPortrait);
+-    BOOL onTV = self.game.superview != self.view;   // the TV's view lays the picture out; the phone is all pad
+-    DmLayout layout = onTV ? dm_layout_pad_only(b) : dm_layout_picture(dm_layout(b, gameInsets, self.partiallyOpen, division, g_picture_aspect), b, self.fill, g_picture_aspect);
+-    if (!onTV) self.game.frame = layout.game;
+-    layout.topSafeOnly = duoPortrait;
+-    NSString *line = [NSString stringWithFormat:@"%@, hinge %ld%s, divisions %@, picture %@, controls %@", onTV ? @"pad only (picture on the TV)" : layout.separated ? @"split" : self.fill ? @"overlay, Fill" : @"overlay",
+-                      (long)self.hingeStatus, self.partiallyOpen ? " (half open)" : "", regionLog, NSStringFromCGRect(layout.game), NSStringFromCGRect(layout.controls)];
+-    if (![line isEqualToString:self.layoutLog]) { self.layoutLog = line; LOG("front end: layout %s", line.UTF8String); }
++    // Satchel lays the picture and the controls out itself (DisplayControls.m: screen modes, the fold posture and the presented shape), in place of DmLayout.h's regions.
 +    SatchelDisplayDidLayout();
 +    if (self.game.superview == self.view) SatchelLayoutGameView(self.game, b);   // on a TV the TV's view lays it out
+     self.pad.frame = b;
+-    dm_gamepad_arrange(self.pad, layout);
      if (self.fps) {   // the top row's free stretch: right of DmGamepad.m's L3 key (102 + 17 of its units from the safe edge), level with − / + (22 units down); u is its unit
--        CGRect s = UIEdgeInsetsInsetRect(b, self.view.safeAreaInsets); CGFloat u = MIN(b.size.height / 430.0, 1.3);
+-        CGRect s = CGRectIntersection(layout.controls, UIEdgeInsetsInsetRect(b, gameInsets));
+-        CGFloat u = layout.separated ? MIN(MIN(s.size.height / 430.0, s.size.width / 700.0), 1.3) : MIN(b.size.height / 430.0, 1.3);
 +        CGRect s = SatchelInteractiveBounds(self.view, b); CGFloat u = MIN(b.size.height / 430.0, 1.3);
          self.fps.frame = CGRectMake(floor(CGRectGetMinX(s) + 130 * u), floor(CGRectGetMinY(s) + 22 * u - 11), 64, 22);
      }
  }
-@@ -160,6 +163,7 @@
+@@ -241,16 +222,17 @@
+ @end
+ @implementation DmTVVC
+ - (void)viewDidLoad { [super viewDidLoad]; self.view.backgroundColor = UIColor.blackColor; }
+-- (void)viewDidLayoutSubviews { [super viewDidLayoutSubviews]; for (UIView *v in self.view.subviews) v.frame = dm_aspect_fit(self.view.bounds, g_picture_aspect); }
++- (void)viewDidLayoutSubviews { [super viewDidLayoutSubviews]; for (UIView *v in self.view.subviews) v.frame = dm_aspect_fit(self.view.bounds, SatchelPictureAspect()); }
+ @end
  static UIWindow *g_tv; static int g_tv_mode_was = -1;
  static void tv_attach(void) {
      DmGameView *v = g_root.game; if (!g_tv || !v || v.superview == g_tv.rootViewController.view) return;
-+    v.transform = CGAffineTransformIdentity; v.layer.mask = nil;
-     [g_tv.rootViewController.view addSubview:v]; [g_tv.rootViewController.view setNeedsLayout];
      // at most 1080p: the game renders 1080p docked, and a 4K drawable only adds an upscale and a 4K stream (an AirPlay TV showed black, the GPU went from 15 to 60 ms a frame).
-     // Taken from the 16:9 picture, not the screen, so a display of another shape still gets the full 1920 pixels across the picture
+     // Taken from the picture, not the screen, so a display of another shape still gets the full 1920 pixels across the picture (DmGameView layoutSubviews applies it)
++    v.transform = CGAffineTransformIdentity; v.layer.mask = nil;
+     v.maxPixelWidth = 1920;
+     [g_tv.rootViewController.view addSubview:v]; [g_tv.rootViewController.view setNeedsLayout]; [g_root.view setNeedsLayout];   // the phone's pad takes the whole screen
+-    CGRect f = dm_aspect_fit(g_tv.bounds, g_picture_aspect); CGFloat scale = MIN(g_tv.windowScene.screen.nativeScale, 1920.0 / MAX(f.size.width, 1));
++    CGRect f = dm_aspect_fit(g_tv.bounds, SatchelPictureAspect()); CGFloat scale = MIN(g_tv.windowScene.screen.nativeScale, 1920.0 / MAX(f.size.width, 1));
+     if (g_tv_mode_was < 0) g_tv_mode_was = dm_opmode();
+     dm_set_opmode(1); dm_gamepad_opmode_changed();
+     LOG("front end: TV connected (%.0fx%.0f points), the picture moves there at %.0fx%.0f, console mode", g_tv.bounds.size.width, g_tv.bounds.size.height, f.size.width * scale, f.size.height * scale);
+@@ -260,15 +242,6 @@
+     if (v && v.superview != g_root.view) { [g_root.view insertSubview:v atIndex:0]; [g_root.view setNeedsLayout]; }
+     if (g_tv_mode_was >= 0) { dm_set_opmode(g_tv_mode_was); g_tv_mode_was = -1; dm_gamepad_opmode_changed(); }
+     LOG("front end: TV disconnected, the picture is back on the phone");
+-}
+-void front_picture_shape(int w, int h) {   // front.h: the views take the presented picture's shape (a taller one under DM_SCREEN_ASPECT) instead of 16:9
+-    if (w <= 0 || h <= 0) return;
+-    CGFloat a = (CGFloat)w / h;
+-    dispatch_async(dispatch_get_main_queue(), ^{
+-        if (a == g_picture_aspect) return;
+-        g_picture_aspect = a; LOG("front end: picture shape %dx%d, the game's view follows it", w, h);
+-        [g_root.view setNeedsLayout]; if (g_tv) [g_tv.rootViewController.view setNeedsLayout];
+-    });
+ }
+ 
+ // The settings the in-game menu offers (GameMenu.swift, from the gamepad's menu button), each taking effect while the game runs; the launcher's other settings need the next start.
 --- a/dm/ios/Sources/DmGamepad.m
 +++ b/dm/ios/Sources/DmGamepad.m
-@@ -27,6 +27,8 @@
+@@ -28,6 +28,8 @@
  #include "motion_fusion.h"
  #include "pad_apple.h"
  #include "pad_slots.h"
 +#import "DisplayControls.h"
 +#import "InGameMenu.h"
  #include <stdatomic.h>
-
- enum { B_A = 0, B_B, B_X, B_Y, B_LS, B_RS, B_L, B_R, B_ZL, B_ZR, B_PLUS, B_MINUS, B_LEFT, B_UP, B_RIGHT, B_DOWN, B_N };
-@@ -37,7 +39,8 @@
+ #import "DmLayout.h"
+ #import "DmGameMenu.h"
+@@ -40,7 +42,8 @@
  static int32_t g_touch_lx, g_touch_ly, g_touch_rx, g_touch_ry;
  static void publish(void) {   // the touch gamepad and the shake; the host ORs them with player 1's controller and takes whichever stick is deflected more (hle_hid.c)
      pthread_mutex_lock(&g_mu);
@@ -57,8 +124,8 @@
 +    else dm_input_set(g_touch_btn | g_shake_btn, g_touch_lx, g_touch_ly, g_touch_rx, g_touch_ry);
      pthread_mutex_unlock(&g_mu);
  }
-
-@@ -109,7 +112,6 @@
+ 
+@@ -112,7 +115,6 @@
      K_ZL_X = 44, K_ZL_Y = 40, K_ZL_R = 26,          // ZL / ZR: centre from the outer edge and the top, radius
      K_L_X = 44, K_L_Y = 108, K_L_R = 24,            // L / R: same column as ZL / ZR
      K_DROP_TIP = 1.45,                              // teardrop tip distance from the centre (times the radius)
@@ -66,74 +133,80 @@
      K_FACE_X = 81, K_PAD_Y = 82,                    // diamond centre from the outer edge; diamond and stick centre from the bottom (B's lower edge about 5 above it)
      K_FACE_GAP = 50, K_FACE_R = 27,                 // diamond: key distance from the centre, key radius
      K_PILL_DX = 52, K_PILL_Y = 22, K_PILL_W = 50, K_PILL_H = 28,   // − / +: centre from the screen's midline (the middle goes to the layout button) and from the top, size
-@@ -223,9 +225,11 @@
+@@ -212,7 +214,7 @@
+         _menu.backgroundColor = k_idle; _menu.layer.borderColor = k_line.CGColor; _menu.layer.borderWidth = 1.5;
+         _menu.layer.shadowColor = UIColor.blackColor.CGColor; _menu.layer.shadowOpacity = 0.2; _menu.layer.shadowRadius = 3; _menu.layer.shadowOffset = CGSizeMake(0, 1);
+         _menu.tintColor = k_text; _menu.accessibilityLabel = @"Menu";
+-        _menu.menu = CFBridgingRelease(dm_game_menu()); _menu.showsMenuAsPrimaryAction = YES;
++        _menu.hidden = YES;   // Satchel has its own pause button and in-game menu (DisplayControls.m, InGameMenu.m); the engine's GameMenu.swift is not built
+         __weak DmGamepad *weakSelf = self;
+         [_menu addAction:[UIAction actionWithHandler:^(UIAction *a) { (void)a; [weakSelf reset]; }] forControlEvents:UIControlEventMenuActionTriggered];   // the menu opens: release every key and touch first
+         [self addSubview:_menu];
+@@ -261,9 +263,12 @@
+     _layout = layout;
+     [self setNeedsLayout];
  }
-
- // ---- Layout (points; computed inside the safe area) ----
--- (CGRect)safe { return UIEdgeInsetsInsetRect(self.bounds, self.safeAreaInsets); }
--- (CGRect)corner { UIEdgeInsets i = self.safeAreaInsets; i.left *= K_CORNER_IN; i.right *= K_CORNER_IN; return UIEdgeInsetsInsetRect(self.bounds, i); }   // the rectangle the bottom-corner controls use
--- (CGFloat)u { return MIN(self.bounds.size.height / 430.0, 1.3); }   // 1 = 430 points tall (iPhone Pro Max landscape)
+-- (CGRect)safe { return CGRectIntersection(_layout.controls, UIEdgeInsetsInsetRect(self.bounds, dm_game_safe_insets(self.bounds, self.safeAreaInsets, _layout.topSafeOnly))); }
+-- (CGRect)corner { if (_layout.separated) return self.safe; UIEdgeInsets i = self.safeAreaInsets; i.left *= K_CORNER_IN; i.right *= K_CORNER_IN; return UIEdgeInsetsInsetRect(self.bounds, i); }   // the rectangle the bottom-corner controls use
+-- (CGFloat)u { if (_layout.separated) { CGRect s = self.safe; return MIN(MIN(s.size.height / 430.0, s.size.width / 700.0), 1.3); } return MIN(self.bounds.size.height / 430.0, 1.3); }   // 1 = 430 points tall (iPhone Pro Max landscape)
++// Satchel lays the controls out in its own regions (DisplayControls.m), not in _layout: the fold posture, the interactive margins and the player's touch size.
 +- (CGRect)safe {
 +    return CGRectInset(SatchelInteractiveBounds(self, SatchelControlBounds(self.bounds)), 8, 0);
 +}
 +- (CGRect)corner { return self.safe; }   // the rectangle the bottom-corner controls use
 +- (CGFloat)u { CGRect b = self.safe; return MIN(MIN(b.size.height / 430.0, 1.3) * SatchelTouchSize(), MIN(b.size.height / 330.0, b.size.width / 650.0)); }   // 1 = 430 points tall (iPhone Pro Max landscape)
  static CGPoint side(CGRect s, int right, CGFloat dx, CGFloat y) { return CGPointMake(right ? CGRectGetMaxX(s) - dx : CGRectGetMinX(s) + dx, y); }
- - (CGPoint)faceCenter { CGRect s = self.corner; CGFloat u = self.u; return side(s, 1, K_FACE_X * u, CGRectGetMaxY(s) - K_PAD_Y * u); }
- - (CGFloat)faceGap { return K_FACE_GAP * self.u; }
-@@ -235,7 +239,7 @@
- - (CGPoint)stickHome { CGRect s = self.corner; return side(s, 0, K_STICK_X * self.u, CGRectGetMaxY(s) - K_PAD_Y * self.u); }   // the left stick's ring centre
+ - (BOOL)portraitControls { return _layout.separated && self.bounds.size.height > self.bounds.size.width; }
+ - (CGPoint)portraitThumbCenter:(BOOL)right {
+@@ -291,7 +296,7 @@
+ }
  - (CGPoint)stickCentre:(int)i { return i ? _rCentre : self.stickHome; }
  - (CGFloat)stickR:(int)i { return (i ? K_RSTICK_R : K_STICK_R) * self.u; }
--- (BOOL)inRightArea:(CGPoint)p { CGRect b = self.bounds; return p.x >= CGRectGetMaxX(b) - b.size.width * K_RSWIPE; }
+-- (BOOL)inRightArea:(CGPoint)p { CGRect b = _layout.controls; return p.x >= CGRectGetMaxX(b) - b.size.width * K_RSWIPE; }
 +- (BOOL)inRightArea:(CGPoint)p { CGRect b = SatchelControlBounds(self.bounds); return CGRectContainsPoint(b, p) && p.x >= CGRectGetMaxX(b) - b.size.width * K_RSWIPE; }
- - (CGPoint)dpadCenter { CGRect s = self.corner; CGFloat u = self.u; return side(s, 0, K_LOW_X * u, CGRectGetMaxY(s) - K_LOW_Y * u); }
- - (CGFloat)dpadR { return K_DPAD_R * self.u; }
- static BOOL isDrop(int b) { return b == B_ZL || b == B_L || b == B_ZR || b == B_R; }
-@@ -301,7 +305,7 @@
-     BOOL changed = face != _faceBits || dpad != _dpadBits || btn != _btnBits || swap != _swapHeld;
+ - (CGPoint)dpadCenter {
+     if (self.portraitControls) {
+         CGPoint p = [self portraitThumbCenter:NO];
+@@ -383,7 +388,7 @@
+     BOOL changed = face != _faceBits || dpad != _dpadBits || btn != _btnBits;
      uint64_t pressed = (face | dpad | btn) & ~(_faceBits | _dpadBits | _btnBits);
      unsigned gripping = (_stick[0] ? 1u : 0) | (_stick[1] ? 2u : 0);
--    if (pressed || (swap && !_swapHeld) || (gripping & ~_hapticSticks)) {
-+    if (SatchelMenuHaptics() && (pressed || (swap && !_swapHeld) || (gripping & ~_hapticSticks))) {
+-    if (pressed || (gripping & ~_hapticSticks)) {
++    if (SatchelMenuHaptics() && (pressed || (gripping & ~_hapticSticks))) {
          [_touchFeedback impactOccurredWithIntensity:0.6]; [_touchFeedback prepare];
      }
      _hapticSticks = gripping;
-@@ -314,25 +318,23 @@
+@@ -396,16 +401,16 @@
      if (changed || stick || _stickShown) [self refresh];   // also refresh on the stick release so the knob returns to the centre
      _stickShown = stick;
  }
--// Touches no control takes (all of them while a physical controller is connected) go to the game's touch screen, normalized on the 16:9 picture that front_ios.m
--// centres in the screen: Super Mario Galaxy's pointer in handheld mode (profile op_mode). The host reports them only in handheld mode, as on the Switch (hle_hid.c touch_read)
+-// Touches no control takes go to the game's touch screen, normalized on front_ios.m's actual 16:9 viewport (including portrait and tabletop splits, and the cropped Fill picture): Super Mario Galaxy's pointer in handheld mode (profile op_mode). The host reports them only in handheld mode, as on the Switch (hle_hid.c touch_read)
 +// Unclaimed touches use the same picture rectangle as the front end, including half-fold regions.
  - (void)pushGame {
--    CGRect b = self.bounds; CGFloat w = b.size.width, h = b.size.height;
--    if (w <= 0 || h <= 0) return;
--    if (w / h > 16.0 / 9.0) w = h * 16.0 / 9.0; else h = w * 9.0 / 16.0;
--    CGFloat x0 = (b.size.width - w) / 2, y0 = (b.size.height - h) / 2;
+-    CGRect b = _layout.game;
+-    if (b.size.width <= 0 || b.size.height <= 0) { dm_touch_set(NULL, 0); return; }
 +    CGRect picture = SatchelCurrentPictureRect(SatchelGameBounds(self.bounds));
 +    if (picture.size.width <= 0 || picture.size.height <= 0) return;
      dm_touch t[16]; int n = 0;
      for (int i = 0; i < 16; i++) if (_game[i]) {
--        CGPoint p = [_game[i] locationInView:self];
--        t[n++] = (dm_touch){(uint32_t)i, (float)fmin(fmax((p.x - x0) / w, 0), 0.999), (float)fmin(fmax((p.y - y0) / h, 0), 0.999)};
--    }
--    dm_touch_set(t, n);
+-        CGPoint p = dm_game_touch_point(b, [_game[i] locationInView:self]);   // with Fill the game rectangle is larger than the view (DmLayout.h)
 +        CGPoint p = SatchelPictureTouch([_game[i] locationInView:self], picture);
-+        t[n++] = (dm_touch){(uint32_t)i, (float)p.x, (float)p.y};
-+    }
+         t[n++] = (dm_touch){(uint32_t)i, (float)p.x, (float)p.y};
+     }
+-    dm_touch_set(t, n);
 +    dm_touch_set(t, SatchelMenuBlocksInput() ? 0 : n);
  }
  - (BOOL)gameBegin:(UITouch *)t {
-     for (int i = 0; i < 16; i++) if (!_game[i]) { _game[i] = t; [_owner setObject:@(C_GAME | (uint64_t)i << 8) forKey:t]; return YES; }
-     return NO;
+     if (CGRectIsEmpty(_layout.game) || (_layout.separated && !CGRectContainsPoint(_layout.game, [t locationInView:self]))) return NO;
+@@ -429,6 +434,7 @@
+     return v == self && front_web_touch() && ![self controlAt:p] ? nil : v;
  }
  - (void)touchesBegan:(NSSet<UITouch *> *)ts withEvent:(UIEvent *)e {
 +    if (SatchelMenuBlocksInput()) return;
      BOOL game = NO;
      for (UITouch *t in ts) {
          if (_padOff) { game |= [self gameBegin:t]; continue; }
-@@ -355,6 +357,7 @@
+@@ -452,6 +458,7 @@
      [self recompute];
  }
  - (void)touchesMoved:(NSSet<UITouch *> *)ts withEvent:(UIEvent *)e {
@@ -141,15 +214,15 @@
      BOOL game = NO;
      for (UITouch *t in ts) {
          uint64_t v = [_owner objectForKey:t].unsignedLongLongValue; int c = (int)(v & 0xff); CGPoint p = [t locationInView:self];
-@@ -419,6 +422,7 @@
-     CGFloat u = self.u;
-     [CATransaction begin]; [CATransaction setDisableActions:YES];
+@@ -518,6 +525,7 @@
+         _label[b].contentsScale = scale; [_label[b] setNeedsDisplay];
+     }
      _controls.frame = self.layer.bounds;
 +    _controls.opacity = SatchelTouchOpacity();
      for (int b = B_A; b <= B_Y; b++) { CGPoint c = [self facePos:b]; setPath(_key[b], circlePath(c, self.faceR)); placeLabel(_label[b], c, 20 * u); }
      for (int i = 0; i < (int)(sizeof k_btns / sizeof *k_btns); i++) { int b = k_btns[i];
          if (isDrop(b)) {
-@@ -465,6 +469,7 @@
+@@ -566,6 +574,7 @@
  static int32_t axis(float v) { return (int32_t)(fmaxf(-1.f, fminf(1.f, v)) * 32767); }
  static void read_pad(GCExtendedGamepad *g) {
      int p = g_merge ? 0 : pad_slot_of(&g_slots, (__bridge const void *)g.controller); if (p < 0) return;
@@ -157,7 +230,7 @@
      dm_haptics_apple_controller(p, g.controller);
      _Static_assert(DM_BTN_A == 1u << B_A && DM_BTN_B == 1u << B_B && DM_BTN_X == 1u << B_X && DM_BTN_Y == 1u << B_Y, "face button bits");
      uint64_t m = dm_pad_face(g);   // by position, a Nintendo pad by its labels
-@@ -536,3 +541,8 @@
+@@ -643,3 +652,14 @@
      if (g_merge) dm_pad_set(0, 0, 0, 0, 0);
      else for (int p = 0; p < DM_PLAYERS; p++) if (g_held[p]) dm_pad_set_player(p, 0, 0, 0, 0, 0);
  }
@@ -165,10 +238,16 @@
 +// Display-mode changes reproject game touches without releasing controls. Main thread only.
 +void dm_gamepad_reproject(void) { [g_view pushGame]; }
 +
-+void dm_gamepad_next_layout(void) { [g_view nextLayout]; }
++// Satchel's menu steps through the layouts the engine offers now (2D, 3D, and Tap in handheld mode), as the former layout button did.
++void dm_gamepad_next_layout(void) {
++    if (!g_view) return;
++    int l = [g_view padLayout];
++    do l = (l + 1) % 3; while (!dm_pad_layout_offered(l));
++    [g_view setPadLayout:l];
++}
 --- a/dm/host/hle_hid.c
 +++ b/dm/host/hle_hid.c
-@@ -217,6 +217,10 @@
+@@ -235,6 +235,10 @@
                  size_t n = strlen(line); if (!n || line[n - 1] != '\n') break;   // a line still being written: read it next time
                  off += (long)n; line[--n] = 0; if (n && line[n - 1] == '\r') line[--n] = 0;
                  if (!n || line[0] == '#') continue;
@@ -177,9 +256,9 @@
 +                if (satchel_display_command(line)) continue;
 +#endif
                  if (!strcmp(line, "dump")) { crash_dump_now("DM_CTL dump"); continue; }
-                 if (!strncmp(line, "shot ", 5)) { dm_gfx_shot_at(1, line + 5); LOG("DM_CTL: screenshot of the next frame → %s", line + 5); continue; }
-                 if (!strncmp(line, "texlist ", 8)) { void dm_gfx_texlist(int target); dm_gfx_texlist(atoi(line + 8)); continue; }
-@@ -229,6 +233,10 @@
+                 if (!strncmp(line, "program ", 8)) { void dm_oe_execute(int index, const void *param, size_t n); LOG("DM_CTL: oe::ExecuteProgram(%d)", atoi(line + 8)); dm_oe_execute(atoi(line + 8), NULL, 0); continue; }
+                 if (!strncmp(line, "webshot ", 8)) { void front_web_shot(const char *path); front_web_shot(line + 8); continue; }
+@@ -250,6 +254,10 @@
                  if (!strncmp(line, "env ", 4)) { char *eq = strchr(line + 4, '='); if (eq) { *eq = 0; setenv(line + 4, eq + 1, 1); LOG("DM_CTL: env %s=%s", line + 4, eq + 1); } continue; }
                  if (!strncmp(line, "texdump ", 8)) { void dm_gfx_texdump_next(const char *path); dm_gfx_texdump_next(line + 8); LOG("DM_CTL: colour targets of the next frame → %s (as DM_NVN_TEXDUMP)", line + 8); continue; }
                  if (!strncmp(line, "passdump ", 9)) { void dm_gfx_passdump_next(long n); dm_gfx_passdump_next(atol(line + 9)); LOG("DM_CTL: passes of the next %ld frames (as DM_NVN_PASSDUMP)", atol(line + 9)); continue; }
@@ -190,7 +269,7 @@
                  if (!strncmp(line, "drag ", 5)) {   // one finger, a step every 8 ms
                      float x0, y0, x1, y1, s = 0.3f; if (sscanf(line + 5, "%f %f %f %f %f", &x0, &y0, &x1, &y1, &s) < 4) { LOG("[RED] DM_CTL drag wants x0 y0 x1 y1 [seconds]"); continue; }
                      int n = (int)(s / 0.008f); if (n < 2) n = 2;
-@@ -236,6 +244,10 @@
+@@ -257,6 +265,10 @@
                      for (int i = 0; i <= n; i++) { dm_touch t = {0, x0 + (x1 - x0) * (float)i / (float)n, y0 + (y1 - y0) * (float)i / (float)n}; dm_touch_script(&t, 1); usleep((useconds_t)(s * 1e6f / (float)n)); }
                      dm_touch_script(NULL, 0); continue;
                  }
@@ -203,7 +282,7 @@
                  LOG("DM_CTL: press %#llx (hold %.2f s)", (unsigned long long)st.btn, st.hold);
 --- a/dm/host/hle_audio.c
 +++ b/dm/host/hle_audio.c
-@@ -108,6 +108,11 @@
+@@ -115,6 +115,11 @@
              a->pos = 0; released = 1;
          }
      }
@@ -217,16 +296,16 @@
          float v; memcpy(&v, &vb, 4);
 --- a/dm/gfx/nvn/hle_nvn.c
 +++ b/dm/gfx/nvn/hle_nvn.c
-@@ -1632,13 +1632,17 @@
-     pthread_mutex_unlock(&mu);
-     return result;
+@@ -1779,13 +1779,17 @@
+     atomic_store(&g_high_cap, cap);
+     if (!link_env) mtl_link_mode_set(ok ? 2 : 1);
  }
 +static _Atomic int g_thermal_limited;
 +// UI telemetry only. Sampled by the engine, including its 30-second cool-down latch.
 +int nvn_thermal_limited(void) { return atomic_load(&g_thermal_limited); }
  static int fps_step_cap(void) {
--    if (!dm_fps_state) return 0;
-+    if (!dm_fps_state) { atomic_store(&g_thermal_limited, 0); return 0; }
+-    if (!dm_fps_state) return fps_high() ? atomic_load(&g_high_cap) : 0;
++    if (!dm_fps_state) { atomic_store(&g_thermal_limited, 0); return fps_high() ? atomic_load(&g_high_cap) : 0; }
      uint32_t b = __atomic_load_n((uint32_t *)dm_fps_state, __ATOMIC_RELAXED); float t; memcpy(&t, &b, sizeof t);
 -    if (t <= 0) return 0;
 +    if (t <= 0) { atomic_store(&g_thermal_limited, 0); return 0; }

@@ -129,6 +129,33 @@ and timed prepared-game cycles reuse the menu teardown and write per-visit telem
 [The phone procedure](docs/phone-cycle.md) is ready for orchestrator validation;
 these controls do not establish a new phone stability result.
 
+## Engine update of 2026-11-05: prepare your games again
+
+The native engine moved from nxnative `bbc3b737` to `f8a5618d` (265 upstream commits,
+shader chain `26dc2fa9477c`). This build has been compiled and checked on the Mac. It has
+not been installed or played on a phone yet, so every result under "What works today" was
+measured with the previous engine.
+
+It is a clean break. After installing a build with this engine:
+
+- Run Prepare again for every game. A package made by an earlier build is refused,
+  because it records the engine it was made for. Your imported game files, keys, saves
+  and per-game settings stay as they are.
+- Expect first-play stutter again. Translated shaders and pipeline caches are kept per
+  engine, so every game refills its caches the first time it is played.
+
+What the new engine brings, as far as it reaches Satchel: one Metal compile for a pixel
+shader's alpha test and logic operation entry points instead of two, lower submit-thread
+CPU cost (remembered uniform lookups, cached program facts), large memory pools and sparse
+textures mapped only as far as a game uses them, render passes that continue when a game
+names the same targets again, AV1 movies through a bundled decoder, the screen capture
+services that Super Smash Bros. Ultimate needs to start a match, Bluetooth LE and
+purchase-notification calls answered offline, SDK 19 file system calls, and several
+texture format fixes (RGBA4 channel order, sRGB and linear twins, compressible pools).
+Upstream's shader translator fixes are not part of it on the phone, because the phone's
+translator keeps its own pin. The details and the steps for the next move are in
+[BUILDING.md](BUILDING.md#the-engine-pin).
+
 ## How it works
 
 The route follows [NX2Apple](https://github.com/LNPANDY/NX2Apple) and nxnative (MIT):

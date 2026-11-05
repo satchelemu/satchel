@@ -46,7 +46,7 @@ int satchel_dirty_session_reset(void) {
     }
     for (int b = 0; b < NBLK; b++) {
         range_t *block = atomic_load(&g_blk[b]); if (!block) continue;
-        for (int i = 0; i < BLK; i++) { free(block[i].state); free(block[i].gen); }
+        for (int i = 0; i < BLK; i++) { free(block[i].state); free(block[i].gen); free((void *)atomic_load(&block[i].sparse)); }   // sparse: the placement sparse tile pages of the f8a5618d pin
         free(block); atomic_store(&g_blk[b], NULL);
     }
     while (satchel_dirty_retired) {
@@ -55,6 +55,7 @@ int satchel_dirty_session_reset(void) {
         free(old->state); free(old->gen); free(old);
     }
     g_nr = g_live = g_live_peak = g_overflow_logged = g_busy_red = 0;
+    atomic_store(&g_span_last, 0); atomic_store(&g_sparse_writes, 0);
     atomic_fetch_add(&g_now, 1);
     pthread_mutex_unlock(&g_slot_mu);
     atomic_store(&satchel_dirty_closed, 0);

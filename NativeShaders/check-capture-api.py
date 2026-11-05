@@ -13,7 +13,7 @@ import time
 
 WORK=Path.home()/'SatchelBuild/m5'
 CAPTURE=Path.home()/'SatchelBuild/castlevania/capture-inputs/opening-gameplay'
-CORPUS=Path.home()/'SatchelBuild/castlevania/runtime-shaders/cache/b-e65a4ebd3322'
+CORPUS=Path.home()/'SatchelBuild/castlevania/runtime-shaders/cache/b-26dc2fa9477c'
 
 def main():
     if not os.environ.get('SATCHEL_M5_WATCHDOG_PID'):raise RuntimeError('Run through guard.py')

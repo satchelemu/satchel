@@ -13,7 +13,7 @@ def main():
     out = args.out_root
     out.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(root / 'App/NativeRuntimeProfiles.json', out / 'NativeRuntimeProfiles.json')
-    source = (root / 'NativeHost/PreparedGame.swift').read_text().split('\nstruct PreparedGameView: View {')[0]
+    source = (root / 'NativeHost/PreparedGame.swift').read_text().split('\n/// The background time around the package check')[0].split('\nstruct PreparedGameView: View {')[0]
     source = source.replace('import SwiftUI', 'import Foundation')
     # Keep diagnostic files and verification stamps inside the task's output directory.
     for directory in ['documentDirectory', 'applicationSupportDirectory']:

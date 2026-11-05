@@ -68,7 +68,7 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: '__REPO__/Tests/UIPreview/PreviewGameBridge.h'
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: 'DEBUG PREVIEW_GAME'
         CLANG_ENABLE_OBJC_ARC: YES
-        HEADER_SEARCH_PATHS: ['"__REPO__/Core"', '"__REPO__/NativeHost"', '"__REPO__/Tests/UIPreview"', '"__DISPLAY__/engine/dm/host"', '"__DISPLAY__/engine/dm/host/gen/0100F2C0115B6000"', '"__DISPLAY__/engine/dm/gfx"']
+        HEADER_SEARCH_PATHS: ['"__REPO__/Core"', '"__REPO__/NativeHost"', '"__REPO__/Tests/UIPreview"', '"__DISPLAY__/engine/dm/host"', '"__DISPLAY__/gen/0100F2C0115B6000"', '"__DISPLAY__/engine/dm/gfx"', '"__DISPLAY__/engine/dm/ios/Sources"']
         OTHER_LDFLAGS: ['-framework', 'GameController', '-framework', 'CoreMotion', '-framework', 'CoreText', '-Wl,-U,_satchel_pipeline_skipped_draws']
         TARGETED_DEVICE_FAMILY: '1'
         GENERATE_INFOPLIST_FILE: YES

@@ -16,7 +16,7 @@ import Metal
         let package = root.appendingPathComponent("fixture"), runtime = root.appendingPathComponent("runtime")
         let fm = FileManager.default
         try fm.createDirectory(at: package, withIntermediateDirectories: true)
-        let manifest = Data(#"{"format":2,"shaderChain":"e65a4ebd3322"}"#.utf8)
+        let manifest = Data(#"{"format":2,"shaderChain":"26dc2fa9477c"}"#.utf8)
         try manifest.write(to: package.appendingPathComponent("manifest.json"))
         let digest = SatchelShaderTranslator.sha256(manifest)
         let directory = runtime.appendingPathComponent("warmup/" + digest)

@@ -18,6 +18,8 @@ from fetch_inputs import digest, obtain_pinned
 from rebuild_dependencies import SNAPSHOT
 
 LOCK = ROOT / 'scripts/deps/inputs.lock.json'
+QUEUE = ROOT / 'scripts/deps/upstream/nxnative-queue'
+PATCH_COUNT = 29
 GIB = 1024 ** 3
 OFFLINE_POLICY = '(version 1) (allow default) (deny network-outbound (remote ip "*:*"))'
 
@@ -74,27 +76,42 @@ def stage_git(row, destination, caches, source_cache, fetch):
 
 
 def materialize_engine(root):
-    """Apply the pinned upstream queue without creating or rewriting commits."""
+    """Apply the recorded patch series without creating or rewriting commits."""
     engine = root / 'NX2Apple/engine'
-    patches = root / 'sources/nx2apple-patches/patches'
-    pin = (patches.parent / '.upstream-ref').read_text().strip()
+    published = root / 'sources/nx2apple-patches'
+    pin = (QUEUE / '.upstream-ref').read_text().strip()
     head = subprocess.check_output(['git', '-C', engine, 'rev-parse', 'HEAD'], text=True).strip()
     if pin != head:
         raise RuntimeError('Engine patch queue and engine pin differ')
-    helpers = runpy.run_path(str(patches.parent / 'tools/patches.py'))
-    queue = helpers['load'](patches.parent)
-    names = [patch.file for patch in queue]
-    if len(names) != 34:
-        raise RuntimeError('Engine integration requires the recorded 34 patches')
+    helpers = runpy.run_path(str(published / 'tools/patches.py'))
+    available = {patch.file for patch in helpers['load'](published)}
+    names = [line.split('#', 1)[0].strip() for line in (QUEUE / 'series').read_text().splitlines()]
+    names = [name for name in names if name]
+    if len(names) != PATCH_COUNT or len(set(names)) != len(names):
+        raise RuntimeError('Engine integration requires the recorded %d patches' % PATCH_COUNT)
+    # A ported file replaces the published one. Every other patch must be published.
+    ported = sorted(path.name for path in (QUEUE / 'ports').glob('*.patch'))
+    if set(ported) - set(names):
+        raise RuntimeError('Ported engine patch outside the series')
+    files = []
     for name in names:
-        run(['git', '-C', engine, 'apply', patches / name], capture_output=True)
+        if name in ported:
+            files.append(QUEUE / 'ports' / name)
+        elif name in available:
+            files.append(published / 'patches' / name)
+        else:
+            raise RuntimeError('Engine patch is neither published nor ported: ' + name)
+    for path in files:
+        run(['git', '-C', engine, 'apply', path], capture_output=True)
     # Use the upstream generators, without its git-am/commit lifecycle.
     for name in ['docs_patches.py', 'docs_symptoms.py']:
         run([sys.executable, engine / 'dm/tools' / name], cwd=engine, capture_output=True)
+    queue = [helpers['Patch'](path) for path in files]
     (engine / 'dm/fork_patches.txt').write_text(helpers['fork_patch_list'](queue))
+    published_head = subprocess.check_output(['git', '-C', published, 'rev-parse', 'HEAD'], text=True).strip()
     write(root / 'NX2Apple/engine-materialization.json', {
-        'pin': pin, 'patches': names,
-        'patch_sha256': {name: digest(patches / name) for name in names},
+        'pin': pin, 'patches': names, 'ported': ported, 'published_queue': published_head,
+        'patch_sha256': {path.name: digest(path) for path in files},
         'method': 'git apply without index or commits; generated indexes via published tools'})
 
 

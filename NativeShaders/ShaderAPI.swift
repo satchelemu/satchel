@@ -53,7 +53,7 @@ public struct SatchelTranslatedShader: Codable, Sendable {
     public let key: String
     public let recordSHA256: String
     public let requestSHA256: String
-    // Ordinary suffixes b, bv, bp, ba, bl, bf; geometry b, bg0...bg4, bgv.
+    // Ordinary suffixes b, bv, bp, bx, bf; geometry b, bg0...bg4, bgv.
     public let sources: [String: String]
     public let reflectionJSON: Data
     public let constantBufferExtents: [Int: Int]
@@ -67,12 +67,12 @@ public struct SatchelTranslatedShader: Codable, Sendable {
         return variantReflectionJSON?[variant] ?? reflectionJSON
     }
 
-    static let allowedVariants: Set<String> = ["b", "bv", "bp", "ba", "bl", "bf", "bg0", "bg1", "bg2", "bg3", "bg4", "bgv"]
+    static let allowedVariants: Set<String> = ["b", "bv", "bp", "bx", "bf", "bg0", "bg1", "bg2", "bg3", "bg4", "bgv"]
 }
 
 public enum SatchelShaderTranslator {
     // Bump when source transforms, query semantics or bridge options change.
-    public static let implementationID = "satchel-native-v2-geometry-e65a4ebd3322-f11ba9f0"
+    public static let implementationID = "satchel-native-v3-side-26dc2fa9477c-f11ba9f0"
 
     static func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()

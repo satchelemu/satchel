@@ -109,7 +109,7 @@ enum ShaderGeometry {
             }
             var geometry = layout; geometry["stride"] = stride
             let suffix = "bg\(topology)"
-            var reflection: [String: Any] = ["key": key + "_" + suffix, "route": "B", "chain": "e65a4ebd3322", "dm_ctl": key,
+            var reflection: [String: Any] = ["key": key + "_" + suffix, "route": "B", "chain": "26dc2fa9477c", "dm_ctl": key,
                 "source": job["source"] ?? "native", "pc_paired": job["pc_paired"] ?? "", "stage": "gs", "entry": "main0",
                 "msl_entry_kind": "kernel", "threadgroup_size": [32, 1, 1], "geometry": geometry,
                 "c1": job["c1"] ?? "", "notes": translated.resources["notes"] ?? [], "drv_reads": ShaderReflection.driverReads(source),
@@ -123,7 +123,7 @@ enum ShaderGeometry {
                 let vertex = try ShaderTransforms.layer(ShaderTransforms.initializeVertex(reader(ShaderTransforms.pools(ShaderTransforms.precise(rawReader)))))
                 let (analysis, full) = try ShaderTransforms.depth(vertex)
                 var readerSource = full
-                var readerReflection: [String: Any] = ["key": key + "_bgv", "route": "B", "chain": "e65a4ebd3322", "dm_ctl": key,
+                var readerReflection: [String: Any] = ["key": key + "_bgv", "route": "B", "chain": "26dc2fa9477c", "dm_ctl": key,
                     "stage": "vs", "entry": "main0", "entry_z": "main0_z", "msl_entry_kind": "vertex",
                     "geometry_reader": true, "geometry_output": layout["output"]!, "c1": "", "notes": [String](),
                     "drv_reads": [String: Any](), "drv_unfillable": [String](),

@@ -7,11 +7,11 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
-ENGINE = Path.home() / 'SatchelDeps/NX2Apple/engine'
+ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
 OUT = Path(os.environ.get('PAD_CHECK_OUT', Path.home() / 'SatchelBuild/session/pad-check'))
 OUT.mkdir(parents=True, exist_ok=True)
-assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
 overlay = runpy.run_path(str(HERE / 'overlay.py'))
 (OUT / 'pad_slots.h').write_text(overlay['slots']((HOST / 'pad_slots.h').read_text()))

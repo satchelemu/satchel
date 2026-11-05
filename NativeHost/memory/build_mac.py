@@ -33,8 +33,8 @@ subprocess.run(['nice', '-n', '10', 'xcrun', 'swiftc', '-target', 'arm64-apple-m
     ROOT / 'App/NativeGameProfile.swift', ROOT / 'NativeHost/PhoneShaderRuntime.swift', ROOT / 'NativeHost/ShaderWarmupResources.swift',
     shader_source / 'libGameShaderBridge.a', shader_source / 'libShaderArchive.a', aot, '-lc++', '-framework', 'Metal',
     '-Xlinker', '-rpath', '-Xlinker', aot.parent, '-o', library], check=True)
-original = Path.home() / 'SatchelDeps/NX2Apple/engine'
-assert subprocess.check_output(['git', '-C', str(original), 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+original = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+assert subprocess.check_output(['git', '-C', str(original), 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 engine = OUT / 'engine'
 if not engine.exists():
     shutil.copytree(original, engine, ignore=shutil.ignore_patterns('.git', 'gen', '__pycache__'), symlinks=True)

@@ -11,10 +11,10 @@ import runpy
 import subprocess
 
 HERE = Path(__file__).resolve().parent
-ENGINE = Path.home() / 'SatchelDeps/NX2Apple/engine'
+ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
 OUT = Path(os.environ.get('SESSION_SUSPEND_OUT', Path.home() / 'SatchelBuild/mkdebug/suspend-check'))
 OUT.mkdir(parents=True, exist_ok=True)
-assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'bbc3b73784751d2a706932dc69fd67627e3445d4'
+assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 
 raw = (ENGINE / 'dm/gfx/nvn/hle_nvn.c').read_text()
 fixed = runpy.run_path(str(HERE / 'suspend_overlay.py'))['bounded_suspend'](raw)
