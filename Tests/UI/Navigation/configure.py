@@ -86,6 +86,20 @@ def generate(mode, out):
             sys.path.insert(0, str(ROOT / 'NativeHost'))
             from display_overlay import apply
             apply(ROOT, engine, out, {'SatchelNativeHost': [], 'SatchelNativeGraphics': []})
+        if dev:
+            # Exercise the exact controller overlay and native menu with synthetic snapshots.
+            import runpy
+            pad = out / 'overlays/display/dm/ios/Sources/DmGamepad.m'
+            controller_overlay = runpy.run_path(str(ROOT / 'NativeHost/controllers/overlay.py'))
+            text = controller_overlay['gamepad'](pad.read_text())
+            declaration = '#import <GameController/GameController.h>\nNSArray<GCController *> *SatchelPreviewControllers(void);\n'
+            pad.write_text(declaration + text.replace('GCController.controllers', 'SatchelPreviewControllers()'))
+            menu = out / 'InGameMenu.m'
+            text = (ROOT / 'NativeHost/InGameMenu.m').read_text()
+            text = text.replace('#import "../App/ControllerProfiles.h"', '#import "' + str(ROOT / 'App/ControllerProfiles.h') + '"')
+            write_changed(menu, declaration + text.replace('GCController.controllers', 'SatchelPreviewControllers()'))
+            for row in project['targets']['SatchelPreview']['sources']:
+                if row['path'] == '__REPO__/NativeHost/InGameMenu.m': row['path'] = str(menu)
         project = json.loads(json.dumps(project).replace('__REPO__', str(ROOT)).replace(
             '__DISPLAY__/engine', str(engine)).replace('__DISPLAY__', str(out)))
         app = 'SatchelPreview'

@@ -190,6 +190,7 @@ struct HomebrewView: View {
             .satchelBars()
             .satchelMenuStatus()
         }
+        .controllerNavigation(enabled: presentation == nil && !exporting && library.error == nil)
         .background {
             // The one presenter. It sits on its own view so a reset can rebuild it
             // without touching the shelf.
@@ -473,6 +474,7 @@ struct HomebrewView: View {
 
     private var settingsButton: some View {
         Button { open(.settings) } label: { Label("Settings", systemImage: "gearshape.fill") }
+            .controllerAction("settings") { open(.settings) }
             .accessibilityIdentifier("open-settings")
     }
 
@@ -638,11 +640,13 @@ struct HomebrewView: View {
                     }
                     .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                     .accessibilityIdentifier("homebrew-\(entry.item.name)")
+                    .controllerAction("game-" + entry.id) { openEntry(entry.item.id) }
                     .accessibilityLabel("\(artwork.title(entry.item)), \(artwork.state(entry.item).label)")
                 }
                 Button { openImporter() } label: { AddGameTile(side: max(60, side), focused: false) }
                     .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                     .accessibilityLabel("Add games").accessibilityIdentifier("add-games-tile")
+                    .controllerAction("add-games") { openImporter() }
             }
             .padding(.vertical, 6)
         }
@@ -695,6 +699,7 @@ struct HomebrewView: View {
                     .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                     .id(entry.id)
                     .accessibilityIdentifier("homebrew-\(entry.item.name)")
+                    .controllerAction("game-" + entry.id) { openEntry(entry.item.id) }
                     .accessibilityLabel("\(artwork.title(entry.item)), \(artwork.state(entry.item).label)")
                     .accessibilityHint(focused == entry.id ? "Opens the game page" : "Selects this game")
                     .contextMenu {
@@ -715,6 +720,7 @@ struct HomebrewView: View {
                 .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                 .id(Self.addTileID)
                 .accessibilityLabel("Add games").accessibilityIdentifier("add-games-tile")
+                    .controllerAction("add-games") { openImporter() }
             }
             .scrollTargetLayout()
             .padding(.vertical, 14)

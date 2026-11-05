@@ -273,7 +273,7 @@ void SatchelInstallDisplayControls(UIView *root, UIView *game, UIView *pad, UILa
     [NSRunLoop.mainRunLoop addTimer:controls.geometryTimer forMode:NSRunLoopCommonModes];
     SatchelMenuInstall(root, pad, fps);
     [controls installPauseButton]; [controls layoutPause];
-    fprintf(stderr, "Satchel menu: pause button; three-finger double tap; Options+Menu hold 1s; ordinary input is not delayed or cancelled\n");
+    fprintf(stderr, "Satchel menu: pause button; three-finger double tap; configured controller shortcut hold 0.75s; shortcut inputs are reserved\n");
 }
 int satchel_display_command(const char *line) {
     if (!strcmp(line, "quit")) {

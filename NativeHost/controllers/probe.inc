@@ -35,6 +35,21 @@ int main(void) {
     dm_pad_set_player(0, DM_BTN_A, 100, 0, 0, 0);
     dm_pad_set_player(1, DM_BTN_B, -100, 0, 0, 0);
     CHECK(buttons_of(0, STYLE_FULLKEY) == DM_BTN_A && buttons_of(1, STYLE_FULLKEY) == DM_BTN_B, "players have independent input");
+    // Keep ordinary short taps, but discard the pending first chord edge at takeover.
+    dm_pad_set_player(0, DM_BTN_PLUS, 0, 0, 0, 0);
+    dm_pad_set_player(0, 0, 0, 0, 0, 0);
+    CHECK(buttons_of(0, STYLE_FULLKEY) == DM_BTN_PLUS, "short Plus reaches game through latch");
+    dm_pad_set_player(0, DM_BTN_MINUS, 0, 0, 0, 0);
+    dm_pad_set_player(0, 0, 0, 0, 0, 0);
+    CHECK(buttons_of(0, STYLE_FULLKEY) == DM_BTN_MINUS, "short Minus reaches game through latch");
+    for (int first = 0; first < 2; first++) {
+        dm_pad_set_player(0, (first ? DM_BTN_MINUS : DM_BTN_PLUS) | DM_BTN_A, 0, 0, 0, 0);
+        satchel_hid_suppress_player(0, DM_BTN_PLUS | DM_BTN_MINUS);
+        dm_pad_set_player(0, DM_BTN_A, 0, 0, 0, 0);
+        CHECK(buttons_of(0, STYLE_FULLKEY) == DM_BTN_A, "chord takeover clears pending edge and keeps unrelated input");
+        CHECK(buttons_of(0, STYLE_FULLKEY) == DM_BTN_A, "held chord remains suppressed");
+        CHECK(buttons_of(1, STYLE_FULLKEY) == DM_BTN_B, "chord takeover does not affect another player");
+    }
     int32_t info[2]; int8_t arg[2] = {2, 2};
     CHECK(!ctrl_support(info, arg) && info[0] == 2, "controller applet reports two players");
     CHECK(h_hid_VibHandles(second, 2, &p2, STYLE_FULLKEY) == 2, "player 2 vibration handles");

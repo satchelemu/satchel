@@ -220,3 +220,76 @@ Satchel commit, how far it got, the FPS counter reading in a typical scene, how 
 played, and the game report from Game diagnostics. For a crash, the symbolic crash
 address and the last 50 lines of `host.log`. Never attach keys, dumps, decrypted code or
 shader dumps.
+
+## Controller profiles and menu navigation
+
+`NativeHost/controllers/check_remapping.py` exercises category defaults, JSON validation,
+global inheritance, title and category isolation, preservation while saving picture and
+rumble settings, reset, cross-process persistence, radial dead zones, single Plus/Minus delivery, chord takeover and release, Home reservation,
+hold timing, focus edges and GameController snapshots on the Mac. It uses its own executable
+preferences domain and no game files. `NativeHost/controllers/check.py` retains the existing
+synthetic host HID and rumble checks.
+
+The simulator journeys are `testControlsSettingsAndPersistence`,
+`testControlsLibraryDetailAndBack` and `testControlsMenuShortcutAndLayout`. Test-only buttons
+drive a GameController snapshot and invoke the value-change callback installed by the
+native host. Plus/Minus taps and navigation are short pulses; the stick and full chord
+stay held until the journey explicitly releases them, so slow accessibility queries
+cannot outlast the input. The production readers, profile storage, input overlay,
+menu bridge and focus navigator process those pulses. A native fixture records any game
+button delivery and the menu's volume, opacity and size. The fixture and its controls are
+absent from the phone target.
+
+Profiles are JSON data blobs under `ControllerProfiles` in each `SatchelPlayerSettings.<title>`
+preferences dictionary. `SatchelPlayerSettings.default` holds global category defaults.
+An absent title category inherits that category's global default, then factory defaults.
+Categories are Xbox, DualSense, Pro Controller and Generic. Nintendo face labels keep their
+labels; other controllers use Switch positions. D-pad names identify the four buttons of
+GameController's Direction Pad. Sticks retain their original axes with a radial dead zone.
+
+Home is reserved by default and opens the menu after 0.75 seconds. Without Home, the shortcut
+uses Menu + Options. Menu + Options and Off are configurable. Each chord button reaches the
+game normally when pressed alone, including short Plus and Minus taps. On the first input
+sample with both down, both are suppressed until both are released. Holding both for 0.75
+seconds opens the menu once. Partial release cancels an unfinished hold but keeps suppression;
+a fired chord cannot reopen the menu until both buttons are released.
+
+If the first input sample contains both buttons, the chord exposes zero frames. A
+staggered chord exposes the first button on all guest frames before the second press, with no fixed upper bound since the user controls
+that interval. There is no added delay or extra published frame after chord completion. Takeover also
+clears unconsumed chord edges in the native HID latch; ordinary short taps stay latched.
+The Mac checks cover both press orders, both release orders, short chords, rearming and
+per-controller snapshot state. The simulator proves short Plus/Minus delivery and the full
+chord's suppression and menu opening through the native publisher. Home remains reserved,
+including short taps. This behavior is shown in Settings. Off restores every mapped button.
+Navigation uses physical bottom for accept and right for back, independent of game mappings.
+A stick must pass 0.6 to move and return below 0.3 to rearm the same direction. Held inputs
+do not repeat. The highlighted menu slider advances in steps when accepted, wrapping at its
+maximum. The library, game actions and pause menu expose controller focus; system file
+pickers and detailed settings editors still use touch.
+
+Orchestrator phone checks, with separate phone authorization:
+
+1. Pair Xbox, DualSense and Pro Controller in turn. In Settings > Controllers, choose the
+   matching category. Confirm each named button lights in the tester and both stick dots
+   track the hardware. Set a dead zone and check drift is suppressed without losing full tilt.
+2. Map one face button to ZR. Launch a permitted title and verify the game sees ZR. Open
+   Controller layout and remapping from pause, change this title only, then launch another
+   permitted title and confirm its global mapping is unchanged. Relaunch to check persistence.
+3. Hold Home for 0.75 seconds. Confirm the pause menu opens once, the system overlay stays
+   closed and no game action occurs, including for a short press. Select Menu + Options and
+   first tap Plus alone and Minus alone to check the game's pause and menus. Hold the chord
+   in either press order: only the first button may reach the game before chord completion.
+   Release one button, then the other: neither may reappear until both have been released.
+   Verify a short full chord stays suppressed without opening Satchel's menu. Set Off and
+   confirm both mapped buttons reach the game. Repeat using the no-Home fallback.
+4. Use only d-pad or stick edges, bottom face button to accept and right face button to go
+   back: library tile, game page, Play, pause, Resume, Library and Quit confirmation. Confirm
+   focus stays in the active screen, scrolls into view and does not repeat while held.
+5. Change volume while paused, resume and listen. Change touch opacity and size, disconnect
+   the controller and inspect the real controls. Check both landscape orientations and both
+   Duo screens. Verify layout diagrams match the selected touch layout and physical mappings.
+6. Disconnect while holding a direction and reconnect. Confirm the game pauses, no input
+   sticks, rumble stays suspended until Resume, and navigation works after background/return.
+
+No controller-only or simulator check changes a title's gameplay compatibility rating.

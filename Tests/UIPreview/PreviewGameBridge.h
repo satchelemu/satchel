@@ -6,3 +6,6 @@
 #import "PlayerSettings.h"
 #import "DisplayControls.h"
 NSString *SatchelPreviewSessionState(void);
+
+uint64_t SatchelPreviewGuestButtons(void);
+void SatchelPreviewResetGuestButtons(void);

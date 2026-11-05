@@ -18,8 +18,13 @@ assert info['GCSupportedGameControllers'] == [{'ProfileName': 'ExtendedGamepad'}
 orientations = info['UISupportedInterfaceOrientations']
 assert all('Landscape' in name for name in orientations)
 symbols = subprocess.check_output(['nm', '-gU', binary], text=True)
-for name in ['satchel_hid_controllers', 'satchel_hid_release', 'satchel_haptics_suspend', 'satchel_gamepad_refresh', 'SatchelMenuControllerDisconnected', 'SatchelPlayerHaptics', 'SatchelChangePlayerHaptics']:
+for name in ['satchel_hid_controllers', 'satchel_hid_suppress_player', 'satchel_hid_release', 'satchel_haptics_suspend', 'satchel_gamepad_refresh', 'SatchelMenuControllerDisconnected', 'SatchelPlayerHaptics', 'SatchelChangePlayerHaptics']:
     assert any(line.endswith(' _' + name) for line in symbols.splitlines()), name
+# App-owned controller functions are local text symbols in the optimized Release app.
+# The native archive exports above retain their existing public-symbol assertions.
+local_symbols = subprocess.check_output(['nm', binary], text=True).splitlines()
+for name in ['SatchelReadController', 'SatchelSaveControllerProfile', 'SatchelControllerMenuHeld', 'SatchelControllerEdge']:
+    assert any(line.split()[-2:] in [['t', '_' + name], ['T', '_' + name]] for line in local_symbols), name
 linked = subprocess.check_output(['otool', '-L', binary], text=True)
 assert '/GameController.framework/' in linked and '/CoreHaptics.framework/' in linked
 # The complete pinned source, including its MIT notice, remains pristine.

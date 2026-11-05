@@ -70,6 +70,16 @@ void satchel_hid_controllers(uint32_t mask) {
     if 'g_players = 1; g_ids_supported' in text:
         text = replace(text, '    g_players = 1; g_ids_supported', '    satchel_physical = -1; atomic_store(&g_style_ev[DM_PLAYERS], NULL);\n    g_players = 1; g_ids_supported')
     text += """
+// Discard pending shortcut edges too, so an unconsumed first press cannot leak
+// through the engine's short-press latch after the chord is complete.
+void satchel_hid_suppress_player(int p, uint64_t buttons) {
+#ifdef SATCHEL_INPUT_SCOPE
+    SATCHEL_INPUT_SCOPE();
+#endif
+    if (p < 0 || p >= DM_PLAYERS) return;
+    atomic_fetch_and(&g_pad_btn[p], ~buttons);
+    atomic_fetch_and(&g_pad_latch[p], ~buttons);
+}
 void satchel_hid_release(void) {
 #ifdef SATCHEL_INPUT_SCOPE
     SATCHEL_INPUT_SCOPE();
@@ -112,6 +122,15 @@ void satchel_gamepad_refresh(void) { [g_view padsChanged:nil]; }
     # Serialize GameController input callbacks with slot mutations and UIKit.
     text = replace(text, 'static void read_pad(GCExtendedGamepad *g) {', '''static void read_pad(GCExtendedGamepad *g) {
     if (!NSThread.isMainThread) { dispatch_async(dispatch_get_main_queue(), ^{ read_pad(g); }); return; }''')
+    text = text.replace('@[GCInputButtonHome, GCInputButtonShare]', '@[GCInputButtonHome, GCInputButtonShare, GCInputButtonMenu, GCInputButtonOptions]')
+    text = '#import "' + str(HERE.parents[1] / 'App/ControllerProfiles.h') + '"\n' + text
+    first = text.index('    uint64_t m = dm_pad_face(g);')
+    last = text.index('\n}', first)
+    text = text[:first] + '''    NSDictionary *input = SatchelReadController(g);
+    void satchel_hid_suppress_player(int, uint64_t);
+    satchel_hid_suppress_player(p, [input[@"suppressedButtons"] unsignedLongLongValue]);
+    dm_pad_set_player(p, [input[@"buttons"] unsignedLongLongValue], axis([input[@"lx"] floatValue]),
+        axis([input[@"ly"] floatValue]), axis([input[@"rx"] floatValue]), axis([input[@"ry"] floatValue]));''' + text[last:]
     return text
 
 

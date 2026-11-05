@@ -83,6 +83,7 @@ private struct PreviewRoot: View {
 #endif
 #if PREVIEW_GAME
             .onAppear(perform: startPrepare)
+            .onAppear { ControllerFixture.install() }
             .overlay(alignment: .bottomLeading) {
                 if UserDefaults.standard.bool(forKey: "SatchelPreviewFixTests") {
                     TimelineView(.periodic(from: .now, by: 0.2)) { _ in
@@ -505,7 +506,10 @@ private struct PreviewGameSurface: UIViewControllerRepresentable {
         FileManager.default.changeCurrentDirectoryPath(documents.path) // view-shots land here
         let controller = SatchelNativeGameController()
         SatchelMenuSurfaceAttached(true)
-        SatchelMenu.install(titleID: "0100F2C0115B6000")
+        let controllerTests = UserDefaults.standard.bool(forKey: "SatchelPreviewControllerTests")
+        let titleID = controllerTests ? "CONTROLS-FIXTURE" : "0100F2C0115B6000"
+        if controllerTests { SatchelApplyPlayerSettings(titleID) }
+        SatchelMenu.install(titleID: titleID)
         let defaults = UserDefaults.standard
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             if defaults.bool(forKey: "SatchelPreviewTouch") {

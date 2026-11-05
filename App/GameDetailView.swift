@@ -70,6 +70,7 @@ struct GameDetailView: View {
                 }
             }
         }
+        .controllerNavigation(enabled: !playing && removeTarget == nil, back: { library.stop(); dismiss() })
     }
 
     /// Removes all of the game from this iPhone: its imported files, its updates and DLC, and
@@ -269,16 +270,16 @@ struct GameDetailView: View {
         } else if state == .ready, let onPlay {
             Button { Haptics.click(); onPlay() } label: {
                 SatchelButtonLabel(title: resumes ? "Resume" : "Play", systemImage: "play.fill", kind: .accent(SatchelTheme.ember), height: 52, fill: true)
-            }.buttonStyle(PressableStyle()).accessibilityIdentifier("play-game")
+            }.controllerAction("detail-play") { onPlay() }.buttonStyle(PressableStyle()).accessibilityIdentifier("play-game")
         } else if state == .needsKeys, let onOpenSettings {
             Button { onOpenSettings() } label: {
                 SatchelButtonLabel(title: "Add keys", systemImage: "key.fill", kind: .accent(SatchelTheme.spark), height: 52, fill: true)
-            }.buttonStyle(PressableStyle()).accessibilityIdentifier("detail-add-keys")
+            }.controllerAction("detail-keys") { onOpenSettings() }.buttonStyle(PressableStyle()).accessibilityIdentifier("detail-add-keys")
         } else if !originalRemoved, info?.kind == .application, let onPrepare {
             Button { onPrepare() } label: {
                 SatchelButtonLabel(title: state == .ready ? "Prepare again" : "Prepare", systemImage: "hammer.fill",
                                   kind: .accent(SatchelTheme.tide), height: 52, fill: true)
-            }.buttonStyle(PressableStyle()).accessibilityIdentifier("prepare-game")
+            }.controllerAction("detail-prepare") { onPrepare() }.buttonStyle(PressableStyle()).accessibilityIdentifier("prepare-game")
         } else {
             SatchelButtonLabel(title: info?.kind == .update ? "Update stored" : "Can't play yet",
                               systemImage: info?.kind == .update ? "checkmark" : "lock.fill", kind: .quiet, height: 52, fill: true)

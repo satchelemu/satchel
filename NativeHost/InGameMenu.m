@@ -1,6 +1,7 @@
 #import "InGameMenu.h"
 #import "DisplayControls.h"
 #import "PlayerSettings.h"
+#import "../App/ControllerProfiles.h"
 #import "SessionBridge.h"
 #import <GameController/GameController.h>
 #include "hle_haptics.h"
@@ -306,20 +307,12 @@ static void pollControllers(void) {
         GCExtendedGamepad *g = controller.extendedGamepad; if (!g) continue;
         NSMutableDictionary *s = [controllerStates objectForKey:controller];
         if (!s) { s = [NSMutableDictionary dictionary]; [controllerStates setObject:s forKey:controller]; }
-        BOOL combo = g.buttonOptions.isPressed && g.buttonMenu.isPressed;
-        double now = CACurrentMediaTime();
-        if (combo && ![s[@"combo"] boolValue]) s[@"since"] = @(now);
-        if (combo && ![s[@"fired"] boolValue] && now - [s[@"since"] doubleValue] >= 1) {
-            s[@"fired"] = @YES;
-            if ([state isEqualToString:@"running"]) SatchelMenuPerform(@"open", nil);
-        }
-        if (!combo) s[@"fired"] = @NO;
-        s[@"combo"] = @(combo);
+        if (SatchelControllerMenuHeld(g, CACurrentMediaTime()) && [state isEqualToString:@"running"])
+            SatchelMenuPerform(@"open", nil);
         unsigned keys = (g.dpad.up.isPressed ? 1 : 0) | (g.dpad.down.isPressed ? 2 : 0) |
                         (g.buttonA.isPressed ? 4 : 0) | (g.buttonB.isPressed ? 8 : 0);
         unsigned pressed = keys & ~[s[@"keys"] unsignedIntValue]; s[@"keys"] = @(keys);
-        // A custom menu handles touch; a controller's B button still resumes from it.
-        if (customView.superview != nil && [state isEqualToString:@"menu"] && (pressed & 8)) SatchelMenuPerform(@"resume", nil);
+        // The SwiftUI navigator owns accept and back while the custom menu is visible.
         if (customView.superview == nil && ([state isEqualToString:@"menu"] || [state isEqualToString:@"confirmQuit"])) {
             if ((pressed & 1) && selected) selected--;
             if ((pressed & 2) && selected + 1 < items.count) selected++;

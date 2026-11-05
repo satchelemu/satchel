@@ -156,3 +156,11 @@ The opt-in `skip` pipeline mode can omit a terminal draw in the current submissi
 continues. A missing final layer or flicker is possible. Exact remains the default;
 the Game settings panel saves the choice per title for the next launch. This
 experiment adds no phone compatibility or gameplay claim to the table above.
+
+## Controller acceptance
+
+Controller remapping and navigation do not change the game ratings above. The controller
+checks use synthetic GameController snapshots, not gameplay. Plus and Minus remain
+normal game inputs until both are pressed for the menu chord; Home stays reserved.
+Physical Xbox, DualSense and Pro Controller acceptance, audible volume changes and touch layout on the phone
+remain separate checks in [the test guide](docs/testing.md).

@@ -35,3 +35,5 @@
 
 #include "GuestVIDispatch.h"
 #include "GuestVulkanWindows.h"
+
+#import "ControllerProfiles.h"
