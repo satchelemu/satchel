@@ -222,3 +222,8 @@ Their notices are kept in `App/Resources/Notices`, `NativeHost/THIRD_PARTY.md`,
 `Tools/VulkanBackend/Notices` and next to each vendored source tree. No GPL code is
 used. Nintendo Switch is a trademark of Nintendo; this project is not affiliated with
 Nintendo or Apple.
+
+Mac memory research has 37 reviewed scene pairs across Castlevania, Odyssey and
+TOTK. The pressure candidate remains unmerged while strict replay controls are
+resolved; these readings do not establish phone savings. See
+[the scene-memory evidence](Validation/memory-pressure-scenes-2026-11-04.md).

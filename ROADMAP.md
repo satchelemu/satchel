@@ -122,3 +122,9 @@ native execution route on 2026-11-01 after NX2Apple's approach proved out on the
 and had its first game prepared and played entirely on the phone the same day. The
 technical history is in `PLAN.md`, the goal log in `GOALS.md`, and the evidence records
 in `Validation/`.
+
+The unmerged memory-pressure candidate has 37 reviewed Mac scene pairs and 74
+ownership/VM joins. Castlevania passes its strict pressure replay; Odyssey and
+TOTK differ even without pressure. This evidence supports no further increase
+to the current 65% performance/stability rating. See
+[the measured scenes and remaining gate](Validation/memory-pressure-scenes-2026-11-04.md).

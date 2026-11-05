@@ -185,3 +185,8 @@ checks use synthetic GameController snapshots, not gameplay. Plus and Minus rema
 normal game inputs until both are pressed for the menu chord; Home stays reserved.
 Physical Xbox, DualSense and Pro Controller acceptance, audible volume changes and touch layout on the phone
 remain separate checks in [the test guide](docs/testing.md).
+
+The unmerged memory-pressure candidate has separate Mac scene-memory evidence
+for Castlevania, Odyssey and TOTK. It does not change these phone ratings or prove
+exact pressure invariance. See
+[the measured scenes and replay limits](Validation/memory-pressure-scenes-2026-11-04.md).

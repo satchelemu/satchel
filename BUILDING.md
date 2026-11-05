@@ -386,3 +386,9 @@ checks with `SATCHEL_WARMUP_MAIN=$PWD/Tests/Warmup/Checks.swift` or a private
 captured-inventory replay with `Tests/Warmup/SpeedRunner.swift`. These clients
 use the installed NativeAOT and bridge dependencies, with two build workers.
 See [warm-up measurement and phone steps](NativeShaders/WarmupSpeed.md).
+
+The memory worker retains private matched-route measurements and reproducible
+commands outside the checkout. The unmerged diagnostic tools require the shared
+heavy-build guard, unsigned builds and worker-owned outputs. See
+[the scene-memory evidence](Validation/memory-pressure-scenes-2026-11-04.md)
+for the validated measurements and unresolved exact-replay gate.
