@@ -15,7 +15,7 @@ static NSString *settingsKey(NSString *titleID) {
     return [@"SatchelPlayerSettings." stringByAppendingString:titleID.uppercaseString];
 }
 static NSArray<NSString *> *keys(void) {
-    return @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE", @"DM_SCREEN_MODE", @"DM_PRESENT_UPSCALE", @"DM_RUMBLE_GAIN", @"DM_RUMBLE_MIN"];
+    return @[@"DM_FPS_TARGET", @"DM_RENDER_SCALE", @"DM_SCREEN_MODE", @"DM_PRESENT_UPSCALE", @"DM_RUMBLE_GAIN", @"DM_RUMBLE_MIN", @"DM_SCREEN_ASPECT"];
 }
 // A plain decimal fraction in [low, high], with no trailing text, signs, NaN or infinity.
 static NSString *decimalValue(NSString *text, double low, double high) {
@@ -38,6 +38,9 @@ static NSString *validValue(NSString *key, id value) {
     if (![value isKindOfClass:NSString.class]) return nil;
     if ([key isEqualToString:@"DM_RUMBLE_GAIN"]) return decimalValue(value, 0, 3);
     if ([key isEqualToString:@"DM_RUMBLE_MIN"]) return decimalValue(value, 0, 0.9);
+    // The iPhone Duo's picture shape: 0 keeps 16:9, 1.43 renders the inner screen's own shape
+    // (nxnative settings.tsv). Only titles with screen-shape patches may choose 1.43.
+    if ([key isEqualToString:@"DM_SCREEN_ASPECT"]) return [@[@"0", @"1.43"] containsObject:value] ? value : nil;
     // 0 leaves the game's own frame rate; 30 and 60 are only for games with a frame-step patch.
     if ([key isEqualToString:@"DM_FPS_TARGET"])
         return [@[@"0", @"30", @"60"] containsObject:value] ? value : nil;
@@ -51,6 +54,15 @@ static NSString *validValue(NSString *key, id value) {
     if ([key isEqualToString:@"DM_PIPELINE_MODE"])
         return [@[@"exact", @"async", @"skip", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
     return nil;
+}
+static NSDictionary *profiles(void);
+// The picture shape gate. A title supports DM_SCREEN_ASPECT only when its prepared code has
+// screen-shape patches that read the loader's shape state (upstream: game.tsv screen_aspect on).
+// The list is data in PlayerProfiles.plist (screenAspectTitles); none of the tested titles has
+// those patches, so it ships empty and the setting stays off and hidden.
+BOOL SatchelPlayerSupportsScreenAspect(NSString *titleID) {
+    NSArray *titles = profiles()[@"screenAspectTitles"];
+    return [titles isKindOfClass:NSArray.class] && [titles containsObject:titleID.uppercaseString];
 }
 // Bundled defaults remain the baseline; title entries are recommended defaults.
 static NSDictionary *profiles(void) {
@@ -68,6 +80,7 @@ NSDictionary<NSString *, NSString *> *SatchelPlayerGlobalDefaults(void) {
     result[@"DM_PIPELINE_MODE"] = @"exact";
     if (!validValue(@"DM_RUMBLE_GAIN", result[@"DM_RUMBLE_GAIN"])) result[@"DM_RUMBLE_GAIN"] = @"1.0";
     if (!validValue(@"DM_RUMBLE_MIN", result[@"DM_RUMBLE_MIN"])) result[@"DM_RUMBLE_MIN"] = @"0";
+    result[@"DM_SCREEN_ASPECT"] = @"0";
     id legacy = [NSUserDefaults.standardUserDefaults dictionaryForKey:@"SatchelLiveControls"][@"haptics"];
     result[@"DM_HAPTICS"] = [legacy isKindOfClass:NSNumber.class] && ![legacy boolValue] ? @"off" : @"on";
     return result;
@@ -150,6 +163,7 @@ BOOL SatchelSavePlayerSettings(NSString *titleID, NSDictionary<NSString *, NSStr
     // Validate the whole patch before writing. Other keys and title overrides stay intact.
     for (NSString *key in values) {
         NSString *value = validValue(key, values[key]);
+        if ([key isEqualToString:@"DM_SCREEN_ASPECT"] && [value isEqualToString:@"1.43"] && !SatchelPlayerSupportsScreenAspect(titleID)) value = nil;
         if (!value) { rejected(key, key); return NO; }
         saved[key] = value;
     }
@@ -167,7 +181,8 @@ BOOL SatchelResetPlayerSetting(NSString *titleID, NSString *key) {
     return YES;
 }
 void SatchelApplyPlayerSettings(NSString *titleID) {
-    NSDictionary *values = SatchelPlayerSettings(titleID);
+    NSMutableDictionary *values = [SatchelPlayerSettings(titleID) mutableCopy];
+    if (!SatchelPlayerSupportsScreenAspect(titleID)) values[@"DM_SCREEN_ASPECT"] = @"0";
     sessionTitle = titleID.uppercaseString;
     SatchelControllerSetTitle(titleID);
     launchSettings = [values copy]; nextSettings = [values mutableCopy];

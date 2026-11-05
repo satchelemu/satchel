@@ -11,3 +11,9 @@ CGRect SatchelGameBounds(CGRect bounds);
 CGRect SatchelControlBounds(CGRect bounds);
 void SatchelDisplayDidLayout(void);
 CGRect SatchelInteractiveBounds(UIView *view, CGRect region);
+// The presented picture's width / height (16:9 until the game presents another shape).
+CGFloat SatchelPictureAspect(void);
+// The picture rectangle for the current screen mode and presented shape, in a game region.
+CGRect SatchelCurrentPictureRect(CGRect region);
+// front.h's report from the present thread (display/picture-shape.patch); main-thread safe.
+void front_picture_shape(int w, int h);

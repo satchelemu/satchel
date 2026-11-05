@@ -21,6 +21,8 @@ FOUNDATION_EXPORT NSNotificationName const SatchelScreenModeDidChange;
 NSDictionary *SatchelCurrentPlayerSettings(void);
 NSDictionary *SatchelNextPlayerSettings(void);
 BOOL SatchelQueuePlayerSetting(NSString *key, NSString *value);
+/// Whether a title's prepared code follows the iPhone Duo picture shape (DM_SCREEN_ASPECT).
+BOOL SatchelPlayerSupportsScreenAspect(NSString *titleID);
 NS_ASSUME_NONNULL_END
 
 BOOL SatchelPlayerHaptics(void);

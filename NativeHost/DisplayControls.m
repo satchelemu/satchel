@@ -12,6 +12,9 @@ static NSInteger posture;
 static NSInteger overridePosture = -1;
 static CGFloat hingeAngle;
 static NSInteger effectivePosture(void) { return overridePosture >= 0 ? overridePosture : posture; }
+static CGFloat pictureAspect = 16.0 / 9.0;   // main thread
+CGFloat SatchelPictureAspect(void) { return pictureAspect; }
+CGRect SatchelCurrentPictureRect(CGRect region) { return SatchelPictureRectAspect(region, SatchelScreenMode(), pictureAspect); }
 CGRect SatchelGameBounds(CGRect bounds) { return SatchelFoldRegion(bounds, effectivePosture() == 2, NO); }
 CGRect SatchelControlBounds(CGRect bounds) { return SatchelFoldRegion(bounds, effectivePosture() == 2, YES); }
 
@@ -229,8 +232,8 @@ void SatchelDisplayDidLayout(void) { [activeControls geometryChanged]; [activeCo
 void SatchelLayoutGameView(UIView *game, CGRect bounds) {
     bounds = SatchelGameBounds(bounds);
     int mode = SatchelScreenMode();
-    CGRect picture = SatchelPictureRect(bounds, mode);
-    CGRect drawable = SatchelPictureRect(bounds, mode == 1 ? 0 : mode);
+    CGRect picture = SatchelPictureRectAspect(bounds, mode, pictureAspect);
+    CGRect drawable = SatchelPictureRectAspect(bounds, mode == 1 ? 0 : mode, pictureAspect);
     game.transform = CGAffineTransformIdentity;
     game.bounds = CGRectMake(0, 0, drawable.size.width, drawable.size.height);
     game.center = CGPointMake(CGRectGetMidX(picture), CGRectGetMidY(picture));
@@ -240,6 +243,21 @@ void SatchelLayoutGameView(UIView *game, CGRect bounds) {
     CAShapeLayer *mask = [CAShapeLayer layer];
     mask.path = [UIBezierPath bezierPathWithRect:[game convertRect:bounds fromView:game.superview]].CGPath;
     game.layer.mask = mask;
+}
+// Adapted from nxnative front_ios.m front_picture_shape (MIT, upstream 600c0b37): the game's
+// view takes the shape of the picture the game presents. A 16:9 game keeps its layout; only a
+// taller shape (DM_SCREEN_ASPECT with a title's screen-shape patches) changes it. The present
+// thread reports a change of shape, never a size change of the same shape.
+void front_picture_shape(int w, int h) {
+    if (w <= 0 || h <= 0) return;
+    CGFloat aspect = (CGFloat)w / h;
+    if (!(aspect >= 1.0 && aspect <= 3.0)) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (fabs(aspect - pictureAspect) <= pictureAspect * 0.001) return;
+        pictureAspect = aspect;
+        fprintf(stderr, "Satchel picture: shape %dx%d (%.3f:1), the game's view follows it\n", w, h, aspect);
+        [activeControls changed];
+    });
 }
 void SatchelInstallDisplayControls(UIView *root, UIView *game, UIView *pad, UILabel *fps) {
     SatchelDisplayControls *controls = [SatchelDisplayControls new];

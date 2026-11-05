@@ -3,8 +3,27 @@
 `NativeHost/build.py` applies `screen-modes.patch` to generated overlay copies after checking
 the pinned engine source hashes. The dependency tree and the task's engine copy stay pristine.
 The patch touches `front_ios.m`, `DmGamepad.m`, `hle_hid.c`, `hle_audio.c` and the small thermal telemetry hook in `hle_nvn.c`.
-`frame-shot.patch` separately updates only `nvn_mtl.m` frame readback. The live presentation
-path remains unchanged. `NativeApp/build.py` fingerprints both patches.
+`frame-shot.patch` separately updates only `nvn_mtl.m` frame readback.
+`picture-shape.patch` (after `frame-shot.patch`) adds two small pieces from nxnative after the pin:
+`nvn_mtl.m` present_now reports the presented picture's shape through `front_picture_shape`
+when its width / height changes (upstream 600c0b37), and `loader.c` writes the screen-shape
+state (`DM_SCREEN_ASPECT`, output and layout heights) into the frame-step state page
+(upstream 48d79ced). `DisplayControls.m` implements `front_picture_shape`: the picture and its
+touch projection take the presented shape (`SatchelPictureRectAspect`), so a 16:9 game keeps
+its layout. The legacy `display/build.py` partial rebuild recompiles only `hle_nvn.c`; the
+patch reaches the app through the full host build (`NativeApp/build.py`).
+
+The iPhone Duo picture shape (`DM_SCREEN_ASPECT`, 0 or 1.43) is a per-title setting shown
+only for titles listed in `PlayerProfiles.plist` `screenAspectTitles`. The gate is there
+because only a game build with screen-shape patches reads the loader's state; upstream has
+them for Breath of the Wild (48d79ced) and Animal Crossing (b6e1f005), and none of Satchel's
+tested titles. The list ships empty, so the row is hidden and every launch gets 0. A title
+joins the list only with its own reviewed screen-shape patches.
+
+Picture Fill (upstream `DM_PICTURE_FIT=fill`, e2fadf22) crops a 16:9 picture to cover the
+screen. It is the same rectangle as Satchel's former zoom mode, which the user removed
+(GOALS.md G5: it crops too much), so it is not folded into the screen mode until the
+maintainer decides otherwise. The live presentation path is otherwise unchanged. `NativeApp/build.py` fingerprints both patches.
 `PlayerSettings.m`, `DisplayControls.m` and `InGameMenu.m` join `libSatchelNativeHost.a`.
 The Swift settings view and menu adapter join the dev app.
 

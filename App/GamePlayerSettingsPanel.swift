@@ -22,13 +22,17 @@ struct GamePlayerSettingsPanel: View {
             return value
         }
     }
-    private let choices = [
+    private var choices: [Choice] {
+        allChoices.filter { $0.key != "DM_SCREEN_ASPECT" || SatchelPlayerSupportsScreenAspect(titleID) }
+    }
+    private let allChoices = [
         Choice(key: "DM_FPS_TARGET", title: "FPS target", options: [("0", "Game default"), ("30", "30 FPS"), ("60", "60 FPS")]),
         Choice(key: "DM_RENDER_SCALE", title: "Render scale", options: [("1.0", "100%"), ("0.85", "85%"), ("0.75", "75%"), ("0.65", "65%"), ("0.5", "50%")]),
         Choice(key: "DM_SCREEN_MODE", title: "Screen mode", options: [("fit", "Fit"), ("stretch", "Stretch")]),
         Choice(key: "DM_HAPTICS", title: "Haptics", options: [("on", "On"), ("off", "Off")]),
         Choice(key: "DM_RUMBLE_GAIN", title: "Rumble strength", options: [("0", "0%"), ("0.5", "50%"), ("1.0", "100%"), ("1.5", "150%"), ("2.0", "200%"), ("3.0", "300%")]),
         Choice(key: "DM_RUMBLE_MIN", title: "Rumble cutoff", options: [("0", "Off"), ("0.2", "20%"), ("0.45", "45%"), ("0.6", "60%")]),
+        Choice(key: "DM_SCREEN_ASPECT", title: "Picture shape", options: [("0", "16:9 (Switch)"), ("1.43", "iPhone Duo screen (1.43:1)")]),
         Choice(key: "DM_PIPELINE_MODE", title: "Pipeline mode", options: [("exact", "Exact"), ("async", "Async (experimental)"), ("skip", "Skip (experimental)"), ("hybrid", "Hybrid"), ("legacy", "Legacy")])
     ]
 

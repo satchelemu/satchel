@@ -58,20 +58,20 @@ int main(int argc, const char **argv) {
             [defaults removeObjectForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-A"];
             [defaults removeObjectForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
             // A game without a profile entry keeps its own frame logic at full scale.
-            assert(([SatchelPlayerSettings(title) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off", @"DM_RUMBLE_GAIN": @"1.0", @"DM_RUMBLE_MIN": @"0"}]));
+            assert(([SatchelPlayerSettings(title) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off", @"DM_RUMBLE_GAIN": @"1.0", @"DM_RUMBLE_MIN": @"0", @"DM_SCREEN_ASPECT": @"0"}]));
             // Tears of the Kingdom expects 30 (its frame-step patch keeps game time real), at full scale.
             [defaults removeObjectForKey:@"SatchelPlayerSettings.0100F2C0115B6000"];
             assert([SatchelPlayerSettings(@"0100F2C0115B6000")[@"DM_FPS_TARGET"] isEqual:@"30"]);
             assert([SatchelPlayerSettings(@"0100F2C0115B6000")[@"DM_RENDER_SCALE"] isEqual:@"1.0"]);
             // All validated per-title choices are read by both the page and launch.
             [defaults setObject:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
-            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off", @"DM_RUMBLE_GAIN": @"1.0", @"DM_RUMBLE_MIN": @"0"}]));
+            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off", @"DM_RUMBLE_GAIN": @"1.0", @"DM_RUMBLE_MIN": @"0", @"DM_SCREEN_ASPECT": @"0"}]));
             assert(([SatchelPlayerOverrides(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"30", @"DM_RENDER_SCALE": @"0.65", @"DM_SCREEN_MODE": @"stretch", @"DM_HAPTICS": @"on"}]));
             [defaults setObject:@{@"DM_SCREEN_MODE": @"zoom"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
             assert([SatchelPlayerSettings(otherTitle)[@"DM_SCREEN_MODE"] isEqual:@"fit"]);
             assert([[defaults dictionaryForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"][@"DM_SCREEN_MODE"] isEqual:@"fit"]);
             [defaults setObject:@{@"DM_FPS_TARGET": @120, @"DM_RENDER_SCALE": @"nan", @"DM_SCREEN_MODE": @"bad", @"DM_SAVE": @"bad"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-B"];
-            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off", @"DM_RUMBLE_GAIN": @"1.0", @"DM_RUMBLE_MIN": @"0"}]));
+            assert(([SatchelPlayerSettings(otherTitle) isEqual:@{@"DM_FPS_TARGET": @"0", @"DM_RENDER_SCALE": @"1.0", @"DM_SCREEN_MODE": @"fit", @"DM_HAPTICS": @"on", @"DM_PIPELINE_MODE": @"exact", @"DM_PRESENT_UPSCALE": @"off", @"DM_RUMBLE_GAIN": @"1.0", @"DM_RUMBLE_MIN": @"0", @"DM_SCREEN_ASPECT": @"0"}]));
             // Queue frame rate and scale for the next launch without changing the running environment.
             SatchelApplyPlayerSettings(otherTitle);
             assert(!strcmp(getenv("DM_FPS_TARGET"), "0") && !strcmp(getenv("DM_RENDER_SCALE"), "1.0"));
@@ -129,6 +129,22 @@ int main(int argc, const char **argv) {
             assert(SatchelResetPlayerSetting(@"0100F2C0115B6000", @"DM_FPS_TARGET"));
             assert([SatchelSavedPlayerSettings(@"0100F2C0115B6000")[@"DM_FPS_TARGET"] isEqual:@"30"]);
             assert([SatchelPlayerGlobalDefaults()[@"DM_FPS_TARGET"] isEqual:@"0"]);
+            // The picture shape is gated per title (PlayerProfiles.plist screenAspectTitles, empty).
+            assert(!SatchelPlayerSupportsScreenAspect(title) && !SatchelPlayerSupportsScreenAspect(@"0100F2C0115B6000"));
+            assert(!SatchelSavePlayerSettings(title, @{@"DM_SCREEN_ASPECT": @"1.43"}));
+            assert(!SatchelSavePlayerSettings(title, @{@"DM_SCREEN_ASPECT": @"1.5"}));
+            assert(SatchelSavePlayerSettings(title, @{@"DM_SCREEN_ASPECT": @"0"}) && SatchelResetPlayerSetting(title, @"DM_SCREEN_ASPECT"));
+            [defaults setObject:@{@"DM_SCREEN_ASPECT": @"1.43"} forKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-C"];
+            SatchelApplyPlayerSettings(@"DISPLAY-FIXTURE-C");
+            assert(!strcmp(getenv("DM_SCREEN_ASPECT"), "0")); // A stored shape never reaches a title without screen-shape patches.
+            [defaults removeObjectForKey:@"SatchelPlayerSettings.DISPLAY-FIXTURE-C"];
+            SatchelApplyPlayerSettings(title);
+            // A taller presented picture keeps its own shape; invalid shapes fall back to 16:9.
+            CGRect duo = CGRectMake(0, 0, 1004, 700);
+            CGRect tall = SatchelPictureRectAspect(duo, 0, 1920.0 / 1344.0), sixteen = SatchelPictureRectAspect(duo, 0, NAN);
+            near(tall.size.width, 1000); near(tall.size.height, 700);
+            assert(CGRectEqualToRect(sixteen, SatchelPictureRect(duo, 0)));
+            assert(CGRectEqualToRect(SatchelPictureRectAspect(duo, 1, 1.43), duo));
             // Rumble strength and controller cutoff: validated ranges, launch environment and live retune.
             assert([SatchelPlayerGlobalDefaults()[@"DM_RUMBLE_GAIN"] isEqual:@"1.0"]);
             assert([SatchelPlayerGlobalDefaults()[@"DM_RUMBLE_MIN"] isEqual:@"0"]);
