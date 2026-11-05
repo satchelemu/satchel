@@ -22,7 +22,8 @@ import UIKit
 //                                        then take another (Documents/*-view.png)
 //   -SatchelPreviewTouch YES              game: show the touch pad (the simulator's
 //                                        virtual controller otherwise hides it)
-//   -SatchelPreviewPosture half           game: the host's half-folded test layout
+//   -SatchelPreviewPosture half           game: the host's half-folded test layout; the
+//                                        real scene turns upright, as on the phone
 //   -SatchelPreviewHot YES                the session reports a heat frame-rate limit
 //   -SatchelPreviewOrientation left|right ask for that landscape orientation (an
 //                                        ordinary app request, not a device rotation)
@@ -580,8 +581,16 @@ struct PrepareJobSlot: View {
 
 func SatchelNativeSessionStarted() -> Bool { false }
 
+// No game surface in the dev preview: the host's orientation rule always answers landscape.
+func SatchelGameOrientationMask() -> UIInterfaceOrientationMask { .landscape }
+func SatchelFollowGameOrientation(_ scene: UIWindowScene) {
+    guard #available(iOS 26.0, *), !scene.effectiveGeometry.interfaceOrientation.isLandscape else { return }
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
+}
+
 extension Notification.Name {
     static let SatchelMenuReturnToGame = Notification.Name("SatchelMenuReturnToGame")
+    static let SatchelGameOrientationDidChange = Notification.Name("SatchelGameOrientationDidChange")
 }
 
 struct PrepareGameView: View {

@@ -142,7 +142,13 @@ no cover/inner screen enum. Logs therefore report actual screen identity and geo
 plus closed/open/half hinge posture rather than inventing a screen role.
 
 Partially open puts the game in the top half and touch controls in the bottom half, with
-the picture clipped at the half boundary. The control hit tests and game-touch projection use those
+the picture clipped at the half boundary. The hinge crosses the long side of the inner screen,
+so those halves match the fold only when the phone is upright: while a game is on screen and
+the hinge is partially open, `SatchelGameOrientationMask` answers portrait (either way up)
+and the scene turns there once a real hinge has rested partly open for 0.6 s (opening or
+closing the phone passes through that state); the library, the end of a session, closed and fully open answer
+landscape again. The app (`App/GameOrientation.swift`) and the pause menu repeat that answer
+at run time, and the Info.plist stays landscape only, so launches never start upright. The control hit tests and game-touch projection use those
 same rectangles. Root layout and hinge callbacks update immediately; a 250 ms geometry
 observer also catches same-sized screen moves without replacing SwiftUI's scene delegate.
 Geometry changes preserve held touch ownership and reproject game touches into the new

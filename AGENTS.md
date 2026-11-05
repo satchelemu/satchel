@@ -61,7 +61,9 @@ is provided by the rename. Keep third-party notices and `Validation/history` int
   device owner may install or launch on the phone at a given time.
 - Satchel bundle ID `com.dell.satchel`; experiments use their own bundle IDs
   (`com.dell.satchel.<name>`) so the installed app and its library stay untouched.
-- Keep the UI landscape-locked; preserve the existing library and imported files.
+- Keep the UI landscape-locked, with one exception the maintainer asked for (2026-11-05): a
+  game on a half-folded Duo plays upright, picture on the top half and controls on the
+  bottom half (`NativeHost/DisplayControls.h`). Preserve the existing library and imported files.
 
 ## Reporting
 

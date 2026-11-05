@@ -13,16 +13,21 @@ The fixture `game_profile.h` carries no game data.
 - open and closed: the 16:9 picture overlays the whole screen;
 - half folded: the picture fits the top half, centred, and the face buttons, stick and
   d-pad and the whole control area sit below the fold; stretch fills only the top half;
-- each posture change relays out at once without a resize and releases held input;
+- each posture change relays out at once without a resize and keeps held input owned;
 - an unknown override is rejected and `auto` returns to UIKit's report;
 - touch projection uses the presentation rectangle and clamps below the fold;
 - fold regions tile the inner screen, the cover screen and an odd height;
 - a camera beside either half, in either landscape rotation, narrows only its own half;
-- the real scene in landscape right and left keeps the picture on top.
+- the real scene: half folding a game turns it upright with the picture on the top half and
+  the controls on the bottom half, and opening it returns to landscape, from landscape right
+  and left;
+- only a game surface in a window turns: without one, or in a fixture that draws its own
+  screen, the answer stays landscape.
 
 `test_orientation_policy.py` checks that every app and preview declaration is exactly
-landscape left and right, full screen, with no iPad override, and that the runtime lock
-in `App/GameOrientation.swift` stays landscape.
+landscape left and right, full screen, with no iPad override, and that the one upright
+answer lives in `NativeHost/DisplayControls.m` (a game on screen while half folded), which
+`App/GameOrientation.swift` and the pause menu only repeat.
 
 Run it on a private simulator, never the shared one:
 

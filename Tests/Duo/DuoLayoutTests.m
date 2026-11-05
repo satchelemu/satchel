@@ -117,9 +117,10 @@ static BOOL inside(CGRect outer, CGRect inner) { return CGRectContainsRect(CGRec
     assertRectNear(_game.frame, self.topHalf, @"stretched half-folded picture");
 }
 
-// Each change of posture relays the picture out at once and releases held input
-// (DisplayControls.m geometryChanged calls dm_gamepad_reset, which releases HID state).
-- (void)testPostureChangesRelayoutAtOnceAndReleaseHeldInput {
+// Each change of posture relays the picture out at once and keeps held input owned
+// (DisplayControls.m geometryChanged reprojects through dm_gamepad_reproject; since the
+// postures work it no longer calls dm_gamepad_reset, so a held control survives the hinge).
+- (void)testPostureChangesRelayoutAtOnceAndKeepHeldInput {
     [self layout:kInner];
     NSArray *steps = @[@"half", @"closed", @"half", @"open", @"half"];
     for (NSString *step in steps) {
@@ -129,7 +130,7 @@ static BOOL inside(CGRect outer, CGRect inner) { return CGRectContainsRect(CGRec
         SatchelLayoutGameView(_game, _root.bounds);
         BOOL half = [step isEqualToString:@"half"];
         assertRectNear(_game.frame, SatchelPictureRect(half ? self.topHalf : _root.bounds, 0), step);
-        XCTAssertGreaterThan(SatchelDuoResets, before, @"%@ releases held input", step);
+        XCTAssertEqual(SatchelDuoResets, before, @"%@ must not release held input", step);
     }
 }
 
@@ -189,21 +190,56 @@ static BOOL inside(CGRect outer, CGRect inner) { return CGRectContainsRect(CGRec
     }
 }
 
-// The real scene in both landscape rotations: the half-folded layout depends on the bounds
-// only, so turning the phone over keeps the picture on top and the controls below.
-- (void)testHalfFoldedLayoutHoldsInBothLandscapeRotations {
+// The real scene: half folding a game turns it upright, with the picture on the top half and
+// the controls on the bottom half; opening or closing the phone turns it back to landscape,
+// in either landscape rotation. The Info.plist stays landscape only: the scene delegate's
+// answer (SatchelGameOrientationMask) is what allows the turn.
+- (void)testHalfFoldedGameTurnsUprightAndBackToLandscape {
     UIWindow *window = keyWindow(); UIWindowScene *scene = window.windowScene;
-    posture("half");
     for (NSNumber *mask in @[@(UIInterfaceOrientationMaskLandscapeRight), @(UIInterfaceOrientationMaskLandscapeLeft)]) {
         UIInterfaceOrientation want = mask.unsignedIntegerValue == UIInterfaceOrientationMaskLandscapeRight ? UIInterfaceOrientationLandscapeRight : UIInterfaceOrientationLandscapeLeft;
         [scene requestGeometryUpdateWithPreferences:[[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:mask.unsignedIntegerValue]
                                       errorHandler:^(NSError *error) { XCTFail(@"rotation refused: %@", error); }];
-        for (int i = 0; i < 60 && scene.effectiveGeometry.interfaceOrientation != want; i++) spin(0.05);
+        // The window's bounds follow the reported orientation a moment later (an earlier
+        // case may have left the scene turning), so wait for both.
+        for (int i = 0; i < 80 && (scene.effectiveGeometry.interfaceOrientation != want || window.bounds.size.width <= window.bounds.size.height); i++) spin(0.05);
         XCTAssertEqual(scene.effectiveGeometry.interfaceOrientation, want);
         [self layout:window.bounds.size];
-        XCTAssertGreaterThan(_root.bounds.size.width, _root.bounds.size.height, @"landscape");
-        XCTAssertTrue(inside(self.topHalf, _game.frame), @"rotation %ld: picture on top", (long)want);
-        XCTAssertTrue(CGRectContainsPoint(self.bottomHalf, [self pad:@"faceCenter"]), @"rotation %ld: controls below", (long)want);
+        XCTAssertGreaterThan(_root.bounds.size.width, _root.bounds.size.height, @"open: landscape");
+        XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+
+        posture("half");
+        XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown);
+        for (int i = 0; i < 80 && (!UIInterfaceOrientationIsPortrait(scene.effectiveGeometry.interfaceOrientation) || window.bounds.size.height <= window.bounds.size.width); i++) spin(0.05);
+        XCTAssertTrue(UIInterfaceOrientationIsPortrait(scene.effectiveGeometry.interfaceOrientation), @"half folded from rotation %ld: the scene turns upright", (long)want);
+        [self layout:window.bounds.size];
+        XCTAssertGreaterThan(_root.bounds.size.height, _root.bounds.size.width, @"upright");
+        XCTAssertTrue(inside(self.topHalf, _game.frame), @"picture %@ on the top half", NSStringFromCGRect(_game.frame));
+        XCTAssertEqualWithAccuracy(_game.frame.size.width, _root.bounds.size.width, kTolerance, @"the picture takes the half's full width");
+        for (NSString *key in @[@"faceCenter", @"stickHome", @"dpadCenter"])
+            XCTAssertTrue(CGRectContainsPoint(self.bottomHalf, [self pad:key]), @"%@ on the bottom half", key);
+
+        posture("open");
+        XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+        for (int i = 0; i < 80 && (!UIInterfaceOrientationIsLandscape(scene.effectiveGeometry.interfaceOrientation) || window.bounds.size.width <= window.bounds.size.height); i++) spin(0.05);
+        XCTAssertTrue(UIInterfaceOrientationIsLandscape(scene.effectiveGeometry.interfaceOrientation), @"open again: back to landscape");
+        [self layout:window.bounds.size];
+        assertRectNear(_game.frame, SatchelPictureRect(_root.bounds, 0), @"open picture after the turn");
     }
+}
+
+// Only a game on screen turns: the library over a paused game and an emulated screen stay landscape.
+- (void)testOnlyAGameOnScreenTurnsUpright {
+    posture("half");
+    XCTAssertNotEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+    [_root removeFromSuperview]; SatchelDisplayDidLayout();
+    XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape, @"no game surface in a window");
+    [keyWindow().rootViewController.view addSubview:_root]; SatchelDisplayDidLayout();
+    XCTAssertNotEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+    SatchelGameOrientationFollowsPosture(NO);
+    XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape, @"a fixture that draws its own screen");
+    SatchelGameOrientationFollowsPosture(YES);
+    posture("closed");
+    XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
 }
 @end

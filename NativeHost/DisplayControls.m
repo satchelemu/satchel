@@ -79,6 +79,48 @@ CGRect SatchelInteractiveBounds(UIView *view, CGRect region) {
 - (void)capture:(void (^)(void))completion;
 @end
 static __weak SatchelDisplayControls *activeControls;
+
+// Orientation rule (DisplayControls.h). The game counts as on screen while its surface is
+// attached and the session has neither ended nor gone to the library.
+NSNotificationName const SatchelGameOrientationDidChange = @"SatchelGameOrientationDidChange";
+static BOOL orientationFollowsPosture = YES, gameUpright;
+UIInterfaceOrientationMask SatchelGameOrientationMask(void) {
+    return gameUpright ? UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown : UIInterfaceOrientationMaskLandscape;
+}
+static void updateGameOrientation(void) {
+    NSDictionary *menu = SatchelMenuState();
+    NSString *state = menu[@"state"];
+    BOOL onScreen = activeControls.root.window && [menu[@"attached"] boolValue] &&
+        ![state isEqualToString:@"ended"] && ![state isEqualToString:@"library"];
+    BOOL upright = orientationFollowsPosture && onScreen && effectivePosture() == 2;
+    // Opening or closing the phone passes through partially open. A real hinge must rest
+    // there before the game turns (the 250 ms geometry tick asks again); the test override
+    // and every return to landscape apply at once.
+    static NSTimeInterval halfSince;
+    if (!upright) halfSince = 0;
+    else if (!gameUpright && overridePosture < 0) {
+        NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+        if (!halfSince) halfSince = now;
+        if (now - halfSince < 0.6) return;
+    }
+    if (upright == gameUpright) return;
+    gameUpright = upright;
+    fprintf(stderr, "Satchel orientation: %s\n", upright ? "upright, half folded (picture on the top half, controls on the bottom half)" : "landscape");
+    [NSNotificationCenter.defaultCenter postNotificationName:SatchelGameOrientationDidChange object:nil];
+}
+void SatchelGameOrientationFollowsPosture(BOOL follows) { orientationFollowsPosture = follows; updateGameOrientation(); }
+void SatchelFollowGameOrientation(UIWindowScene *scene) {
+    if (!scene) return;
+    UIInterfaceOrientationMask mask = SatchelGameOrientationMask();
+    for (UIWindow *window in scene.windows)
+        for (UIViewController *c = window.rootViewController; c; c = c.presentedViewController) [c setNeedsUpdateOfSupportedInterfaceOrientations];
+    UIInterfaceOrientation now = scene.effectiveGeometry.interfaceOrientation;
+    if (gameUpright ? UIInterfaceOrientationIsPortrait(now) : UIInterfaceOrientationIsLandscape(now)) return;
+    [scene requestGeometryUpdateWithPreferences:[[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:mask]
+                                  errorHandler:^(NSError *error) {
+        fprintf(stderr, "Satchel orientation: the system refused the turn (%s)\n", error.localizedDescription.UTF8String);
+    }];
+}
 @implementation SatchelDisplayControls
 - (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; [self.geometryTimer invalidate]; [self.pauseFade invalidate]; }
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other { return YES; }
@@ -137,6 +179,7 @@ static __weak SatchelDisplayControls *activeControls;
     }
     BOOL running = [state isEqualToString:@"running"];
     self.pauseButton.hidden = !running;
+    updateGameOrientation();   // the library and the end of a session return to landscape
     if (running) { [self layoutPause]; [self brightenPause]; } // touch size may have changed
 }
 - (void)brightenPause {
@@ -152,6 +195,7 @@ static __weak SatchelDisplayControls *activeControls;
     dm_gamepad_reproject();
 }
 - (void)geometryChanged {
+    updateGameOrientation();   // also on the 250 ms tick, which catches the surface joining or leaving its window
     UIWindowScene *scene = self.root.window.windowScene; UIScreen *screen = scene.screen;
     CGRect b = self.root.bounds; UIEdgeInsets safe = self.root.safeAreaInsets;
     CGRect interactive = SatchelInteractiveBounds(self.root, SatchelControlBounds(b));
@@ -274,6 +318,15 @@ void SatchelInstallDisplayControls(UIView *root, UIView *game, UIView *pad, UILa
     screenTap.delegate = controls; [root addGestureRecognizer:screenTap];
     objc_setAssociatedObject(root, @selector(openMenu), controls, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     activeControls = controls;
+    // The game's controller (the pinned engine's declares landscape only) repeats the host's
+    // orientation rule, so its answer can never contradict the scene's while the game is upright.
+    UIResponder *owner = root.nextResponder;
+    if ([owner isKindOfClass:UIViewController.class] && object_getClass(owner) != UIViewController.class) {
+        Method declared = class_getInstanceMethod(UIViewController.class, @selector(supportedInterfaceOrientations));
+        class_replaceMethod(object_getClass(owner), @selector(supportedInterfaceOrientations),
+            imp_implementationWithBlock(^UIInterfaceOrientationMask(id controller) { return SatchelGameOrientationMask(); }),
+            method_getTypeEncoding(declared));
+    }
     [NSNotificationCenter.defaultCenter addObserver:controls selector:@selector(changed) name:SatchelScreenModeDidChange object:nil];
     if (@available(iOS 27.1, *)) {
         __weak SatchelDisplayControls *weakControls = controls;

@@ -81,7 +81,7 @@ documented in [the importer validation guide](docs/importer-validation.md). Thes
 checks do not add phone compatibility claims.
 
 Duo posture previews cover the library, game page, Settings and pause menu. Half-folded
-play keeps the picture above the controls and menu. Synthetic transition journeys check
+play turns upright, so the picture fills the top half and the controls and menu the bottom half. Synthetic transition journeys check
 Fit geometry and held touch input; real hinge and display-switch validation remains.
 See [the posture test guide](docs/testing.md#duo-postures).
 
