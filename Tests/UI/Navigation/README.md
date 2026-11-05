@@ -88,7 +88,9 @@ one-app scheme.
   acknowledged only after the app is active again.
 - Simulator only: Prepare is disabled beside a paused game, then enabled after Quit
   with a selected local base and synthetic keys. The game's warm-up also becomes available.
-- Simulator only: upcoming, absent and expired signature reminders with synthetic dates.
+- Simulator only: upcoming, absent and expired signature reminders with synthetic dates, plus
+  background/return and a relaunch with a refreshed seven-day deadline. Real installer
+  refresh acceptance is in [the distribution journey](../../../docs/distribution-validation.md).
 
 - Simulator only: Prepare > Game diagnostics renders two sanitized missing-service rows
   with command, optional method, first-seen frame and count. Zero-byte, empty-array,

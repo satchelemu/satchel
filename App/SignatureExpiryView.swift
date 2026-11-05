@@ -32,10 +32,14 @@ struct SignatureExpiryBanner: View {
 #if !SATCHEL_UI_PREVIEW_MINIMAL && !PREVIEW_GAME
 extension SignatureExpiry {
     static func readWarnings(games: [(folder: String, name: String)], now: Date) -> [Warning] {
-        let app = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision")
+        let profile = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision")
             .flatMap { try? boundedData($0) }
             .flatMap { SatchelSignatureMetadata.profileContent($0) }
             .flatMap(profileExpiry)
+        let signer = Bundle.main.executableURL
+            .flatMap { try? codeCMS($0, executable: true) }
+            .flatMap { SatchelSignatureMetadata.signerExpiry($0) }
+        let app = appExpiry(profile: profile, signer: signer)
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("PreparedGames", isDirectory: true)
         let dates: [(String, String, Date)] = games.compactMap { game in

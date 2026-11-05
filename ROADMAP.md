@@ -24,7 +24,7 @@ with no computer involved.
 | iPhone Duo postures (closed, open, half folded) | 60% | Open and closed screens work; half folded layout and live relayout while playing are built but not fully verified. |
 | Library and app UI | 85% | Redesigned library with real artwork, import flow that keeps going in the background with iCloud download progress, home cards for import, Prepare, warm-up and a paused game, shader warm-up on each game page, settings with the bundled install guide, signature expiry warnings, per-title settings and a dated save-backup list with restore, share-sheet export and import. The new settings and save journeys still need hardware validation. |
 | Build reproducibility | 45% | All 45 declared native artifacts rebuilt locally from pinned cached inputs. Five tool source pins added; clean-Mac tool setup and private shader-parity evidence still prevent full app reproduction. See BUILDING.md. |
-| Distribution (IPA, SideStore source, refresh) | 40% | Install guide and source generator exist; no published IPA or source URL yet. |
+| Distribution (IPA, SideStore source, refresh) | 40% | Deterministic unsigned IPA export, hash manifests, source schema and screenshot metadata are validated on the Mac. Ad hoc re-signing preserves both requested memory entitlements. Installed-signature expiry policy and synthetic refresh journeys pass. Real installer capability preservation and refresh need phone validation; URLs remain placeholders and the manual CI draft is disabled. |
 | General importer (unknown games boot without a per-game profile) | 50% | A starter profile is generated from the game's own metadata; Castlevania ran on it with one memory rule. More games will find more gaps. |
 | Compatibility | 4 games | See COMPATIBILITY.md. |
 

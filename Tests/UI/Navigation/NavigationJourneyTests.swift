@@ -441,6 +441,29 @@ final class NavigationJourneyTests: XCTestCase {
 #endif
     }
 
+    func testSimulatorSignatureExpiryRefresh() throws {
+#if NAVIGATION_PREVIEW
+        let reminder = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "SideStore, AltStore or Xcode")).firstMatch
+        XCTAssertTrue(reminder.waitForExistence(timeout: 8))
+        XCTAssertTrue(reminder.isHittable)
+        let before = reminder.label
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(reminder.waitForExistence(timeout: 8))
+        XCTAssertEqual(reminder.label, before)
+        app.terminate()
+        let days = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewSignatureDays"))
+        // Simulate a new installed profile after the installer refreshes the app.
+        app.launchArguments[days + 1] = "7"
+        app.launch()
+        _ = try button("import-homebrew")
+        XCTAssertFalse(reminder.exists)
+        XCTAssertTrue(app.buttons["open-settings"].isHittable)
+#else
+        throw XCTSkip("Refresh dates use the isolated simulator app.")
+#endif
+    }
+
     override func tearDownWithError() throws {
         if app != nil, (testRun?.totalFailureCount ?? 0) > 0 {
             let hierarchy = XCTAttachment(string: app.debugDescription)

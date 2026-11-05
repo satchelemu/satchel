@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
 """Export an unsigned Release IPA and generate a local SideStore/AltStore source."""
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime
 import hashlib
 import json
-import os
 from pathlib import Path, PurePosixPath
 import plistlib
 import re
-import shutil
 import stat
-import subprocess
-import tempfile
 from urllib.parse import urlsplit
 import zipfile
 
 BUNDLE = 'com.dell.satchel'
-DEFAULT_OUT = Path.home() / 'SatchelBuild/dlc'
+DEFAULT_OUT = Path.home() / 'SatchelBuild/distribution'
 METADATA = 'SatchelDistribution'
-MACHO = {b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xfe\xed\xfa\xcf',
-         b'\xfe\xed\xfa\xce', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'}
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def require(condition, message):
@@ -79,68 +74,11 @@ def privacy(info):
 
 
 def export(build_root, out):
-    product = build_root / 'app/DerivedData/Build/Products/Release-iphoneos/Satchel.app'
-    info = plistlib.loads((product / 'Info.plist').read_bytes())
-    info_fields(info)
-    project = json.loads((build_root / 'app/project.json').read_text())
-    settings = project['targets']['Satchel']['settings']['base']
-    entitlements = build_root / 'app/Satchel.entitlements'
-    require(Path(settings['CODE_SIGN_ENTITLEMENTS']).resolve() == entitlements.resolve(),
-            'Entitlements must come from this generated build project')
-    names = entitlement_names(entitlements)
-    require(not list(product.rglob('*.appex')), 'App extensions need their own entitlement export support')
-    require(not list(product.rglob('*.app')), 'Nested apps need their own entitlement export support')
-    forbidden = {'.p12', '.pfx', '.key', '.pem', '.xci', '.nsp', '.xcz', '.nsz', '.nca'}
-    for path in product.rglob('*'):
-        require(not path.is_symlink(), 'Symlinks are not supported in this iOS export')
-        require(path.suffix.lower() not in forbidden and path.name not in {
-            'prod.keys', 'title.keys', 'romfs.img', 'game.dylib', 'b-e65a4ebd3322'}
-            and not path.name.endswith('.patched.bin'), 'Private input found in build; refusing export')
-    out.mkdir(parents=True, exist_ok=True)
-    require(shutil.disk_usage(out).free >= 36 * 1024**3, 'Disk reserve: need 36 GiB before export')
-    destination = out / 'Satchel.ipa'
-    require(not destination.exists(), 'Satchel.ipa already exists; choose a fresh output directory')
-    built = datetime.fromtimestamp((product / info['CFBundleExecutable']).stat().st_mtime, timezone.utc)
-    with tempfile.TemporaryDirectory(prefix='distribution-', dir=out) as temporary:
-        stage = Path(temporary)
-        app = stage / 'Payload/Satchel.app'
-        shutil.copytree(product, app)
-        all_names = set(names)
-        for path in app.rglob('*'):
-            if not path.is_file():
-                continue
-            with path.open('rb') as stream:
-                magic = stream.read(4)
-            if magic not in MACHO:
-                continue
-            # Public entitlement metadata only. Never print codesign's identity output.
-            existing = subprocess.run(['codesign', '-d', '--entitlements', '-', '--xml', str(path)], capture_output=True)
-            if existing.returncode == 0 and existing.stdout.strip():
-                all_names.update(plistlib.loads(existing.stdout).keys())
-            signed = subprocess.run(['codesign', '-d', str(path)], capture_output=True)
-            if signed.returncode == 0:
-                removed = subprocess.run(['codesign', '--remove-signature', str(path)], capture_output=True)
-                require(removed.returncode == 0, 'Could not remove a staged binary signature')
-            unsigned = subprocess.run(['codesign', '-d', str(path)], capture_output=True)
-            require(unsigned.returncode != 0 and b'not signed at all' in unsigned.stderr,
-                    'Could not confirm a staged binary is unsigned')
-        for path in list(app.rglob('embedded.mobileprovision')):
-            path.unlink()
-        for path in list(app.rglob('_CodeSignature')):
-            shutil.rmtree(path)
-        info[METADATA] = {'entitlements': sorted(all_names), 'buildDate': date(built.isoformat())}
-        (app / 'Info.plist').write_bytes(plistlib.dumps(info))
-        archive = stage / 'Satchel.ipa'
-        with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zipped:
-            for path in sorted((stage / 'Payload').rglob('*')):
-                if path.is_file():
-                    require(shutil.disk_usage(out).free >= 35 * 1024**3, 'Disk reserve: export stopped at 35 GiB')
-                    zipped.write(path, path.relative_to(stage))
-        with zipfile.ZipFile(archive) as zipped:
-            require(zipped.testzip() is None, 'IPA CRC verification failed')
-        os.rename(archive, destination)
-    print('PASS: exported unsigned Satchel.ipa; no signing identity used')
-    return destination
+    # Keep the original command compatible; the canonical packager owns the contract.
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+    from build_ipa import export as build_ipa
+    return build_ipa(build_root, out)
 
 
 def inspect_ipa(path, entitlements=None, build_date=None):
@@ -198,8 +136,10 @@ def validate_source(source):
     for key in ['developerName', 'localizedDescription']:
         text(app.get(key), key)
     url(app.get('iconURL'))
-    require(app.get('screenshots') == [] and app.get('screenshotURLs') == [],
-            'Expected empty screenshots placeholders')
+    from schema import validate
+    validate(source)
+    require(app['screenshotURLs'] == [item['imageURL'] for item in app['screenshots']],
+            'Legacy screenshots must match screenshots')
     versions = app.get('versions')
     require(isinstance(versions, list) and len(versions) == 1 and isinstance(versions[0], dict),
             'Expected one version object')
@@ -228,17 +168,55 @@ def validate_source(source):
         text(value, 'privacy description')
 
 
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def jpeg_size(path):
+    # Read marker headers only. No image library or re-encoding of tracked screenshots.
+    import struct
+    with path.open('rb') as stream:
+        require(stream.read(2) == b'\xff\xd8', 'Expected a JPEG screenshot')
+        while True:
+            marker = stream.read(2)
+            require(len(marker) == 2 and marker[0] == 255, 'Invalid JPEG marker')
+            while marker[1] == 255:
+                marker = b'\xff' + stream.read(1)
+            require(marker[1] not in {0xda, 0xd9}, 'JPEG has no size marker')
+            length = struct.unpack('>H', stream.read(2))[0]
+            require(length >= 2, 'Invalid JPEG segment')
+            if marker[1] in {0xc0, 0xc1, 0xc2}:
+                _, height, width = struct.unpack('>BHH', stream.read(5))
+                return width, height
+            stream.seek(length - 2, 1)
+
+
+def screenshots(base):
+    metadata = json.loads((ROOT / 'NativeApp/Distribution/release.json').read_text())
+    result = []
+    for name in metadata['screenshots']:
+        require(Path(name).name == name, 'Invalid tracked screenshot name')
+        width, height = jpeg_size(ROOT / 'docs/screenshots' / name)
+        result.append({'imageURL': base + '/screenshots/' + name, 'width': width, 'height': height})
+    return result
+
+
 def make_source(ipa, base_url, entitlements=None, build_date=None):
     info, permissions, usage, built = inspect_ipa(ipa, entitlements, build_date)
     base = url(base_url).rstrip('/')
     require(not urlsplit(base).query and not urlsplit(base).fragment, 'Base URL must not have a query or fragment')
     version = {'version': info['CFBundleShortVersionString'], 'buildVersion': info['CFBundleVersion'],
                'date': built, 'downloadURL': base + '/Satchel.ipa', 'size': ipa.stat().st_size,
-               'minOSVersion': info['MinimumOSVersion']}
+               'minOSVersion': info['MinimumOSVersion'], 'sha256': sha256(ipa)}
     app = {'name': 'Satchel', 'bundleIdentifier': BUNDLE, 'developerName': 'Satchel contributors',
            'localizedDescription': 'Prepare and play your own Switch dumps on iPhone. '
-               'Personal signing required. New-account game signing is not yet supported; see the install guide.',
-           'iconURL': base + '/icon.png', 'screenshots': [], 'screenshotURLs': [], 'versions': [version],
+               'Personal signing required. Other accounts and installer capability preservation still need verification; see the install guide.',
+           'iconURL': base + '/icon.png', 'screenshots': screenshots(base),
+           'screenshotURLs': [item['imageURL'] for item in screenshots(base)], 'versions': [version],
            'appPermissions': {'entitlements': permissions, 'privacy': usage}}
     for old, new in [('version', 'version'), ('versionDate', 'date'), ('downloadURL', 'downloadURL'),
                      ('size', 'size'), ('minOSVersion', 'minOSVersion')]:

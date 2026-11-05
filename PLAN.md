@@ -150,3 +150,14 @@ visit with frame count, footprint, timing and result. Mac policy tests and synth
 UI journeys cover sequencing and failure handling. Hardware acceptance stays with
 the orchestrator, using [docs/phone-cycle.md](docs/phone-cycle.md). No new gameplay,
 phone memory or save correctness result is claimed by this automation change.
+
+## Local distribution tooling (2026-11-04)
+
+Worker `session`, branch `distribution-2`, adds deterministic unsigned packaging and
+hash manifests, a tracked release-metadata contract, schema-checked source generation
+with existing screenshots, and disposable ad hoc re-sign validation. The app warning
+uses the earlier readable installed profile or app signer expiry. The manual-only
+Actions draft is hard-disabled until dependency builds work on a clean runner.
+Installer capability and refresh acceptance remains with the orchestrator using
+[docs/distribution-validation.md](docs/distribution-validation.md). No publication,
+real-account signing, phone execution or new compatibility result is implied.
