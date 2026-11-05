@@ -17,7 +17,7 @@ enum WarmupChecks {
             completed = state.completedRecords; reports += 1
             try require(records.count <= 2)
         })
-        try require(first.completedRecords == 3 && first.sourceCacheHits == 2 && first.compiledLibraries == 1 && first.liveLibraryHits == 2 && maxOutstanding == 2)
+        try require(first.completedRecords == 3 && first.sourceCacheHits == 2 && first.compiledLibraries == 1 && first.liveLibraryHits + first.warmupLibraryHits == 2 && first.warmupLibraryHits >= 1 && maxOutstanding == 2)
         var cancelledReads = 0, rejected = false
         do { try warmup.run(next: { cancelledReads += 1; return request }, cancelled: { true }) }
         catch SatchelShaderError.cancelled { rejected = true }

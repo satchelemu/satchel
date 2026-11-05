@@ -26,7 +26,15 @@ parser.add_argument('--ui-tests-simulator', action='store_true', help='Run the s
 parser.add_argument('--session-mac-host', action='store_true', help='Build the diagnostic Mac session host, without phone actions')
 parser.add_argument('--pipeline-mac-host', action='store_true', help='Build the diagnostic Mac pipeline host, without phone actions')
 parser.add_argument('--graphics-mac-host', action='store_true', help='Build the diagnostic Mac GPU host, without phone actions')
+parser.add_argument('--warmup-mac-harness', action='store_true', help='Build the shader warm-up timing and equivalence clients')
+parser.add_argument('--warmup-mac-tests', action='store_true', help='Build the production warm-up Mac integration client')
 args = parser.parse_args()
+if args.warmup_mac_tests:
+    run([sys.executable, '-B', ROOT / 'Tests/Warmup/build.py'], dict(os.environ, SATCHEL_WARMUP_OUT=str(OUT)))
+    sys.exit(0)
+if args.warmup_mac_harness:
+    run([sys.executable, '-B', ROOT / 'NativeShaders/build-warmup-speed.py'], dict(os.environ, SATCHEL_OUT=str(OUT)))
+    sys.exit(0)
 if args.session_mac_host:
     run([sys.executable, '-B', ROOT / 'NativeHost/session/build_mac_probe.py'],
         dict(os.environ, SESSION_MAC_OUT=str(OUT / 'session-mac')))

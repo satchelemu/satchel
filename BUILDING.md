@@ -378,3 +378,11 @@ establish UI behavior and synthetic input routing, not physical controller behav
 For a disk-constrained UI run, `SATCHEL_UI_DIAGNOSTICS=never` omits Xcode's verbose
 failure sysdiagnostics. Assertions, failure screenshots and test result bundles remain
 in place. The default diagnostics policy is unchanged when the variable is absent.
+
+The optional warm-up clients build through `NativeApp/build.py
+--warmup-mac-harness --unsigned` and `--warmup-mac-tests --unsigned`, under the same
+resource guard and private output-root rules. The latter selects integration
+checks with `SATCHEL_WARMUP_MAIN=$PWD/Tests/Warmup/Checks.swift` or a private
+captured-inventory replay with `Tests/Warmup/SpeedRunner.swift`. These clients
+use the installed NativeAOT and bridge dependencies, with two build workers.
+See [warm-up measurement and phone steps](NativeShaders/WarmupSpeed.md).

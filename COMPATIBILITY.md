@@ -11,6 +11,10 @@ choices require a fresh game launch and do not establish that a title supports a
 frame rate. Reset restores its bundled title default. Save archive checks establish title
 binding and byte integrity, not gameplay correctness after a restore.
 
+Warm-up scheduling and MSL transform changes are checked separately on the Mac.
+They do not change these phone gameplay ratings or establish a phone speedup.
+See [warm-up measurement steps](NativeShaders/WarmupSpeed.md).
+
 Test hardware so far: one iPhone Duo (iPhone19,4, A20 Pro), iOS 27.1, landscape.
 
 ## Ratings

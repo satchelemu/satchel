@@ -89,7 +89,11 @@ checks do not add phone compatibility claims.
   4 ms optional wait budget. Required first-use work can still exceed that budget.
   Experimental skip mode can omit a final draw while its pipeline builds, with
   visible artifacts possible. Game settings save the mode per title for the next
-  launch; exact stays the default. See [graphics notes](NativeHost/graphics/README.md).
+  launch; exact stays the default. Optional warm-up now keeps a bounded queue fed,
+  reuses identical translated source, and uses extra lanes when foreground or
+  charging, subject to thermal and power constraints. Phone speed measurements
+  remain pending. See [warm-up measurements](NativeShaders/WarmupSpeed.md) and
+  [graphics notes](NativeHost/graphics/README.md).
 - No cheats, no multiplayer, no App Store release (and none planned).
 - The phone's hardware matters. The app requests the increased memory limit and extended
   virtual addressing entitlements; those capabilities, the free developer account limits

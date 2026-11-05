@@ -193,7 +193,7 @@ struct WarmupInventory: Codable {
         let url = directory.appendingPathComponent(row.key + ".record")
         let attrs = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
         guard attrs.isRegularFile == true, attrs.isSymbolicLink != true, (attrs.fileSize ?? Int.max) <= 17 * 1024 * 1024 + 0x38 else { throw SatchelShaderError.invalidRequest }
-        let data = try Data(contentsOf: url)
+        let data = try SatchelShaderMetrics.measure("record-read") { try Data(contentsOf: url) }
         guard SatchelShaderTranslator.sha256(data) == row.digest else { throw SatchelShaderError.invalidRequest }
         return SatchelShaderRequest(record: data, stage: row.stage, wantedPixelLocations: wanted, expectedKey: row.key)
     }

@@ -11,6 +11,36 @@ import Metal
         var checks = 0
         func check(_ result: Bool) { precondition(result); checks += 1 }
         func rejects(_ body: () throws -> Void) { do { try body(); fatalError("Unexpected acceptance") } catch { checks += 1 } }
+        for foreground in [false, true] { for charging in [false, true] { for constrained in [false, true] {
+            let policy = SatchelWarmupPolicy.select(foreground: foreground, charging: charging, constrained: constrained)
+            check(policy.lanes == (!constrained && (foreground || charging) ? 4 : 2))
+            check(policy.qos == (foreground && !constrained ? .userInitiated : .utility))
+        } } }
+        let trial = SatchelWarmupTrial(arguments: ["app", "-SatchelWarmupTrial", "cold-1", "-SatchelWarmupRecords", "1024"])
+        check(trial.name == "cold-1" && trial.records == 1024)
+        for invalid in ["../escape", "", String(repeating: "a", count: 49), "a/b"] {
+            let trial = SatchelWarmupTrial(arguments: ["-SatchelWarmupTrial", invalid, "-SatchelWarmupRecords", "1024"])
+            check(trial.name == nil && trial.records == nil)
+        }
+        check(SatchelWarmupTrial(arguments: ["-SatchelWarmupRecords", "1024"]).records == nil)
+        // The old journal must remain decodable with absent timing fields.
+        let oldProgress = Data(#"{"stage":"paused","completed":2,"total":3,"shaders":2,"libraries":2,"sourceHits":0,"pipelines":0,"archiveHits":0,"deferred":0,"failed":0,"seconds":1,"state":"paused","phase":1}"#.utf8)
+        check(try JSONDecoder().decode(WarmupProgress.self, from: oldProgress).phaseOne == nil)
+        func originalSub(_ pattern: String, _ source: String) -> String {
+            let regex = try! NSRegularExpression(pattern: pattern)
+            var out = source
+            for result in regex.matches(in: source, range: NSRange(location: 0, length: (source as NSString).length)).reversed() {
+                let value = (source as NSString).substring(with: result.range)
+                out = (out as NSString).replacingCharacters(in: result.range, with: "[" + value + "]")
+            }
+            return out
+        }
+        for source in ["", "abc abc", "é👋a\nb", String(repeating: "abc float4(x);\n", count: 1000)] {
+            for pattern in ["a", "(?=a)", "^|$", "[a-z]+", "xyz"] {
+                check(sub(pattern, source) { "[" + $0[0] + "]" } == originalSub(pattern, source))
+                check(match(pattern, source)?.range() == matches(pattern, source).first?.range())
+            }
+        }
         check(!WarmupRunner.diagnostic(ShaderTransformError.unsupported("synthetic shader contents")).contains("synthetic shader contents"))
         var control = Data(count: 0x880), code = Data(count: 32)
         ShaderRecord.put(0x98761234, &control, 0); ShaderRecord.put(0x880, &control, 0x20)
@@ -67,6 +97,20 @@ import Metal
         check(firstPass.state == "complete" && firstPass.shaders == 1 && firstPass.failed == 0 && firstPass.systemFraction == 1)
         let resumed = try WarmupRunner.run(package: fullPackage, runtime: fullRuntime, reserve: 35 * 1024 * 1024 * 1024, cancelled: { false }) { _ in }
         check(resumed.shaders == 1 && resumed.sourceHits == 1 && resumed.failed == 0)
+        // Isolated timing trials still read normal first-use capture. They do
+        // not move or modify the capture while writing their own warm-up cache.
+        let captured = root.appendingPathComponent("normal-capture")
+        try FileManager.default.createDirectory(at: captured, withIntermediateDirectories: true)
+        var captureControl = control; ShaderRecord.put(2, &captureControl, 0x748)
+        let captureRequest = try SatchelShaderRequest(control: captureControl, code: code, stage: .compute)
+        let captureKey = try SatchelShaderTranslator.normalized(captureRequest).key
+        try captureControl.write(to: captured.appendingPathComponent(captureKey + ".ctl"))
+        try code.write(to: captured.appendingPathComponent(captureKey + ".code"))
+        let trialResult = try WarmupRunner.run(package: fullPackage, runtime: root.appendingPathComponent("trial-runtime"),
+            reserve: 35 * 1024 * 1024 * 1024, cancelled: { false }, captureDirectory: captured) { _ in }
+        check(trialResult.state == "complete" && trialResult.shaders == 2 && trialResult.failed == 0)
+        check(try Data(contentsOf: captured.appendingPathComponent(captureKey + ".ctl")) == captureControl)
+        check(try Data(contentsOf: captured.appendingPathComponent(captureKey + ".code")) == code)
         // General library and UI archives can contain shaders even when their
         // filenames have no shader hint. Exercise discovery through a real SARC.
         var sarc = Data(count: 0x60)

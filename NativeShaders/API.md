@@ -94,8 +94,9 @@ be interrupted safely. Report per-record progress when a call returns.
 
 ## Compile and cache contract
 
-`SatchelShaderCompiler(device:)` owns two compilation slots and an explicitly
-bounded live library cache. Use `compile(translated, variant: "b", cancelled:)`.
+`SatchelShaderCompiler(device:)` defaults to two compilation slots and an explicitly
+bounded live library cache. Optional warm-up can configure up to four slots with
+`setMaximumConcurrentCompilations(_:)`, restoring two before returning to gameplay. Use `compile(translated, variant: "b", cancelled:)`.
 It returns the `MTLLibrary`, source SHA-256, device identity, elapsed compile time,
 live-cache hit status and layer-output flag. Same-source concurrent calls are
 coalesced. Call `trimLiveLibraries()` on memory pressure.
