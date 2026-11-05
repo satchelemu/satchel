@@ -4,9 +4,9 @@ import Foundation
 /// Reads only authenticated container metadata and content. No process or compiler.
 enum PrepareDiscovery {
     struct Selection { let titleID: UInt64; let name: String; let version: String; let update: URL? }
-    static func select(base: URL, update: URL?, keys: [String: Data], titleID: UInt64?, token: PrepareCancellation) throws -> Selection {
+    static func select(base: URL, update: URL?, keys: [String: Data], titleID: UInt64?, token: PrepareCancellation, progress: @escaping SwitchByteProgress = { _, _ in }) throws -> Selection {
 
-        let package = try SwitchExecutableReader.ContentPackage(base, keys: keys, cancelled: { token.cancelled })
+        let package = try SwitchExecutableReader.ContentPackage(base, keys: keys, cancelled: { token.cancelled }, progress: progress)
         defer { package.close() }
         let titles = package.metadata.filter { $0.type == 0x80 }
         let selected = titles.filter { titleID == nil || $0.titleID == titleID }
@@ -14,7 +14,7 @@ enum PrepareDiscovery {
             throw PrepareFailure(message: selected.isEmpty ? "No base application matches the selected title." : "This dump contains multiple applications. Select a title ID: " + selected.map { String(format: "%016llX", $0.titleID) }.joined(separator: ", "))
         }
         let effectiveUpdate = update ?? (package.metadata.contains { $0.type == 0x81 && $0.applicationID == application.titleID } ? base : nil)
-        let patch = try effectiveUpdate.map { try SwitchExecutableReader.ContentPackage($0, keys: keys, cancelled: { token.cancelled }) }
+        let patch = try effectiveUpdate.map { try SwitchExecutableReader.ContentPackage($0, keys: keys, cancelled: { token.cancelled }, progress: progress) }
         defer { patch?.close() }
         let (_, chosenPatch) = try SwitchContentMeta.select(base: package.metadata, update: patch?.metadata, applicationID: application.titleID)
         let chosen = chosenPatch ?? application, source = patch ?? package
@@ -22,7 +22,7 @@ enum PrepareDiscovery {
         if let reference = chosen.contents.first(where: { $0.type == 3 && $0.idOffset == 0 }) {
             guard let control = source.archives.first(where: { $0.contentID == reference.id }), control.header[0x205] == 2,
                   control.entry.size <= 64 * 1024 * 1024 else { throw SwitchExecutableError.invalid }
-            try source.verify(control, in: chosen)
+            try source.verify(control, in: chosen, progress: progress)
             guard let section = control.sections.first(where: { $0.index == 0 }), section.fs[2] == 0, section.fs[3] == 3 else { throw SwitchExecutableError.unsupported }
             let raw = try source.storage(control, section: section)
             let verified = try SwitchIntegrityStorage(header: section.fs, sectionSize: raw.size, cancelled: { token.cancelled }, read: raw.bytes)
@@ -39,7 +39,7 @@ enum PrepareDiscovery {
         }
         return Selection(titleID: application.titleID, name: name, version: version, update: effectiveUpdate)
     }
-    static func recipe(_ content: SwitchContentPipeline.PreparedContent, selection: Selection, token: PrepareCancellation) throws -> NativePreparationRecipe {
+    static func recipe(_ content: SwitchContentPipeline.PreparedContent, selection: Selection, token: PrepareCancellation, progress: SwitchByteProgress = { _, _ in }) throws -> NativePreparationRecipe {
         guard let npdm = content.program.processMetadata, npdm.count >= 0x80, npdm.prefix(4) == Data("META".utf8) else {
             throw PrepareFailure(message: "A valid main.npdm is required to generate a native profile.")
         }
@@ -50,6 +50,9 @@ enum PrepareDiscovery {
         let modules = content.program.modules.filter { $0.name != "rtld" }
         var builds: [String: String] = [:], sdk = Set<String>(), usesHeap = false, largeBSS: UInt64 = 0
         let regex = try NSRegularExpression(pattern: "NintendoSDK_nnSdk-([0-9_]+)", options: .caseInsensitive)
+        let total = modules.reduce(UInt64(0)) { $0 + UInt64($1.data.count) }
+        var completed: UInt64 = 0
+        progress(0, total)
         for module in modules {
             try token.check()
             try autoreleasepool {
@@ -66,6 +69,7 @@ enum PrepareDiscovery {
                     }
                 }
             }
+            completed += UInt64(module.data.count); progress(completed, total)
         }
         let title = String(format: "%016llX", selection.titleID)
         let reviewed = NativeGameProfile.all.first { $0.titleID == title && $0.modules == modules.map(\.name) && $0.buildIDs == builds }
@@ -79,7 +83,8 @@ enum PrepareDiscovery {
 
     /// NRR hashes select dynamic code. Loose, embedded and zstd-framed NROs
     /// are found with bounded reads. Unresolved registrations fail explicitly.
-    static func nros(_ romfs: SwitchRomFS, to scratch: URL, token: PrepareCancellation) throws -> [NativePreparationRecipe.NRO] {
+    static func nros(_ romfs: SwitchRomFS, to scratch: URL, token: PrepareCancellation,
+                     progress: @escaping (String, UInt64, UInt64, Double) -> Void = { _, _, _, _ in }) throws -> [NativePreparationRecipe.NRO] {
         let tree = try romfs.tree(cancelled: { token.cancelled })
         var wanted = Set<String>()
         func read(_ file: SwitchRomFS.File, _ offset: UInt64, _ size: UInt64) throws -> Data {
@@ -88,7 +93,10 @@ enum PrepareDiscovery {
             while done < size { try token.check(); let n = min(1024 * 1024, size - done); result.append(try romfs.read(file, offset: offset + done, count: n)); done += n }
             return result
         }
-        for entry in tree where entry.file != nil && String(decoding: entry.name, as: UTF8.self).lowercased().hasSuffix(".nrr") {
+        let registrations = tree.filter { $0.file != nil && String(decoding: $0.name, as: UTF8.self).lowercased().hasSuffix(".nrr") }
+        for (index, entry) in registrations.enumerated() {
+            progress("Checking dynamic module registrations (\(index + 1) of \(registrations.count))…", 0, 0,
+                0.1 * Double(index) / Double(max(1, registrations.count)))
             guard let file = entry.file, file.size >= 0x350, file.size <= 1024 * 1024 else { throw PrepareFailure(message: "NRR registration file has an invalid size.") }
             let data = try read(file, 0, file.size)
             guard data.prefix(4) == Data("NRR0".utf8) else { throw PrepareFailure(message: "NRR registration header is invalid.") }
@@ -130,8 +138,13 @@ enum PrepareDiscovery {
         }
         // Scan loose files first, avoiding full archive scans when every hash is found.
         let files = tree.filter { $0.file != nil }.sorted { String(decoding: $0.name, as: UTF8.self).hasSuffix(".nro") && !String(decoding: $1.name, as: UTF8.self).hasSuffix(".nro") }
-        for entry in files where !wanted.isSubset(of: Set(found.keys)) {
+        for (fileIndex, entry) in files.enumerated() where !wanted.isSubset(of: Set(found.keys)) {
             let file = entry.file!
+            func report(_ done: UInt64) {
+                progress("Looking for dynamic modules (file \(fileIndex + 1) of \(files.count))…", done, file.size,
+                    0.1 + 0.7 * (Double(fileIndex) + Double(done) / Double(max(1, file.size))) / Double(max(1, files.count)))
+            }
+            report(0)
             let input = SwitchContentStorage(size: file.size) { offset, count in try read(file, offset, count) }
             if let members = try PrepareNROArchive.members(input, cancelled: { token.cancelled }) {
                 for member in members {
@@ -175,6 +188,7 @@ enum PrepareDiscovery {
                         try compressed(SwitchContentStorage(size: file.size - at) { offset, count in try read(file, at + offset, count) })
                     }
                 }
+                report(position + UInt64(chunk.count))
                 if chunk.count <= 0x80 { break }; position += UInt64(chunk.count - 0x80)
             }
         }
@@ -186,7 +200,10 @@ enum PrepareDiscovery {
             try autoreleasepool {
                 let source = found[digest]!.0, name = "nro\(index)", data = try Data(contentsOf: source)
                 let module = try decodeNRO(data, name: name)
-                try PrepareRewrite.write(module, to: scratch, token: token)
+                try PrepareRewrite.write(module, to: scratch, token: token) { fraction, done, total in
+                    progress("Rewriting dynamic module \(index + 1) of \(wanted.count)…", done, total,
+                        0.8 + 0.2 * (Double(index) + fraction) / Double(max(1, wanted.count)))
+                }
                 result.append(.init(name: name, sha256: digest, bytes: UInt64(data.count), buildID: PrepareIO.hex(module.buildID.prefix(16))))
                 try FileManager.default.removeItem(at: source)
             }

@@ -80,13 +80,13 @@ enum SwitchExecutableReader {
         return try operation(SwitchRomFS(storage: storage, cancelled: cancelled))
     }
 
-    static func contentKey(_ nca: Nca, keys: [String: Data]) throws -> Data {
+    static func contentKey(_ nca: Nca, keys: [String: Data], xts: Bool = false) throws -> Data {
         let generation = max(nca.header[0x206], nca.header[0x220])
         let revision = generation > 0 ? generation - 1 : 0
         let categories = ["application", "ocean", "system"]
         guard nca.header[0x207] < categories.count else { throw SwitchExecutableError.unsupported }
         let areaKey = try key("key_area_key_\(categories[Int(nca.header[0x207])])_\(String(format: "%02x", revision))", count: 16, keys: keys)
-        return try crypt(nca.header.subdata(in: 0x300..<0x340), key: areaKey, mode: .ecb).subdata(in: 32..<48)
+        return try crypt(nca.header.subdata(in: 0x300..<0x340), key: areaKey, mode: .ecb).subdata(in: xts ? 0..<32 : 32..<48)
     }
 
     static func programs(_ url: URL, keys: [String: Data], cancelled: () -> Bool = { false }) throws -> [SwitchProgramCandidate] {
@@ -99,7 +99,7 @@ enum SwitchExecutableReader {
     }
 
     static func load(_ url: URL, keys: [String: Data], titleID: String,
-                     cancelled: () -> Bool = { false }) throws -> SwitchProgramImage {
+                     cancelled: @escaping () -> Bool = { false }) throws -> SwitchProgramImage {
         try cancellation(cancelled)
         guard titleID.utf8.count == 16, titleID.utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) }) else {
             throw SwitchExecutableError.noProgram
@@ -158,8 +158,6 @@ enum SwitchExecutableReader {
             guard extents[index].1 >= extents[index - 1].1 + extents[index - 1].2 else { throw SwitchExecutableError.invalid }
         }
         guard entries.contains(where: { $0.0 == "main" }), entries.contains(where: { $0.0 == "rtld" }) else { throw SwitchExecutableError.noProgram }
-        // Authenticate the entire ExeFS, including non-module files, before returning.
-        try reader.verifyAll(cancelled: cancelled)
         var modules: [SwitchExecutableModule] = []
         let selected = entries.filter { isModule($0.0) }.sorted { moduleOrder($0.0) < moduleOrder($1.0) }
         let extractionTotal = selected.reduce(UInt64(0)) { $0 + $1.2 }
@@ -178,6 +176,9 @@ enum SwitchExecutableReader {
             guard entry.2 >= 0x80, entry.2 <= 1024 * 1024 else { throw SwitchExecutableError.limit }
             metadata = try reader.read(entry.1, size: entry.2, cancelled: cancelled)
         }
+        // Extracted bytes already passed their block hashes. Check every remaining
+        // block, including non-module files, before exposing the program.
+        try reader.verifyAll(cancelled: cancelled)
         try cancellation(cancelled)
         return SwitchProgramImage(titleID: titleID, modules: modules, processMetadata: metadata,
                                   exeFSBytes: reader.pfsSize, verifiedBlocks: Int(reader.blockCount))
@@ -333,7 +334,7 @@ enum SwitchExecutableReader {
 
     enum Mode { case ecb, xts, ctr(Data) }
 
-    static func crypt(_ input: Data, key: Data, mode: Mode) throws -> Data {
+    static func crypt(_ input: Data, key: Data, mode: Mode, firstSector: UInt64 = 0) throws -> Data {
         var output = Data(count: input.count)
         let status = output.withUnsafeMutableBytes { destination in
             input.withUnsafeBytes { source in
@@ -343,7 +344,7 @@ enum SwitchExecutableReader {
                     let d = destination.bindMemory(to: UInt8.self).baseAddress!
                     switch mode {
                     case .ecb: return satchel_switch_aes_ecb(0, k, s, d, input.count)
-                    case .xts: return satchel_switch_aes_xts(0, k, 0, s, d, input.count)
+                    case .xts: return satchel_switch_aes_xts(0, k, firstSector, s, d, input.count)
                     case .ctr(let counter):
                         return counter.withUnsafeBytes { satchel_switch_aes_ctr(k, $0.bindMemory(to: UInt8.self).baseAddress!, s, d, input.count) }
                     }
@@ -418,6 +419,8 @@ enum SwitchExecutableReader {
 
     final class Source {
         let handle: FileHandle
+        private(set) var readBytes: UInt64 = 0
+        private(set) var readCalls: UInt64 = 0
         private(set) var size: UInt64
         private var scratch: URL?
         private var attachments: [(UInt64, UInt64, FileHandle)] = []
@@ -460,6 +463,7 @@ enum SwitchExecutableReader {
             while data.count < count {
                 try cancellation(cancelled)
                 guard let part = try handle.read(upToCount: Int(min(4 * 1024 * 1024, count - UInt64(data.count)))), !part.isEmpty else { throw SwitchExecutableError.invalid }
+                readBytes += UInt64(part.count); readCalls += 1
                 data.append(part)
             }
             return data
@@ -469,10 +473,14 @@ enum SwitchExecutableReader {
     final class VerifiedCode {
         let section: Section
         let readSection: (UInt64, UInt64, () -> Bool) throws -> Data
-        let pfsSize: UInt64
+        private let storedSize: UInt64
+        private var expanded: SwitchContentStorage?
+        var pfsSize: UInt64 { expanded?.size ?? storedSize }
         let pfsOffset: UInt64
         let blockSize: UInt64
-        var blockCount: UInt64 { (pfsSize + blockSize - 1) / blockSize }
+        var blockCount: UInt64 { (storedSize + blockSize - 1) / blockSize }
+        private var verified = Set<UInt64>()
+        private var cachedBlock: (UInt64, Data)?
         var table = Data()
         var progress: SwitchByteProgress = { _, _ in }
         var extractionProgress: SwitchByteProgress = { _, _ in }
@@ -483,53 +491,78 @@ enum SwitchExecutableReader {
                 try decryptedSection(file: file, nca: nca, section: section, key: key,
                                      offset: offset, size: size, cancelled: cancelled)
             }
-            pfsOffset = section.fs.le64(0x40); pfsSize = section.fs.le64(0x48)
+            pfsOffset = section.fs.le64(0x40); storedSize = section.fs.le64(0x48)
             blockSize = UInt64(section.fs.le32(0x28))
         }
         init(section: Section, read: @escaping (UInt64, UInt64, () -> Bool) throws -> Data) {
             self.section = section; readSection = read
-            pfsOffset = section.fs.le64(0x40); pfsSize = section.fs.le64(0x48)
+            pfsOffset = section.fs.le64(0x40); storedSize = section.fs.le64(0x48)
             blockSize = UInt64(section.fs.le32(0x28))
         }
-        func initialize(cancelled: () -> Bool) throws {
+        func initialize(cancelled: @escaping () -> Bool) throws {
             guard blockSize >= 512, blockSize <= maximumMetadata, blockSize.nonzeroBitCount == 1,
-                  pfsSize >= 16, pfsSize <= maximumImage, pfsOffset <= section.size, pfsSize <= section.size - pfsOffset else {
+                  storedSize >= 16, storedSize <= maximumImage, pfsOffset <= section.size, storedSize <= section.size - pfsOffset else {
                 throw SwitchExecutableError.invalid
             }
             let offset = section.fs.le64(0x30), size = section.fs.le64(0x38)
             guard size == blockCount * 32, size <= maximumMetadata, offset <= section.size, size <= section.size - offset,
-                  offset + size <= pfsOffset || pfsOffset + pfsSize <= offset else { throw SwitchExecutableError.invalid }
+                  offset + size <= pfsOffset || pfsOffset + storedSize <= offset else { throw SwitchExecutableError.invalid }
             table = try decrypted(offset, size: size, cancelled: cancelled)
             guard Data(SHA256.hash(data: table)) == section.fs.subdata(in: 8..<40) else { throw SwitchExecutableError.integrity }
+            // LibHac Nca.OpenStorage verifies the stored hash layer before
+            // applying CompressionInfo, for PartitionFS as well as RomFS.
+            let raw = SwitchContentStorage(size: storedSize) { [unowned self] offset, count in
+                try self.readVerified(offset, size: count, cancelled: cancelled)
+            }
+            expanded = try SwitchContentStorage.compressed(header: section.fs, verified: raw, cancelled: cancelled)
+            guard pfsSize <= maximumImage else { throw SwitchExecutableError.limit }
         }
         func decrypted(_ offset: UInt64, size: UInt64, cancelled: () -> Bool) throws -> Data {
             try readSection(offset, size, cancelled)
         }
         func block(_ index: UInt64, cancelled: () -> Bool) throws -> Data {
+            try cancellation(cancelled)
+            if let cachedBlock, cachedBlock.0 == index { return cachedBlock.1 }
             let offset = index * blockSize
             guard index < blockCount else { throw SwitchExecutableError.invalid }
-            let bytes = try decrypted(pfsOffset + offset, size: min(blockSize, pfsSize - offset), cancelled: cancelled)
+            let bytes = try decrypted(pfsOffset + offset, size: min(blockSize, storedSize - offset), cancelled: cancelled)
             guard Data(SHA256.hash(data: bytes)) == table.subdata(in: Int(index * 32)..<Int(index * 32 + 32)) else {
                 throw SwitchExecutableError.integrity
             }
+            verified.insert(index)
+            cachedBlock = (index, bytes)
             return bytes
         }
         func read(_ offset: UInt64, size: UInt64, cancelled: () -> Bool) throws -> Data {
-            guard size > 0, size <= maximumModule, offset <= pfsSize, size <= pfsSize - offset else { throw SwitchExecutableError.invalid }
+            try cancellation(cancelled)
+            guard size > 0, size <= maximumModule, offset <= pfsSize, size <= pfsSize - offset,
+                  let expanded else { throw SwitchExecutableError.invalid }
+            var result = Data(), done: UInt64 = 0
+            result.reserveCapacity(Int(size))
+            while done < size {
+                try cancellation(cancelled)
+                let take = min(16 * 1024 * 1024, size - done)
+                result.append(try expanded.bytes(offset + done, take)); done += take
+                readProgress(done, size)
+            }
+            return result
+        }
+        private func readVerified(_ offset: UInt64, size: UInt64, cancelled: () -> Bool) throws -> Data {
+            guard size > 0, size <= maximumModule, offset <= storedSize, size <= storedSize - offset else { throw SwitchExecutableError.invalid }
             var result = Data(); result.reserveCapacity(Int(size))
             var position = offset
             while position < offset + size {
                 let bytes = try block(position / blockSize, cancelled: cancelled)
                 let start = Int(position % blockSize), count = min(bytes.count - start, Int(offset + size - position))
                 result.append(bytes[start..<(start + count)]); position += UInt64(count)
-                readProgress(position - offset, size)
             }
             return result
         }
         func verifyAll(cancelled: () -> Bool) throws {
             for index in 0..<blockCount {
-                _ = try block(index, cancelled: cancelled)
-                progress(min((index + 1) * blockSize, pfsSize), pfsSize)
+                try cancellation(cancelled)
+                if !verified.contains(index) { _ = try block(index, cancelled: cancelled) }
+                progress(min((index + 1) * blockSize, storedSize), storedSize)
             }
         }
     }

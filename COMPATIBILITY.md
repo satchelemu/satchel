@@ -37,6 +37,14 @@ Frame rates are measured with the in-game FPS counter or the host's own frame lo
 | Castlevania: Belmont's Curse | 1.0.0 | 0100BA4026E94000 | 60 | Phone (generic profile plus one memory rule) | Yes | Yes, intro, Start menu and opening area | 30 steady (p99 33.3 ms over 300 frames, zero dropped) once warm | Unity IL2CPP title. A cold scene can cost over a second while 60 to 90 pipelines build. The XCI also contains a gallery app; Prepare must select the game's program ID. | 2026-11-03 |
 | Mario Kart 8 Deluxe | update v1376256 | 0100152000022000 | 45 | Phone | Yes | Yes | Not measured yet | Boots and plays; synchronous shader builds stall the frame and memory grows between scenes. Quit and a second launch work. Booster Course Pass DLC imports. | 2026-11-02 |
 
+## Import and Prepare checks
+
+The native importer changes documented in [the validation guide](docs/importer-validation.md)
+cover compressed PartitionFS, key-area AES-XTS and a second bucket-tree index level.
+Synthetic format checks and Mac package comparisons do not change the phone ratings
+above. Skip-layer encryption and SHA3 remain explicit format gaps. Phone progress,
+signing and loading still need the orchestrator's checks for this change.
+
 ## Homebrew and diagnostics
 
 ### Mac service regression, 2026-11-04

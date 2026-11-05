@@ -20,6 +20,8 @@ enum SwitchContentPipeline {
         let selection: SwitchContentSelection
         let program: SwitchProgramImage
         let romFS: SwitchRomFS
+        // Actual Source I/O, not a claim about physical disk reads or cache hits.
+        let inputReads: () -> (bytes: UInt64, calls: UInt64)
     }
 
     /// Inspect authenticated CNMTs for selection without hashing/extracting the
@@ -100,8 +102,8 @@ enum SwitchContentPipeline {
             if check() { throw CancellationError() }
             return try codeStorage.bytes(offset, count)
         }
-        reader.progress = { done, total in progress(.composition, done, total, 0.1 + 0.4 * Double(done) / Double(max(1, total))) }
-        reader.extractionProgress = { done, total in progress(.composition, done, total, 0.5 + 0.3 * Double(done) / Double(max(1, total))) }
+        reader.progress = { done, total in progress(.composition, done, total, 0.5 + 0.3 * Double(done) / Double(max(1, total))) }
+        reader.extractionProgress = { done, total in progress(.composition, done, total, 0.1 + 0.4 * Double(done) / Double(max(1, total))) }
         try reader.initialize(cancelled: cancelled)
         let program = try autoreleasepool {
             try SwitchExecutableReader.loadCode(reader, titleID: String(format: "%016llx", applicationID), cancelled: cancelled)
@@ -118,7 +120,10 @@ enum SwitchContentPipeline {
         }
         return try operation(PreparedContent(selection: SwitchContentSelection(applicationID: applicationID,
             baseVersion: baseMeta.version, patchVersion: patchMeta?.version, programContentID: chosen.contentID),
-            program: program, romFS: fs))
+            program: program, romFS: fs, inputReads: {
+                (basePackage.source.readBytes + (patchPackage?.source.readBytes ?? 0),
+                 basePackage.source.readCalls + (patchPackage?.source.readCalls ?? 0))
+            }))
     }
 }
 
@@ -132,7 +137,7 @@ extension SwitchExecutableReader {
         private var tickets: [Data: Data] = [:]
         private(set) var metadata: [SwitchContentMeta] = []
 
-        init(_ url: URL, keys: [String: Data], cancelled: @escaping () -> Bool, progress: SwitchByteProgress = { _, _ in }) throws {
+        init(_ url: URL, keys: [String: Data], cancelled: @escaping () -> Bool, progress: @escaping SwitchByteProgress = { _, _ in }) throws {
             source = try Source(url); self.keys = keys; self.cancelled = cancelled
             do {
                 let transport = try SwitchPackageReader.contentEntries(url, cancelled: cancelled, progress: progress)
@@ -150,10 +155,11 @@ extension SwitchExecutableReader {
                           let section = meta.sections.first, section.index == 0, section.fs[2] == 1,
                           section.fs[3] == 2, section.fs.cp32(0x2c) == 2,
                           section.fs[0x100..<0x140].allSatisfy({ $0 == 0 }) else { throw SwitchExecutableError.unsupported }
-                    _ = try verifyArchiveHash(source, nca: meta, expected: nil, cancelled: cancelled)
+                    _ = try verifyArchiveHash(source, nca: meta, expected: nil, cancelled: cancelled, progress: progress)
                     authenticated.insert(meta.contentID)
                     let raw = try storage(meta, section: section)
                     let reader = VerifiedCode(section: section) { offset, count, _ in try raw.bytes(offset, count) }
+                    reader.progress = progress
                     try reader.initialize(cancelled: cancelled)
                     let files = try metadataEntries(reader, cancelled: cancelled).filter { $0.name.hasSuffix(".cnmt") }
                     guard files.count == 1 else { throw SwitchExecutableError.invalid }
@@ -254,19 +260,30 @@ extension SwitchExecutableReader {
 
         func storage(_ nca: Nca, section: Section, progress: SwitchByteProgress = { _, _ in }) throws -> SwitchContentStorage {
             guard authenticated.contains(nca.contentID) else { throw SwitchExecutableError.integrity }
-            guard [1, 3, 4].contains(section.fs[4]), section.fs[5] <= 1 else {
+            guard [1, 2, 3, 4].contains(section.fs[4]), section.fs[5] <= 1 else {
                 throw SwitchExecutableError.unsupportedFeature("Unsupported section \(section.index) encryption \(section.fs[4]) or metadata hash type \(section.fs[5]).")
             }
             guard section.fs[0x1d0..<0x200].allSatisfy({ $0 == 0 }) else {
                 throw SwitchExecutableError.unsupportedFeature("Section \(section.index) has unsupported extended storage metadata.")
             }
-            if section.fs[2] == 1 && !section.fs[0x178..<0x1a0].allSatisfy({ $0 == 0 }) {
-                throw SwitchExecutableError.unsupportedFeature("Compressed PartitionFS sections are not supported.")
-            }
-            let material = try contentKey(nca)
+            let material: Data
+            if section.fs[4] == 2 {
+                guard nca.header[0x230..<0x240].allSatisfy({ $0 == 0 }), section.fs.cp32(0x170) == 0 else {
+                    throw SwitchExecutableError.unsupportedFeature("AES-XTS sections require key-area keys and nonsparse storage.")
+                }
+                material = try SwitchExecutableReader.contentKey(nca, keys: keys, xts: true)
+            } else { material = try contentKey(nca) }
             let encrypted = try sparseStorage(nca, section: section, key: material, progress: progress)
             func decrypt(_ offset: UInt64, _ size: UInt64, generation: UInt32? = nil) throws -> Data {
                 if section.fs[4] == 1 { return try encrypted.bytes(offset, size) }
+                if section.fs[4] == 2 {
+                    // LibHac Aes128XtsStorage: 512-byte sectors relative to the
+                    // section, using the first two decrypted key-area entries.
+                    let aligned = offset & ~UInt64(511), skip = offset - aligned
+                    let length = (size + skip + 511) & ~UInt64(511)
+                    let plain = try crypt(encrypted.bytes(aligned, length), key: material, mode: .xts, firstSector: aligned / 512)
+                    return plain.subdata(in: Int(skip)..<Int(skip + size))
+                }
                 let aligned = offset & ~UInt64(15), skip = offset - aligned
                 var upper = section.fs.subdata(in: 0x140..<0x148)
                 if let generation { upper.cpPut(UInt64(generation), at: 0, count: 4) }

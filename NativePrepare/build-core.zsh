@@ -29,7 +29,7 @@ done
 nice -n 10 xcrun swiftc -swift-version 6 -O -g -num-threads 2 -import-objc-header "$TASK_OUT/core/Bridge.h" -I Tools/NativeRewriter/include \
   App/NativeGameProfile.swift App/SwitchPackage.swift App/SwitchControl.swift App/SwitchExecutable.swift App/SwitchRomFS.swift App/SwitchStorage.swift App/SwitchKeys.swift \
   App/SwitchAddOnContent.swift App/PreparedAddOn.swift App/SwitchContentMeta.swift App/SwitchPatchStorage.swift App/SwitchContentPipeline.swift App/SwitchCompressedInput.swift App/SwitchRomFSImage.swift App/SwitchDecodedModule.swift \
-  "${signer_sources[@]}" NativePrepare/Progress.swift NativePrepare/Rewrite.swift NativePrepare/MachO.swift NativePrepare/Discovery.swift NativePrepare/NROArchive.swift NativePrepare/Pipeline.swift "${PREPARE_MAIN:-NativePrepare/Harness.swift}" \
+  "${signer_sources[@]}" NativePrepare/Progress.swift NativePrepare/Rewrite.swift NativePrepare/MachO.swift NativePrepare/Discovery.swift NativePrepare/NROArchive.swift "${PREPARE_PIPELINE:-NativePrepare/Pipeline.swift}" "${PREPARE_MAIN:-NativePrepare/Harness.swift}" \
   "$TASK_OUT/core/SwitchCrypto.o" "$TASK_OUT/core/NSOLoader.o" "$TASK_OUT/core/Registry.o" \
   "$TASK_OUT/rewriter-mac/libnative_rewriter.a" "$TASK_OUT/rewriter-mac/_deps/capstone-build/libcapstone.a" -lc++ "${SATCHEL_ARCHIVE_LIBRARY:-$TASK_INPUT_ROOT/m5/archive-macosx/libShaderArchive.a}" "${signer_libraries[@]}" -o "${PREPARE_EXECUTABLE:-$TASK_OUT/prepare}"
 PREPARE_BINARY="${PREPARE_EXECUTABLE:-$TASK_OUT/prepare}"

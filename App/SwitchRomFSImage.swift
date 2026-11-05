@@ -28,10 +28,25 @@ enum SwitchRomFSImage {
     static func write(_ rom: SwitchRomFS, to destination: URL,
                       cancelled: () -> Bool = { false },
                       progress: (Progress) -> Void = { _ in }) throws -> Result {
+        try stream(rom, to: destination, cancelled: cancelled, progress: progress)
+    }
+
+    /// Discard output after the same verification and hashing as a real write.
+    /// No image or temporary file is created. This does not publish a package.
+    static func measure(_ rom: SwitchRomFS, cancelled: () -> Bool = { false },
+                        progress: (Progress) -> Void = { _ in }) throws -> Result {
+        try stream(rom, to: nil, cancelled: cancelled, progress: progress)
+    }
+
+    private static func stream(_ rom: SwitchRomFS, to destination: URL?,
+                               cancelled: () -> Bool, progress: (Progress) -> Void) throws -> Result {
         func check() throws { if cancelled() { throw CancellationError() } }
         try check()
         progress(Progress(stage: .enumerating, completedBytes: 0, totalBytes: 0, completedFiles: 0, totalFiles: rom.fileCount))
-        let entries = try rom.tree(cancelled: cancelled)
+        let entries = try rom.tree(cancelled: cancelled) { done, total in
+            progress(Progress(stage: .enumerating, completedBytes: 0, totalBytes: 0,
+                completedFiles: Int(done), totalFiles: Int(total)))
+        }
         var total: UInt64 = 0, poolSize: UInt64 = 0
         for entry in entries {
             try check()
@@ -43,14 +58,17 @@ enum SwitchRomFSImage {
         }
         let indexSize = UInt64(entries.count) * 24 + poolSize
         guard total <= UInt64(Int64.max) - indexSize - 32 else { throw SwitchExecutableError.limit }
-        let temporary = destination.deletingLastPathComponent().appendingPathComponent(".dmromfs-" + UUID().uuidString + ".part")
-        let fd = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR)
-        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        let temporary = destination.map { $0.deletingLastPathComponent().appendingPathComponent(".dmromfs-" + UUID().uuidString + ".part") }
+        let handle: FileHandle?
+        if let temporary {
+            let fd = Darwin.open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+            guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        } else { handle = nil }
         var published = false
         defer {
-            try? handle.close()
-            if !published { _ = Darwin.unlink(temporary.path) }
+            try? handle?.close()
+            if !published, let temporary { _ = Darwin.unlink(temporary.path) }
         }
         var header = Data("DMROMFS1".utf8) + Data(count: 24)
         header.cpPut(32 + total, at: 8, count: 8); header.cpPut(indexSize, at: 16, count: 8)
@@ -59,7 +77,7 @@ enum SwitchRomFSImage {
         var completed: UInt64 = 0, files = 0, imageCompleted: UInt64 = 0
         let imageTotal = 32 + total + indexSize
         func write(_ bytes: Data) throws {
-            try handle.write(contentsOf: bytes); digest.update(data: bytes)
+            try handle?.write(contentsOf: bytes); digest.update(data: bytes)
             imageCompleted += UInt64(bytes.count)
             progress(Progress(stage: .copying, completedBytes: completed, totalBytes: total,
                 completedFiles: files, totalFiles: rom.fileCount,
@@ -109,12 +127,14 @@ enum SwitchRomFSImage {
             indexBuffer.append(entry.name)
         }
         try flushIndex()
-        try handle.synchronize()
+        try handle?.synchronize()
         progress(Progress(stage: .publishing, completedBytes: completed, totalBytes: total,
                           completedFiles: files, totalFiles: rom.fileCount,
                           imageCompletedBytes: imageCompleted, imageTotalBytes: imageTotal))
         try check()
-        guard Darwin.rename(temporary.path, destination.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        if let temporary, let destination {
+            guard Darwin.rename(temporary.path, destination.path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        }
         published = true
         return Result(fileCount: files, entryCount: entries.count, dataBytes: total, imageBytes: 32 + total + indexSize, sha256: Data(digest.finalize()))
     }

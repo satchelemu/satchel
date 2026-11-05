@@ -70,22 +70,46 @@ final class SwitchIntegrityStorage {
         let entry = levels[level]
         guard offset <= entry.size, count <= entry.size - offset else { throw SwitchExecutableError.invalid }
         var result = Data(); result.reserveCapacity(Int(count))
+        // Batch only required, uncached leaf blocks. Verification still checks
+        // each block through its parent chain before returning any bytes.
+        // The span is bounded by this read (at most two 1 MiB blocks).
+        var batch: (offset: UInt64, bytes: Data)?
+        if level == levels.count - 1, count > 0 {
+            let first = offset / entry.block, last = (offset + count - 1) / entry.block
+            var missingFirst: UInt64?, missingLast: UInt64 = 0
+            for index in first...last where cache["\(level):\(index)"] == nil {
+                if missingFirst == nil { missingFirst = index }; missingLast = index
+            }
+            if let missingFirst {
+                let start = missingFirst * entry.block
+                let end = missingLast == (entry.size - 1) / entry.block ? entry.size : (missingLast + 1) * entry.block
+                let length = end - start
+                let bytes = try source(entry.offset + start, length)
+                guard bytes.count == length else { throw SwitchExecutableError.invalid }
+                batch = (start, bytes)
+            }
+        }
         var position = offset
         while position < offset + count {
-            let bytes = try block(level, index: position / entry.block)
+            let bytes = try block(level, index: position / entry.block, batch: batch)
             let start = Int(position % entry.block), take = min(bytes.count - start, Int(offset + count - position))
             result.append(bytes[start..<(start + take)]); position += UInt64(take)
         }
         return result
     }
 
-    private func block(_ level: Int, index: UInt64) throws -> Data {
+    private func block(_ level: Int, index: UInt64, batch: (offset: UInt64, bytes: Data)? = nil) throws -> Data {
         if cancelled() { throw CancellationError() }
         let entry = levels[level], key = "\(level):\(index)"
         if let bytes = cache[key] { return bytes }
         guard index < (entry.size - 1) / entry.block + 1 else { throw SwitchExecutableError.invalid }
         let offset = index * entry.block, count = min(entry.block, entry.size - offset)
-        var bytes = try source(entry.offset + offset, count)
+        var bytes: Data
+        if let batch, offset >= batch.offset, offset - batch.offset <= batch.bytes.count,
+           count <= UInt64(batch.bytes.count) - (offset - batch.offset) {
+            let start = Int(offset - batch.offset)
+            bytes = batch.bytes.subdata(in: start..<start + Int(count))
+        } else { bytes = try source(entry.offset + offset, count) }
         guard bytes.count == count else { throw SwitchExecutableError.invalid }
         // IVFC hashes zero padding to the block boundary, including the last block.
         bytes.append(Data(count: Int(entry.block - count)))
@@ -240,11 +264,13 @@ final class SwitchRomFS {
     /// Breadth-first directory groups, sorted by raw UTF-8 as DMROMFS1 requires.
     /// Every metadata entry must be reachable exactly once. This rejects hidden
     /// cycles, cross-parent aliases and duplicate file/directory names.
-    func tree(cancelled check: () -> Bool = { false }) throws -> [TreeEntry] {
+    func tree(cancelled check: () -> Bool = { false }, progress: SwitchByteProgress = { _, _ in }) throws -> [TreeEntry] {
         try storage.checkAvailable()
         var result = [TreeEntry(name: Data(), directory: 0, file: nil)]
         var seenDirectories: Set<UInt32> = [0], seenFiles = Set<UInt32>(), index = 0
         var nameBytes = 0
+        let total = UInt64(directoryStarts.count + fileStarts.count)
+        progress(1, total)
         while index < result.count {
             if cancelled() || check() { throw CancellationError() }
             guard let parent = result[index].directory else { index += 1; continue }
@@ -266,6 +292,7 @@ final class SwitchRomFS {
                         children.append(TreeEntry(name: value, directory: nil, file: File(owner: identity,
                             offset: dataOffset + files.rfs64(Int(current) + 8), size: files.rfs64(Int(current) + 16))))
                     } else { children.append(TreeEntry(name: value, directory: current, file: nil)) }
+                    progress(UInt64(seenFiles.count + seenDirectories.count), total)
                     current = bytes.rfs32(Int(current) + 4)
                 }
             }

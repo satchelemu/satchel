@@ -82,7 +82,7 @@ import Foundation
         head.replaceSubrange(0x200..<0x204, with: Data("NCA3".utf8)); head[0x204] = 1; head[0x205] = contentType
         put(id, &head, 0x210, 8)
         if let rights { head.replaceSubrange(0x230..<0x240, with: rights) }
-        var area = Data(count: 64); area.replaceSubrange(32..<48, with: ExecutableTests.contentKey)
+        var area = Data(count: 64); area.replaceSubrange(0..<32, with: ExecutableTests.headerKey); area.replaceSubrange(32..<48, with: ExecutableTests.contentKey)
         head.replaceSubrange(0x300..<0x340, with: try transform(area, ExecutableTests.areaKey, 0, true, Data(count: 16)))
         for (i, pair) in sections.enumerated() {
             let offset = 0xc00 + payload.count, fs = pair.0
@@ -90,6 +90,10 @@ import Foundation
             put(UInt64((offset + pair.1.count) / 512), &head, 0x244 + i * 16, 4)
             head.replaceSubrange(0x400 + i * 512..<0x600 + i * 512, with: fs)
             head.replaceSubrange(0x280 + i * 32..<0x2a0 + i * 32, with: Data(SHA256.hash(data: fs)))
+            if fs[4] == 2 {
+                payload.append(try transform(pair.1, ExecutableTests.headerKey, 1, true, Data(count: 16)))
+                continue
+            }
             var encrypted = Data(), position = 0
             while position < pair.1.count {
                 let end: Int, generation: UInt64
@@ -150,12 +154,12 @@ import Foundation
         if let rights { entries.append(("fixture.tik", try ticket(rights: rights))) }
         return ExecutableTests.pfs(entries)
     }
-    static func verified(_ raw: Data) throws -> SwitchIntegrityStorage {
+    static func verified(_ raw: Data, blockSize: Int = 512, observe: @escaping (UInt64, UInt64) -> Void = { _, _ in }, corruptBatch: Bool = false) throws -> SwitchIntegrityStorage {
         func hashes(_ data: Data) -> Data {
             var out = Data()
-            for p in stride(from: 0, to: data.count, by: 512) {
-                var block = data.subdata(in: p..<min(p + 512, data.count))
-                block.append(Data(count: 512 - block.count)); out.append(Data(SHA256.hash(data: block)))
+            for p in stride(from: 0, to: data.count, by: blockSize) {
+                var block = data.subdata(in: p..<min(p + blockSize, data.count))
+                block.append(Data(count: blockSize - block.count)); out.append(Data(SHA256.hash(data: block)))
             }
             return out
         }
@@ -166,13 +170,39 @@ import Foundation
         put(0x20000, &header, 12, 4); put(32, &header, 16, 4); put(7, &header, 20, 4)
         for (i, level) in levels.enumerated() {
             put(UInt64(bytes.count), &header, 24 + i * 24, 8); put(UInt64(level.count), &header, 32 + i * 24, 8)
-            put(9, &header, 40 + i * 24, 4); bytes.append(level)
-            bytes.append(Data(count: (512 - bytes.count % 512) % 512))
+            put(UInt64(blockSize.trailingZeroBitCount), &header, 40 + i * 24, 4); bytes.append(level)
+            bytes.append(Data(count: (blockSize - bytes.count % blockSize) % blockSize))
         }
         header.replaceSubrange(0xc8..<0xe8, with: hashes(levels[0]))
         return try SwitchIntegrityStorage(header: header, sectionSize: UInt64(bytes.count)) { offset, count in
-            bytes.subdata(in: Int(offset)..<Int(offset + count))
+            observe(offset, count)
+            var part = bytes.subdata(in: Int(offset)..<Int(offset + count))
+            if corruptBatch && count > 512 { part[part.count / 2] ^= 1 }
+            return part
         }
+    }
+    static func batchedIntegrityTests() throws {
+        let raw = Data((0..<1024 * 1024 + 29).map { UInt8(truncatingIfNeeded: $0 / 251) })
+        var sizes: [UInt64] = []
+        let storage = try verified(raw, observe: { _, count in sizes.append(count) })
+        let result = try storage.read(7, count: 1024 * 1024)
+        try check(result == raw.subdata(in: 7..<1024 * 1024 + 7))
+        // Exactly the required leaf blocks, including the short final block.
+        // Parent hash blocks are separate 512-byte reads in this fixture.
+        try check(sizes.filter { $0 > 512 } == [UInt64(raw.count)])
+        let calls = sizes.count
+        try check(try storage.read(7, count: 1024 * 1024) == result)
+        try check(sizes.count == calls)
+        let damaged = try verified(raw, corruptBatch: true)
+        try fails { _ = try damaged.read(7, count: 1024 * 1024) }
+        storage.invalidate()
+        try fails { _ = try storage.read(0, count: 1) }
+        let largeRaw = raw + raw
+        var largeReads: [UInt64] = []
+        let large = try verified(largeRaw, blockSize: 1024 * 1024, observe: { _, count in largeReads.append(count) })
+        let start = 1024 * 1024 - 7
+        try check(try large.read(UInt64(start), count: 1024 * 1024) == largeRaw.subdata(in: start..<start + 1024 * 1024))
+        try check(largeReads.filter { $0 > 512 } == [2 * 1024 * 1024])
     }
     static func directoryFixture(_ nodes: [(String, Data?)]) -> Data {
         let dirs = [""] + nodes.filter { $0.1 == nil }.map { $0.0 }, files = nodes.filter { $0.1 != nil }
@@ -321,6 +351,111 @@ import Foundation
         try fails { _ = try SwitchContentStorage.compressed(header: header, verified: SwitchContentStorage(size: UInt64(payload.count)) { o, n in payload.subdata(in: Int(o)..<Int(o+n)) }, cancelled: { true }) }
     }
 
+    static func compressedPFS(_ payload: Data) -> (Data, Data) {
+        // Independent LZ4 literal frame. Split the PFS header across raw and
+        // compressed entries so reads must cross the compression boundary.
+        let rawCount = 8, literal = Data(payload.dropFirst(rawCount))
+        var encoded = Data([0xf0]), remaining = literal.count - 15
+        while remaining >= 255 { encoded.append(255); remaining -= 255 }
+        encoded.append(UInt8(remaining)); encoded.append(literal)
+        var first = Data(count: 24), second = Data(count: 24)
+        put(UInt64(rawCount), &second, 0, 8); put(UInt64(rawCount), &second, 8, 8)
+        second[16] = 3; put(UInt64(encoded.count), &second, 20, 4)
+        first[16] = 0
+        let routing = tree([first, second], end: UInt64(payload.count))
+        let stored = Data(payload.prefix(rawCount)) + encoded
+        var section = pfsSection(stored + routing.1)
+        put(UInt64(stored.count), &section.0, 0x178, 8)
+        put(UInt64(routing.1.count), &section.0, 0x180, 8)
+        section.0.replaceSubrange(0x188..<0x198, with: routing.0)
+        return section
+    }
+
+    static func partitionTests(_ scratch: URL) throws {
+        let payload = ExecutableTests.pfs([("main", ExecutableTests.module(0x51)), ("rtld", ExecutableTests.module(0x42)),
+            ("unselected", Data(repeating: 0x5c, count: 4096))])
+        var rom = RomFSTests.fixture()
+        put(2, &rom.0, 0, 2); rom.0[3] = 3; rom.0[4] = 3
+        let url = scratch.appendingPathComponent("partition.nsp")
+        for compressed in [false, true] {
+            for xts in [false, true] {
+                var code = compressed ? compressedPFS(payload) : pfsSection(payload), data = rom
+                if xts { code.0[4] = 2; data.0[4] = 2 }
+                try package(nca([code, data]), type: 0x80, version: 0).write(to: url)
+                try SwitchContentPipeline.withContent(base: url, keys: ExecutableTests.keys, applicationID: title) { content in
+                    try check(content.program.modules[1].data == ExecutableTests.module(0x51))
+                    try check(try content.romFS.verifySample() == 600)
+                }
+                // Recompute the outer CNMT digest but leave the inner hash wrong.
+                // Both compression tables and unselected files remain authenticated.
+                code.1[Int(code.0.cp64(0x40)) + (compressed ? 20 : payload.count - 1)] ^= 1
+                try package(nca([code, data]), type: 0x80, version: 0).write(to: url)
+                try fails { try SwitchContentPipeline.withContent(base: url, keys: ExecutableTests.keys, applicationID: title) { _ in } }
+            }
+        }
+        // A verified block is retained as bytes, never trusted by a cached verdict
+        // when re-read after its one-block cache has been evicted.
+        let section = pfsSection(payload)
+        var bytes = section.1, reads = 0
+        let reader = SwitchExecutableReader.VerifiedCode(section: .init(index: 0, offset: 0, size: UInt64(bytes.count), fs: section.0)) { offset, count, _ in
+            reads += 1; return bytes.subdata(in: Int(offset)..<Int(offset + count))
+        }
+        try reader.initialize(cancelled: { false })
+        _ = try reader.read(0, size: 1, cancelled: { false })
+        _ = try reader.read(512, size: 1, cancelled: { false })
+        bytes[Int(section.0.cp64(0x40))] ^= 1
+        try fails { _ = try reader.read(0, size: 1, cancelled: { false }) }
+        try check(reads == 4)
+        var streamedBytes: UInt64 = 0
+        let sequential = SwitchExecutableReader.VerifiedCode(section: .init(index: 0, offset: 0, size: UInt64(section.1.count), fs: section.0)) { offset, count, _ in
+            streamedBytes += count; return section.1.subdata(in: Int(offset)..<Int(offset + count))
+        }
+        try sequential.initialize(cancelled: { false })
+        _ = try sequential.read(0, size: UInt64(payload.count), cancelled: { false })
+        let beforeVerify = streamedBytes
+        try sequential.verifyAll(cancelled: { false })
+        try check(streamedBytes == beforeVerify)
+        try check(streamedBytes == UInt64(payload.count) + section.0.cp64(0x38))
+    }
+
+    static func largeBucketTests() throws {
+        // 2045 direct sets in L1, then two sets via one L2 node. The fixture is
+        // generated on demand and exercises the first layout beyond one root.
+        let per = 682, count = 2046 * per + 1
+        var header = Data("BKTR".utf8) + Data(count: 12)
+        put(1, &header, 4, 4); put(UInt64(count), &header, 8, 4)
+        func read(_ at: UInt64, _ length: UInt64, corrupt: Int? = nil) -> Data {
+            precondition(length == 0x4000)
+            let node = Int(at / 0x4000)
+            var b = Data(count: 0x4000)
+            if node == 0 {
+                put(1, &b, 4, 4); put(UInt64(count), &b, 8, 8)
+                put(UInt64(2045 * per), &b, 16, 8)
+                for i in 1..<2046 { put(UInt64((i - 1) * per), &b, 16 + i * 8, 8) }
+            } else if node == 1 {
+                put(2, &b, 4, 4); put(UInt64(count), &b, 8, 8)
+                put(UInt64(2045 * per), &b, 16, 8); put(UInt64(2046 * per), &b, 24, 8)
+                if let corrupt { b[corrupt] ^= 0xff }
+            } else {
+                let set = node - 2, n = set == 2046 ? 1 : per
+                put(UInt64(set), &b, 0, 4); put(UInt64(n), &b, 4, 4)
+                put(UInt64(min(count, (set + 1) * per)), &b, 8, 8)
+                for i in 0..<n { put(UInt64(set * per + i), &b, 16 + i * 24, 8) }
+            }
+            return b
+        }
+        let size = UInt64(2049 * 0x4000)
+        let parsed = try SwitchBucketTree(header: header, size: size, entrySize: 24, cancelled: { false }) { read($0, $1) }
+        for offset in [0, 2045 * per - 1, 2045 * per, 2046 * per] {
+            try check(try parsed.index(at: UInt64(offset)) == offset)
+        }
+        try check(parsed.entries.count == count && parsed.end == UInt64(count))
+        for corrupt in [0, 4, 8, 16, 24] {
+            try fails { _ = try SwitchBucketTree(header: header, size: size, entrySize: 24, cancelled: { false }) { read($0, $1, corrupt: corrupt) } }
+        }
+        try fails { _ = try SwitchBucketTree(header: header, size: size - 1, entrySize: 24, cancelled: { false }) { read($0, $1) } }
+    }
+
     static func sparseNCA(_ original: Data) throws -> Data {
         var header = try transform(original.prefix(0xc00), ExecutableTests.headerKey, 1, false, Data(count: 16))
         let sectionOffset = Int(header.cp32(0x250)) * 512, originalSize = Int(header.cp32(0x254)) * 512 - sectionOffset
@@ -346,6 +481,9 @@ import Foundation
         try nczTests(scratch)
         print("Checking compressed NCA storage")
         try compressedStorageTests()
+        try partitionTests(scratch)
+        try batchedIntegrityTests()
+        try largeBucketTests()
         let rights = Data(repeating: 1, count: 16)
         for signature: UInt64 in 0x10000...0x10005 {
             let parsed = try SwitchExecutableReader.ContentPackage.ticket(ticket(signature: signature, rights: rights))
@@ -434,11 +572,21 @@ import Foundation
             let file = try content.romFS.open("/hello")!
             var expected = Data((0..<600).map { UInt8(truncatingIfNeeded: $0) }); expected[540] ^= 1
             try check(try content.romFS.read(file, offset: 0, count: file.size) == expected)
-            var progress: [UInt64] = []
-            let result = try SwitchRomFSImage.write(content.romFS, to: out, progress: { progress.append($0.completedBytes) })
+            var progress: [UInt64] = [], enumeration: [Int] = []
+            let result = try SwitchRomFSImage.write(content.romFS, to: out, progress: { value in
+                progress.append(value.completedBytes)
+                if value.stage == .enumerating {
+                    precondition(value.completedFiles <= value.totalFiles)
+                    enumeration.append(value.completedFiles)
+                }
+            })
+            try check(enumeration.last == 2 && zip(enumeration, enumeration.dropFirst()).allSatisfy { $0 <= $1 })
             try check(result.fileCount == 1 && result.entryCount == 2 && progress.last == 600)
             let before = try Data(contentsOf: out)
             try check(result.sha256 == Data(SHA256.hash(data: before)))
+            let measured = try SwitchRomFSImage.measure(content.romFS)
+            try check(measured.sha256 == result.sha256 && measured.imageBytes == result.imageBytes)
+            try fails { _ = try SwitchRomFSImage.measure(content.romFS, cancelled: { true }) }
             var cancel = false
             try fails { _ = try SwitchRomFSImage.write(content.romFS, to: out, cancelled: { cancel }) { p in if p.completedBytes > 0 { cancel = true } } }
             try check(try Data(contentsOf: out) == before)
