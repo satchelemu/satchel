@@ -30,6 +30,8 @@ final class NativeSessionControl: InGameSessionControl {
         settings.touchOpacity = (state["opacity"] as? Double) ?? settings.touchOpacity
         settings.touchSize = (state["size"] as? Double) ?? settings.touchSize
         settings.volume = (state["volume"] as? Double) ?? settings.volume
+        settings.rumbleGain = (state["rumbleGain"] as? String).flatMap(Double.init) ?? settings.rumbleGain
+        settings.rumbleMin = (state["rumbleMin"] as? String).flatMap(Double.init) ?? settings.rumbleMin
         return settings
     }
 
@@ -43,6 +45,8 @@ final class NativeSessionControl: InGameSessionControl {
         if changed(\.touchOpacity) { bridge.perform("opacity", value: Self.decimal(settings.touchOpacity)) }
         if changed(\.touchSize) { bridge.perform("size", value: Self.decimal(settings.touchSize)) }
         if changed(\.volume) { bridge.perform("volume", value: Self.decimal(settings.volume)) }
+        if changed(\.rumbleGain) { bridge.perform("rumble-gain", value: Self.decimal(settings.rumbleGain)) }
+        if changed(\.rumbleMin) { bridge.perform("rumble-min", value: Self.decimal(settings.rumbleMin)) }
     }
 
     func resume() { bridge.perform("resume") }

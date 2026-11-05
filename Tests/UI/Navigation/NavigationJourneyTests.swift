@@ -1669,6 +1669,7 @@ final class NavigationJourneyTests: XCTestCase {
         try openSettingsDetail()
         let choices = [("DM_FPS_TARGET", "60 FPS", "60"), ("DM_RENDER_SCALE", "75%", "0.75"),
                        ("DM_SCREEN_MODE", "Stretch", "stretch"), ("DM_HAPTICS", "Off", "off"),
+                       ("DM_RUMBLE_GAIN", "200%", "2.0"), ("DM_RUMBLE_MIN", "45%", "0.45"),
                        ("DM_PIPELINE_MODE", "Hybrid", "hybrid")]
         for (key, label, value) in choices {
             try chooseGameSetting(key, label, value: value)
@@ -1688,7 +1689,7 @@ final class NavigationJourneyTests: XCTestCase {
             XCTAssertFalse(app.buttons["game-reset-" + key].exists)
         }
         let expected = ["DM_FPS_TARGET": "0", "DM_RENDER_SCALE": "1.0", "DM_SCREEN_MODE": "fit",
-                        "DM_HAPTICS": "on", "DM_PIPELINE_MODE": "exact"]
+                        "DM_HAPTICS": "on", "DM_RUMBLE_GAIN": "1.0", "DM_RUMBLE_MIN": "0", "DM_PIPELINE_MODE": "exact"]
         app.terminate(); app.launch()
         try openSettingsDetail()
         for (key, value) in expected {
@@ -1703,6 +1704,7 @@ final class NavigationJourneyTests: XCTestCase {
         try openSettingsDetail()
         try chooseGameSetting("DM_SCREEN_MODE", "Stretch", value: "stretch")
         try chooseGameSetting("DM_HAPTICS", "Off", value: "off")
+        try chooseGameSetting("DM_RUMBLE_GAIN", "200%", value: "2.0")
         try tap("close-game-detail")
         try tap("play-focused")
         try button("player-play").tap()
@@ -1714,11 +1716,28 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertEqual(haptics.value as? String, "0", "The menu reads the game page's haptics choice")
         haptics.tap()
         XCTAssertEqual(haptics.value as? String, "1")
+        // Rumble strength sits beside haptics, reads the page's choice and writes back live.
+        let menuScroll = app.scrollViews.containing(.switch, identifier: "Haptics").firstMatch
+        let strong = app.buttons["200%"].firstMatch
+        revealDeviceCheckControl(strong, in: menuScroll)
+        XCTAssertTrue(strong.isSelected, "The menu reads the game page's rumble strength")
+        let half = app.buttons["50%"].firstMatch
+        revealDeviceCheckControl(half, in: menuScroll)
+        half.tap()
+        XCTAssertTrue(half.isSelected)
+        let cutoff = app.buttons["45%"].firstMatch
+        revealDeviceCheckControl(cutoff, in: menuScroll)
+        cutoff.tap()
+        XCTAssertTrue(cutoff.isSelected)
         try tap("menu-library")
         try openSettingsDetail()
         revealDeviceCheckControl(app.buttons["game-setting-DM_SCREEN_MODE"], in: app.scrollViews["detail-scroll"])
         XCTAssertEqual(app.buttons["game-setting-DM_SCREEN_MODE"].value as? String, "fit")
         XCTAssertEqual(app.buttons["game-setting-DM_HAPTICS"].value as? String, "on")
+        revealDeviceCheckControl(app.buttons["game-setting-DM_RUMBLE_GAIN"], in: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(app.buttons["game-setting-DM_RUMBLE_GAIN"].value as? String, "0.50", "The page reads the menu's live rumble strength")
+        revealDeviceCheckControl(app.buttons["game-setting-DM_RUMBLE_MIN"], in: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(app.buttons["game-setting-DM_RUMBLE_MIN"].value as? String, "0.45")
         try chooseGameSetting("DM_SCREEN_MODE", "Stretch", value: "stretch")
         try tap("close-game-detail")
         try tap("play-focused")
@@ -1726,7 +1745,7 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("menu-quit")
         try tap("Quit game")
         try openSettingsDetail()
-        for key in ["DM_SCREEN_MODE", "DM_HAPTICS"] {
+        for key in ["DM_SCREEN_MODE", "DM_HAPTICS", "DM_RUMBLE_GAIN", "DM_RUMBLE_MIN"] {
             revealDeviceCheckControl(app.buttons["game-reset-" + key], in: app.scrollViews["detail-scroll"])
             try tap("game-reset-" + key)
         }

@@ -12,6 +12,7 @@ Satchel's Horizon settings and account service overlay adapts command behavior a
 
 Satchel controller style selection and update notifications also follow Ryujinx 1.3.3 NpadDevices, with the same retained MIT notice. Controller vibration reuses the pinned MIT engine. Scope and reference paths are in NativeHost/controllers/README.md.
 
-Pieces taken from nxnative after the pin (github.com/seedds/nxnative, MIT, same notice; reimplemented or adapted for Satchel, the pinned engine snapshot is unchanged):
+Tier 2 and tier 3 pieces from nxnative (github.com/seedds/nxnative, MIT, same notice), reimplemented or adapted for Satchel. Post-pin upstream commits are named by hash; features already in the pinned engine cite bbc3b737. The pinned engine snapshot itself is unchanged:
 
 - Title-ID architecture check (`scripts/check_architecture.py`): adapted from `dm/tools/tests/test_architecture.py`, upstream commit c7da003c.
+- Rumble strength and controller cutoff (`DM_RUMBLE_GAIN`, `DM_RUMBLE_MIN`): read by the pinned engine's `dm/host/haptics_apple.m` and listed in its `dm/games/settings.tsv` at the pin (bbc3b737); Satchel adds the per-title settings and a live retune hook (`NativeHost/controllers/overlay.py`). No post-pin upstream code.

@@ -141,7 +141,16 @@ def haptics(text):
     body = replace(body, 'static void apply(dm_haptic_state s) {\n    dispatch_async(queue, ^{ @autoreleasepool {', 'static void satchel_rumble_apply_one(dm_haptic_state s) {')
     body = replace(body, '    } });\n}', '}')
     text = text[:first] + body + (HERE / 'HapticQueue.inc').read_text() + '\n' + text[last:]
-    return text + '\nvoid satchel_haptics_suspend(unsigned reason, int on) { if (queue) suspend(reason, on != 0); }\n'
+    text += '\nvoid satchel_haptics_suspend(unsigned reason, int on) { if (queue) suspend(reason, on != 0); }\n'
+    # Rumble strength and controller cutoff (DM_RUMBLE_GAIN, DM_RUMBLE_MIN) are read once per
+    # process at init. Satchel's title settings retune them per session and while playing, with
+    # the engine's own clamps, on the queue that reads them.
+    return text + '''void satchel_haptics_tune(float g, float m) {
+    g = isfinite(g) ? fmaxf(0, fminf(3, g)) : 1; m = isfinite(m) ? fmaxf(0, fminf(0.9f, m)) : 0;
+    if (!queue) { gain = g; rumble_min = m; return; }
+    dispatch_async(queue, ^{ gain = g; rumble_min = m; });
+}
+'''
 
 
 def slots(text):

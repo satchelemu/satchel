@@ -10,6 +10,10 @@
 		<string>0</string>
 		<key>DM_RENDER_SCALE</key>
 		<string>1.0</string>
+		<key>DM_RUMBLE_GAIN</key>
+		<string>1.0</string>
+		<key>DM_RUMBLE_MIN</key>
+		<string>0</string>
 	</dict>
 	<key>titles</key>
 	<dict>

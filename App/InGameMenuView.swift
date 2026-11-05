@@ -22,6 +22,12 @@ struct InGameSettings: Codable, Equatable {
     var touchSize = 1.0
     var haptics = true
     var volume = 0.8
+    /// Rumble strength (DM_RUMBLE_GAIN, 0 to 3) and controller cutoff (DM_RUMBLE_MIN, 0 to 0.9).
+    /// Read from the shared title store; the menu JSON keeps them only as a cache.
+    var rumbleGain = 1.0
+    var rumbleMin = 0.0
+    static let rumbleGains = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0]
+    static let rumbleCutoffs = [0.0, 0.2, 0.45, 0.6]
 
     init() {}
 
@@ -36,6 +42,8 @@ struct InGameSettings: Codable, Equatable {
         touchSize = (try? c.decodeIfPresent(Double.self, forKey: .touchSize)) ?? base.touchSize
         haptics = (try? c.decodeIfPresent(Bool.self, forKey: .haptics)) ?? base.haptics
         volume = (try? c.decodeIfPresent(Double.self, forKey: .volume)) ?? base.volume
+        rumbleGain = (try? c.decodeIfPresent(Double.self, forKey: .rumbleGain)) ?? base.rumbleGain
+        rumbleMin = (try? c.decodeIfPresent(Double.self, forKey: .rumbleMin)) ?? base.rumbleMin
     }
 
     /// Saved settings for a title, or the defaults on a first run.
@@ -48,6 +56,8 @@ struct InGameSettings: Codable, Equatable {
         let shared = SatchelSavedPlayerSettings(titleID)
         settings.screenMode = ScreenMode(rawValue: shared["DM_SCREEN_MODE"] ?? "fit") ?? .fit
         settings.haptics = shared["DM_HAPTICS"] != "off"
+        settings.rumbleGain = Double(shared["DM_RUMBLE_GAIN"] ?? "") ?? 1.0
+        settings.rumbleMin = Double(shared["DM_RUMBLE_MIN"] ?? "") ?? 0.0
 #endif
         return settings
     }
@@ -336,6 +346,17 @@ struct InGameMenuView: View {
                 sliderRow("Size", value: $model.settings.touchSize, range: 0.75...1.25,
                           low: "smallcircle.filled.circle", high: "largecircle.fill.circle")
                 toggleRow("Haptics", isOn: $model.settings.haptics)
+                row("Rumble strength") {
+                    segmented(InGameSettings.rumbleGains, selection: model.settings.rumbleGain,
+                              label: { "\(Int(($0 * 100).rounded()))%" }) { model.settings.rumbleGain = $0 }
+                }
+                row("Rumble cutoff") {
+                    segmented(InGameSettings.rumbleCutoffs, selection: model.settings.rumbleMin,
+                              label: { $0 == 0 ? "Off" : "\(Int(($0 * 100).rounded()))%" }) { model.settings.rumbleMin = $0 }
+                }
+                Text("Cutoff silences a controller's weakest rumble, for motors that buzz all the time.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             SatchelPanel(title: "Controller", tint: SatchelTheme.leaf) {
                 Button("Controller layout and remapping") { showControllerLayout = true }
