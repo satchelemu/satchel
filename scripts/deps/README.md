@@ -39,6 +39,8 @@ The matching reviewed SHA-256 and exact one-line punctuation difference are reco
 in that README. Its source lock includes the reconciliation note. No executable
 source, fixture, renderer checkpoint or assertion changed for that reconciliation.
 
-The private shader parity prerequisite remains enforced in
-`NativeHost/shader_dependency.py`. A missing parity result blocks a fresh-root app
-build exactly as it does on main. The bootstrap does not fabricate or copy it.
+Shader staging defaults to the public synthetic parity gate in
+`NativeShaders/public_parity.py`. The bootstrap runs it after native recipes produce
+source-bound binary receipts. The private corpus remains an optional additional gate
+and an explicit legacy maintainer route. See `NativeShaders/PublicParity.md` for the
+coverage boundary and baseline review process. No private evidence is fabricated or copied.

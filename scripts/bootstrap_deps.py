@@ -301,8 +301,8 @@ def main():
             state['steps']['app-inputs'] = 0
         except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
             state['steps']['app-inputs'] = str(error)
-        state['steps']['app-prerequisite'] = 'blocked: shader staging requires private pipeline-full parity proof'
-        # Never fabricate pipeline-full/result.json or bypass its assertion.
+        execute('public-shader-parity', [sys.executable, '-B', ROOT / 'NativeShaders/public_parity.py',
+                '--products', dest / 'm5', '--output', dest / 'm5/public-parity'])
     finally:
         state['outputs'] = output_manifest(dest, reference)
         write(dest / 'bootstrap-manifest.json', state)
