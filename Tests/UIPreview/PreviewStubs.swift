@@ -190,8 +190,10 @@ private struct PreviewRoot: View {
         let visibilityState = "\(fold):\(SatchelMenuState()["state"] as? String ?? "unknown")"
         SatchelPreviewSetPictureVisible(false, visibilityState)
         if let view = picture(in: window), let source = view.image {
-            let point = view.convert(CGPoint(x: view.bounds.width / 4, y: view.bounds.height / 4), to: window)
-            let expected = pixel(source, at: CGPoint(x: source.size.width / 4, y: source.size.height / 4))
+            // Sample the lower left of the picture: the fixture's remote Quit button
+            // sits over its upper left and would hide the picture from this check.
+            let point = view.convert(CGPoint(x: view.bounds.width / 4, y: view.bounds.height * 3 / 4), to: window)
+            let expected = pixel(source, at: CGPoint(x: source.size.width / 4, y: source.size.height * 3 / 4))
             let actual = pixel(image, at: point)
             let visible = expected != nil && actual != nil && zip(expected!, actual!).allSatisfy { abs(Int($0) - Int($1)) <= 14 }
             SatchelPreviewSetPictureVisible(visible, visibilityState)

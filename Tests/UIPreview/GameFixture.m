@@ -222,9 +222,17 @@ UIView *dm_gamepad_view(CGRect frame);
     [self.clock addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     [self changeFold:self.fold];
     // Disconnect only the simulator's virtual pad so the real touch pad is visible.
+    // A disconnect during play pauses the game by design; this one is fixture setup,
+    // so resume the pause it caused before the journey begins.
     dispatch_async(dispatch_get_main_queue(), ^{
-        for (GCController *pad in GCController.controllers)
+        BOOL disconnected = NO;
+        for (GCController *pad in GCController.controllers) {
             [NSNotificationCenter.defaultCenter postNotificationName:GCControllerDidDisconnectNotification object:pad];
+            disconnected = YES;
+        }
+        if (disconnected) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            SatchelMenuPerform(@"resume", nil);
+        });
     });
 }
 - (void)viewDidAppear:(BOOL)animated {
