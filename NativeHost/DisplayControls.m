@@ -159,8 +159,8 @@ static __weak SatchelDisplayControls *activeControls;
     if ([geometry isEqualToString:self.lastGeometry]) return;
     self.lastGeometry = geometry;
     [self.root setNeedsLayout]; [self.pad setNeedsLayout];
-    // Releases old touch ownership when controls move to a different screen or region.
-    dm_gamepad_reset();
+    // Keep held controls owned until touch-up; reproject game touches into the new picture.
+    dm_gamepad_reproject();
     if (@available(iOS 27.1, *)) {
         for (UIViewReservedRegion *r in [self.root reservedRegionsOfKind:UIViewReservedRegionKind.occlusionRegionKind])
             fprintf(stderr, "Satchel cutout: source=UIKit active=%d frame=%s margins=%s\n", r.active,

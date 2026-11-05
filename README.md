@@ -60,6 +60,11 @@ save manager lists dated, sized backups, keeps the newest three, restores with
 confirmation and exports through the share sheet. Import accepts title-bound Satchel
 ZIPs, not arbitrary emulator archives. See [the test guide](docs/testing.md).
 
+Duo posture previews cover the library, game page, Settings and pause menu. Half-folded
+play keeps the picture above the controls and menu. Synthetic transition journeys check
+Fit geometry and held touch input; real hinge and display-switch validation remains.
+See [the posture test guide](docs/testing.md#duo-postures).
+
 ## What does not work yet
 
 - Only four games have been tried. Any other game may fail at import, Prepare or boot.

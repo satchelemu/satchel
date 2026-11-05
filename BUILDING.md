@@ -150,7 +150,9 @@ host project. The navigation generator reads the pinned engine from
 `$SATCHEL_DEPS_ROOT/NX2Apple/engine`, applies this checkout's display patches under
 `SATCHEL_OUT`, and builds only the selected simulator architecture. It does not reuse
 another worker's display build. Per-title settings and the save manager add no dependencies.
-The simulator suite covers their game-page journeys using synthetic saves. Set
+The simulator suite covers their game-page journeys using synthetic saves and adds
+Duo posture previews with synthetic sessions. No new dependencies are needed. Fold
+controls and the scaled menu wrapper exist only in the preview target. Set
 `SATCHEL_UI_SIMULATOR` to a dedicated simulator UUID; `SATCHEL_UI_ONLY_TESTING` accepts
 comma-separated journey names for a targeted run. `Tests/PlayerSettings/run.py` checks
 the shared settings and real pipeline policy on the Mac, and `Tests/Saves/run.py` checks

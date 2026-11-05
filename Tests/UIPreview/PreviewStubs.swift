@@ -58,16 +58,63 @@ struct SatchelPreviewApp: App {
     }
 }
 
+#if PREVIEW_GAME
+/// Scale the production menu in the same viewport as the synthetic game surface.
+struct PreviewMenuScreen: View {
+    @ObservedObject var model: InGameMenuModel
+    @State private var fold: String = SatchelPreviewCurrentFold()
+
+    var body: some View {
+        Group {
+            if UserDefaults.standard.string(forKey: "SatchelPreviewFold") == nil {
+                InGameMenuScreen(model: model)
+            } else {
+                GeometryReader { geometry in
+                    let inner = fold != "front"
+                    let size = inner ? (fold == "tall" ? CGSize(width: 669, height: 951) : CGSize(width: 951, height: 669)) : geometry.size
+                    let scale = min(geometry.size.width / size.width, geometry.size.height / size.height)
+                    InGameMenuScreen(model: model)
+                        .frame(width: size.width, height: size.height)
+                        .clipped().scaleEffect(scale)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SatchelPreviewFoldChanged"))) { note in
+            if let value = note.object as? String { fold = value }
+        }
+    }
+}
+#endif
+
 /// Shows the chosen screen, at the inner screen's size when emulating it.
 private struct PreviewRoot: View {
     @StateObject private var library = HomebrewLibrary()
     @StateObject private var artwork = GameArtworkStore()
     private let screen = UserDefaults.standard.string(forKey: "SatchelPreviewScreen") ?? "home"
-    private let fold = UserDefaults.standard.string(forKey: "SatchelPreviewFold") ?? "front"
+    @State private var fold = UserDefaults.standard.string(forKey: "SatchelPreviewFold") ?? "front"
     private var inner: Bool { ["open", "book", "tall"].contains(fold) }
 
     var body: some View {
         root.onAppear(perform: requestOrientation)
+#if PREVIEW_GAME
+            .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+                capturePosture()
+            }
+#endif
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SatchelPreviewFoldChanged"))) { note in
+                guard let value = note.object as? String else { return }
+                fold = value
+                ScreenTraits.override = ScreenTraits(posture: ["book", "tall"].contains(value) ? .book : value == "open" ? .flat : .closed)
+                // Report through the production reader without rebuilding its view tree.
+                func report(_ view: UIView) {
+                    (view as? ScreenProbe.ProbeView)?.report()
+                    view.subviews.forEach(report)
+                }
+                for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+                    scene.windows.forEach(report)
+                }
+            }
 #if PREVIEW_GAME
             .overlay(alignment: .bottomLeading) {
                 if UserDefaults.standard.bool(forKey: "SatchelPreviewSessionTests") {
@@ -104,6 +151,54 @@ private struct PreviewRoot: View {
     }
 
 #if PREVIEW_GAME
+    /// The Duo simulator's screen capture can crop the landscape framebuffer.
+    /// Render the synthetic window at its actual bounds for layout review instead.
+    private func capturePosture() {
+        guard UserDefaults.standard.bool(forKey: "SatchelPreviewPostureTests") else { return }
+        // A tapped preview tool can become key. Always sample the content window.
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows).filter { $0.windowLevel == .normal && !$0.isHidden }
+        let gameWindow = SatchelNativeSessionStarted() ? SatchelNativeGameController().view.window : nil
+        guard let window = gameWindow ?? windows.first(where: \.isKeyWindow) ?? windows.first else { return }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        let image = UIGraphicsImageRenderer(bounds: window.bounds, format: format).image { _ in
+            window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        let prefix = UserDefaults.standard.bool(forKey: "SatchelPlainNativeMenu") ? "game-plain-" : "game-"
+        let state = SatchelNativeSessionStarted() ? prefix + (SatchelMenuState()["state"] as? String ?? "unknown") : screen
+        // Compare a clear patch of the fixture image with the composed window. A
+        // transparent SwiftUI view can still have an opaque navigation container.
+        func picture(in view: UIView) -> UIImageView? {
+            if view.accessibilityIdentifier == "fixture-picture" { return view as? UIImageView }
+            return view.subviews.lazy.compactMap { picture(in: $0) }.first
+        }
+        func pixel(_ image: UIImage, at point: CGPoint) -> [UInt8]? {
+            guard let patch = image.cgImage?.cropping(to: CGRect(x: point.x * image.scale, y: point.y * image.scale, width: 1, height: 1)) else { return nil }
+            var rgba = [UInt8](repeating: 0, count: 4)
+            let rendered = rgba.withUnsafeMutableBytes { bytes -> Bool in
+                guard let context = CGContext(data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+                context.draw(patch, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+                return true
+            }
+            return rendered ? rgba : nil
+        }
+        let visibilityState = "\(fold):\(SatchelMenuState()["state"] as? String ?? "unknown")"
+        SatchelPreviewSetPictureVisible(false, visibilityState)
+        if let view = picture(in: window), let source = view.image {
+            let point = view.convert(CGPoint(x: view.bounds.width / 4, y: view.bounds.height / 4), to: window)
+            let expected = pixel(source, at: CGPoint(x: source.size.width / 4, y: source.size.height / 4))
+            let actual = pixel(image, at: point)
+            let visible = expected != nil && actual != nil && zip(expected!, actual!).allSatisfy { abs(Int($0) - Int($1)) <= 14 }
+            SatchelPreviewSetPictureVisible(visible, visibilityState)
+        }
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("PostureSnapshots", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? image.pngData()?.write(to: directory.appendingPathComponent("\(fold)-\(state).png"), options: .atomic)
+    }
+
     /// -SatchelPreviewPrepareStart YES: start a preview Prepare run of the first base and its
     /// update at launch, as if chosen on the Prepare screen.
     private func startPrepare() {
@@ -123,27 +218,25 @@ private struct PreviewRoot: View {
     }
 
     @ViewBuilder private var root: some View {
-        if inner {
+        if UserDefaults.standard.string(forKey: "SatchelPreviewFold") == nil {
+            content
+        } else {
             GeometryReader { geometry in
-                let size = fold == "tall" ? CGSize(width: 669, height: 951) : CGSize(width: 951, height: 669)
+                let size = inner ? (fold == "tall" ? CGSize(width: 669, height: 951) : CGSize(width: 951, height: 669)) : geometry.size
                 let scale = min(geometry.size.width / size.width, geometry.size.height / size.height)
                 content.frame(width: size.width, height: size.height)
                     .clipped()
                     .scaleEffect(scale)
                     .frame(width: geometry.size.width, height: geometry.size.height)
             }
-            // Drawn inside the front screen's safe area, so its camera cutout
-            // never covers the emulated screen.
             .background(Color.black.ignoresSafeArea())
-        } else {
-            content
         }
     }
 
     @ViewBuilder private var content: some View {
         switch screen {
         case "detail":
-            let item = library.items.first!
+            let item = library.items.first { $0.fileExtension == "xci" && $0.name.hasPrefix("Lantern") } ?? library.items.first!
             let entry = artwork.shelf(library.items).first { $0.id == item.id }
             GameDetailView(library: library, artwork: artwork, item: item, updates: entry?.updates ?? [],
                            onPlay: {}, onPrepare: {}, onOpenSettings: {})

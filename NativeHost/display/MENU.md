@@ -142,7 +142,12 @@ Partially open puts the game in the top half and touch controls in the bottom ha
 the picture clipped at the half boundary. The control hit tests and game-touch projection use those
 same rectangles. Root layout and hinge callbacks update immediately; a 250 ms geometry
 observer also catches same-sized screen moves without replacing SwiftUI's scene delegate.
-Old touch ownership resets when geometry changes so a moved control cannot remain held.
+Geometry changes preserve held touch ownership and reproject game touches into the new
+picture. Touch-up, cancellation and the existing menu/background resets still release
+input. Both SwiftUI and plain menus use the lower half while partially open, leaving the
+picture above. Simulator posture journeys observe the production pad callbacks and
+layout over a synthetic frame; real hinge and screen-migration checks remain on the phone.
+See [the posture test guide](../../docs/testing.md#duo-postures).
 The guest/session is retained. `posture` commands below are explicitly synthetic overrides.
 
 ## Mac control

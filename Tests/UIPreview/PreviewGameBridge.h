@@ -6,3 +6,6 @@
 #import "PlayerSettings.h"
 #import "DisplayControls.h"
 NSString *SatchelPreviewSessionState(void);
+
+void SatchelPreviewSetPictureVisible(BOOL visible, NSString *state);
+NSString * _Nonnull SatchelPreviewCurrentFold(void);

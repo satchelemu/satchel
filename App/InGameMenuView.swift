@@ -115,7 +115,7 @@ struct InGameSettings: Codable, Equatable {
 
 /// Pause menu shown over the game. Present it over the game view with a clear
 /// background; it dims the picture itself, except in the book posture where the
-/// game stays visible on the left page.
+/// game stays visible above the menu.
 /// The pause menu as a presented screen: a navigation stack whose close button is a system
 /// bar item, so iOS 27.1 shows it in the vertical bar with the status bar, as in the app.
 struct InGameMenuScreen: View {
@@ -123,6 +123,7 @@ struct InGameMenuScreen: View {
     var body: some View {
         NavigationStack {
             InGameMenuView(model: model, barClose: true)
+                .modifier(MenuNavigationBackground())
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button {
@@ -135,6 +136,17 @@ struct InGameMenuScreen: View {
                 }
                 .satchelBars()
                 .satchelMenuStatus()
+        }
+    }
+}
+
+/// iOS 18 adds the navigation-container background override.
+private struct MenuNavigationBackground: ViewModifier {
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.containerBackground(.clear, for: .navigation)
+        } else {
+            content
         }
     }
 }
@@ -153,25 +165,16 @@ struct InGameMenuView: View {
     var body: some View {
         // The native bridge already sizes this view to the interactive bounds.
         ScreenReader(margin: false) { cut, geometry in
-            if let fold = cut.fold(in: geometry.size) {
-                // Half folded: the game stays visible on the first page.
+            if cut.isBook {
+                // Match the native game region: picture above, menu below.
+                let fold = FoldLine.horizontal(geometry.size.height / 2)
                 FoldSplit(fold: fold, cut: cut, secondFill: SatchelTheme.shell) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Spacer()
-                        HStack(spacing: 10) {
-                            pausedChip
-                            resumeButton(height: 48)
-                        }
-                        .padding(14)
-                        .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .padding(.bottom, 20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.accessibilityHidden(true)
                 } second: {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
                             titleBlock
-                            actionButtons(includeResume: false)
+                            actionButtons(includeResume: true)
                             settingsPanels
                         }
                         .padding(.vertical, 18)

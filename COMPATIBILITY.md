@@ -9,7 +9,9 @@ Simulator UI journeys use synthetic containers and sessions. They do not add gam
 or shader-performance evidence to this table. Per-title FPS, render-scale and pipeline
 choices require a fresh game launch and do not establish that a title supports a forced
 frame rate. Reset restores its bundled title default. Save archive checks establish title
-binding and byte integrity, not gameplay correctness after a restore.
+binding and byte integrity, not gameplay correctness after a restore. Duo posture
+journeys observe synthetic frames and input callbacks; real hinge transitions and
+native game presentation still need the phone and do not change the ratings below.
 
 Test hardware so far: one iPhone Duo (iPhone19,4, A20 Pro), iOS 27.1, landscape.
 
