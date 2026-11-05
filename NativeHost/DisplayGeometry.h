@@ -1,6 +1,7 @@
 #pragma once
 #include <CoreGraphics/CoreGraphics.h>
 #include <math.h>
+#include <stdbool.h>
 
 // A single rectangle defines both presentation and the inverse touch transform.
 // aspect is the presented picture's width / height: 16:9 unless the game presents another
@@ -47,4 +48,17 @@ static inline CGRect SatchelOcclusionSafeRect(CGRect safe, CGRect full, CGRect o
     if (edge == 2) y = fmax(y, CGRectGetMaxY(hit));
     if (edge == 3) bottom = fmin(bottom, CGRectGetMinY(hit));
     return CGRectMake(x, y, fmax(0, right - x), fmax(0, bottom - y));
+}
+
+// Which edge of the phone is up while a half-folded game plays upright: its bottom edge
+// (true) or its top edge (false). `device` is the phone's reported orientation
+// (UIDeviceOrientation: 1 upright, 2 upside down, 5 lying face up). The motion sensor sits in
+// the phone's top half, so a phone that reports lying face up at the moment the game turns
+// has that half flat as the base, and the picture belongs on the other half (seen on the
+// maintainer's phone, 2026-11-05). After the turn only an upright report changes the answer:
+// a screen half that leans far back also reports face up.
+static inline bool SatchelUprightTopDown(int device, bool entering, bool last) {
+    if (device == 1) return false;
+    if (device == 2) return true;
+    return entering ? device == 5 : last;
 }

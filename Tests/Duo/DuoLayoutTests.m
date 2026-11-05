@@ -242,6 +242,22 @@ static BOOL inside(CGRect outer, CGRect inner) { return CGRectContainsRect(CGRec
     }
 }
 
+// Which half is the base: a phone lying face up when the game turns has its top half flat, so
+// the bottom edge goes up; an upright report always decides; anything else keeps the answer.
+- (void)testTheFlatHalfIsTheBase {
+    XCTAssertTrue(SatchelUprightTopDown(UIDeviceOrientationFaceUp, true, false), @"face up at the turn: the top half is the base");
+    XCTAssertFalse(SatchelUprightTopDown(UIDeviceOrientationUnknown, true, true), @"no report at the turn: top edge up");
+    XCTAssertFalse(SatchelUprightTopDown(UIDeviceOrientationLandscapeLeft, true, true));
+    XCTAssertFalse(SatchelUprightTopDown(UIDeviceOrientationPortrait, true, true));
+    XCTAssertTrue(SatchelUprightTopDown(UIDeviceOrientationPortraitUpsideDown, true, false));
+    // After the turn a screen half leaning back reports face up too: only upright reports count.
+    XCTAssertFalse(SatchelUprightTopDown(UIDeviceOrientationFaceUp, false, false));
+    XCTAssertTrue(SatchelUprightTopDown(UIDeviceOrientationFaceUp, false, true));
+    XCTAssertTrue(SatchelUprightTopDown(UIDeviceOrientationLandscapeRight, false, true));
+    XCTAssertFalse(SatchelUprightTopDown(UIDeviceOrientationPortrait, false, true), @"the phone was turned round");
+    XCTAssertTrue(SatchelUprightTopDown(UIDeviceOrientationPortraitUpsideDown, false, false));
+}
+
 // Only a game on screen turns: the library over a paused game and an emulated screen stay landscape.
 - (void)testOnlyAGameOnScreenTurnsUpright {
     UIWindow *window = keyWindow();

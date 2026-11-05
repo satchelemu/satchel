@@ -86,14 +86,10 @@ static BOOL orientationFollowsPosture = YES, gameUpright;
 static __weak UIWindow *turnedWindow;
 static int turnedQuarter;   // 0 plain, 1 turned clockwise, -1 turned counterclockwise
 BOOL SatchelGameIsUpright(void) { return gameUpright; }
-// The quarter turn that puts the phone's own top edge up, or its bottom edge when the phone
-// reports that it is held the other way round. A phone that lies flat or reports nothing keeps
-// the last answer.
-static CGFloat uprightAngle(UIWindowScene *scene) {
+// The quarter turn for the way the phone is held (SatchelUprightTopDown in DisplayGeometry.h).
+static CGFloat uprightAngle(UIWindowScene *scene, BOOL entering) {
     static BOOL topDown;
-    UIDeviceOrientation device = UIDevice.currentDevice.orientation;
-    if (device == UIDeviceOrientationPortrait) topDown = NO;
-    else if (device == UIDeviceOrientationPortraitUpsideDown) topDown = YES;
+    topDown = SatchelUprightTopDown((int)UIDevice.currentDevice.orientation, entering, topDown);
     BOOL clockwise = scene.effectiveGeometry.interfaceOrientation == UIInterfaceOrientationLandscapeLeft;
     return (clockwise != topDown ? 1 : -1) * M_PI_2;
 }
@@ -110,7 +106,7 @@ static void holdGameWindow(void) {
     }
     if (!window) return;
     CGRect scene = window.windowScene.effectiveGeometry.coordinateSpace.bounds;
-    CGFloat angle = uprightAngle(window.windowScene);
+    CGFloat angle = uprightAngle(window.windowScene, turnedWindow != window);
     CGAffineTransform turn = CGAffineTransformMakeRotation(angle);
     CGRect upright = CGRectMake(0, 0, scene.size.height, scene.size.width);
     CGPoint center = CGPointMake(CGRectGetMidX(scene), CGRectGetMidY(scene));
