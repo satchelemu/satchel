@@ -61,8 +61,9 @@ Measured on one iPhone Duo (A20 Pro, iOS 27.1). Dates are in the compatibility l
   useful. See [COMPATIBILITY.md](COMPATIBILITY.md).
 - A pinned-input bootstrap rebuilds native dependencies in an isolated root using local
   caches and installed tools. Five additional tool sources now have URL and hash pins.
-  A clean Mac still needs the remaining tool pins, standalone recipes and a public
-  replacement for private shader-parity evidence. This is the first thing we want help with: see [BUILDING.md](BUILDING.md) and [ROADMAP.md](ROADMAP.md). Signing
+  Public synthetic shader parity now validates and stages fresh shader dependencies
+  without game data. Full unsigned-app validation and the remaining clean-Mac tool
+  pins and standalone recipes are still open. This is the first thing we want help with: see [BUILDING.md](BUILDING.md) and [ROADMAP.md](ROADMAP.md). Signing
   itself is account-neutral: the build reads your team from your Mac and the app reads
   its own team at run time, but only the maintainer's account has been tried.
 - First play of a game stutters while shaders are translated and compiled on the phone.

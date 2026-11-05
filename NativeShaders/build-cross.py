@@ -14,7 +14,10 @@ WORK = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelB
 SOURCE = WORK / 'spirv-cross'
 PIN = 'f11ba9f0b21ba8fc15153d50a2a1ae31ab1cf8f7'
 
+from build_receipt import inputs, record
+
 def main():
+    before = inputs('cross')
     if subprocess.check_output(['git', '-C', SOURCE, 'rev-parse', 'HEAD'], text=True).strip() != PIN:
         raise RuntimeError('SPIRV-Cross pin mismatch')
     if subprocess.check_output(['git', '-C', SOURCE, 'status', '--porcelain'], text=True).strip():
@@ -44,6 +47,7 @@ def main():
         subprocess.run(['xcrun', 'clang++', '-dynamiclib', *objects, '-o', out / 'libGameShaderBridge.dylib'], check=True)
     stamp.write_text(fingerprint.hexdigest())
     shutil.copy2(SOURCE/'LICENSE', out/'SPIRV-Cross.LICENSE')
+    record('cross', out, ['libGameShaderBridge.a'] + (['libGameShaderBridge.dylib'] if platform == 'macosx' else []), before)
     print('Built ' + platform + ' in-process bridge at ' + PIN)
 
 if __name__ == '__main__': main()

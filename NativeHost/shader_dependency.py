@@ -6,6 +6,7 @@ import os
 import plistlib
 import shutil
 import subprocess
+import sys
 
 SOURCES = [Path(p).stem for p in json.loads((Path(__file__).resolve().parents[1]/'NativeShaders/integration.json').read_text())['swiftSources']]
 
@@ -14,9 +15,25 @@ def stage(root, output, platform='iphoneos'):
     source = Path(os.environ.get('SATCHEL_SHADER_SOURCE', default))
     # The renamed shader products live in the dependency root since the 2026-11-03 rename.
     products = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home()/'SatchelDeps/m5'))
-    proof = json.loads((products/'pipeline-full/result.json').read_text())
-    assert proof.get('complete') is True, 'M5 native translation parity is incomplete'
-    assert proof.get('differences') in (0, []), 'M5 native translation parity has differences'
+    sys.path.insert(0, str(root / 'NativeShaders'))
+    from public_parity import validate_proof
+    mode = os.environ.get('SATCHEL_SHADER_PARITY', 'public')
+    if mode not in ('public', 'private'):
+        raise RuntimeError('SATCHEL_SHADER_PARITY must be public or private')
+    validation = validate_proof(products, source) if mode == 'public' else {'kind': 'private-maintainer'}
+    # The legacy private corpus remains an explicit maintainer gate. Supplying it
+    # in public mode requires both gates to pass, never substitutes for public proof.
+    private = os.environ.get('SATCHEL_SHADER_PRIVATE_PROOF')
+    # Where the maintainer's private corpus result exists, keep requiring it too.
+    if not private and (products / 'pipeline-full/result.json').is_file():
+        private = str(products / 'pipeline-full/result.json')
+    if mode == 'private' or private:
+        proof = json.loads((Path(private) if private else products / 'pipeline-full/result.json').read_text())
+        if proof.get('complete') is not True:
+            raise RuntimeError('M5 native translation parity is incomplete')
+        if proof.get('differences') not in (0, []):
+            raise RuntimeError('M5 native translation parity has differences')
+        validation['private_maintainer_gate'] = 'passed'
     destination = output/'native-shaders'; destination.mkdir(parents=True, exist_ok=True)
     # The promoted M5 translator now references this helper even when the host
     # requests only vertex/pixel stages. Keep the staged source closure complete.
@@ -61,6 +78,10 @@ def stage(root, output, platform='iphoneos'):
             for file in folder.iterdir():
                 if file.is_file(): shutil.copyfile(file, notices/file.name)
     shutil.copyfile(products/('cross-'+platform)/'SPIRV-Cross.LICENSE', notices/'SPIRV-Cross.LICENSE')
-    (destination/'source-manifest.json').write_text(json.dumps({'source': str(source), 'products': str(products), 'files': hashes}, indent=2)+'\n')
+    if mode == 'public':
+        # Detect source/product edits during staging as well as before copying.
+        if validate_proof(products, source) != {k: v for k, v in validation.items() if k != 'private_maintainer_gate'}:
+            raise RuntimeError('Public shader proof changed during staging')
+    (destination/'source-manifest.json').write_text(json.dumps({'source': str(source), 'products': str(products), 'files': hashes, 'validation': validation}, indent=2)+'\n')
     (destination/'Bridge.h').write_text('#include "SatchelGameShader.h"\n#include "GameShaderBridge.h"\n#include "ArchiveBridge.h"\n#include "RuntimeShaderBridge.h"\n')
     return destination

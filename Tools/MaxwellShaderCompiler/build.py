@@ -11,6 +11,9 @@ import shutil
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'NativeShaders'))
+from build_receipt import inputs, record
+
 HERE = Path(__file__).resolve().parent
 LOCK = json.loads((HERE / "source-lock.json").read_text())
 
@@ -79,6 +82,7 @@ def main():
     validator = shutil.which("spirv-val") if args.original_fixture else None
     if args.original_fixture and args.platform in ("host", "all") and not validator:
         raise RuntimeError("The original fixture host gate requires the already-installed spirv-val tool.")
+    before = inputs('aot')
     verify_source(checkout)
     work.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -187,6 +191,13 @@ def main():
                                           for name in ("FixtureCompiler.cs", "FixtureSpirv.cs", "SatchelShaderFixture.h", "fixture_compute.c", "fixture_cold.c")}}
             (framework / "Notices/original-fixture.json").write_text(json.dumps(manifest, indent=2) + "\n")
         print(f"iOS static link passed. Unsigned framework: {framework}", flush=True)
+    if not args.original_fixture:
+        products = []
+        if args.platform in ('host', 'all'):
+            products.append('repro/host-publish/SatchelShaderProbe.dylib')
+        if args.platform in ('ios', 'all'):
+            products.append('SatchelShaderProbe.framework/SatchelShaderProbe')
+        record('aot', work, products, before)
     print("Build validation uses synthetic shaders; no device execution or graphics claim.")
 
 

@@ -3,9 +3,11 @@
 As of 2026-11-04, a clean Mac still cannot reproduce the complete app. The dependency
 bootstrap below reconstructs pinned source inputs and reuses the native recipes in a
 fresh root. Five tool source archives now have exact URLs and SHA-256 pins, but their
-standalone recipes, two remaining distribution pins and the app's private shader-parity
-prerequisite are not yet reproducible. It fails closed instead of downloading unpinned
-tools or claiming that an incomplete root is usable. Signing is account-neutral.
+standalone recipes and two remaining distribution pins are not yet reproducible.
+Shader staging now has a public synthetic gate with source and binary receipts.
+The public gate and real iOS shader staging passed against a fresh local bootstrap
+root. The bootstrap fails closed instead of downloading unpinned tools or claiming
+that an incomplete root is usable. Signing is account-neutral.
 
 Settings > Device check adds no dependency. Its native probe builds with the iOS SDK;
 the running-signature query resolves Security SPI dynamically and reports Unknown if
@@ -43,7 +45,7 @@ as a clean-Mac build. For the maintainer's read-only caches:
 ```sh
 SATCHEL_BUILD_ROOT="$HOME/SatchelBuild" SATCHEL_DEPS_ROOT="$HOME/SatchelDeps" \
   nice -n 10 python3 -B scripts/bootstrap_deps.py \
-  --root "$HOME/SatchelBuild/anygame/deps-part2" \
+  --root "$HOME/SatchelBuild/anygame/deps-parity" \
   --cache "$HOME/SatchelBuild/rename/inputs" \
   --cache "$HOME/SatchelBuild/rewriter" \
   --cache "$HOME/SatchelBuild/spike" \
@@ -69,8 +71,9 @@ The local fresh-root rebuild produced all 45 declared dependency artifacts, with
 zero missing outputs. The CPU suite passed 5,837,760 checks; scalar gates passed
 853,611 compiler and 20,365,499 admission assertions; captured compilation passed
 its cold, mutation, typed-schema and 696-module SPIR-V gates. These are Mac synthetic
-executions and iOS compilation, not phone execution. Output comparison found 78
-identical files, 44 differing files and three archives absent from the reference root.
+executions and iOS compilation, not phone execution. The earlier bootstrap comparison
+found 78 identical files, 44 differing files and three archives absent from the
+reference root.
 The observed differences are archive metadata, build paths, managed module identifiers
 and reviewed notice/checkpoint changes. This is not bit-for-bit reproducibility.
 
@@ -87,18 +90,52 @@ Remaining closure requirements:
   host metadata and fonts inside the new root, using an explicitly supplied local
   Python environment. The 34 recorded engine patches apply without commits; 1,106
   runtime source files matched the existing engine byte for byte.
-- Replace the dependency on a private `m5/pipeline-full/result.json` through a reviewed
-  public validation design. `NativeHost/shader_dependency.py` still requires this
-  game-derived parity evidence. The bootstrap neither copies it nor bypasses its check.
-- Complete `NativeApp/build.py --unsigned` with the fresh root. The local attempt
-  compiled all three native host archives and the rewriter, then stopped at the
-  unchanged `m5/pipeline-full/result.json` prerequisite. No unsigned app was produced.
+- Complete the unsigned app validation with the fresh root and public proof.
   Use a new `SATCHEL_OUT` for validation so an existing host-archive cache is not reused.
   Set
   `SATCHEL_NATIVE_BUILD_INPUTS=<root>/build-inputs`,
   `SATCHEL_CAPSTONE_SOURCE=<root>/sources/capstone-d2e5739cbb43df93d589a3a726c8f878b95beccb`,
   `SATCHEL_OPENSSL_IOS=<root>/openssl-ios` and `SATCHEL_SHADER_DEPS=<root>/m5`,
   alongside `SATCHEL_DEPS_ROOT=<root>`. No phone readiness is implied.
+
+## Public shader validation
+
+App builds default to `NativeShaders/public_parity.py` evidence instead of a private
+game-derived result. The bootstrap builds the native components with source-bound
+binary receipts and runs 23 original synthetic requests through the same NativeAOT,
+SPIRV-Cross and Swift translation path used by the app. The tracked
+`NativeShaders/public-parity-lock.json` records the source inventory, generated input hashes,
+and expected SPIR-V, resource, MSL-variant and reflection hashes. Staging rejects
+missing or changed sources, binaries, receipts and incomplete or stale proof files.
+The public baseline is a regression checkpoint, not a claim about all games.
+
+To rerun after rebuilding the shader dependencies, use the shared resource guard:
+
+```sh
+ANYGAME_OUT="$HOME/SatchelBuild/anygame/bootstrap-guard" \
+  SATCHEL_SHADER_DEPS="$HOME/SatchelBuild/anygame/deps-parity/m5" \
+  nice -n 10 python3 -B NativePrepare/guard.py \
+  python3 -B NativeShaders/public_parity.py \
+  --output "$HOME/SatchelBuild/anygame/parity-check"
+```
+
+The private check is retained. Set `SATCHEL_SHADER_PRIVATE_PROOF` to its result path
+to require both public and real-game parity. `SATCHEL_SHADER_PARITY=private` explicitly
+selects the prior maintainer route for existing dependency roots, using
+`<products>/pipeline-full/result.json` unless an explicit path is supplied. Public
+mode never silently falls back. The private check requires a complete result with
+zero differences. Neither check is fabricated by bootstrap.
+
+Only the private corpus run establishes parity across its real-game shader outputs.
+The retained legacy result check requires current maintainer evidence; its flags alone
+do not bind an older result to newly rebuilt binaries.
+Public synthetic validation establishes reviewed source identity and exact output
+agreement for its finite cases, with receipts binding the local iOS binaries. It
+does not establish rendered pixels, phone compilation, gameplay, geometry coverage
+or cross-toolchain bit-for-bit reproducibility. See
+[the public parity contract](NativeShaders/PublicParity.md) for coverage and baseline
+review instructions. `--candidate` writes review material only and cannot issue a
+passing build proof.
 
 ## Tools
 
@@ -122,7 +159,7 @@ named next to it. The pins are the ones the maintainer validated against.
 | OpenSSL for iOS | 3.6.3, static | `~/SatchelBuild/spike/openssl-ios` | `SATCHEL_OPENSSL_IOS` |
 | MoltenVK | v1.4.2 | built by `Tools/VulkanBackend` scripts | see that README |
 | SPIRV-Cross, SPIRV-Tools, SPIRV-Headers | pinned in `Tools/ShaderBridge` and `Tools/VulkanBackend` | same | same |
-| Shader translator (Ryujinx 1.3.2 parts, NativeAOT) | pinned in `Tools/MaxwellShaderCompiler` and `NativeShaders` | `~/SatchelBuild/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
+| Shader translator (Ryujinx 1.3.2 parts, NativeAOT) | pinned in `Tools/MaxwellShaderCompiler` and `NativeShaders` | `~/SatchelDeps/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
 | Ryujinx 1.3.3 full source (reference only, not linked) | tag 1.3.3 | `~/SatchelDeps/reference/ryujinx-1.3.3` | none |
 
 The per-component READMEs under `Tools/` describe how each library was fetched and built
