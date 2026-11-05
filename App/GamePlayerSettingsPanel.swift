@@ -24,7 +24,7 @@ struct GamePlayerSettingsPanel: View {
         Choice(key: "DM_RENDER_SCALE", title: "Render scale", options: [("1.0", "100%"), ("0.85", "85%"), ("0.75", "75%"), ("0.65", "65%"), ("0.5", "50%")]),
         Choice(key: "DM_SCREEN_MODE", title: "Screen mode", options: [("fit", "Fit"), ("stretch", "Stretch")]),
         Choice(key: "DM_HAPTICS", title: "Haptics", options: [("on", "On"), ("off", "Off")]),
-        Choice(key: "DM_PIPELINE_MODE", title: "Pipeline mode", options: [("exact", "Exact"), ("hybrid", "Hybrid"), ("legacy", "Legacy")])
+        Choice(key: "DM_PIPELINE_MODE", title: "Pipeline mode", options: [("exact", "Exact"), ("async", "Async (experimental)"), ("skip", "Skip (experimental)"), ("hybrid", "Hybrid"), ("legacy", "Legacy")])
     ]
 
     var body: some View {
@@ -67,7 +67,7 @@ struct GamePlayerSettingsPanel: View {
             }
             Text("FPS target, render scale and pipeline mode apply next time you launch this game. Screen mode and haptics also change a paused game. A forced frame target may need a compatible game patch.")
                 .font(.system(size: 12)).foregroundStyle(SatchelTheme.textDim)
-            Text("Exact preserves rendering accuracy. Hybrid can reduce pipeline waits but may change rendering. Legacy uses the older pipeline path.")
+            Text("Exact preserves rendering accuracy. Async is experimental: it uses equivalent ready pipelines and waits when required, and has not yet been shown to reduce stutter. Skip is experimental and can leave objects missing while pipelines build. Hybrid can reduce pipeline waits but may change rendering. Legacy uses the older pipeline path.")
                 .font(.system(size: 12)).foregroundStyle(SatchelTheme.textDim)
             if let failure { Text(failure).foregroundStyle(SatchelTheme.spark) }
         }

@@ -27,6 +27,7 @@ def prepare(source, destination):
         text = text.replace(anchor, replacement, 1)
     metal.write_text(text)
     runpy.run_path(str(Path(__file__).with_name('shader_builds.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
+    runpy.run_path(str(Path(__file__).with_name('async_pipelines.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     runpy.run_path(str(Path(__file__).with_name('shader_metrics.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     return destination / 'nvn_mtl.m'
 

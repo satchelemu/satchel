@@ -3,6 +3,7 @@
 #import "WarmupPipelines.h"
 #import <Metal/Metal.h>
 #include <sys/sysctl.h>
+#include <math.h>
 
 static NSString *argument(NSArray<NSString *> *args, NSString *name) {
     NSUInteger at = [args indexOfObject:name];
@@ -13,10 +14,21 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     // Package manifests can carry the old synchronous policy. The host owns compilation.
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     NSString *mode = SatchelCurrentPlayerSettings()[@"DM_PIPELINE_MODE"] ?: argument(args, @"-SatchelPipelineMode") ?: @"exact";
-    BOOL hybrid = [mode isEqualToString:@"hybrid"];
+    BOOL skipping = [mode isEqualToString:@"skip"];
+    BOOL asynchronous = skipping || [mode isEqualToString:@"async"];
+    BOOL hybrid = asynchronous || [mode isEqualToString:@"hybrid"];
     BOOL modern = ![mode isEqualToString:@"legacy"];
-    if (![mode isEqualToString:@"hybrid"] && ![mode isEqualToString:@"legacy"] && ![mode isEqualToString:@"exact"])
+    if (!asynchronous && ![mode isEqualToString:@"hybrid"] && ![mode isEqualToString:@"legacy"] && ![mode isEqualToString:@"exact"])
         fprintf(stderr, "Satchel graphics: unknown pipeline mode, using exact\n");
+    setenv("DM_PSO_ASYNC", asynchronous ? "1" : "0", 1);
+    setenv("DM_PSO_SKIP", skipping ? "1" : "0", 1);
+    NSString *budget = argument(args, @"-SatchelPipelineBudgetMS") ?: @"4";
+    NSScanner *scanner = [NSScanner scannerWithString:budget]; double milliseconds = 4;
+    if (![scanner scanDouble:&milliseconds] || !scanner.isAtEnd || !isfinite(milliseconds) || milliseconds < 0 || milliseconds > 16) {
+        fprintf(stderr, "Satchel graphics: invalid pipeline budget, using 4 ms\n");
+        budget = @"4";
+    }
+    setenv("DM_PSO_BUDGET_MS", budget.UTF8String, 1);
     setenv("DM_PSO_MTL4", modern ? "1" : "0", 1);
     setenv("DM_PSO_HYBRID", hybrid ? "1" : "0", 1);
     setenv("DM_PSO_PREPARE_THREADS", "2", 1);
@@ -46,6 +58,7 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     unsetenv("DM_NVN_GPUPROF");
     if ([argument(args, @"-SatchelGraphicsProfile") isEqualToString:@"YES"]) {
         setenv("DM_SHADER_EVENTS", [[cacheRoot stringByAppendingPathComponent:@"shader-events.tsv"] fileSystemRepresentation], 1);
+        setenv("DM_PSO_SKIP_STATS", [[cacheRoot stringByAppendingPathComponent:@"pipeline-skips.tsv"] fileSystemRepresentation], 1);
         setenv("DM_BOOTPROF", "1", 1);
         setenv("DM_SLOWFRAME", "1", 1);
         setenv("DM_PSO_WAITLOG", "1", 1);
@@ -72,7 +85,7 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     fprintf(stderr, "Satchel loading: romfs=%s\n", mapped ? "mapped" : "pread");
 
     setenv("DM_PSO_ARCHIVE", SatchelPipelineArchiveDirectory(cacheRoot).fileSystemRepresentation, 1);
-    fprintf(stderr, "Satchel graphics: pipelines=%s workers=2 archive=%s\n", hybrid ? "hybrid" : modern ? "exact" : "legacy", getenv("DM_PSO_ARCHIVE"));
+    fprintf(stderr, "Satchel graphics: pipelines=%s workers=2 archive=%s\n", skipping ? "skip" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy", getenv("DM_PSO_ARCHIVE"));
 }
 
 NSString *SatchelPipelineArchiveDirectory(NSString *runtime) {

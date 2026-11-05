@@ -2,18 +2,34 @@
 
 This reuses nxnative bbc3b737's hybrid render pipelines, pending-build queue,
 vertex pulling, archive serialization and shader-pair preparation. It does not
-change shader translation, resolution, game time or rendering semantics.
+change shader translation, resolution or game time. Exact and Async preserve
+rendering semantics; the separate opt-in Skip mode can omit a terminal draw.
 
-`PipelineSettings.m`, called after package environment and player settings, replaces
-old manifests' `DM_PSO_MTL4=0` with the hybrid compiler policy. This selects the
-pipeline compiler, independently of the renderer's command-encoding API. Two workers
-prepare known shader pairs before the first frame. Existing recorded pipelines warm
-up on each launch. Exact vertex-layout pipelines compile asynchronously while a ready
-pulling pipeline draws the same geometry. The engine's bounded queues and descriptor
-validation remain intact. The system can still compile on the submit thread when no
-compatible fallback is ready, for compute pipelines, merged passes or unsupported
-vertex variants. Background demand builds use at most two utility queues. This is not a guarantee that every previously unknown shader is
-hitch free. Runtime translation belongs to M5.
+`PipelineSettings.m` selects `exact` by default. Compiler calls run on two
+workers, but required first use still joins completion. `hybrid` is an explicit
+experiment using equivalent vertex pulling while an exact layout builds.
+`async` additionally queues ordinary demand pipelines before waiting and creates
+fallback pipelines on workers from owned descriptor copies. The existing shader
+revision, target formats, blend, channel mask and alpha-to-coverage state remain
+part of the key. A later draw takes the completed exact pipeline.
+
+The async optional wait budget defaults to 4 ms shared across the presented frame.
+A ready equivalent fallback can serve the draw. Without one, exact completion is
+required. This is **not a universal 4 ms frame-thread bound**: translation, library
+loading, descriptor variant resolution, compute, utility and specialized passes
+can still wait. OS scheduling can also overshoot a timed wait. Async mode
+never discards a visible draw or substitutes an unrelated shader. A pulling library
+must already be loaded for its exact revision before a fallback job is admitted;
+the frame thread does not load it merely to try the timed fallback.
+
+Async introduces no draw-skipping rule. Existing proven no-effect eliminations
+remain. Skip has the separate terminal-pass policy described below. Stencil,
+storage/image writes, transform feedback, active queries and unknown dependencies
+within the current submission require exact results. The scan cannot prove that
+later submissions or frames will not sample an omitted color or depth result.
+Skip therefore remains experimental even when its terminal-draw check succeeds.
+A strict bound without these omissions needs owned command/resource continuations
+or a ready equivalent implementation of every required shader.
 
 Archives live in `Documents/NativeRuntime/<title>/pipelines/<GPU>-<OS build>/`.
 The existing serializer writes temporary files and renames successful results;
@@ -32,8 +48,8 @@ archive queue opens and publishes completed files. Failed writes or opens publis
 nothing and keep the existing exact-pipeline fallback. No reader sees a serializer
 that is still capturing or an unfinished file.
 
-The optional engine setting `DM_PSO_PREBUILD_A2C=1`, enabled by Satchel's hybrid
-policy, prepares both alpha-to-coverage base states. Metal requires distinct bases
+The optional engine setting `DM_PSO_PREBUILD_A2C=1`, enabled by the explicit
+prebuild experiment, prepares both alpha-to-coverage base states. Metal requires distinct bases
 even for one sample; disabling coverage to reuse a base would change rendering.
 The preparation stamp includes this policy so older caches receive the missing bases.
 This increases first-load preparation work and needs phone memory/time measurement.
@@ -55,10 +71,16 @@ The shared engine and display patch remain unchanged.
 
 ## Measurement controls
 
-Developer launch arguments, never player settings:
+Developer launch arguments override the saved per-title pipeline mode for one launch:
 
 - `-SatchelPipelineMode legacy`: use the former synchronous compiler path.
-- `-SatchelPipelineMode hybrid`: use the new default.
+- `-SatchelPipelineMode exact`: the default, join exact completion.
+- `-SatchelPipelineMode hybrid`: the existing vertex-pulling experiment.
+- `-SatchelPipelineMode async`: timed selection with equivalent ready fallbacks.
+- `-SatchelPipelineMode skip`: the same selection, with omission of a proven terminal draw after timeout.
+- `-SatchelPipelineBudgetMS <0..16>`: optional wait budget in milliseconds, default
+  4. Invalid values use 4. Mac equivalents are `DM_PSO_ASYNC=1` and
+  `DM_PSO_BUDGET_MS=4`. Required correctness waits are outside this budget.
 - `-SatchelPipelineTrial <tag>`: isolate recorded pipelines and archives without
   touching saves or existing caches. Tags use letters, digits, underscore or hyphen,
   at most 48 characters. Reuse a tag for a warm repeat; use a new tag for a cold trial.
@@ -111,6 +133,87 @@ check `front end: window covered`: an occluded CAMetalDisplayLink can fire once
 per second. `DM_WINDOW_TOP=1` helps but does not guarantee visibility across Spaces.
 Offscreen runs without `DM_WINDOW` isolate guest and host loading costs from that
 presentation issue; they cannot validate onscreen pacing or phone performance.
+
+## Async validation
+
+`check.py` retains the pending, archive, pulling and failure assertions and adds
+held-compiler deadline, duplicate, exact-key fallback, retry, session-reset and
+real-Metal descriptor-snapshot fixtures. Timeout events contain only timings and
+categories. `pipeline-required-wait` means the optional budget expired without a
+ready fallback, so the caller continues through the existing exact join.
+`pipeline-fallback` means equivalent drawing continued; it does not mean a draw
+was skipped. `pipeline-ready` means the exact request completed during selection.
+
+`bench_shaders.py --pipeline-mode async --pipeline-budget-ms 4` uses the same
+idle opening inputs and 1,800-frame limit as the exact baseline. Check captured
+scenes as well: Odyssey cold async remained on its controller screen at that
+limit, requiring a matched 3,600-frame comparison to reach mode selection.
+Cold means a new application cache namespace, not a cleared Apple compiler cache.
+First-use hitch frames exceed 50 ms and also record a new library or pipeline;
+that is correlation, not proof of the entire delay's cause. The harness also reports
+merged submit-thread wait episodes above the budget, total frames above 50 ms
+and worst frame time. No phone result follows from a Mac run.
+
+
+The 2026-11-04 Mac fixed-request comparison covers 760 captured requests
+(Castlevania 63, Odyssey 225, Zelda 472) and 1,780 translated variants. Both
+independently built shader closures reproduced every source, reflection and
+identity field with zero missing or different requests. The shader source closure is unchanged
+by the pipeline modes, including after the current-main integration. This proves that fixed translation
+corpus; it does not prove every game's rendering or a frame-time bound.
+
+The integrated 2026-11-04 check against main `1d0893c` also compares 2,048
+framebuffer bytes per mode across 16 synthetic states and 32 draws. Main exact,
+candidate exact and candidate async have zero differing bytes. The full graphics
+suite passes 931 assertions plus the archive Python test. All 12 exact/async
+cold/warm Mac opening routes across Castlevania, Odyssey and Zelda finish with
+zero skipped draws and zero shader failures; warm async exercises 34 ready
+fallbacks. The endpoint checks include visual review, zero Odyssey RGB
+differences, small Castlevania differences and different Zelda animation phases.
+These checks do not establish whole-game pixel equality or a phone speedup.
+
+## Terminal draw skipping
+
+The shared per-title Game settings panel offers Exact (default), Async
+and Skip (experimental), alongside Hybrid and Legacy. They share the `SatchelPlayerSettings.<titleID>` dictionary with screen
+mode and haptics, under `DM_PIPELINE_MODE`. A change applies on the next launch.
+Launch arguments take precedence without saving. The developer overlay shows
+skipped draws in the most recently submitted frame. Graphics profiling writes
+`pipeline-skips.tsv` with a frame number and count, including zero-count frames.
+
+Skip is deliberately narrow. Only an ordinary final draw in the current submission with known vertex and
+fragment reflection can be omitted. Storage bindings, images, bindless or dynamic
+resource access, transform feedback, stencil, active queries, geometry and merged
+or deferred passes wait. The complete remainder of the submission is walked,
+including nested calls, caller returns and later handles. Only harmless state
+commands may follow. Another draw, target change, copy, readback, query, dispatch,
+signal, unknown command, excessive nesting or scan limit requires waiting.
+Implicit pass-end storage mirrors, compressed/depth view shadow writebacks and
+attachment diagnostic readbacks also reject skipping. Even copies unrelated to
+the current attachments reject skipping in this policy.
+No general deferred-draw continuation is introduced.
+
+An unfinished pipeline job remains queued after omission. Later draws retry it;
+failed jobs and exhausted queues retain the existing exact path. Skipping can
+leave a missing final layer, stale color or depth, or a brief flicker. It is an
+experimental artifact tradeoff, not equivalent rendering. Shader translation and
+library loading still wait and can exceed the budget in all three modes. The
+phone warm-up queue and eviction policy are unchanged.
+
+The 2026-11-04 Mac opening matrix completes all 18 title/mode/cache cases with
+zero shader failures. Skip omits zero draws in its six 4 ms measurements. Separate
+0 ms diagnostics for all three titles also omit zero draws; their endpoint
+captures retain the visible menus and artwork. All six diagnostic routes complete.
+No real omission-triggered frame was captured,
+so omission artifacts and any skipping speedup remain unverified. The synthetic
+suite exercises an eligible omission and the policy's conservative rejection cases.
+
+`request-equivalence.swift` re-translates a fixed captured request set with an
+independently built shader closure. It verifies the captured record and payload
+hashes, reconstructs the exact request identity, and compares every translated
+field. Missing requests fail. Captures and payloads must remain outside the
+checkout and logs. This complements the real-Metal pulling and descriptor pixel
+fixtures; it does not establish whole-game rendering coverage.
 
 ## GPU pass cost diagnostics
 

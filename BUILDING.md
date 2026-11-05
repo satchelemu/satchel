@@ -251,3 +251,23 @@ production menu and cycle adapter over synthetic sessions. Build the normal unsi
 app with `NativeApp/build.py --unsigned`. Only the orchestrator signs and installs for
 the [phone procedure](docs/phone-cycle.md). Neither a simulator pass nor an unsigned
 build establishes phone Quit/relaunch acceptance.
+
+For asynchronous pipeline experiments, use `-SatchelPipelineMode async` and
+`-SatchelPipelineBudgetMS 4` after building. The default remains `exact`.
+The budget covers timed pipeline waits; descriptor resolution and required
+first-use waits can exceed it. Synthetic checks and Mac comparison controls are documented in
+[graphics validation](NativeHost/graphics/README.md#async-validation).
+
+Game settings on each game page save Exact, Async or experimental Skip for that title's
+next launch. `-SatchelPipelineMode skip` overrides the saved choice for a trial.
+Skip is restricted to a terminal draw in the current submission; all other timeouts wait. With
+`-SatchelGraphicsProfile YES`, `pipeline-skips.tsv` records frame/count rows beside
+the shader events. The developer overlay shows the last frame's skipped count.
+Keep cold-cache trials in a fresh task-owned namespace; preserve player data.
+
+Build the private pipeline measurement host with `NativeApp/build.py
+--pipeline-mac-host --unsigned`, setting `SATCHEL_OUT` to your task folder and
+running through `NativePrepare/guard.py`. It uses the installed pinned shader
+translator and existing Castlevania host prerequisites. The host instruments
+skipped-frame captures only when requested; normal timing routes leave capture
+disabled. It is a Mac diagnostic, not an iPhone execution result.

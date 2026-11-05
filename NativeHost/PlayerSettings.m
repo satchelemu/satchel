@@ -36,7 +36,7 @@ static NSString *validValue(NSString *key, id value) {
         return text;
     }
     if ([key isEqualToString:@"DM_PIPELINE_MODE"])
-        return [@[@"exact", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
+        return [@[@"exact", @"async", @"skip", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
     return nil;
 }
 // Bundled defaults remain the baseline; title entries are recommended defaults.

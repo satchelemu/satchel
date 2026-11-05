@@ -132,3 +132,13 @@ hidden behind Developer controls (Settings, About, tap the Satchel name seven ti
 
 A report with a missing service list is more valuable than a rating: each service ported
 helps every game that needs it.
+
+Developer pipeline experiment: `-SatchelPipelineMode async` uses a 4 ms optional
+wait budget and equivalent ready fallbacks. It does not remove required first-use
+waits, change the default exact mode, or establish new phone compatibility. See
+[graphics validation](NativeHost/graphics/README.md#async-validation).
+
+The opt-in `skip` pipeline mode can omit a terminal draw in the current submission while compilation
+continues. A missing final layer or flicker is possible. Exact remains the default;
+the Game settings panel saves the choice per title for the next launch. This
+experiment adds no phone compatibility or gameplay claim to the table above.

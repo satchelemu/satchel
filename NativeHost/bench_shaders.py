@@ -3,9 +3,12 @@ import argparse,json,os,re,subprocess,threading,time
 OUT=Path(os.environ['M5_BENCH_OUT']);BUILD=Path.home()/'SatchelBuild';BASE=BUILD/'anygame'
 parser=argparse.ArgumentParser();parser.add_argument('--route',choices=['baseline','candidate'],required=True);parser.add_argument('--game',choices=['Castlevania','Odyssey','TOTK'],required=True)
 parser.add_argument('--cache',choices=['clean','warm'],required=True)
+parser.add_argument('--pipeline-mode',choices=['exact','async','skip'],default='exact')
+parser.add_argument('--pipeline-budget-ms',type=float,default=4)
 parser.add_argument('--frame',type=int,default=1800)
 a=parser.parse_args();game=a.game;route=a.route; mode=a.cache
 assert a.frame>=1200
+assert 0 <= a.pipeline_budget_ms <= 16
 finalShot='frame-'+str(a.frame)+'.png'
 host=Path(os.environ.get('M5_BENCH_HOST',OUT/route/'dmhost'))
 # Use the shared build guard's recognized workload name during host measurements.
@@ -29,8 +32,13 @@ if game=='TOTK':
     shutil.copytree(BUILD/'host/saves/dmios-final/Documents/save',work/'save',dirs_exist_ok=True)
 ctl=work/'ctl.txt';ctl.write_text('')
 env={k:v for k,v in os.environ.items() if not k.startswith('DM_')}
-env.update(DM_SHADER_EVENTS=str(work/'events.tsv'),DM_PSO_ARCHIVE=str(cache/'pipelines'),DM_PSO_USER=str(cache/'pso_user.tsv'),DM_PSO_HYBRID='0',DM_PSO_MTL4='1',DM_PROFILE=str(package/'profile.tsv'),DM_ROMFS=str(package/'romfs.img'),DM_ROOT=str(work),DM_SAVE=str(work/'save'),DM_TEMP=str(work/'temp'),DM_AOC_DIR=str(work/'aoc'),DM_CTL=str(ctl),DM_FPS_TARGET='30' if game=='TOTK' else '0',DM_RENDER_SCALE='1.0',DM_BOOTPROF='1',DM_SLOWFRAME='1',DM_NVN_TSV=str(work/'frames.tsv'),DM_NVN_TSV_CALLS='0',DM_OPMODE='0',DM_PSO_PREBUILD_THREADS='2',DM_PSO_PREPARE_THREADS='2',DM_PSO_MANIFEST='off',DM_PSO_PREBUILD='0',DM_NVN_SHOT=','.join(map(str,sorted({300,1200,a.frame})))+':'+str(work/'shots/frame-%d.png'),DM_NVN_SHOT_OUT='1280x720')
+env.update(DM_PSO_SKIP_STATS=str(work/'pipeline-skips.tsv'),DM_SHADER_EVENTS=str(work/'events.tsv'),DM_PSO_ARCHIVE=str(cache/'pipelines'),DM_PSO_USER=str(cache/'pso_user.tsv'),DM_PSO_HYBRID='0',DM_PSO_MTL4='1',DM_PROFILE=str(package/'profile.tsv'),DM_ROMFS=str(package/'romfs.img'),DM_ROOT=str(work),DM_SAVE=str(work/'save'),DM_TEMP=str(work/'temp'),DM_AOC_DIR=str(work/'aoc'),DM_CTL=str(ctl),DM_FPS_TARGET='30' if game=='TOTK' else '0',DM_RENDER_SCALE='1.0',DM_BOOTPROF='1',DM_SLOWFRAME='1',DM_NVN_TSV=str(work/'frames.tsv'),DM_NVN_TSV_CALLS='0',DM_OPMODE='0',DM_PSO_PREBUILD_THREADS='2',DM_PSO_PREPARE_THREADS='2',DM_PSO_MANIFEST='off',DM_PSO_PREBUILD='0',DM_NVN_SHOT=','.join(map(str,sorted({300,1200,a.frame})))+':'+str(work/'shots/frame-%d.png'),DM_NVN_SHOT_OUT='1280x720')
+env.update(DM_PSO_ASYNC='1' if a.pipeline_mode in {'async','skip'} else '0',DM_PSO_SKIP='1' if a.pipeline_mode=='skip' else '0',DM_PSO_BUDGET_MS=str(a.pipeline_budget_ms),DM_PSO_HYBRID='1' if a.pipeline_mode in {'async','skip'} else '0')
 env.update(DM_NVN_SHMAP=str(package/'dm/shader_map.tsv'),DM_MSL_DIR=str(work/'empty-msl'),DM_PHONE_SHADERS='1',DM_PHONE_SHADER_CACHE=str(cache/'sources'))
+if os.environ.get('M5_CAPTURE_REQUESTS'): env['DM_SHADER_REQUEST_CAPTURE']=os.environ['M5_CAPTURE_REQUESTS']
+if os.environ.get('M5_SKIP_CAPTURE'): env['DM_PSO_SKIP_CAPTURE']=str(work/'shots')
+if os.environ.get('M5_EXTRA_FRAMES'):
+    env['DM_NVN_SHOT']=os.environ['M5_EXTRA_FRAMES']+','+env['DM_NVN_SHOT']
 assert 'DM_NVN_SHDUMP' not in env
 start=time.monotonic();child=subprocess.Popen(['nice','-n','10',str(host),str(BASE/'host-inputs'/game)],cwd=work,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace')
 failures=[];red=[];translated=set();compiled=set();frames=[];counts={'omitted':0};reason=[]
@@ -69,12 +77,15 @@ child.wait();watcher.join()
 shots=[str(x) for x in sorted((work/'shots').glob('*.png'))]
 passed=child.returncode in (0,-15,143) and reason==['both frame checkpoints and DM_CTL capture'] and not failures
 passed &= bool(translated)
-result=dict(game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
+result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,pipelineBudgetMs=a.pipeline_budget_ms,game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
 timings={}
 for line in (work/'frames.tsv').read_text().splitlines():
     cells=line.split('\t')
     if len(cells)==3 and cells[1].startswith('@'):
         timings.setdefault(int(cells[0]),{})[cells[1]]=float(cells[2])
+for line in (work/'pipeline-skips.tsv').read_text().splitlines() if (work/'pipeline-skips.tsv').exists() else []:
+    frame, count = map(int, line.split('\t'))
+    timings.setdefault(frame, {})['@pipeline_skips'] = count
 framesMeasured=[r for f,r in sorted(timings.items()) if f <= a.frame and '@frame_ms' in r]
 wall=sum(r['@frame_ms'] for r in framesMeasured)/1000
 events=[]
@@ -87,6 +98,26 @@ for kind in sorted({e[3] for e in events}-{'submit-thread'}):
         values=[e[1]/1e6 for e in events if e[3]==kind and (e[2] in submit)==(lane=='submit')]
         stats[kind+'/'+lane]=dict(count=len(values),totalMs=round(sum(values),3),maxMs=round(max(values,default=0),3))
 result['timing']=dict(frames=len(framesMeasured),seconds=round(wall,3),over50ms=sum(r['@frame_ms']>50 for r in framesMeasured),maxFrameMs=max(r['@frame_ms'] for r in framesMeasured),events=stats,draws=int(sum(r.get('@draws',0) for r in framesMeasured)))
+# Merge nested first-use spans so pipeline wrapper events are not counted twice.
+# These are wait episodes across the route, not frame counts or GPU stalls.
+spans=sorted((ns,ns+duration) for ns,duration,thread,kind in events if thread in submit and kind in
+    {'prepare-use','library-use','pipeline-use','pipeline-wait','pipeline-required-wait'})
+merged=[]
+for lo,hi in spans:
+    if merged and lo <= merged[-1][1]: merged[-1][1]=max(merged[-1][1],hi)
+    else: merged.append([lo,hi])
+result['timing']['firstUseHitchFramesOver50ms']=sum(r['@frame_ms']>50 and (r.get('@lib_new',0)>0 or r.get('@pso_new',0)>0) for r in framesMeasured)
+result['timing']['firstUseWaitsOverBudget']=sum(hi-lo>a.pipeline_budget_ms*1e6 for lo,hi in merged)
+result['timing']['firstUseWaitUnionMs']=round(sum(hi-lo for lo,hi in merged)/1e6,3)
+skipped={f:int(r.get('@pipeline_skips',0)) for f,r in sorted(timings.items()) if f<=a.frame and r.get('@pipeline_skips',0)>0}
+result['timing']['skippedDraws']=sum(skipped.values())
+result['timing']['framesWithSkips']=len(skipped)
+result['timing']['skippedFrameCounts']=skipped
+# Frame zero has no preceding interval, but its omitted draws still count.
+longest=run=0;previous=-2
+for frame in skipped:
+    run=run+1 if frame==previous+1 else 1;longest=max(longest,run);previous=frame
+result['timing']['longestSkipRunFrames']=longest
 result['cacheBytes']=sum(p.stat().st_size for p in cache.rglob('*') if p.is_file())
 passed &= len(framesMeasured) == a.frame
 passed &= all((work/'shots'/('frame-'+str(f)+'.png')).is_file() for f in [300,1200,a.frame])
