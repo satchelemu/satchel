@@ -90,7 +90,10 @@ minutes and guest join on main `cd6fbf9`. The historical timeout did not reprodu
 its cause and live memory growth remain under investigation. Mac results do not
 establish phone memory acceptance. Nine same-process Mac visits across the three
 titles also complete without a launch hang or stop timeout.
-See [session validation](NativeHost/session/README.md).
+See [session validation](NativeHost/session/README.md). Developer-only remote Quit
+and timed prepared-game cycles reuse the menu teardown and write per-visit telemetry.
+[The phone procedure](docs/phone-cycle.md) is ready for orchestrator validation;
+these controls do not establish a new phone stability result.
 
 ## How it works
 

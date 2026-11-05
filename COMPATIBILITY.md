@@ -71,7 +71,9 @@ All nine reach visible gameplay, stop and retire their guest resources. The fina
 scan finds zero leaks, with zero shader/fatal/save errors and unchanged original
 saves. The largest guest join is 0.037 seconds. No post-session launch hang appears
 in this matrix; the visits include startup and do not represent two full minutes
-of gameplay each. Phone Quit/relaunch remains unverified by this worker.
+of gameplay each. Phone Quit/relaunch remains unverified by this worker. The developer-only
+[Quit and cycle procedure](docs/phone-cycle.md) can now collect that evidence through
+the existing menu path; it does not change any compatibility rating.
 
 ## Homebrew and diagnostics
 

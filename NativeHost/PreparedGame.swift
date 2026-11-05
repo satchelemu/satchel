@@ -266,6 +266,7 @@ struct PreparedGameView: View {
 
     init(packageURL: URL) {
         self.packageURL = packageURL
+        if NativePreparedCycle.shouldLaunch(packageURL.lastPathComponent) { _launchRequested = State(initialValue: true) }
         _ready = State(initialValue: SatchelNativeSessionStarted() && PreparedLaunch.current == packageURL.lastPathComponent)
 
     }
@@ -337,6 +338,7 @@ struct PreparedGameView: View {
                 ready = true
             } catch {
                 failure = error.localizedDescription
+                NativePreparedCycle.launchFailed(packageURL.lastPathComponent, error: error)
                 var report = NativeGameReport.load(package: packageURL.lastPathComponent, titleID: titleID)
                 report.result = "failed"; report.message = error.localizedDescription; try? report.save()
                 // The Mac reads this file with devicectl, since screen capture can come back black.

@@ -300,3 +300,16 @@ screen values. Save journeys inspect dated, sized backup rows, confirm or cancel
 verify exported synthetic bytes, reject wrong-title/corrupt archives and gate save actions
 while paused. The system boundary journey opens Files for import and the share sheet for
 export. See `docs/testing.md` for hardware follow-up and the native storage checks.
+
+### Developer Quit and cycle journeys
+
+The simulator-only `testDeveloperQuitGateAndMenuStillWorks` sends the production
+`quit` command with developer controls off, then exercises cancel and confirm in
+the ordinary SwiftUI menu. `testDeveloperQuitReturnsHome` enables the command,
+requires the usual asynchronous stop-complete event and usable library, and starts
+the game again. The synthetic remote button exists only in `GameFixture.m`.
+`testDeveloperCycleTwoRounds` runs three package entries twice, including an immediate
+same-title revisit, and checks six TSV successes plus exact start/stop event order.
+`testDeveloperCycleMissingPackage` requires one failed attempt and no session start.
+The existing repeated SwiftUI and plain-menu Quit journeys remain in the targeted set.
+See [the orchestrator procedure](../../../docs/phone-cycle.md) for hardware follow-up.

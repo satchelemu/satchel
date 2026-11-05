@@ -244,3 +244,10 @@ failed run results intact when separately reporting a later gameplay interval.
 `--diagnostic-stop` samples the host and its owned compiler helpers after a failed
 stop. It omits arguments, paths, guest frames and addresses and does not retry stop
 or change the five-second guest-join deadline.
+
+Developer Quit/cycle automation adds no dependency. Its pure Swift policy check is
+`python3 -B Tests/PreparedCycle/run.py`; the navigation suite also exercises the
+production menu and cycle adapter over synthetic sessions. Build the normal unsigned
+app with `NativeApp/build.py --unsigned`. Only the orchestrator signs and installs for
+the [phone procedure](docs/phone-cycle.md). Neither a simulator pass nor an unsigned
+build establishes phone Quit/relaunch acceptance.

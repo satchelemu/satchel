@@ -150,3 +150,89 @@ final class MenuHostingController: UIHostingController<InGameMenuScreen> {
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
 }
+
+/// One process-scoped cycle, driven by the same prepared-game route as Play.
+@MainActor
+enum NativePreparedCycle {
+    private static var consumed = false
+    private static var runner: PreparedGameCycle?
+    private static var timer: Timer?
+    private static var observers: [NSObjectProtocol] = []
+    private static var lateQuitRequested = false
+    static var requested: Bool {
+        PreparedLaunch.launchFlag("SatchelDeveloperControls") &&
+            ProcessInfo.processInfo.arguments.contains("-SatchelCyclePreparedGames")
+    }
+    static func shouldLaunch(_ package: String) -> Bool {
+        runner?.package == package && runner?.phase == .launching
+    }
+    static func launchFailed(_ package: String, error: Error) {
+        let error = error as NSError
+        // Domain and description can include private paths or signing details.
+        runner?.launchFailed(package: package, reason: "launch-failed-code-\(error.code)", now: ProcessInfo.processInfo.systemUptime)
+    }
+    private static func metrics() -> PreparedGameCycle.Metrics {
+        let row = SatchelNativeSessionMetrics()
+        return .init(frames: (row["frames"] as? NSNumber)?.uint64Value ?? 0,
+                     footprint: (row["footprint"] as? NSNumber)?.uint64Value)
+    }
+    static func start(open: @escaping (String) -> Void) {
+        guard requested, !consumed else { return }
+        consumed = true
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let log = documents.appendingPathComponent("cycle-log.tsv")
+        do {
+            guard let configuration = try PreparedGameCycle.Configuration.parse(
+                arguments: ProcessInfo.processInfo.arguments, developer: true) else { return }
+            let cycle = PreparedGameCycle(configuration: configuration, write: {
+                do { try Data($0.utf8).write(to: log, options: .atomic) }
+                catch { fputs("Satchel cycle: log-write-failed\n", stderr); throw error }
+            }, launch: { package in
+                guard !SatchelNativeSessionStarted(), PreparedLaunch.current == nil else {
+                    runner?.launchFailed(package: package, reason: "session-already-active", now: ProcessInfo.processInfo.systemUptime)
+                    return
+                }
+                guard PreparedGame.scan().contains(where: { $0.folder == package }) else {
+                    runner?.launchFailed(package: package, reason: "package-not-found", now: ProcessInfo.processInfo.systemUptime)
+                    return
+                }
+                open(package)
+            }, quit: { SatchelMenuRequestDeveloperQuit() })
+            runner = cycle
+            observers.append(NotificationCenter.default.addObserver(forName: .SatchelNativeSessionDidEnd, object: nil, queue: .main) { note in
+                MainActor.assumeIsolated {
+                    if let package = note.userInfo?["package"] as? String {
+                        cycle.sessionEnded(package: package, now: ProcessInfo.processInfo.systemUptime)
+                    }
+                }
+            })
+            observers.append(NotificationCenter.default.addObserver(forName: .SatchelNativeSessionDidFail, object: nil, queue: .main) { note in
+                MainActor.assumeIsolated {
+                    let package = note.userInfo?["package"] as? String ?? ""
+                    let code = note.userInfo?["code"] as? Int ?? -1
+                    cycle.launchFailed(package: package, reason: "guest-thread-failed-code-\(code)", now: ProcessInfo.processInfo.systemUptime)
+                }
+            })
+            observers.append(NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { cycle.interrupted(now: ProcessInfo.processInfo.systemUptime, metrics: metrics()) }
+            })
+            timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                MainActor.assumeIsolated {
+                    let active = SatchelNativeSessionStarted() ? PreparedLaunch.current : nil
+                    cycle.tick(now: ProcessInfo.processInfo.systemUptime, date: Date(), activePackage: active,
+                               metrics: active == nil ? nil : metrics(), menuState: SatchelMenuState()["state"] as? String ?? "")
+                    if cycle.phase == .finished, cycle.failure == nil { timer?.invalidate(); timer = nil }
+                    // A verifier can finish after a launch timeout or background interruption.
+                    // Retire that late session through Quit, never advance to another visit.
+                    if cycle.phase == .finished, cycle.failure != nil, active == cycle.package,
+                       active != nil, !lateQuitRequested {
+                        lateQuitRequested = SatchelMenuRequestDeveloperQuit()
+                    }
+                }
+            }
+            cycle.begin(now: ProcessInfo.processInfo.systemUptime, date: Date())
+        } catch {
+            try? Data((PreparedGameCycle.header + "\t\t0\t0\tunknown\t0\tinvalid-cycle-arguments\n").utf8).write(to: log, options: .atomic)
+        }
+    }
+}

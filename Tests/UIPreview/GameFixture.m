@@ -13,6 +13,11 @@ static BOOL paused, started;
 static NSString *activePackage, *activeTitle;
 static NSRecursiveLock *saveLock;
 static NSMutableArray<NSString *> *events;
+NSNotificationName const SatchelNativeSessionDidFail = @"SatchelNativeSessionDidFail";
+static NSTimeInterval fixtureStarted;
+NSDictionary *SatchelNativeSessionMetrics(void) {
+    return @{@"frames": @(started ? (uint64_t)((NSProcessInfo.processInfo.systemUptime - fixtureStarted) * 60) : 0), @"footprint": @1048576};
+}
 NSNotificationName const SatchelNativeSessionDidEnd = @"SatchelNativeSessionDidEnd";
 static void record(NSString *event) {
     if (!events) events = [NSMutableArray array];
@@ -60,7 +65,7 @@ void SatchelNativeFocusEvent(int event) {}
 BOOL SatchelPrepareNativeSession(NSString *package, NSError **error) {
     dispatch_sync(dispatch_get_main_queue(), ^{
         NSCAssert(!started, @"The previous synthetic session must stop before another starts");
-        activePackage = package.lastPathComponent; started = YES; paused = NO;
+        activePackage = package.lastPathComponent; fixtureStarted = NSProcessInfo.processInfo.systemUptime; started = YES; paused = NO;
         NSData *data = [NSData dataWithContentsOfFile:[package stringByAppendingPathComponent:@"manifest.json"]];
         activeTitle = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil][@"titleID"];
         SatchelApplyPlayerSettings(activeTitle);
@@ -114,6 +119,16 @@ UIView *dm_gamepad_view(CGRect frame);
     fps.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightSemibold];
     [self.view addSubview:fps];
     SatchelInstallDisplayControls(self.view, self.game, self.pad, fps);
+    if ([NSUserDefaults.standardUserDefaults boolForKey:@"SatchelPreviewSessionTests"]) {
+        UIButton *remote = [UIButton buttonWithType:UIButtonTypeSystem];
+        [remote setTitle:@"Synthetic remote Quit" forState:UIControlStateNormal];
+        remote.accessibilityIdentifier = @"fixture.remote-quit";
+        remote.frame = CGRectMake(180, 65, 230, 44);
+        [remote addAction:[UIAction actionWithHandler:^(UIAction *action) {
+            int satchel_display_command(const char *); satchel_display_command("quit");
+        }] forControlEvents:UIControlEventTouchUpInside];
+        [self.view addSubview:remote];
+    }
 }
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];

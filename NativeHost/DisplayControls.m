@@ -276,6 +276,11 @@ void SatchelInstallDisplayControls(UIView *root, UIView *game, UIView *pad, UILa
     fprintf(stderr, "Satchel menu: pause button; three-finger double tap; Options+Menu hold 1s; ordinary input is not delayed or cancelled\n");
 }
 int satchel_display_command(const char *line) {
+    if (!strcmp(line, "quit")) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (!SatchelMenuRequestDeveloperQuit()) fprintf(stderr, "Satchel developer quit: rejected\n");
+        }); return 1;
+    }
     if (!strncmp(line, "screen ", 7)) {
         NSString *mode = [NSString stringWithUTF8String:line + 7];
         dispatch_async(dispatch_get_main_queue(), ^{

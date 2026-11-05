@@ -16,6 +16,7 @@
 #include "session/SessionBoundary.h"
 #endif
 #include <errno.h>
+#include <mach/mach.h>
 #import <AVFAudio/AVFAudio.h>
 
 static NSString *g_package;
@@ -23,6 +24,7 @@ static void *g_image_handle;
 static BOOL g_prepared, g_started, g_menuPaused, g_stopping, g_ending;
 #include "session/SessionSaveAccess.inc"
 NSNotificationName const SatchelNativeSessionDidEnd = @"SatchelNativeSessionDidEnd";
+NSNotificationName const SatchelNativeSessionDidFail = @"SatchelNativeSessionDidFail";
 static dispatch_queue_t session_queue(void) {
     static dispatch_queue_t queue; static dispatch_once_t once;
     dispatch_once(&once, ^{ queue = dispatch_queue_create("satchel.session", DISPATCH_QUEUE_SERIAL); });
@@ -248,6 +250,15 @@ UIViewController *SatchelNativeGameController(void) {
     return controller;
 }
 BOOL SatchelNativeSessionStarted(void) { return g_started; }
+NSDictionary *SatchelNativeSessionMetrics(void) {
+    NSCAssert(NSThread.isMainThread, @"Session metrics require the main thread");
+    extern uint64_t dm_guest_frame(void);
+    task_vm_info_data_t info = {0}; mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    kern_return_t result = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count);
+    NSMutableDictionary *row = [@{@"frames": @(g_started ? dm_guest_frame() : 0)} mutableCopy];
+    if (result == KERN_SUCCESS && count >= TASK_VM_INFO_REV1_COUNT) row[@"footprint"] = @(info.phys_footprint);
+    return row;
+}
 int SatchelNativeSessionAcceptsEvents(void) { return g_started && !g_ending; }
 void SatchelNativeFocusEvent(int event) {
     if (g_started && !g_ending) front_ios_focus_event(event);
@@ -335,6 +346,8 @@ void front_ios_boot(void) {
     if (!rc) pthread_detach(thread);
 #endif
     if (rc) {
+        [NSNotificationCenter.defaultCenter postNotificationName:SatchelNativeSessionDidFail object:nil
+            userInfo:@{@"package": g_package.lastPathComponent ?: @"", @"code": @(rc)}];
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Cannot start game" message:[NSString stringWithFormat:@"The guest thread could not start (%d). Return to the library and try again.", rc] preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"Library" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             SatchelStopNativeSession(^(NSError *error) { if (error) fprintf(stderr, "Satchel boot cleanup failed: %ld\n", (long)error.code); });
