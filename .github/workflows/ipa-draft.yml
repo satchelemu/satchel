@@ -1,0 +1,46 @@
+name: Unsigned IPA draft (disabled)
+
+# Future release-tag build. Do not add a push/tags trigger until a clean runner
+# can reproduce all dependencies and pass public shader validation.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to build after this draft is enabled
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    # Deliberately disabled even for manual dispatch. No signing secrets or uploads.
+    if: ${{ false }}
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      SATCHEL_BUILD_ROOT: /Users/runner/SatchelBuild
+      SATCHEL_DEPS_ROOT: /Users/runner/SatchelDeps
+      SATCHEL_OUT: /Users/runner/SatchelBuild/distribution/app-build
+      ANYGAME_OUT: /Users/runner/SatchelBuild/distribution/guard
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          persist-credentials: false
+      - name: Check dependency readiness (currently fails closed)
+        run: python3 -B scripts/bootstrap_deps.py --root "$SATCHEL_DEPS_ROOT"
+      - name: Build unsigned Release app with two jobs and resource guards
+        run: nice -n 10 python3 -B NativePrepare/guard.py python3 -B NativeApp/build.py --unsigned
+      - name: Package local artifacts and verify ad hoc re-signing
+        run: |
+          python3 -B scripts/build_ipa.py --build-root "$SATCHEL_OUT" --out "$SATCHEL_BUILD_ROOT/distribution/artifacts"
+          python3 -B scripts/build_ipa.py --verify-resign "$SATCHEL_BUILD_ROOT/distribution/artifacts/Satchel.ipa"
+          python3 -B NativeApp/Distribution/source.py generate "$SATCHEL_BUILD_ROOT/distribution/artifacts/Satchel.ipa" --out "$SATCHEL_BUILD_ROOT/distribution/artifacts"
+          python3 -B NativeApp/Distribution/source.py validate "$SATCHEL_BUILD_ROOT/distribution/artifacts/source.json" "$SATCHEL_BUILD_ROOT/distribution/artifacts/Satchel.ipa"
+      - name: Distribution contract and hygiene
+        run: |
+          python3 -B NativeApp/Distribution/test_source.py
+          python3 -B NativeApp/Distribution/test_ipa.py
+          sh scripts/check_repo_hygiene.sh

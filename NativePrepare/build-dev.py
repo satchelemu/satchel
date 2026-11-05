@@ -55,7 +55,12 @@ target['sources'].append({'path': str(ROOT/'NativeMigration'), 'includes': ['Mig
 settings.update(PRODUCT_BUNDLE_IDENTIFIER=bundle_id, PRODUCT_NAME=app_name,
                 ASSETCATALOG_COMPILER_APPICON_NAME='AppIcon' if single else 'AppIconDev',
                 SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited)')
-target['info']['properties'].update(CFBundleDisplayName=display_name)
+# Pin the shipped version instead of XcodeGen's implicit 1.0 (1) Info.plist defaults.
+release = json.loads((ROOT/'NativeApp/Distribution/release.json').read_text())
+settings.update(MARKETING_VERSION=release['version'], CURRENT_PROJECT_VERSION=release['build'],
+                IPHONEOS_DEPLOYMENT_TARGET=release['minimumOS'])
+target['info']['properties'].update(CFBundleDisplayName=display_name,
+    CFBundleShortVersionString='$(MARKETING_VERSION)', CFBundleVersion='$(CURRENT_PROJECT_VERSION)')
 if single or bridge:
     entitlements = plistlib.loads((ROOT/'NativeHost/Dev.entitlements').read_bytes())
     entitlements['com.apple.security.application-groups'] = ['group.com.dell.satchel.migration']

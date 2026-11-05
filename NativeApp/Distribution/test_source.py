@@ -41,10 +41,22 @@ class SourceTests(unittest.TestCase):
         app = result['apps'][0]
         self.assertEqual(app['versions'][0], {'version': '2.3', 'buildVersion': '17',
             'date': '2026-11-02T12:34:56Z', 'downloadURL': 'https://example.invalid/satchel/Satchel.ipa',
-            'size': self.ipa.stat().st_size, 'minOSVersion': '26.0'})
+            'size': self.ipa.stat().st_size, 'minOSVersion': '26.0', 'sha256': source.sha256(self.ipa)})
         self.assertEqual(app['appPermissions']['privacy'], {'NSMicrophoneUsageDescription': 'Synthetic microphone permission.'})
         self.assertEqual(app['appPermissions']['entitlements'], ['com.apple.developer.kernel.increased-memory-limit'])
         source.validate_source(json.loads(json.dumps(result)))
+
+    def test_schema_and_tracked_landscape_screenshots(self):
+        import schema
+        self.write_ipa()
+        result = source.make_source(self.ipa, 'https://example.invalid/satchel')
+        schema.validate(result)
+        shots = result['apps'][0]['screenshots']
+        self.assertEqual(len(shots), 4)
+        self.assertTrue(all(shot['width'] > shot['height'] for shot in shots))
+        self.assertEqual(result['apps'][0]['screenshotURLs'], [shot['imageURL'] for shot in shots])
+        with self.assertRaises(ValueError):
+            schema.validate(dict(result, unexpected=True))
 
     def test_framework_privacy_is_included(self):
         self.write_ipa({'Payload/Satchel.app/Frameworks/Test.framework/Info.plist':
@@ -73,7 +85,10 @@ class SourceTests(unittest.TestCase):
                  lambda app: app['versions'][0].update(downloadURL='file:///tmp/Satchel.ipa'),
                  lambda app: app['appPermissions'].update(entitlements={}),
                  lambda app: app['appPermissions'].update(privacy=[]),
-                 lambda app: app.pop('screenshots')]
+                 lambda app: app.pop('screenshots'),
+                 lambda app: app['screenshots'][0].update(width=0),
+                 lambda app: app['versions'][0].update(sha256='invalid'),
+                 lambda app: app['appPermissions']['entitlements'].append(1)]
         for edit in edits:
             with self.subTest(edit=edit):
                 broken = copy.deepcopy(valid)

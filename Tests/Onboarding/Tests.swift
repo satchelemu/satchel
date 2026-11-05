@@ -26,6 +26,16 @@ struct OnboardingTests {
         check(SignatureExpiry.profileExpiry(wrongType) == nil, "wrong date type")
         let profile = try Data(contentsOf: root.appendingPathComponent("profile.cms"))
         check(SatchelSignatureMetadata.profileContent(profile).flatMap(SignatureExpiry.profileExpiry) == now, "real CMS envelope, synthetic profile")
+        check(SignatureExpiry.appExpiry(profile: soon, signer: now) == now, "earlier executable signer")
+        check(SignatureExpiry.appExpiry(profile: now, signer: soon) == now, "earlier installed profile")
+        check(SignatureExpiry.appExpiry(profile: nil, signer: soon) == soon, "signer without profile")
+        check(SignatureExpiry.appExpiry(profile: soon, signer: nil) == soon, "profile without signer")
+        check(SignatureExpiry.appExpiry(profile: nil, signer: nil) == nil, "unknown app validity")
+        let refreshed = now.addingTimeInterval(7 * 86400)
+        check(SignatureExpiry.warnings(app: SignatureExpiry.appExpiry(profile: refreshed, signer: refreshed),
+            games: [], now: now).isEmpty, "refresh clears app reminder using new signature dates")
+        check(SignatureExpiry.warnings(app: SignatureExpiry.appExpiry(profile: refreshed, signer: refreshed),
+            games: [("game", "Synthetic game", soon)], now: now).map(\.id) == ["game"], "app refresh does not renew game")
         let signedCMS = try Data(contentsOf: root.appendingPathComponent("signature.cms"))
         let certExpiry = SatchelSignatureMetadata.signerExpiry(signedCMS)
         check(certExpiry != nil && certExpiry! > Date(), "actual synthetic signer certificate")
@@ -49,6 +59,13 @@ struct OnboardingTests {
         let game = root.appendingPathComponent("synthetic.dylib")
         try file.write(to: game)
         check(try SignatureExpiry.gameCMS(game) == signedCMS, "CMS from bounded Mach-O metadata")
+        var executable = file
+        write32(&executable, 12, 2)
+        try executable.write(to: game)
+        check(try SignatureExpiry.codeCMS(game, executable: true) == signedCMS, "CMS from installed app executable")
+        check((try? SignatureExpiry.gameCMS(game)) == nil, "executable cannot masquerade as game dylib")
+        check((try? SignatureExpiry.codeCMS(root.appendingPathComponent("missing"), executable: true)) == nil, "missing executable")
+        try file.write(to: game)
         for (label, offset, value) in [("invalid magic", 0, UInt32(0)), ("huge commands", 20, UInt32.max), ("bad command size", 36, 0), ("signature outside file", 40, UInt32.max), ("truncated signature", 44, UInt32.max)] {
             var broken = file; write32(&broken, offset, value); try broken.write(to: game)
             check((try? SignatureExpiry.gameCMS(game)) == nil, label)

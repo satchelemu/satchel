@@ -63,7 +63,12 @@ When a maintainer supplies a real source URL, open Browse, Sources, then add tha
 in SideStore or AltStore Classic. Select Satchel from the source to install or update.
 The locally generated source.json uses example.invalid placeholders until a maintainer
 configures real URLs. Those placeholders cannot install anything. Use the local IPA
-route above for now. This task does not host or upload the source or IPA.
+route above for now. The [local packaging tools](../NativeApp/Distribution/README.md)
+produce a reproducible unsigned IPA, hash manifest and source with the existing
+screenshots. The source requests both memory entitlements, but a source declaration
+does not grant them. Sideloading tools must re-sign using your own certificate and
+preserve the required capabilities. Automatic preservation by either store remains
+unverified. This project has not hosted or uploaded a source or IPA.
 
 ## Xcode on a Mac
 
@@ -72,7 +77,7 @@ yet a one-command setup. Ask the build owner for a configured checkout and follo
 NativeApp/README.md there. Generating project.yml alone does not build the full app.
 
 1. Have the build owner run NativeApp/build.py with the unsigned option. Open the generated app/Satchel.xcodeproj in that build output.
-2. In Xcode Settings, Accounts, add your account yourself. Select the Satchel target and your own team under Signing & Capabilities. The project currently contains team-specific App Group, Keychain and verifier settings; if Xcode rejects a capability or identifier, stop and ask the maintainer to make the build support your team. Do not remove capabilities just to make signing pass.
+2. In Xcode Settings, Accounts, add your account yourself. Select the Satchel target and your own team under Signing & Capabilities. The build resolves the team at signing time; if Xcode rejects a capability or identifier, stop and report the error to the maintainer. Do not remove capabilities just to make signing pass.
 3. Select the connected iPhone and the Satchel scheme. Set the Run action's build configuration to Release. Enable Developer Mode on the phone if prompted, then build and run when signing succeeds.
 4. To renew an Xcode install, build and run again with the same team and bundle identifier before expiry. Keep com.dell.satchel and update the installed app in place.
 
@@ -99,7 +104,9 @@ so changing installers is not a verified data migration.
 Satchel checks readable signing metadata when the library opens or returns to the
 foreground. It warns when expiry is within three days or has already passed.
 
-An app warning means the embedded provisioning profile is nearing expiry. Refresh
+An app warning means the earlier readable deadline from the installed provisioning
+profile and the running app's signer certificate is nearing expiry. The date is read
+from that installed signature, never estimated as seven days after installation. Refresh
 Satchel in your installer, or rebuild and install with Xcode. A prepared-game warning
 means that game's signing certificate is nearing expiry. Renew your own signing
 identity in Prepare, then prepare the affected game again. Re-import the original
@@ -107,16 +114,20 @@ game and update files if they were cleaned up. Refreshing Satchel does not re-si
 prepared games.
 
 The warning is informational. It does not refresh anything or send a scheduled
-notification. It cannot warn you after iOS stops opening the app. Missing or unreadable
-metadata produces no warning, so no banner is not a guarantee of validity. Revocation
-can also invalidate a signature before its recorded expiry date.
+notification. It cannot warn you after iOS stops opening the app. If neither deadline
+is readable, the app produces no warning, so no banner is not a guarantee of validity.
+Revocation can also invalidate a signature before its recorded expiry date. After
+refresh, reopen Satchel to read the newly installed signature. If the banner remains, compare the installer's actual deadline; refreshing
+the app cannot fix an earlier prepared-game certificate deadline. The maintainer's
+[refresh acceptance journey](distribution-validation.md) lists the remaining phone checks.
 
 ## First launch
 
-Open Getting started, also available in Settings, About. Import your own prod.keys,
-then your base XCI, NSP, XCZ or NSZ from Files or iCloud Drive. Download cloud files
-fully before importing. Add matching updates from the library. Keep original dumps
-outside Satchel; Prepare can clean up imported copies after verification.
+First launch opens the home screen. Install and refresh help is in Settings > About.
+Import your own prod.keys, then your base XCI, NSP, XCZ or NSZ from Files or iCloud
+Drive. Download cloud files fully before importing when possible; the importer also
+reports iCloud download progress. Add matching updates from the library. Keep
+original dumps outside Satchel; Prepare can clean up imported copies after verification.
 
 Prepare needs your own Apple Development signing identity as well as console keys.
 The identity must belong to the team that signed the installed app. You must obtain and

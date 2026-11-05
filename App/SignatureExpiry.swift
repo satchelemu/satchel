@@ -39,6 +39,11 @@ enum SignatureExpiry {
         return values["ExpirationDate"] as? Date
     }
 
+    /// Use the earlier installed profile or executable signer deadline, never install time.
+    static func appExpiry(profile: Date?, signer: Date?) -> Date? {
+        [profile, signer].compactMap { $0 }.min()
+    }
+
     static func boundedData(_ url: URL) throws -> Data {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
@@ -51,6 +56,10 @@ enum SignatureExpiry {
 
     /// Only the Mach-O header, load commands and CMS slot are needed for an expiry notice.
     static func gameCMS(_ url: URL) throws -> Data {
+        try codeCMS(url, executable: false)
+    }
+
+    static func codeCMS(_ url: URL, executable: Bool) throws -> Data {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
         let fileSize = try file.seekToEnd()
@@ -68,7 +77,7 @@ enum SignatureExpiry {
             return Int(result)
         }
         let header = try read(0, 32)
-        guard try u32(header, 0) == 0xfeedfacf, try u32(header, 4) == 0x0100000c, try u32(header, 12) == 6 else { throw ReadFailure.invalid }
+        guard try u32(header, 0) == 0xfeedfacf, try u32(header, 4) == 0x0100000c, try u32(header, 12) == (executable ? 2 : 6) else { throw ReadFailure.invalid }
         let count = try u32(header, 16), length = try u32(header, 20)
         guard length <= metadataLimit, count <= length / 8 else { throw ReadFailure.invalid }
         let commands = try read(32, length)

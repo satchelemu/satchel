@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "build": "1",
+  "minimumOS": "26.0",
+  "date": "2026-11-04T00:00:00Z",
+  "screenshots": [
+    "library.jpg",
+    "game-detail.jpg",
+    "import.jpg",
+    "settings-keys.jpg"
+  ]
+}

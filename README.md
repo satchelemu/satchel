@@ -161,6 +161,13 @@ that automated workers follow in this repository.
 - [COMPATIBILITY.md](COMPATIBILITY.md): what has been tried, how well it runs, and how to
   add a game to the list.
 
+Local distribution tooling exports a deterministic unsigned IPA with a hash manifest,
+checks an ad hoc re-sign on the Mac, and generates a validated SideStore/AltStore
+source using the existing screenshots. URLs remain placeholders. Real installer
+capability preservation and refresh still need phone validation. See
+[the distribution guide](NativeApp/Distribution/README.md). The release workflow is
+manual-only and hard-disabled pending clean-runner dependency reproduction.
+
 Opt-in GPU pass attribution and paired analysis are available in the
 [graphics diagnostics](NativeHost/graphics/README.md#gpu-pass-cost-diagnostics).
 An optional per-title MetalFX spatial presentation setting is available for reduced

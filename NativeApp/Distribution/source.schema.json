@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Satchel emitted AltStore Classic and SideStore source subset",
+  "$comment": "Local schema transcribed from https://faq.altstore.io/developers/make-a-source on 2026-11-04. identifier, sourceURL, screenshotURLs and app-level version fields retain legacy compatibility. sha256 is a Satchel integrity extension, not a promised client verification feature. This is not an upstream-published schema.",
+  "type": "object",
+  "required": [
+    "name",
+    "identifier",
+    "sourceURL",
+    "apps",
+    "news"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceURL": {
+      "type": "string",
+      "format": "uri"
+    },
+    "apps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "$ref": "#/$defs/app"
+      }
+    },
+    "news": {
+      "type": "array",
+      "maxItems": 0
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "app": {
+      "type": "object",
+      "required": [
+        "name",
+        "bundleIdentifier",
+        "developerName",
+        "localizedDescription",
+        "iconURL",
+        "screenshots",
+        "screenshotURLs",
+        "versions",
+        "appPermissions",
+        "version",
+        "versionDate",
+        "downloadURL",
+        "size",
+        "minOSVersion"
+      ],
+      "properties": {
+        "name": {
+          "const": "Satchel"
+        },
+        "bundleIdentifier": {
+          "const": "com.dell.satchel"
+        },
+        "developerName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "localizedDescription": {
+          "type": "string",
+          "minLength": 1
+        },
+        "iconURL": {
+          "type": "string",
+          "format": "uri"
+        },
+        "screenshots": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "imageURL",
+              "width",
+              "height"
+            ],
+            "properties": {
+              "imageURL": {
+                "type": "string",
+                "format": "uri"
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "screenshotURLs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/version"
+          }
+        },
+        "appPermissions": {
+          "type": "object",
+          "required": [
+            "entitlements",
+            "privacy"
+          ],
+          "properties": {
+            "entitlements": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "privacy": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "versionDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "downloadURL": {
+          "type": "string",
+          "format": "uri"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minOSVersion": {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+){0,2}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "version": {
+      "type": "object",
+      "required": [
+        "version",
+        "buildVersion",
+        "date",
+        "downloadURL",
+        "size",
+        "minOSVersion",
+        "sha256"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "buildVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "downloadURL": {
+          "type": "string",
+          "format": "uri"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minOSVersion": {
+          "type": "string",
+          "pattern": "^\\d+(\\.\\d+){0,2}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -294,3 +294,20 @@ running through `NativePrepare/guard.py`. It uses the installed pinned shader
 translator and existing Castlevania host prerequisites. The host instruments
 skipped-frame captures only when requested; normal timing routes leave capture
 disabled. It is a Mac diagnostic, not an iPhone execution result.
+
+## Unsigned IPA and source
+
+Use [NativeApp/Distribution/README.md](NativeApp/Distribution/README.md) for the exact
+package, manifest, source and ad hoc re-sign commands. `scripts/build_ipa.py` consumes
+a canonical unsigned Release app and keeps its original build untouched. Packaging
+normalizes timestamps, ordering and permissions; it does not establish bit-for-bit
+reproducibility of Xcode or native dependencies. The native app's version, build and
+minimum iOS now come from `NativeApp/Distribution/release.json`, preserving the actual
+shipped `1.0 (1)` instead of relying on XcodeGen's implicit Info.plist defaults.
+
+The export includes an account-neutral entitlement template and requires both memory
+entitlements. Ad hoc signing checks that those values survive a local re-sign. Real
+installer preservation still needs the [phone journey](docs/distribution-validation.md).
+The source JSON uses placeholder URLs, measured IPA size/SHA-256 and tracked screenshots.
+No release, tag or upload is created. The draft Actions workflow is manual dispatch
+only with a hard-disabled job until the clean-runner dependency gaps above are closed.
