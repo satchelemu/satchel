@@ -60,6 +60,10 @@ save manager lists dated, sized backups, keeps the newest three, restores with
 confirmation and exports through the share sheet. Import accepts title-bound Satchel
 ZIPs, not arbitrary emulator archives. See [the test guide](docs/testing.md).
 
+Native import format limits, Prepare read measurements and synthetic coverage are
+documented in [the importer validation guide](docs/importer-validation.md). These Mac
+checks do not add phone compatibility claims.
+
 ## What does not work yet
 
 - Only four games have been tried. Any other game may fail at import, Prepare or boot.

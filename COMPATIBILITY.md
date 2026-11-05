@@ -71,9 +71,19 @@ All nine reach visible gameplay, stop and retire their guest resources. The fina
 scan finds zero leaks, with zero shader/fatal/save errors and unchanged original
 saves. The largest guest join is 0.037 seconds. No post-session launch hang appears
 in this matrix; the visits include startup and do not represent two full minutes
-of gameplay each. Phone Quit/relaunch remains unverified by this worker. The developer-only
-[Quit and cycle procedure](docs/phone-cycle.md) can now collect that evidence through
-the existing menu path; it does not change any compatibility rating.
+of gameplay each. On the phone on 2026-11-04, the developer-only [Quit and cycle procedure](docs/phone-cycle.md)
+played Castlevania, Odyssey and Zelda twice each in one process through the menu's Quit:
+six of six visits ended cleanly, stops took 0.15 to 0.32 seconds, and footprint at Quit
+was no higher in the second round. The visits had no controller input, so this covers
+starting and stopping, not gameplay, and does not change any compatibility rating.
+
+## Import and Prepare checks
+
+The native importer changes documented in [the validation guide](docs/importer-validation.md)
+cover compressed PartitionFS, key-area AES-XTS and a second bucket-tree index level.
+Synthetic format checks and Mac package comparisons do not change the phone ratings
+above. Skip-layer encryption and SHA3 remain explicit format gaps. Phone progress,
+signing and loading still need the orchestrator's checks for this change.
 
 ## Homebrew and diagnostics
 

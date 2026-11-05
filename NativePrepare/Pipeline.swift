@@ -111,7 +111,9 @@ enum PreparePipeline {
         guard !fm.fileExists(atPath: destination.path) else {
             throw PrepareFailure(message: "A prepared package already exists. Move it aside in Files before preparing again.")
         }
-        let selection = try PrepareDiscovery.select(base: base, update: update, keys: keys, titleID: applicationID, token: token)
+        let selection = try PrepareDiscovery.select(base: base, update: update, keys: keys, titleID: applicationID, token: token) { done, total in
+            reporter.update(.planning, done, total, message: "Checking game metadata…", fraction: 0.5 * Double(done) / Double(max(1, total)))
+        }
         let title = String(format: "%016llX", selection.titleID)
         let auxiliary = Set(["profile.tsv", "dm/shader_map.tsv", "dm/pso_manifest.tsv", "dm/c1_full.tsv", "dm/cb_extent.tsv", "dm/shader_pairs.tsv", "dm/pso_pairs.tsv"])
         var suppliedPack: PrepareShaderPack?
@@ -145,7 +147,7 @@ enum PreparePipeline {
             _ = try PrepareIO.regular(shaderPack!, name)
             packBytes += record.bytes
             checkedEntries += 1
-            reporter.update(.planning, 0, 0, message: "Checking shader pack files…", fraction: Double(checkedEntries) / Double(pack.files.count))
+            reporter.update(.planning, 0, 0, message: "Checking shader pack files (\(checkedEntries) of \(pack.files.count))…", fraction: 0.5 + 0.5 * Double(checkedEntries) / Double(pack.files.count))
         }
         reporter.finish(.planning)
         return try SwitchContentPipeline.withContent(base: base, update: selection.update, keys: keys,
@@ -160,15 +162,20 @@ enum PreparePipeline {
                     reporter.update(.composition, done, total, message: "Composing and verifying game code…", fraction: fraction)
                 }
             }, identified: { titles in try requireSupportedTitles(titles) }) { content in
-            var recipe = try PrepareDiscovery.recipe(content, selection: selection, token: token)
+            var recipe = try PrepareDiscovery.recipe(content, selection: selection, token: token) { done, total in
+                reporter.update(.composition, done, total, message: "Reading native module metadata…", fraction: 0.99 + 0.005 * Double(done) / Double(max(1, total)))
+            }
             let moduleNames = recipe.modules
             if let pack = suppliedPack {
                 guard recipe.contentVersion == pack.contentVersion, recipe.modules == pack.modules, recipe.buildIDs == pack.buildIDs else {
                     throw PrepareFailure(message: "Selected content does not match the shader pack.")
                 }
             }
-            reporter.finish(.composition, message: "Checking temporary storage…")
-            let tree = try content.romFS.tree(cancelled: { token.cancelled })
+            reporter.update(.composition, 0, 0, message: "Checking temporary storage…", fraction: 0.995)
+            let tree = try content.romFS.tree(cancelled: { token.cancelled }) { done, total in
+                reporter.update(.composition, 0, 0, message: "Checking game files (\(done) of \(total))…", fraction: 0.995 + 0.005 * Double(done) / Double(max(1, total)))
+            }
+            reporter.finish(.composition)
             var imageBytes: UInt64 = 32
             for entry in tree { imageBytes += (entry.file?.size ?? 0) + 24 + UInt64(entry.name.count) }
             // Budget includes rewritten modules, final dylib, metadata, filesystem
@@ -192,12 +199,12 @@ enum PreparePipeline {
             for name in moduleNames {
                 try token.check()
                 let moduleSize = UInt64(content.program.modules.first { $0.name == name }!.data.count)
-                reporter.update(.rewriting, 0, 0, message: "Rewriting \(name)…", fraction: Double(rewriteDone) / Double(rewriteTotal))
+                reporter.update(.rewriting, 0, 0, message: "Rewriting \(name)…", fraction: 0.8 * Double(rewriteDone) / Double(rewriteTotal))
                 try autoreleasepool {
                     let module = content.program.modules.first { $0.name == name }!
                     try PrepareRewrite.write(SwitchDecodedModule.decode(module), to: scratch, token: token) { fraction, done, total in
                         reporter.update(.rewriting, done, total, message: "Rewriting \(name)…",
-                            fraction: (Double(rewriteDone) + Double(moduleSize) * fraction) / Double(rewriteTotal))
+                            fraction: 0.8 * (Double(rewriteDone) + Double(moduleSize) * fraction) / Double(rewriteTotal))
                     }
                 }
                 rewriteDone += moduleSize
@@ -205,8 +212,10 @@ enum PreparePipeline {
                     try fm.copyItem(at: scratch.appendingPathComponent(name + "." + suffix), to: tables.appendingPathComponent(name + "." + suffix))
                 }
             }
-            reporter.update(.rewriting, 0, 0, message: "Discovering and rewriting registered dynamic modules…", fraction: 0.99)
-            recipe.nros = try PrepareDiscovery.nros(content.romFS, to: scratch, token: token)
+            reporter.update(.rewriting, 0, 0, message: "Discovering and rewriting registered dynamic modules…", fraction: 0.8)
+            recipe.nros = try PrepareDiscovery.nros(content.romFS, to: scratch, token: token) { message, done, total, fraction in
+                reporter.update(.rewriting, done, total, message: message, fraction: 0.8 + 0.2 * fraction)
+            }
             if let version = recipe.reviewedVersion,
                let reviewed = NativeGameProfile.find(titleID: recipe.titleID, version: version),
                (reviewed.nroBuildIDs ?? [:]) != Dictionary(uniqueKeysWithValues: recipe.nros.map { ($0.name, $0.buildID) }) {
@@ -241,7 +250,13 @@ enum PreparePipeline {
             try fm.removeItem(at: scratch)
             reporter.update(.romfs, 0, imageBytes, message: "Writing composed RomFS…", force: true)
             let romResult = try SwitchRomFSImage.write(content.romFS, to: stage.appendingPathComponent("romfs.img"), cancelled: { token.cancelled }) { p in
-                reporter.update(.romfs, p.imageCompletedBytes, p.imageTotalBytes, message: "Writing composed RomFS…")
+                if p.stage == .enumerating {
+                    reporter.update(.romfs, 0, 0, message: "Listing game files (\(p.completedFiles) of \(p.totalFiles))…",
+                        fraction: 0.02 * Double(p.completedFiles) / Double(max(1, p.totalFiles)))
+                } else {
+                    reporter.update(.romfs, p.imageCompletedBytes, p.imageTotalBytes, message: "Writing composed RomFS…",
+                        fraction: 0.02 + 0.98 * Double(p.imageCompletedBytes) / Double(max(1, p.imageTotalBytes)))
+                }
             }
             let dlc = try SwitchAddOnContent.write(sources: [base] + (update.map { [$0] } ?? []) + addOns,
                 applicationID: content.selection.applicationID,

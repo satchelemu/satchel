@@ -62,7 +62,7 @@ The legacy single-package reader remains available for its existing callers.
   each raw RomFS table is capped at 64 MiB. The existing IVFC cache is 8 MiB.
   This is bounded metadata memory, not constant memory independent of file count.
 - The destination's parent must exist. A unique mode-0600 sibling temporary
-  file receives all data and the index, then the header. After synchronization,
+  file receives the header, data and index in that order, hashing them as written. After synchronization,
   a same-directory rename atomically publishes it. Cancellation, read integrity
   errors and I/O errors preserve the previous image and remove that invocation's
   temporary file. Progress reports enumeration, copied bytes/files and publishing.
@@ -73,12 +73,18 @@ The legacy single-package reader remains available for its existing callers.
 
 ## Explicit unsupported cases
 
-Personalized RSA tickets; NCA0/1/2; sparse or compressed NCA storage; AES-XTS
-section data, skip-layer-hash encryption and SHA3 integrity modes; compacted,
-non-Nx, DLC or unknown CNMT layouts; empty BKTR tables or more than one million
-BKTR records; ZBIC/compressed NRO decoding. NSO limits remain 128 MiB stored and
-512 MiB decoded including BSS. No generic DLC preparation or NRO discovery is
-added here. These paths fail rather than falling back to unrelated content.
+Personalized RSA tickets; NCA0/1/2; skip-layer-hash encryption and SHA3 integrity
+modes; sparse or rights-managed AES-XTS sections; compacted or non-Nx CNMT layouts;
+empty generic BKTR tables or more than two million BKTR records. NSO limits
+remain 128 MiB stored and 512 MiB decoded including BSS. Prepare discovers loose,
+embedded and zstd-framed NROs; other archive codecs can still prevent discovery. Native sparse storage, raw/zero/LZ4 compressed PartitionFS and
+RomFS, and key-area AES-XTS sections are supported. Generic add-on preparation is
+documented in `NativePrepare/README.md`.
+
+The second bucket-tree index level has a 64 MiB serialized-table bound. The native
+content tests generate large routing tables, compressed containers and synthetic
+keys. See [the importer validation guide](../../docs/importer-validation.md) for
+format provenance, remaining gaps, progress coverage and discarded-output timing.
 
 ## Validation commands
 

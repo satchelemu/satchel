@@ -209,6 +209,17 @@ with a constant.
 register that App ID. Opening the generated `Satchel.xcodeproj` in Xcode with automatic
 signing and no team set simply asks you to pick one.
 
+## Importer component checks
+
+The [importer validation guide](docs/importer-validation.md) documents synthetic
+containers and an output-discarding content benchmark. The content test and
+benchmark scripts accept `SATCHEL_ARCHIVE_LIBRARY` for a task-local build of the
+existing pinned Zstd decoder. `CONTENT_MAIN` and `CONTENT_EXECUTABLE` select the
+benchmark entry point and binary path. The Prepare core harness also accepts
+`PREPARE_PIPELINE` for a private measurement adapter; production builds always use
+`NativePrepare/Pipeline.swift`. These Mac tools do not sign or run games.
+They do not replace the canonical unsigned Release app build or phone validation.
+
 ## Rules for building
 
 - One heavy build at a time. The Mac crashed when three workers compiled at once;

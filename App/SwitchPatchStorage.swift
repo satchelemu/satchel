@@ -13,26 +13,53 @@ struct SwitchBucketTree {
               header.cp32(4) <= 1, header.cp32(12) == 0,
               [16, 20, 24].contains(entrySize) else { throw SwitchExecutableError.invalid }
         let count = Int(header.cp32(8)), nodeSize = 0x4000, perSet = (nodeSize - 16) / entrySize
-        guard count > 0, count <= 1_000_000 else { throw SwitchExecutableError.limit }
-        let sets = (count + perSet - 1) / perSet
-        // This explicit bound keeps the complete routing table below 21 MiB
-        // and uses the single index-node layout, including multiple entry sets.
-        guard sets <= (nodeSize - 16) / 8,
-              UInt64((sets + 1) * nodeSize) <= size else { throw SwitchExecutableError.invalid }
-        progress(0, UInt64((sets + 1) * nodeSize))
+        // Bound serialized routing tables to 64 MiB, including the second index level.
+        guard count > 0, count <= 2_000_000 else { throw SwitchExecutableError.limit }
+        let sets = (count + perSet - 1) / perSet, offsets = (nodeSize - 16) / 8
+        let groups = (sets + offsets - 1) / offsets
+        let children = sets <= offsets ? 0 : (sets - (offsets - (groups - 1)) + offsets - 1) / offsets
+        let nodes = 1 + children, total = UInt64((sets + nodes) * nodeSize)
+        guard total <= 64 * 1024 * 1024 else { throw SwitchExecutableError.limit }
+        guard total <= size else { throw SwitchExecutableError.invalid }
+        progress(0, total)
         let root = try read(0, UInt64(nodeSize))
-        guard root.count == nodeSize, root.cp32(0) == 0, root.cp32(4) == sets,
+        guard root.count == nodeSize, root.cp32(0) == 0,
+              root.cp32(4) == (children == 0 ? sets : children),
               root.cp64(8) > 0, root.cp64(8) <= UInt64(Int64.max) else { throw SwitchExecutableError.invalid }
         end = root.cp64(8)
+        var starts: [UInt64] = []
+        if children == 0 {
+            starts = (0..<sets).map { root.cp64(16 + $0 * 8) }
+        } else {
+            // LibHac BucketTree.Builder packs direct entry-set offsets after
+            // the child pointers in L1; later entry sets live in L2 nodes.
+            starts = (children..<offsets).map { root.cp64(16 + $0 * 8) }
+            for child in 0..<children {
+                if cancelled() { throw CancellationError() }
+                let block = try read(UInt64((child + 1) * nodeSize), UInt64(nodeSize))
+                let n = min(offsets, sets - starts.count)
+                let limit = child + 1 == children ? end : root.cp64(16 + (child + 1) * 8)
+                guard block.count == nodeSize, block.cp32(0) == child, block.cp32(4) == n,
+                      block.cp64(8) == limit, block.cp64(16) == root.cp64(16 + child * 8) else {
+                    throw SwitchExecutableError.invalid
+                }
+                starts += (0..<n).map { block.cp64(16 + $0 * 8) }
+                progress(UInt64((child + 2) * nodeSize), total)
+            }
+        }
+        guard starts.count == sets, starts.first == 0,
+              starts.last! < end, zip(starts, starts.dropFirst()).allSatisfy({ $0 < $1 }) else {
+            throw SwitchExecutableError.invalid
+        }
         var result: [Data] = []; result.reserveCapacity(count)
         var previousEnd: UInt64 = 0
         for set in 0..<sets {
             if cancelled() { throw CancellationError() }
-            let block = try read(UInt64((set + 1) * nodeSize), UInt64(nodeSize))
+            let block = try read(UInt64((set + nodes) * nodeSize), UInt64(nodeSize))
             let n = min(perSet, count - result.count)
             guard block.count == nodeSize, block.cp32(0) == set, block.cp32(4) == n,
-                  block.cp64(8) > previousEnd, block.cp64(8) <= end,
-                  block.cp64(16) == previousEnd, root.cp64(16 + set * 8) == previousEnd else {
+                  block.cp64(8) > previousEnd, block.cp64(8) == (set + 1 == sets ? end : starts[set + 1]),
+                  block.cp64(16) == previousEnd, starts[set] == previousEnd else {
                 throw SwitchExecutableError.invalid
             }
             var previous: UInt64?
@@ -42,7 +69,7 @@ struct SwitchBucketTree {
                 result.append(block.subdata(in: p..<p + entrySize)); previous = start
             }
             previousEnd = block.cp64(8)
-            progress(UInt64((set + 2) * nodeSize), UInt64((sets + 1) * nodeSize))
+            progress(UInt64((set + nodes + 1) * nodeSize), total)
         }
         guard previousEnd == end, result.count == count else { throw SwitchExecutableError.invalid }
         entries = result

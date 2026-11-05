@@ -27,5 +27,5 @@ nice -n 15 xcrun swiftc -swift-version 6 -warnings-as-errors -O -num-threads 2 "
   App/SwitchStorage.swift App/SwitchKeys.swift App/SwitchContentMeta.swift App/SwitchPatchStorage.swift \
   App/SwitchContentPipeline.swift App/SwitchCompressedInput.swift App/SwitchRomFSImage.swift App/SwitchDecodedModule.swift \
   "$TASK_BUILD/executable_fixtures.swift" "$TASK_BUILD/romfs_fixtures.swift" Tests/switch_content.swift \
-  "$TASK_BUILD/crypto.o" "$TASK_BUILD/nso.o" "$HOME/SatchelBuild/m5/archive-macosx/libShaderArchive.a" -o "$TASK_BUILD/content-tests"
+  "$TASK_BUILD/crypto.o" "$TASK_BUILD/nso.o" "${SATCHEL_ARCHIVE_LIBRARY:-$HOME/SatchelBuild/m5/archive-macosx/libShaderArchive.a}" -o "$TASK_BUILD/content-tests"
 nice -n 15 "$TASK_BUILD/content-tests" "$TASK_BUILD/synthetic"
