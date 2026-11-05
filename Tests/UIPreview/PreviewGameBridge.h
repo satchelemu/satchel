@@ -9,3 +9,5 @@ NSString *SatchelPreviewSessionState(void);
 
 uint64_t SatchelPreviewGuestButtons(void);
 void SatchelPreviewResetGuestButtons(void);
+void SatchelPreviewSetPictureVisible(BOOL visible, NSString *state);
+NSString * _Nonnull SatchelPreviewCurrentFold(void);

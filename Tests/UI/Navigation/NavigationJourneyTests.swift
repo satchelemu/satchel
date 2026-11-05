@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
+        let fixtureFamilies = ["testPosture", "testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -550,7 +550,9 @@ final class NavigationJourneyTests: XCTestCase {
             revealControl(app.buttons["prepare-start"], in: column)
             try button("prepare-start").tap()
             fixtureText("prepare-status", equals: expected)
-            revealControl(app.buttons["prepare-retry"], in: column)
+            // The expanded error can put Retry outside the viewport. Use the same
+            // geometry-first reveal as Device check before asking for hittability.
+            revealDeviceCheckControl(app.buttons["prepare-retry"], in: column)
             _ = try button("prepare-retry")
             XCTAssertFalse(app.buttons["prepare-cancel"].exists)
             try tap("close-prepare")
@@ -944,8 +946,8 @@ final class NavigationJourneyTests: XCTestCase {
     }
 
     private func savePickerCancelControl() throws -> XCUIElement {
-        let owned = app.buttons["cancel-save-import"]
-        if owned.exists { return try button("cancel-save-import") }
+        let owned = app.buttons[app.buttons["cancel-keys-import"].exists ? "cancel-keys-import" : "cancel-save-import"]
+        if owned.exists { return try button(owned.identifier) }
         let direct = app.buttons.matching(identifier: "Cancel").allElementsBoundByIndex.first { $0.isHittable }
         if let direct { XCTAssertTrue(direct.isEnabled); return direct }
         // The Duo document picker puts Cancel in its visible overflow menu.
@@ -955,8 +957,8 @@ final class NavigationJourneyTests: XCTestCase {
     }
 
     private func savePickerCancellationMarker() throws -> XCUIElement {
-        let owned = app.buttons["cancel-save-import"]
-        if owned.exists { return try button("cancel-save-import") }
+        let owned = app.buttons[app.buttons["cancel-keys-import"].exists ? "cancel-keys-import" : "cancel-save-import"]
+        if owned.exists { return try button(owned.identifier) }
         let cancel = app.buttons["Cancel"].firstMatch
         let overflow = app.buttons["BottomOverflowBarButtonItem"].firstMatch
         // The remote picker can expose its content before its toolbar. Require
@@ -991,20 +993,17 @@ final class NavigationJourneyTests: XCTestCase {
         let panel = app.scrollViews.containing(.button, identifier: open).firstMatch
         try tap(open, scroll: panel)
         let picker = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"]
-        let cancel = app.buttons["Cancel"].firstMatch
-        // Files loads in a separate system service. On a cold simulator its
-        // presentation can start near the ordinary control's eight-second limit.
-        // Wait for the real picker once per open, then keep the control checks.
         XCTAssertTrue(picker.waitForExistence(timeout: 30), "Files picker must appear after one tap")
-        _ = try button("Cancel")
-        backgroundAndReturn(cancel)
-        try tap("Cancel")
-        absent(cancel)
+        let firstCancel = try savePickerCancellationMarker()
+        backgroundAndReturn(firstCancel)
+        try savePickerCancelControl().tap()
+        absent(firstCancel)
         absent(picker)
         try tap(open, scroll: panel)
         XCTAssertTrue(picker.waitForExistence(timeout: 30), "Files picker must reopen after one tap")
-        try tap("Cancel")
-        absent(cancel)
+        let secondCancel = try savePickerCancellationMarker()
+        try savePickerCancelControl().tap()
+        absent(secondCancel)
         absent(picker)
     }
 
@@ -1995,14 +1994,44 @@ final class NavigationJourneyTests: XCTestCase {
         if plain { app.launchArguments[1] = "YES" }
         app.launch()
         _ = try button("import-homebrew")
-        // Select the known synthetic tile even when the whole shelf fits onscreen.
-        // A scroll cannot change focus when there is no remaining scroll distance.
-        try tap("homebrew-Lantern Drift [Base]", scroll: app.scrollViews["collection-panel"])
-        // Tapping the already selected tile opens its detail page.
-        if app.buttons["close-game-detail"].waitForExistence(timeout: 1) { try tap("close-game-detail") }
-        _ = try button("open-focused")
-        _ = try button("play-focused")
-        try tap("play-focused")
+        let foldIndex = app.launchArguments.firstIndex(of: "-SatchelPreviewFold")
+        if let foldIndex {
+            // Posture fixtures have one known imported base with a prepared package.
+            // Select it explicitly, then wait for its real Play action to become ready.
+            let tile = app.buttons["homebrew-Lantern Drift [Base]"]
+            let shelf = app.scrollViews["collection-panel"]
+            if ["book", "tall"].contains(app.launchArguments[foldIndex + 1]) {
+                revealControl(tile, in: shelf)
+            } else {
+                for _ in 0..<12 {
+                    let viewport = shelf.frame.intersection(app.frame)
+                    if tile.exists {
+                        let frame = tile.frame
+                        if frame.width > 0 && viewport.contains(CGPoint(x: frame.midX, y: frame.midY)) { break }
+                        if frame.midX < viewport.midX { shelf.swipeRight() }
+                        else { shelf.swipeLeft() }
+                    } else {
+                        shelf.swipeRight()
+                    }
+                }
+            }
+            try button("homebrew-Lantern Drift [Base]").tap()
+            if app.buttons["play-game"].exists {
+                try tap("play-game", scroll: app.scrollViews["detail-scroll"])
+            } else {
+                _ = try button("open-focused")
+                try tap("play-focused")
+            }
+        } else {
+            // Select the known synthetic tile even when the whole shelf fits onscreen.
+            // A scroll cannot change focus when there is no remaining scroll distance.
+            try tap("homebrew-Lantern Drift [Base]", scroll: app.scrollViews["collection-panel"])
+            // Tapping the already selected tile opens its detail page.
+            if app.buttons["close-game-detail"].waitForExistence(timeout: 1) { try tap("close-game-detail") }
+            _ = try button("open-focused")
+            _ = try button("play-focused")
+            try tap("play-focused")
+        }
         // Session start is authorized only in the synthetic Simulator fixture.
         try button("player-play").tap()
         _ = try button("game.pause")
@@ -2270,5 +2299,208 @@ final class NavigationJourneyTests: XCTestCase {
         }
     }
 
+
+#if NAVIGATION_PREVIEW && NAVIGATION_NATIVE
+    private func tapPosturePause() throws {
+        let pause = try button("game.pause")
+        // The tall preview scales the real button below its hardware size. Use its
+        // visible center, retaining the same existence, enabled and hit checks.
+        pause.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
+    private func postureSnapshot() throws -> [String: Any] {
+        let marker = app.staticTexts["fixture-posture-state"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 8))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(marker.label.utf8)) as? [String: Any])
+    }
+
+    private func assertPostureGeometry(_ fold: String) throws {
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard let state = try? self.postureSnapshot() else { return false }
+            return state["fold"] as? String == fold
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 8), .completed)
+        let state = try postureSnapshot()
+        let picture = try XCTUnwrap(state["picture"] as? [Double])
+        let bounds = try XCTUnwrap(state["bounds"] as? [Double])
+        let controls = try XCTUnwrap(state["controls"] as? [Double])
+        XCTAssertGreaterThan(picture[2], 0)
+        XCTAssertEqual(picture[2] / picture[3], 16 / 9.0, accuracy: 0.001, "Fit must not stretch the frame")
+        XCTAssertGreaterThanOrEqual(picture[0], 0)
+        XCTAssertGreaterThanOrEqual(picture[1], 0)
+        if fold != "front" {
+            XCTAssertEqual(bounds[2], fold == "tall" ? 669 : 951)
+            XCTAssertEqual(bounds[3], fold == "tall" ? 951 : 669)
+        }
+        XCTAssertLessThanOrEqual(picture[0] + picture[2], bounds[2] + 1)
+        let half = ["book", "tall"].contains(fold)
+        XCTAssertLessThanOrEqual(picture[1] + picture[3], bounds[3] / (half ? 2 : 1) + 1)
+        XCTAssertEqual(controls[1], half ? floor(bounds[3] / 2) : 0, accuracy: 0.01)
+        XCTAssertEqual(controls[1] + controls[3], bounds[3], accuracy: 0.01)
+        let buttonA = try XCTUnwrap(state["buttonALocal"] as? [Double])
+        XCTAssertGreaterThanOrEqual(buttonA[1], controls[1])
+        XCTAssertLessThan(buttonA[1], controls[1] + controls[3])
+        XCTAssertEqual(state["touchControlsVisible"] as? Bool, true)
+        XCTAssertEqual(state["viewLoads"] as? Int, 1, "Relayout must keep the same game surface")
+        XCTAssertTrue((state["session"] as? String)?.hasPrefix("started=1 paused=0") == true)
+    }
+
+    private func revealPostureMenuControl(_ control: XCUIElement, in scroll: XCUIElement) {
+        XCTAssertTrue(control.waitForExistence(timeout: 8))
+        // A vertical drag starting on a Slider adjusts it instead of scrolling.
+        // Use the menu's outer padding, as a finger scrolling past settings would.
+        for _ in 0..<32 where !control.isHittable {
+            let step: CGFloat = control.frame.midY > scroll.frame.midY ? -80 : 80
+            let start = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: step)))
+        }
+        XCTAssertTrue(control.isHittable, "Posture menu control must be hittable: \(control.identifier)")
+    }
+
+    private func assertPosturePictureVisible(_ fold: String) throws {
+        let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard let state = try? self.postureSnapshot() else { return false }
+            return state["pictureVisibilityState"] as? String == fold + ":menu" && state["pictureVisible"] as? Bool == true
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 8), .completed,
+                       "The composed half-fold menu must leave the synthetic game picture visible")
+    }
+
+    private func postureShot(_ name: String) {
+        // Allow the preview's two-second window capture to sample a settled layout.
+        Thread.sleep(forTimeInterval: 2.5)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name; shot.lifetime = .keepAlways; add(shot)
+    }
+
+    private func postureJourney(_ fold: String) throws {
+        app.launchArguments += ["-SatchelPreviewFold", fold, "-SatchelPreviewPostureTests", "YES",
+                                "-SatchelPreviewDeviceCheck", "present"]
+        // Direct previews keep each app screen inside the emulated inner-screen viewport.
+        let base = app.launchArguments
+        for screen in ["home", "detail", "settings"] {
+            app.launchArguments = base
+            let index = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewScreen"))
+            app.launchArguments[index + 1] = screen
+            app.launch()
+            if screen == "home" {
+                _ = try button("import-homebrew")
+                _ = try button("open-settings")
+                XCTAssertTrue(app.scrollViews["collection-panel"].exists)
+            } else if screen == "detail" {
+                XCTAssertTrue(app.staticTexts["detail-game-title"].waitForExistence(timeout: 8))
+                _ = try button("play-game", scroll: app.scrollViews["detail-scroll"])
+            } else {
+                for page in ["Console keys", "Storage", "Prepared games", "Device check", "Controllers", "About"] {
+                    try tap("settings-" + page)
+                    XCTAssertTrue(app.staticTexts["settings-page-" + page].exists)
+                }
+            }
+            postureShot("Posture \(fold) \(screen)")
+            app.terminate()
+        }
+        app.launchArguments = base
+        try startSessionFixture()
+        try assertPostureGeometry(fold)
+        postureShot("Posture \(fold) running")
+        let pictureFrame = app.images["fixture-picture"].frame
+        try tapPosturePause()
+        _ = try button("menu-resume")
+        let menu = app.scrollViews.containing(.button, identifier: "menu-library").firstMatch
+        _ = try button("menu-library", scroll: menu)
+        if ["book", "tall"].contains(fold) {
+            XCTAssertGreaterThan(app.buttons["menu-library"].frame.minY, pictureFrame.maxY,
+                                 "Half-fold menu actions must be below the game")
+        }
+        postureShot("Posture \(fold) menu")
+        if ["book", "tall"].contains(fold) { try assertPosturePictureVisible(fold) }
+        let volume = app.sliders["Volume"]
+        let settings = app.scrollViews.containing(.slider, identifier: "Volume").firstMatch
+        revealPostureMenuControl(volume, in: settings)
+        XCTAssertTrue(volume.isEnabled)
+        XCTAssertTrue(volume.isHittable, "The bottom menu setting must remain reachable")
+        if ["book", "tall"].contains(fold) { revealPostureMenuControl(app.buttons["menu-resume"], in: menu) }
+        try tap("menu-resume")
+        try assertPostureGeometry(fold)
+    }
+
+    func testPostureHalfFoldedPlainMenu() throws {
+        app.launchArguments += ["-SatchelPreviewFold", "book", "-SatchelPreviewPostureTests", "YES"]
+        try startSessionFixture(plain: true)
+        try assertPostureGeometry("book")
+        let pictureFrame = app.images["fixture-picture"].frame
+        try tapPosturePause()
+        _ = try button("menu.resume")
+        XCTAssertGreaterThan(app.buttons["menu.resume"].frame.minY, pictureFrame.maxY)
+        postureShot("Posture book plain menu")
+        try assertPosturePictureVisible("book")
+        try tap("fixture-fold-open")
+        _ = try button("menu.resume")
+        try tap("menu.resume")
+        try assertPostureGeometry("open")
+    }
+
+    func testPostureClosedJourney() throws { try postureJourney("front") }
+    func testPostureOpenJourney() throws { try postureJourney("open") }
+    func testPostureHalfFoldedJourney() throws { try postureJourney("book") }
+    func testPostureHalfFoldedAcrossJourney() throws { try postureJourney("tall") }
+
+    private func postureTransition(from: String, to: String, buttonInput: Bool = false) throws {
+        app.launchArguments += ["-SatchelPreviewFold", from, "-SatchelPreviewNextFold", to,
+                                "-SatchelPreviewPostureTests", "YES"]
+        try startSessionFixture()
+        try assertPostureGeometry(from)
+        let before = try postureSnapshot()
+        try tap("fixture-fold-delayed")
+        // Hold a real unclaimed touch over the frame while the fixture changes posture.
+        // The production pad sends it to dm_touch_set, which the fixture observes.
+        let picture = app.images["fixture-picture"]
+        if buttonInput {
+            let point = try XCTUnwrap(before["buttonA"] as? [Double])
+            app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: point[0], dy: point[1])).press(forDuration: 4)
+        } else {
+            picture.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 4)
+        }
+        try assertPostureGeometry(to)
+        let after = try postureSnapshot()
+        XCTAssertEqual(after["heldBefore"] as? Bool, true, "The transition must occur during a real held touch")
+        XCTAssertEqual(after["heldAfter"] as? Bool, true, "Relayout must not release the held input")
+        XCTAssertGreaterThan(after["ticks"] as? Int ?? 0, before["ticks"] as? Int ?? 0)
+        XCTAssertEqual(after["session"] as? String, before["session"] as? String, "No restart, stop or pause on a fold")
+        XCTAssertEqual(after["touches"] as? Int, 0, "Touch-up must still release the input")
+        XCTAssertEqual(after["buttons"] as? Int, 0, "Touch-up must release a held button")
+        if buttonInput { XCTAssertGreaterThan(after["inputDowns"] as? Int ?? 0, before["inputDowns"] as? Int ?? 0) }
+        let downs = after["touchDowns"] as? Int ?? 0
+        app.images["fixture-picture"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertGreaterThan(try postureSnapshot()["touchDowns"] as? Int ?? 0, downs, "New input must work after relayout")
+        // Relayout the open menu too, then return to the same running session.
+        try tapPosturePause()
+        _ = try button("menu-resume")
+        if ["book", "tall"].contains(to) {
+            XCTAssertGreaterThan(app.buttons["menu-resume"].frame.minY, app.images["fixture-picture"].frame.maxY)
+            postureShot("Transition \(from) to \(to) before menu relayout")
+            try assertPosturePictureVisible(to)
+        }
+        try tap("fixture-fold-" + from)
+        _ = try button("menu-resume")
+        postureShot("Transition \(to) to \(from) with menu")
+        if ["book", "tall"].contains(from) { try assertPosturePictureVisible(from) }
+        try tap("menu-resume")
+        try assertPostureGeometry(from)
+        XCTAssertEqual(try postureSnapshot()["session"] as? String, before["session"] as? String)
+    }
+
+    func testPostureHeldButtonOpenToHalfFolded() throws { try postureTransition(from: "open", to: "book", buttonInput: true) }
+    func testPostureHeldButtonHalfFoldedToClosed() throws { try postureTransition(from: "book", to: "front", buttonInput: true) }
+    func testPostureClosedToOpen() throws { try postureTransition(from: "front", to: "open") }
+    func testPostureOpenToClosed() throws { try postureTransition(from: "open", to: "front") }
+    func testPostureClosedToHalfFolded() throws { try postureTransition(from: "front", to: "book") }
+    func testPostureHalfFoldedToClosed() throws { try postureTransition(from: "book", to: "front") }
+    func testPostureOpenToHalfFolded() throws { try postureTransition(from: "open", to: "book") }
+    func testPostureHalfFoldedToOpen() throws { try postureTransition(from: "book", to: "open") }
+    func testPostureOpenToHalfFoldedAcross() throws { try postureTransition(from: "open", to: "tall") }
+    func testPostureHalfFoldedAcrossToOpen() throws { try postureTransition(from: "tall", to: "open") }
+#endif
 
 }

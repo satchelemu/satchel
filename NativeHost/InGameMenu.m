@@ -337,7 +337,7 @@ void SatchelMenuSetCustomView(UIView *view) {
 void SatchelMenuLayout(void) {
     // The SwiftUI menu keeps its own content inside the safe area, so it covers the whole screen;
     // the interactive bounds left a black band over the home indicator.
-    menuView.frame = SatchelInteractiveBounds(rootView, rootView.bounds); customView.frame = rootView.bounds;
+    menuView.frame = SatchelInteractiveBounds(rootView, SatchelControlBounds(rootView.bounds)); customView.frame = rootView.bounds;
     menuView.contentInset = UIEdgeInsetsMake(12, 0, 12, 0);
 }
 void SatchelMenuInstall(UIView *root, UIView *pad, UILabel *fps) {

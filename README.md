@@ -80,6 +80,11 @@ Native import format limits, Prepare read measurements and synthetic coverage ar
 documented in [the importer validation guide](docs/importer-validation.md). These Mac
 checks do not add phone compatibility claims.
 
+Duo posture previews cover the library, game page, Settings and pause menu. Half-folded
+play keeps the picture above the controls and menu. Synthetic transition journeys check
+Fit geometry and held touch input; real hinge and display-switch validation remains.
+See [the posture test guide](docs/testing.md#duo-postures).
+
 ## What does not work yet
 
 - Only four games have been tried. Any other game may fail at import, Prepare or boot.

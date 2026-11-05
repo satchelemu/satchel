@@ -12,6 +12,13 @@ The full suite is this navigation target. The older `Tests/UI/*JourneyTests.swif
 uses retired interpreter screens and mutates content, so it is not part of the canonical
 one-app scheme.
 
+The four `testPosture*Journey` cases cover front, open, book and tall preview layouts.
+Eight directed transition cases plus two held-button cases check a stable synthetic
+session, Fit geometry and real pad input through viewport changes, including an open
+menu. The plain fallback has its own half-fold layout journey. See [Duo posture details and hardware steps](../../../docs/testing.md#duo-postures).
+The Console keys picker cancellation uses the app-owned `cancel-keys-import` action;
+the real picker must appear, dismiss and reopen, including after background/return.
+
 ## Coverage
 
 - Home content, search, sort, Add, prepared-only shelves with zero imported records,

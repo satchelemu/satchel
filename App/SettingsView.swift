@@ -115,10 +115,18 @@ struct SettingsView: View {
             .background { SatchelBackdrop(glow: page.tint) }
             .satchelMenuStatus()
         }
-        .fileImporter(isPresented: $pickingKeys, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls): if let url = urls.first { keys.importKeys(url) }
-            case .failure: keys.error = "The key file could not be opened."
+        .sheet(isPresented: $pickingKeys) {
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("Cancel import") { pickingKeys = false }
+                        .accessibilityIdentifier("cancel-keys-import")
+                        .padding()
+                }
+                KeysDocumentPicker { url in
+                    pickingKeys = false
+                    if let url { keys.importKeys(url) }
+                }
             }
         }
         .task(id: page) { await measure() }
@@ -444,5 +452,24 @@ private struct InstallGuideView: View {
             }
             .background { SatchelBackdrop(glow: SatchelTheme.tide) }.satchelMenuStatus()
         }
+    }
+}
+
+/// An app-owned cancel action remains available if Files omits its toolbar.
+private struct KeysDocumentPicker: UIViewControllerRepresentable {
+    let completion: (URL?) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data], asCopy: false)
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let completion: (URL?) -> Void
+        init(completion: @escaping (URL?) -> Void) { self.completion = completion }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) { completion(urls.first) }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { completion(nil) }
     }
 }

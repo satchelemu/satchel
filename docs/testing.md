@@ -122,6 +122,75 @@ Phone follow-up for the orchestrator:
    corrupt ZIP must show an error and preserve the existing save. Arbitrary emulator ZIPs
    are unsupported; the imported archive needs Satchel's title-bound inventory.
 
+### Duo postures
+
+The simulator preview accepts `-SatchelPreviewFold front|open|book|tall`.
+`front` is the closed screen at the simulator's actual landscape size. `open` and
+`book` emulate a 951 by 669 point inner screen, fully open or partly open. `tall`
+is the 669 by 951 point inner viewport with the fold across it, drawn inside the
+landscape simulator window. These are scaled layout previews, not hinge events.
+
+The posture journeys open the library, game page, Settings and native pause menu in
+all four layouts. The half-fold game uses the top half and the menu actions use the
+bottom half, including Resume. The app's library, detail and Settings retain their
+book/page layout. The fixture keeps the same native game controller while changing
+posture and viewport size. A preview wrapper scales the menu to that same logical
+viewport while retaining the production full-screen modal presenter. Ordinary
+navigation journeys use the menu without that wrapper scaling.
+
+`testPostureClosedToOpen`, `testPostureOpenToClosed`,
+`testPostureClosedToHalfFolded`, `testPostureHalfFoldedToClosed`,
+`testPostureOpenToHalfFolded` and `testPostureHalfFoldedToOpen` cover all six directed
+transitions. Two more journeys cover open to/from the across-fold viewport. Held-button
+journeys cover open to half folded and half folded to closed. Every transition checks
+one surface instance, the unchanged session event trace, advancing synthetic display
+callbacks, a 16:9 Fit rectangle, a held input across relayout, release on touch-up and
+new input afterward. It also changes posture with the menu open and resumes. The
+fixture observes the real pad's `dm_touch_set` and `dm_input_set` calls. A fifteenth
+journey checks the plain fallback menu's lower-half layout and relayout while open. It does not
+substitute the pad, display layout or menu actions. Screenshots include a synthetic
+circle that should remain round in Fit. On the Duo simulator, XCTest's framebuffer
+capture can be cropped even when accessibility reports a landscape window. Posture
+fixtures also render the actual UIKit window to `Documents/PostureSnapshots`, using
+only synthetic content. Use those PNGs alongside journey assertions for visual
+review. The closed-screen render can still clip the right edge on this simulator;
+it does not establish full-screen visual fidelity. Half-fold menu tests also compare
+a patch of the composed window with the synthetic picture
+to catch opaque containers hiding the game.
+
+`-SatchelPreviewPostureTests YES` adds simulator-only posture controls and geometry
+observations. `-SatchelPreviewNextFold` selects the delayed transition used while a
+finger remains down. These controls are not part of the phone app. The Console keys
+picker now has its own Cancel import action, like save import. The settings journey
+requires the real Files picker, cancellation after background/return, and reopening;
+it never chooses or reads a key file.
+
+Orchestrator phone steps, in a separately authorized hardware session:
+
+1. With no preview or posture override, visit the library, a game page and each Settings
+   section closed, fully open and half folded. Repeat both landscape rotations. Scroll
+   to the bottom, return and reopen each panel. Check camera clearance, system-bar
+   controls and that no content crosses an active hinge division.
+2. From Console keys open Files, background and return, then tap Cancel import. Reopen
+   and cancel again. The settings panel must stay usable and stored keys must be unchanged.
+3. Launch an already prepared allowed title in Fit. Repeat closed to open, open to
+   closed, closed to half folded, half folded to closed, open to half folded and half
+   folded to open. Repeat with the fold across the screen. The game must continue from
+   the same point without boot/loading again, black frames or a stretched picture.
+4. Hold a touch button or stick through each change, then release it. Confirm the game
+   receives the held input, releases it and accepts another press. Repeat with a paired
+   physical controller, including stick movement. Check the new control positions and
+   camera clearance in both landscape rotations.
+5. Half folded, confirm the game is above and touch controls below. Open the pause menu:
+   the picture stays above and Resume, Library and settings are below and scrollable.
+   Change posture with the menu open, close it and verify the same game resumes. Repeat
+   background/return during a running and a paused session.
+6. Check hinge records privately for `source=UIKit` and the correct posture, rather than
+   `source=test-override`. Real screen migration, reserved regions, hinge timing, held
+   hardware input and native frame presentation remain hardware acceptance boundaries.
+   Record the title, app revision, orientations and each transition result. Do not attach
+   game pixels, key files, certificate details or personal identifiers.
+
 ### Device check
 
 Settings > Device check reads the running task's signature through Security's SecTask

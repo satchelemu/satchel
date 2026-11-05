@@ -120,6 +120,16 @@ def generate(mode, out):
             staged.write_text(content)
         for row in project['targets'][app]['sources']:
             if row['path'] == str(source): row['path'] = str(staged)
+        # Emulate the menu at the same logical size as the native game surface.
+        # Keep the production modal presentation and controller discovery unchanged.
+        menu_source = ROOT / 'NativeHost/SatchelMenuSession.swift'
+        menu = menu_source.read_text()
+        assert menu.count('InGameMenuScreen') == 2
+        menu = menu.replace('InGameMenuScreen', 'PreviewMenuScreen')
+        menu_staged = out / 'SatchelMenuSession.swift'
+        write_changed(menu_staged, menu)
+        for row in project['targets'][app]['sources']:
+            if row['path'] == str(menu_source): row['path'] = str(menu_staged)
         # Preserve the warm-up lifecycle and cancellation code, replacing only the
         # device verifier for the explicitly enabled synthetic package.
         warmup_source = ROOT / 'NativePrepare/WarmupJob.swift'
