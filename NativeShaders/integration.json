@@ -43,7 +43,8 @@
     "c++"
   ],
   "minimumRuntimeOS": "iOS 18.0",
-  "concurrencyLimit": 2,
+  "concurrencyLimit": 4,
+  "defaultConcurrency": 2,
   "supportedPreparationStages": [
     "vs",
     "ps",

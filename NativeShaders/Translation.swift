@@ -15,9 +15,9 @@ enum NativeShaderTranslation {
             throw ShaderTransformError.unsupported("translation request exceeds limit")
         }
         var result: UnsafeMutablePointer<UInt8>?, count: Int32 = 0
-        let status = code.withUnsafeBytes { c in json.withUnsafeBytes { j in
+        let status = SatchelShaderMetrics.measure("native-aot") { code.withUnsafeBytes { c in json.withUnsafeBytes { j in
             satchel_shader_translate_v1(c.bindMemory(to: UInt8.self).baseAddress, Int32(code.count), j.bindMemory(to: UInt8.self).baseAddress, Int32(json.count), &result, &count)
-        } }
+        } } }
         guard status == 0, let result, count >= 16 else { throw ShaderTransformError.unsupported("NativeAOT status \(status)") }
         defer { satchel_shader_translate_free(result) }
         let data = Data(bytes: result, count: Int(count))
@@ -30,7 +30,7 @@ enum NativeShaderTranslation {
     }
     static func cross(_ spirv: Data) throws -> String {
         var output: UnsafeMutablePointer<CChar>?, size = 0
-        let status = spirv.withUnsafeBytes { satchel_game_spirv_to_msl($0.baseAddress, spirv.count, &output, &size) }
+        let status = SatchelShaderMetrics.measure("spirv-cross") { spirv.withUnsafeBytes { satchel_game_spirv_to_msl($0.baseAddress, spirv.count, &output, &size) } }
         guard status == 0, let output else { throw ShaderTransformError.unsupported("SPIRV-Cross status \(status)") }
         defer { satchel_game_msl_free(output) }
         guard let string = String(data: Data(bytes: output, count: size), encoding: .utf8) else { throw ShaderTransformError.unsupported("invalid MSL encoding") }
@@ -52,7 +52,7 @@ enum NativeShaderTranslation {
                 source = try cross(ShaderSpirv.singleton(translated.spirv))
             }
         }
-        return try ShaderSourcePipeline.prepare(source: source, resources: translated.resources, job: job,
-                                                wanted: wanted, mappingOnly: mappingOnly, dual: dual)
+        return try SatchelShaderMetrics.measure("msl-transforms") { try ShaderSourcePipeline.prepare(source: source, resources: translated.resources, job: job,
+                                                wanted: wanted, mappingOnly: mappingOnly, dual: dual) }
     }
 }

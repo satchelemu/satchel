@@ -127,8 +127,11 @@ change. This is a known-record
 inventory, not proof that every shader in the game has been found. Unsupported
 containers and new runtime query facts still depend on demand compilation.
 
-`WarmupRunner` uses the M5 driver with two records in flight, a 64-library live
-cache and a bounded 12 GiB source cache shared with first-use rendering. Individual
+`WarmupRunner` uses the M5 driver with a bounded 16-record queue, two active
+workers in the background on battery, or four when foreground or charging.
+Low Power Mode and serious thermal state retain two workers. It keeps a
+64-library live cache and a bounded 12 GiB source cache shared with first-use
+rendering. See [timing fields and phone trials](../NativeShaders/WarmupSpeed.md). Individual
 source-cache payloads are bounded at 128 MiB, with 192 MiB encoded envelopes;
 each compiled MSL source retains its 64 MiB limit. Source identity includes the
 record, translator and query facts; compiled libraries

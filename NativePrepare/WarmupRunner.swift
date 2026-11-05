@@ -16,6 +16,8 @@ struct WarmupProgress: Codable, Sendable {
     var seconds: Double = 0
     var state = "running"
     var phase = 0
+    // Optional for compatibility with progress written by earlier releases.
+    var phaseOne: WarmupPhaseOneTiming? = nil
     var systemFraction: Double {
         let value = min(1, max(0, fraction ?? 0))
         switch phase {
@@ -28,9 +30,19 @@ struct WarmupProgress: Codable, Sendable {
     var fraction: Double? { total > 0 ? Double(completed) / Double(total) : nil }
 }
 
+struct WarmupPhaseOneTiming: Codable, Sendable {
+    var seconds: Double = 0
+    var lookupSeconds: Double = 0
+    var translationSeconds: Double = 0
+    var persistenceSeconds: Double = 0
+    var compilationSeconds: Double = 0
+    var reusedLibraries = 0
+    var lanes = 2
+}
+
 enum WarmupRunner {
     static func run(package: URL, runtime: URL, reserve: UInt64 = 1536 * 1024 * 1024,
-                    cancelled: @escaping () -> Bool, progress: (WarmupProgress) -> Void) throws -> WarmupProgress {
+                    cancelled: @escaping () -> Bool, captureDirectory: URL? = nil, execution: () -> SatchelWarmupPolicy = { .conservative }, progress: (WarmupProgress) -> Void) throws -> WarmupProgress {
         let fm = FileManager.default, started = ProcessInfo.processInfo.systemUptime
         let manifestData = try bounded(package.appendingPathComponent("manifest.json"), maximum: 32 * 1024 * 1024)
         guard manifestData.count <= 32 * 1024 * 1024,
@@ -43,8 +55,10 @@ enum WarmupRunner {
         let resources = try ShaderWarmupResources.get(directory: runtime.appendingPathComponent("shader-cache"), reserve: Int(reserve))
         var state = WarmupProgress(), lastStage = ""
         var lastReport = -Double.infinity
+        var phaseOneStarted: Double?
         func emit() throws {
             state.seconds = ProcessInfo.processInfo.systemUptime - started
+            if state.phase == 1, let phaseOneStarted { state.phaseOne?.seconds = ProcessInfo.processInfo.systemUptime - phaseOneStarted }
             guard state.seconds - lastReport >= 0.2 || state.stage != lastStage || state.state != "running" || state.completed == state.total else { return }
             lastReport = state.seconds; lastStage = state.stage
             try JSONEncoder().encode(state).write(to: directory.appendingPathComponent("progress.json"), options: .atomic)
@@ -69,7 +83,7 @@ enum WarmupRunner {
                 }
             }
             // First-use capture is app-private and bounded. Normalize it again before use.
-            let capture = runtime.appendingPathComponent("shader-capture")
+            let capture = captureDirectory ?? runtime.appendingPathComponent("shader-capture")
             var known = Set(inventory.records.map(\.key))
             let captures: [URL] = reviewed ? [] : ((try? fm.contentsOfDirectory(at: capture, includingPropertiesForKeys: nil)) ?? [])
             for file in captures where file.pathExtension == "ctl" {
@@ -96,7 +110,9 @@ enum WarmupRunner {
             }
             guard pairSet.count <= 100_000 else { throw SatchelShaderError.invalidRequest }
             inventory.pairs = pairSet.sorted().map { $0.components(separatedBy: "\t") }
-            let warmer = try SatchelShaderWarmup(store: resources.store, compiler: resources.compiler)
+            let warmer = try SatchelShaderWarmup(store: resources.store, compiler: resources.compiler,
+                maximumConcurrentRecords: 4, workingMemoryBudgetBytes: 1024 * 1024 * 1024, maximumBufferedRecords: 16)
+            defer { resources.compiler.setMaximumConcurrentCompilations(2) }
             var requests: [String: String] = [:], masks: [String: UInt32] = [:]
             if reviewed {
                 // These bound libraries are already translated and compiled. The format 1
@@ -118,6 +134,7 @@ enum WarmupRunner {
                     state.completed += 1; try emit()
                 }
             } else {
+                phaseOneStarted = ProcessInfo.processInfo.systemUptime; state.phaseOne = WarmupPhaseOneTiming()
                 state.phase = 1; state.stage = "Translating and compiling shaders"; state.completed = 0; state.total = inventory.records.count; try emit()
                 // Fragment inputs determine the exact vertex padding shared with first use.
                 for rows in [inventory.records.filter { $0.stage == .fragment }, inventory.records.filter { $0.stage != .fragment }] {
@@ -126,9 +143,10 @@ enum WarmupRunner {
                         for pair in inventory.pairs { wanted[pair[0], default: 0] |= masks[pair[1]] ?? 0 }
                         try resources.mergeWanted(wanted)
                     }
-                    for start in stride(from: 0, to: rows.count, by: 2) {
+                    for start in stride(from: 0, to: rows.count, by: 16) {
                         try check()
-                        let batch = Array(rows[start..<min(start + 2, rows.count)])
+                        let policy = execution(); warmer.configure(policy); state.phaseOne?.lanes = warmer.concurrentRecords
+                        let batch = Array(rows[start..<min(start + 16, rows.count)])
                         var work: [SatchelShaderRequest] = []
                         for row in batch {
                             do {
@@ -144,17 +162,15 @@ enum WarmupRunner {
                                 for record in records {
                                     requests[record.key] = record.requestSHA256; state.shaders += 1; state.libraries += record.compileSeconds.count; successes += 1
                                     if record.sourceCacheHit { state.sourceHits += 1 }
+                                    masks[record.key] = record.fragmentInputMask
+                                    state.phaseOne?.lookupSeconds += record.lookupSeconds
+                                    state.phaseOne?.translationSeconds += record.translationSeconds
+                                    state.phaseOne?.persistenceSeconds += record.persistenceSeconds
+                                    state.phaseOne?.compilationSeconds += record.compileSeconds.values.reduce(0, +)
+                                    state.phaseOne?.reusedLibraries += record.liveLibraryHits + record.warmupLibraryHits
                                 }
                             }
                         } catch { try check(); failed(error, count: work.count - successes) }
-                        for row in batch where row.stage == .fragment {
-                            if let id = requests[row.key], let shader = try resources.store.load(requestSHA256: id), let source = shader.sources["b"] {
-                                let regex = try NSRegularExpression(pattern: #"\[\[user\(locn([0-9]+)\)"#), text = source as NSString
-                                for match in regex.matches(in: source, range: NSRange(location: 0, length: text.length)) {
-                                    if let i = Int(text.substring(with: match.range(at: 1))), (0..<32).contains(i) { masks[row.key, default: 0] |= UInt32(1) << i }
-                                }
-                            }
-                        }
                         state.completed += batch.count; try emit()
                     }
                 }
@@ -162,7 +178,7 @@ enum WarmupRunner {
             state.phase = 2; state.stage = "Building device pipelines"; state.completed = 0; state.total = inventory.pairs.count * 4; try emit()
             let archive = try SatchelWarmupPipelines(directory: URL(fileURLWithPath: SatchelPipelineArchiveDirectory(runtime.path)), reserveBytes: reserve)
             // Flush successful batches even on cancellation. No partially written archive is published.
-            defer { try? archive.flush() }
+            defer { try? SatchelShaderMetrics.measure("archive-write") { try archive.flush() } }
             let msl = package.appendingPathComponent("msl/b-" + chain)
             func shader(_ key: String, pulling: Bool) throws -> (MTLLibrary, [AnyHashable: Any], Bool) {
                 if reviewed, let data = try? bounded(msl.appendingPathComponent(key + "_b.json"), maximum: 4 * 1024 * 1024),
@@ -200,10 +216,10 @@ enum WarmupRunner {
                     } catch { try check(); state.deferred += 4; state.completed += 4 }
                 }
                 // Match the pinned engine's bounded serializer period.
-                if state.completed % 1000 == 0 { try archive.flush() }
+                if state.completed % 1000 == 0 { try SatchelShaderMetrics.measure("archive-write") { try archive.flush() } }
                 try emit()
             }
-            try archive.flush(); try check()
+            try SatchelShaderMetrics.measure("archive-write") { try archive.flush() }; try check()
             resources.endSession()
             resources.warmKnown(wait: true, cancelled: cancelled)
             try check()

@@ -9,6 +9,8 @@ public struct SatchelShaderWarmupRecord: Codable, Sendable {
     public let persistenceSeconds: Double
     public let compileSeconds: [String: Double]
     public let liveLibraryHits: Int
+    public let warmupLibraryHits: Int
+    public let fragmentInputMask: UInt32
 }
 
 public struct SatchelShaderWarmupProgress: Codable, Sendable {
@@ -16,6 +18,7 @@ public struct SatchelShaderWarmupProgress: Codable, Sendable {
     public fileprivate(set) var sourceCacheHits = 0
     public fileprivate(set) var compiledLibraries = 0
     public fileprivate(set) var liveLibraryHits = 0
+    public fileprivate(set) var warmupLibraryHits = 0
     public fileprivate(set) var translationSeconds: Double = 0
     public fileprivate(set) var compilationSeconds: Double = 0
     public fileprivate(set) var elapsedSeconds: Double = 0
@@ -29,31 +32,60 @@ public struct SatchelShaderWarmupProgress: Codable, Sendable {
 @available(iOS 18.0, macOS 15.0, *)
 public final class SatchelShaderWarmup {
     public let compiler: SatchelShaderCompiler
-    public let concurrentRecords: Int
+    public private(set) var concurrentRecords: Int
+    private let maximumRecords: Int
     private let store: SatchelShaderStore
+    private let batchSize: Int
+    private let queue: OperationQueue
+    private let warmedLock = NSLock()
+    private var warmed: Set<String> = []
 
     public init(store: SatchelShaderStore, compiler: SatchelShaderCompiler, maximumConcurrentRecords: Int = 2,
-                workingMemoryBudgetBytes: Int = 512 * 1024 * 1024, estimatedBytesPerWorker: Int = 256 * 1024 * 1024) throws {
-        guard (1...2).contains(maximumConcurrentRecords), estimatedBytesPerWorker > 0,
+                workingMemoryBudgetBytes: Int = 512 * 1024 * 1024, estimatedBytesPerWorker: Int = 256 * 1024 * 1024,
+                maximumBufferedRecords: Int? = nil, qualityOfService: QualityOfService = .utility) throws {
+        guard (1...4).contains(maximumConcurrentRecords), estimatedBytesPerWorker > 0,
               workingMemoryBudgetBytes >= estimatedBytesPerWorker else { throw SatchelShaderError.invalidRequest }
         self.store = store; self.compiler = compiler
         concurrentRecords = min(maximumConcurrentRecords, workingMemoryBudgetBytes / estimatedBytesPerWorker)
+        maximumRecords = concurrentRecords
+        batchSize = max(concurrentRecords, min(maximumBufferedRecords ?? concurrentRecords, 16))
+        queue = OperationQueue(); queue.name = "Satchel optional shader warm-up"
+        queue.maxConcurrentOperationCount = concurrentRecords; queue.qualityOfService = qualityOfService
+    }
+
+    // Call only between drained batches. The compiler and translation lanes
+    // use the same bounded policy, without changing renderer specialization.
+    func configure(_ policy: SatchelWarmupPolicy) {
+        concurrentRecords = min(maximumRecords, policy.lanes)
+        queue.maxConcurrentOperationCount = concurrentRecords
+        queue.qualityOfService = policy.qos
+        compiler.setMaximumConcurrentCompilations(concurrentRecords)
     }
 
     private func one(_ request: SatchelShaderRequest, cancelled: () -> Bool) throws -> SatchelShaderWarmupRecord {
         try autoreleasepool {
             let prepared = try store.prepareMeasured(request, cancelled: cancelled)
-            var seconds: [String: Double] = [:], hits = 0
+            var seconds: [String: Double] = [:], hits = 0, warmHits = 0
             for suffix in prepared.shader.sources.keys.sorted() {
                 if cancelled() { throw SatchelShaderError.cancelled }
+                let hash = SatchelShaderTranslator.sha256(Data(prepared.shader.sources[suffix]!.utf8))
+                warmedLock.lock(); let seen = warmed.contains(hash); warmedLock.unlock()
+                if seen { seconds[suffix] = 0; warmHits += 1; continue }
                 let compiled = try compiler.compile(prepared.shader, variant: suffix, cancelled: cancelled)
                 seconds[suffix] = compiled.seconds
                 if compiled.liveCacheHit { hits += 1 }
+                warmedLock.lock(); if warmed.count < 65536 { warmed.insert(hash) }; warmedLock.unlock()
+            }
+            var mask: UInt32 = 0
+            if request.stage == .fragment, let source = prepared.shader.sources["b"] {
+                for found in matches(#"\[\[user\(locn([0-9]+)\)"#, source) {
+                    if let i = Int(found[1]), (0..<32).contains(i) { mask |= UInt32(1) << i }
+                }
             }
             return SatchelShaderWarmupRecord(key: prepared.shader.key, requestSHA256: prepared.shader.requestSHA256,
                 sourceCacheHit: prepared.sourceCacheHit, lookupSeconds: prepared.lookupSeconds,
                 translationSeconds: prepared.translationSeconds, persistenceSeconds: prepared.persistenceSeconds,
-                compileSeconds: seconds, liveLibraryHits: hits)
+                compileSeconds: seconds, liveLibraryHits: hits, warmupLibraryHits: warmHits, fragmentInputMask: mask)
         }
     }
 
@@ -73,7 +105,7 @@ public final class SatchelShaderWarmup {
         while true {
             if cancelled() { throw SatchelShaderError.cancelled }
             var batch: [SatchelShaderRequest] = []
-            for _ in 0..<concurrentRecords {
+            for _ in 0..<batchSize {
                 if cancelled() { throw SatchelShaderError.cancelled }
                 guard let request = try next() else { break }
                 batch.append(request)
@@ -84,10 +116,13 @@ public final class SatchelShaderWarmup {
             }
             if let totalRecords, batch.count > totalRecords - state.completedRecords { throw SatchelShaderError.invalidRequest }
             let results = WarmupBatch(count: batch.count)
-            DispatchQueue.concurrentPerform(iterations: batch.count) { index in
-                let result = Result { try self.one(batch[index], cancelled: cancelled) }
-                results.set(result, at: index)
+            let operations = batch.enumerated().map { index, request in
+                BlockOperation {
+                    let result = Result { try self.one(request, cancelled: cancelled) }
+                    results.set(result, at: index)
+                }
             }
+            queue.addOperations(operations, waitUntilFinished: true)
             var completed: [SatchelShaderWarmupRecord] = [], failure: Error?
             for result in results.values {
                 switch result! {
@@ -95,7 +130,8 @@ public final class SatchelShaderWarmup {
                     completed.append(record); state.completedRecords += 1
                     if record.sourceCacheHit { state.sourceCacheHits += 1 }
                     state.liveLibraryHits += record.liveLibraryHits
-                    state.compiledLibraries += record.compileSeconds.count - record.liveLibraryHits
+                    state.warmupLibraryHits += record.warmupLibraryHits
+                    state.compiledLibraries += record.compileSeconds.count - record.liveLibraryHits - record.warmupLibraryHits
                     state.translationSeconds += record.translationSeconds
                     state.compilationSeconds += record.compileSeconds.values.reduce(0, +)
                 case .failure(let error): if failure == nil { failure = error }
@@ -114,5 +150,35 @@ private final class WarmupBatch: @unchecked Sendable {
     init(count: Int) { values = Array(repeating: nil, count: count) }
     func set(_ result: Result<SatchelShaderWarmupRecord, Error>, at index: Int) {
         lock.lock(); values[index] = result; lock.unlock()
+    }
+}
+
+// A pure policy so the app and Mac checks share the same bounds.
+struct SatchelWarmupPolicy: Equatable, Sendable {
+    let lanes: Int
+    let foreground: Bool
+    static let conservative = SatchelWarmupPolicy(lanes: 2, foreground: false)
+    static func select(foreground: Bool, charging: Bool, constrained: Bool) -> Self {
+        Self(lanes: !constrained && (foreground || charging) ? 4 : 2,
+             foreground: foreground && !constrained)
+    }
+    var qos: QualityOfService { foreground ? .userInitiated : .utility }
+}
+
+// Developer measurement arguments isolate optional cache work from player data.
+struct SatchelWarmupTrial {
+    let name: String?
+    let records: Int?
+    init(arguments: [String]) {
+        func value(_ flag: String) -> String? {
+            guard let i = arguments.firstIndex(of: flag), i + 1 < arguments.count else { return nil }
+            return arguments[i + 1]
+        }
+        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        let tag = value("-SatchelWarmupTrial")
+        name = tag.flatMap { !$0.isEmpty && $0.count <= 48 && $0.allSatisfy(allowed.contains) ? $0 : nil }
+        // A limit requires an isolated trial so an ordinary warm-up is unaffected.
+        let count = value("-SatchelWarmupRecords").flatMap(Int.init)
+        records = name != nil ? count.flatMap { (1...100_000).contains($0) ? $0 : nil } : nil
     }
 }

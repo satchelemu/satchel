@@ -12,18 +12,45 @@ struct ShaderMatch {
         return r.location == NSNotFound ? "" : source.substring(with: r)
     }
 }
-func matches(_ pattern: String, _ source: String) -> [ShaderMatch] {
-    let regex = try! NSRegularExpression(pattern: pattern)
-    return regex.matches(in: source, range: NSRange(location: 0, length: (source as NSString).length))
-        .map { ShaderMatch(source: source as NSString, result: $0) }
-}
-func match(_ pattern: String, _ source: String) -> ShaderMatch? { matches(pattern, source).first }
-func sub(_ pattern: String, _ source: String, _ replacement: (ShaderMatch) -> String) -> String {
-    var out = source
-    for m in matches(pattern, source).reversed() {
-        out = (out as NSString).replacingCharacters(in: m.range(), with: replacement(m))
+// Patterns are immutable and safe to share. Bound dynamic shader-derived
+// patterns so a long session cannot grow this process-wide cache indefinitely.
+private enum ShaderRegex {
+    static let lock = NSLock()
+    static var values: [String: NSRegularExpression] = [:]
+    static func get(_ pattern: String) -> NSRegularExpression {
+        lock.lock()
+        if let value = values[pattern] { lock.unlock(); return value }
+        lock.unlock()
+        let value = try! NSRegularExpression(pattern: pattern)
+        lock.lock(); defer { lock.unlock() }
+        if values.count < 512 { values[pattern] = value }
+        return value
     }
-    return out
+}
+func matches(_ pattern: String, _ source: String) -> [ShaderMatch] {
+    let text = source as NSString
+    return ShaderRegex.get(pattern).matches(in: source, range: NSRange(location: 0, length: text.length))
+        .map { ShaderMatch(source: text, result: $0) }
+}
+func match(_ pattern: String, _ source: String) -> ShaderMatch? {
+    let text = source as NSString
+    return ShaderRegex.get(pattern).firstMatch(in: source, range: NSRange(location: 0, length: text.length))
+        .map { ShaderMatch(source: text, result: $0) }
+}
+func sub(_ pattern: String, _ source: String, _ replacement: (ShaderMatch) -> String) -> String {
+    let found = matches(pattern, source)
+    guard !found.isEmpty else { return source }
+    let text = source as NSString
+    var pieces: [String] = [], end = text.length
+    pieces.reserveCapacity(found.count * 2 + 1)
+    // Preserve reverse callback order, UTF-16 offsets and zero-length matches.
+    // Join once instead of copying the entire growing source per replacement.
+    for m in found.reversed() {
+        pieces.append(text.substring(with: NSRange(location: m.end, length: end - m.end)))
+        pieces.append(replacement(m)); end = m.start
+    }
+    pieces.append(text.substring(to: end))
+    return pieces.reversed().joined()
 }
 func slice(_ text: String, _ start: Int, _ end: Int? = nil) -> String {
     let s = text as NSString

@@ -18,7 +18,8 @@ public final class SatchelShaderCompiler {
     public let device: MTLDevice
     public let deviceIdentity: String
     private let condition = NSCondition()
-    private let workers = DispatchSemaphore(value: 2)
+    private var activeCompilations = 0
+    private var maximumConcurrentCompilations = 2
     private let maximumLiveLibraries: Int
     private var inFlight: Set<String> = []
     private var libraries: [String: (library: MTLLibrary, used: UInt64)] = [:]
@@ -60,10 +61,15 @@ public final class SatchelShaderCompiler {
         }
         inFlight.insert(key); condition.unlock()
         defer { condition.lock(); inFlight.remove(key); condition.broadcast(); condition.unlock() }
-        while workers.wait(timeout: .now() + 0.1) != .success {
-            if cancelled() { throw SatchelShaderError.cancelled }
+        let waiting = SatchelShaderMetrics.now()
+        condition.lock()
+        while activeCompilations >= maximumConcurrentCompilations {
+            if cancelled() { condition.unlock(); throw SatchelShaderError.cancelled }
+            _ = condition.wait(until: Date(timeIntervalSinceNow: 0.1))
         }
-        defer { workers.signal() }
+        activeCompilations += 1; condition.unlock()
+        SatchelShaderMetrics.event("library-lane-wait", start: waiting)
+        defer { condition.lock(); activeCompilations -= 1; condition.broadcast(); condition.unlock() }
         if cancelled() { throw SatchelShaderError.cancelled }
         let started = ProcessInfo.processInfo.systemUptime
         let library: MTLLibrary = try autoreleasepool {
@@ -87,6 +93,12 @@ public final class SatchelShaderCompiler {
         if cancelled() { throw SatchelShaderError.cancelled }
         return SatchelCompiledShader(library: library, sourceSHA256: hash, deviceIdentity: deviceIdentity,
             liveCacheHit: false, seconds: seconds, layerOutput: source.contains("render_target_array_index"))
+    }
+
+    // Only optional warm-up raises this bound. Restore two lanes before gameplay.
+    public func setMaximumConcurrentCompilations(_ count: Int) {
+        condition.lock(); maximumConcurrentCompilations = max(1, min(count, 4))
+        condition.broadcast(); condition.unlock()
     }
 
     public func trimLiveLibraries() {

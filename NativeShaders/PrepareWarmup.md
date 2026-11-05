@@ -38,15 +38,17 @@ storage; they must not queue an unbounded collection of record data. Supply the
 actual resource facts and effective vertex/pixel pairing used by the renderer so
 warm-up and first-use have the same request identity.
 
-Only one or two records run at once, in bounded batches with an autorelease pool
-per record. The producer cannot run ahead of that batch. Progress runs serially on
+The default admits one or two records at once, with an autorelease pool per
+record. Optional app warm-up buffers at most 16 records and selects two or four
+active workers using foreground, charging and thermal state. The producer cannot
+run ahead of that bounded batch. Progress runs serially on
 the calling thread after each batch, including successful records in a batch where
 another record failed. An error throws after that progress update. The caller must
 mark the inventory incomplete on errors and cancellation. A non-nil total is an
 exact count; an early end or excess inventory is rejected. Pass nil for unknown
 coverage and show a count rather than a fabricated percentage.
 
-The memory budget selects one or two workers using an adjustable estimate of
+The memory budget selects up to four workers using an adjustable estimate of
 256 MiB per worker. It is an admission estimate, not a guarantee of process RSS.
 The app owns memory-pressure handling: cancel, reduce the worker count and resume
 when appropriate. Keep the compiler's live-library bound suited to the device.
@@ -64,7 +66,8 @@ there are no detached jobs left running after a failed Prepare step.
 `SatchelShaderStore.prepareMeasured` returns the shader, `sourceCacheHit`, lookup,
 translation and persistence seconds. The ordinary `prepare` API remains available.
 `SatchelShaderWarmupRecord` adds per-variant runtime compile seconds and live-library
-hit count. Progress totals are sums of worker times, so they can exceed wall time.
+hit count. It also reports identical sources already compiled by this warm-up
+driver, even after live-library eviction, and the fragment input mask. Progress totals are sums of worker times, so they can exceed wall time.
 Source data is persisted before compilation. A cancelled run can enumerate the
 same inventory again and recover verified source-cache entries. A saved completed
 count is diagnostic progress, not permission to skip library acquisition after a
@@ -115,3 +118,7 @@ compilations at median 0.33 s remain separate historical evidence.
 Evidence is in `~/SatchelBuild/m5/warmup-result.json` and incremental
 `warmup-timings.jsonl`. No shader source or game data is logged. Temporary records
 and the experimental source cache are removed after the check.
+
+The 2026-11-04 warm-up scheduling change, payload-free timing fields and exact
+phone measurement steps are documented in [WarmupSpeed.md](WarmupSpeed.md).
+The historical timing above is retained as evidence for its original sample.

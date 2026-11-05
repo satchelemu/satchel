@@ -17,7 +17,51 @@ enum WarmupChecks {
             completed = state.completedRecords; reports += 1
             try require(records.count <= 2)
         })
-        try require(first.completedRecords == 3 && first.sourceCacheHits == 2 && first.compiledLibraries == 1 && first.liveLibraryHits == 2 && maxOutstanding == 2)
+        try require(first.completedRecords == 3 && first.sourceCacheHits == 2 && first.compiledLibraries == 1 && first.liveLibraryHits + first.warmupLibraryHits == 2 && first.warmupLibraryHits >= 1 && maxOutstanding == 2)
+        let buffered = try SatchelShaderWarmup(store: store, compiler: compiler,
+            maximumConcurrentRecords: 4, workingMemoryBudgetBytes: 1024 * 1024 * 1024, maximumBufferedRecords: 16)
+        buffered.configure(.select(foreground: true, charging: false, constrained: false))
+        try require(buffered.concurrentRecords == 4)
+        for policy in [SatchelWarmupPolicy.select(foreground: true, charging: false, constrained: false), .conservative] {
+            buffered.configure(policy)
+            var read = 0, acknowledged = 0, peak = 0
+            let state = try buffered.run(totalRecords: 33, next: {
+                guard read < 33 else { return nil }
+                read += 1; peak = max(peak, read - acknowledged); return request
+            }, progress: { state, _ in acknowledged = state.completedRecords })
+            try require(state.concurrentRecords == policy.lanes && state.completedRecords == 33 && peak == 16)
+            try require(state.sourceCacheHits == 33 && state.compiledLibraries == 0 && state.liveLibraryHits + state.warmupLibraryHits == 33)
+        }
+        try require(buffered.concurrentRecords == 2)
+        // Distinct cold requests exercise NativeAOT and source generation on
+        // four lanes, then compare every translated field with serial execution.
+        buffered.configure(.select(foreground: true, charging: false, constrained: false))
+        var distinct: [SatchelShaderRequest] = []
+        let controlOffset = 0x38 + Int(try ShaderRecord.word(request.record, 0x2c))
+        for x in 2...17 {
+            var bytes = request.record; ShaderRecord.put(UInt32(x), &bytes, controlOffset + 0x748)
+            distinct.append(SatchelShaderRequest(record: bytes, stage: .compute))
+        }
+        var distinctRead = 0
+        let cold = try buffered.run(totalRecords: distinct.count, next: {
+            guard distinctRead < distinct.count else { return nil }; defer { distinctRead += 1 }; return distinct[distinctRead]
+        })
+        try require(cold.completedRecords == 16 && cold.sourceCacheHits == 0 && cold.concurrentRecords == 4)
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        for request in distinct {
+            let serial = try SatchelShaderTranslator.translate(request)
+            guard let concurrent = try store.load(requestSHA256: serial.requestSHA256) else { throw SatchelShaderCacheError.corruptEntry }
+            try require(try encoder.encode(serial) == encoder.encode(concurrent))
+        }
+        buffered.configure(.conservative)
+        // Eviction from the live library cache must not repeat a successful warm
+        // compile in this driver. New drivers still reacquire executable code.
+        compiler.trimLiveLibraries()
+        var repeatReads = 0
+        let duplicate = try warmup.run(totalRecords: 1, next: {
+            defer { repeatReads += 1 }; return repeatReads == 0 ? request : nil
+        })
+        try require(duplicate.warmupLibraryHits == 1 && duplicate.compiledLibraries == 0)
         var cancelledReads = 0, rejected = false
         do { try warmup.run(next: { cancelledReads += 1; return request }, cancelled: { true }) }
         catch SatchelShaderError.cancelled { rejected = true }

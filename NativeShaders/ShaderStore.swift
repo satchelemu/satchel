@@ -52,7 +52,9 @@ public final class SatchelShaderStore {
     }
 
     public func load(requestSHA256: String) throws -> SatchelTranslatedShader? {
-        lock.lock(); defer { lock.unlock() }
+        let waiting = SatchelShaderMetrics.now()
+        lock.lock(); SatchelShaderMetrics.event("store-lock", start: waiting)
+        defer { lock.unlock() }
         let url = try file(requestSHA256)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         do {
@@ -98,7 +100,9 @@ public final class SatchelShaderStore {
     }
 
     public func save(_ shader: SatchelTranslatedShader) throws {
-        lock.lock(); defer { lock.unlock() }
+        let waiting = SatchelShaderMetrics.now()
+        lock.lock(); SatchelShaderMetrics.event("store-lock", start: waiting)
+        defer { lock.unlock() }
         let url = try file(shader.requestSHA256)
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         let payload = try encoder.encode(shader)
@@ -150,7 +154,7 @@ public final class SatchelShaderStore {
         inFlight.insert(identity); pending.unlock()
         defer { pending.lock(); inFlight.remove(identity); pending.broadcast(); pending.unlock() }
         do {
-            if let cached = try load(requestSHA256: identity) {
+            if let cached = try SatchelShaderMetrics.measure("source-load", { try load(requestSHA256: identity) }) {
                 if cancelled() { throw SatchelShaderError.cancelled }
                 return SatchelShaderPreparation(shader: cached, sourceCacheHit: true,
                     lookupSeconds: ProcessInfo.processInfo.systemUptime - started, translationSeconds: 0, persistenceSeconds: 0)
@@ -160,7 +164,7 @@ public final class SatchelShaderStore {
         let shader = try SatchelShaderMetrics.measure("translation") { try SatchelShaderTranslator.translate(request, cancelled: cancelled) }
         if cancelled() { throw SatchelShaderError.cancelled }
         let translationEnd = ProcessInfo.processInfo.systemUptime
-        try save(shader)
+        try SatchelShaderMetrics.measure("source-save") { try save(shader) }
         return SatchelShaderPreparation(shader: shader, sourceCacheHit: false, lookupSeconds: lookupEnd - started,
             translationSeconds: translationEnd - lookupEnd, persistenceSeconds: ProcessInfo.processInfo.systemUptime - translationEnd)
     }

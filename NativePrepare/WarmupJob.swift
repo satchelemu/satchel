@@ -9,14 +9,23 @@ final class WarmupCancellation: @unchecked Sendable {
     func cancel() { lock.lock(); stopped = true; lock.unlock() }
 }
 
+final class WarmupScheduling: @unchecked Sendable {
+    private let lock = NSLock()
+    private var policy = SatchelWarmupPolicy.conservative
+    func set(_ value: SatchelWarmupPolicy) { lock.lock(); policy = value; lock.unlock() }
+    func get() -> SatchelWarmupPolicy { lock.lock(); defer { lock.unlock() }; return policy }
+}
+
 /// Optional work on an already usable package. Failure never changes its playability.
 @MainActor final class WarmupJob: ObservableObject {
     static let shared = WarmupJob()
     struct Context: @unchecked Sendable {
         let package: URL
         let runtime: URL
+        let capture: URL
         let title: String
         let token: WarmupCancellation
+        let scheduling = WarmupScheduling()
         /// Cancelled with `token` only when iOS ended the run's background time.
         let expiry = WarmupCancellation()
     }
@@ -40,12 +49,21 @@ final class WarmupCancellation: @unchecked Sendable {
     private var context: Context?
     private var background: UIBackgroundTaskIdentifier = .invalid
     private var memoryWarning: NSObjectProtocol?
+    private var schedulingObservers: [NSObjectProtocol] = []
     /// On-disk status per package folder, keyed by the manifest's modification date so a
     /// package prepared again is read again. Hashing runs off the main thread.
     @Published private var stored: [String: Status] = [:]
     private var storedStamp: [String: Date] = [:]
     private var loading: Set<String> = []
     private init() {
+        for name in [UIApplication.didBecomeActiveNotification, UIApplication.willResignActiveNotification,
+                     UIDevice.batteryStateDidChangeNotification, ProcessInfo.thermalStateDidChangeNotification,
+                     Notification.Name.NSProcessInfoPowerStateDidChange] {
+            schedulingObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                let resigning = note.name == UIApplication.willResignActiveNotification
+                Task { @MainActor in self?.refreshScheduling(resigning: resigning) }
+            })
+        }
         memoryWarning = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.cancel() }
         }
@@ -57,6 +75,13 @@ final class WarmupCancellation: @unchecked Sendable {
             }
             journal = saved
         }
+    }
+    private func refreshScheduling(resigning: Bool = false) {
+        let battery = UIDevice.current.batteryState
+        let process = ProcessInfo.processInfo
+        context?.scheduling.set(.select(foreground: !resigning && UIApplication.shared.applicationState == .active,
+            charging: battery == .charging || battery == .full,
+            constrained: process.isLowPowerModeEnabled || process.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue))
     }
     func cancel() { context?.token.cancel() }
 
@@ -126,8 +151,14 @@ final class WarmupCancellation: @unchecked Sendable {
               let id = object["titleID"] as? String, NativePreparationRecipe.hex(id, count: 16) else { return nil }
         let recipeName = ((object["recipe"] as? [String: Any])?["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let label = recipeName.flatMap { !$0.isEmpty && $0.utf8.count <= 512 ? $0 : nil } ?? title
-        let value = Context(package: package, runtime: documents.appendingPathComponent("NativeRuntime/" + id), title: label, token: WarmupCancellation())
+        let trial = SatchelWarmupTrial(arguments: ProcessInfo.processInfo.arguments)
+        var runtime = documents.appendingPathComponent("NativeRuntime/" + id)
+        let capture = runtime.appendingPathComponent("shader-capture")
+        if let name = trial.name { runtime.appendPathComponent("WarmupTrials/" + name) }
+        let value = Context(package: package, runtime: runtime, capture: capture, title: label, token: WarmupCancellation())
         context = value; running = true
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        refreshScheduling()
         journal = Journal(package: package.lastPathComponent, title: value.title, progress: WarmupProgress(stage: "Checking prepared package"))
         UIApplication.shared.isIdleTimerDisabled = true
         if keepAlive { background = UIApplication.shared.beginBackgroundTask(withName: "Warm up game") { value.expiry.cancel(); value.token.cancel() } }
@@ -177,8 +208,10 @@ final class WarmupCancellation: @unchecked Sendable {
         var failure: Error?, checked = verified
         do {
             if !verified { _ = try PreparedPackage.verify(root: context.package, cancelled: { context.token.cancelled }); checked = true }
+            let trial = SatchelWarmupTrial(arguments: ProcessInfo.processInfo.arguments)
             _ = try WarmupRunner.run(package: context.package, runtime: context.runtime,
-                cancelled: { context.token.cancelled }) { progress in
+                cancelled: { context.token.cancelled }, captureDirectory: context.capture, execution: { context.scheduling.get() }) { progress in
+                    if let limit = trial.records, progress.phase == 1, progress.completed >= limit { context.token.cancel() }
                     system?(progress)
                     DispatchQueue.main.async { shared.receive(progress, for: context) }
                 }
