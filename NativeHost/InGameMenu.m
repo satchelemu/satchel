@@ -19,7 +19,8 @@ static _Atomic float volume = 1;
 static NSString *state = @"running";
 static CGFloat touchSize = 1, touchOpacity = 1;
 static BOOL showFPS = YES, thermalLimited;
-static UILabel *thermalView;
+static UILabel *thermalView, *pipelineView;
+extern uint64_t satchel_pipeline_skipped_draws(void) __attribute__((weak_import));
 int nvn_thermal_limited(void);
 static NSString *thermalMessage(void) { return thermalLimited ? @"Phone is warm: limited to 30 FPS to cool down" : @""; }
 static NSUInteger generation;
@@ -288,6 +289,10 @@ static void redraw(void) {
     SatchelMenuLayout(); highlight();
 }
 static void pollControllers(void) {
+    pipelineView.hidden = !showFPS || !surfaceAttached || ![NSUserDefaults.standardUserDefaults boolForKey:@"SatchelDeveloperControls"];
+    uint64_t skipped = satchel_pipeline_skipped_draws ? satchel_pipeline_skipped_draws() : 0;
+    pipelineView.text = [NSString stringWithFormat:@"Skipped: %llu / frame", (unsigned long long)skipped];
+    pipelineView.frame = CGRectMake(fpsView.frame.origin.x, CGRectGetMaxY(fpsView.frame) + 3, 175, 22);
     BOOL limited = nvn_thermal_limited() != 0;
     if (limited != thermalLimited) {
         thermalLimited = limited;
@@ -336,6 +341,14 @@ void SatchelMenuLayout(void) {
 }
 void SatchelMenuInstall(UIView *root, UIView *pad, UILabel *fps) {
     rootView = root; padView = pad; fpsView = fps;
+    [pipelineView removeFromSuperview];
+    pipelineView = [UILabel new];
+    pipelineView.textColor = UIColor.whiteColor;
+    pipelineView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.45];
+    pipelineView.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightSemibold];
+    pipelineView.accessibilityIdentifier = @"pipeline-skipped-draws";
+    pipelineView.hidden = YES;
+    if (fps) [root addSubview:pipelineView];
     thermalView = [UILabel new]; thermalView.text = @"🌡30";
     thermalView.textColor = UIColor.systemOrangeColor;
     thermalView.font = [UIFont systemFontOfSize:12 weight:UIFontWeightSemibold];

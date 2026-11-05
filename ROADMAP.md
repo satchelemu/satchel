@@ -15,7 +15,7 @@ with no computer involved.
 | Import (XCI, XCZ, NSP, NSZ, split dumps, updates, DLC, artwork) | 90% | Works for the four tested games. Compressed PartitionFS, newer encryption layouts and some bucket tree layouts still fail explicitly. |
 | Prepare on the phone (compose, RomFS image, ARM64 rewrite, dylib, sign) | 88% | Byte-identical to the Mac pipeline for Zelda; runs end to end as a background task. After a clean reinstall on 2026-11-04, Zelda, Odyssey and Castlevania were all prepared on the phone with no Mac step and each booted from its phone-made package. Speed (the 17 GB file is read more than once) and plain progress for every step are open. |
 | Code signing on the phone | 90% | Works with the user's Apple Development identity. The app derives the accepted team from its own signature, so any developer account works; verified so far only with the maintainer's. |
-| Shaders on the phone (translate, compile, cache) | 70% | All of Zelda's 71,621 shaders translate and compile on the phone; first use is cached per game. Builds still happen on the frame thread in places, so first play stutters. The optional warm-up for a phone-prepared game translates every shader on the phone and is slow (about 1.5 seconds per shader for Odyssey's 25,316, so many hours); play is available while it runs. Geometry and tessellation stages are not translated. |
+| Shaders on the phone (translate, compile, cache) | 70% | All of Zelda's 71,621 shaders translate and compile on the phone; first use is cached per game. Required first-use translation, library and pipeline waits still stall frames; an opt-in async pipeline experiment uses equivalent ready fallbacks, with fixed-request translation and synthetic pixel parity verified against main on the Mac. All three titles pass cold/warm Mac opening routes in exact and async; phone hitch validation remains open. The optional warm-up for a phone-prepared game translates every shader on the phone and is slow (about 1.5 seconds per shader for Odyssey's 25,316, so many hours); play is available while it runs. Geometry and tessellation stages are not translated. |
 | Horizon services | 60% | Eight IPC rounds plus a measured SDK file-flush correction from NX2Apple and Ryujinx (fs, hid, time, settings, account, applet, audio, parental control, friends, network stubs, play reports, DLC). Each new game reports what it still misses; all three phone-prepared games reported none on 2026-11-04. |
 | Graphics (NVN on Metal) | 65% | Zelda, Odyssey, Castlevania and Mario Kart render correctly. Zelda at 100% render scale does not hold 30 FPS yet; anti-aliasing at low render scale is rough. Opt-in Mac pass attribution is validated; no new full-resolution speedup is established. |
 | Performance and stability | 65% | Two hour Zelda session without a crash. Mac 30-minute Castlevania and retained-cache Zelda runs pass zero-leak checks. Nine same-process visits across the three titles on main cd6fbf9 show no launch hang or stop timeout. On the phone (2026-11-04), one app process played Castlevania, Odyssey and Zelda twice each through the menu's Quit and relaunch: six of six visits ended cleanly, each stop took 0.15 to 0.32 seconds, and memory at Quit was no higher in the second round. Memory growth within long play remains open. |
@@ -49,7 +49,12 @@ pull request. Open an issue first if you want to claim one.
    report what broke.
 3. **Asynchronous pipeline builds.** New shaders should compile off the frame thread
    with a bounded pause, so first play does not stall. The `shader-stalls` work is the
-   starting point.
+   starting point. An opt-in `async` mode now shares a 4 ms optional wait budget
+   across the frame and uses equivalent ready fallbacks. Translation, library
+   loading, descriptor resolution and required pipeline waits remain, so the full
+   bounded-first-use goal is open. A second opt-in `skip` mode can omit only a
+   terminal draw in the current submission, with a per-frame developer counter and per-title setting.
+   It trades possible visible artifacts for fewer waits and needs phone validation.
 4. **Missing services.** Pick a game, read its `missing-services.json`, and port the
    commands from Ryujinx 1.3.3 (`src/Ryujinx.HLE`, `src/Ryujinx.Horizon`, MIT) into
    `NativeHost/services`, keeping the MIT notice. No GPL code.

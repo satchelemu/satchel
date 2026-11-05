@@ -73,7 +73,11 @@ ZIPs, not arbitrary emulator archives. See [the test guide](docs/testing.md).
   its own team at run time, but only the maintainer's account has been tried.
 - First play of a game stutters while shaders are translated and compiled on the phone.
   Translation and caching happen in the background, but a brand new shader still costs a
-  frame.
+  frame. The optional async pipeline mode uses equivalent ready fallbacks and a
+  4 ms optional wait budget. Required first-use work can still exceed that budget.
+  Experimental skip mode can omit a final draw while its pipeline builds, with
+  visible artifacts possible. Game settings save the mode per title for the next
+  launch; exact stays the default. See [graphics notes](NativeHost/graphics/README.md).
 - No cheats, no multiplayer, no App Store release (and none planned).
 - The phone's hardware matters. The app requests the increased memory limit and extended
   virtual addressing entitlements; those capabilities, the free developer account limits

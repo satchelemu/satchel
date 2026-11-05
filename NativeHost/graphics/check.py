@@ -17,6 +17,8 @@ runpy.run_path(str(Path(__file__).with_name('overlay.py')))['prepare'](a.engine 
 shutil.copyfile(a.output / 'overlay/nvn_mtl.m', nvn / 'nvn_mtl.m')
 shutil.copyfile(a.output / 'overlay/ShaderMetrics.inc', nvn / 'ShaderMetrics.inc')
 shutil.copyfile(a.output / 'overlay/ShaderBuildQueue.inc', nvn / 'ShaderBuildQueue.inc')
+shutil.copyfile(a.output / 'overlay/AsyncPipelines.inc', nvn / 'AsyncPipelines.inc')
+shutil.copyfile(a.output / 'overlay/SkipPipelines.inc', nvn / 'SkipPipelines.inc')
 tests = engine / 'dm/gfx/tests'
 source = '#define main original_main\n' + (a.engine / 'dm/gfx/tests/t_pso_warm.m').read_text() + '\n#undef main\n'
 source += r'''
@@ -82,9 +84,10 @@ queue += r'''int main(void) { @autoreleasepool {
 } }
 '''
 (tests / 't_satchel_shader_queue.m').write_text(queue)
+(tests / 't_satchel_async_pixels.m').write_text('#define main original_main\n' + (a.engine / 'dm/gfx/tests/t_pso_warm.m').read_text() + '\n' + Path(__file__).with_name('async-pixels-test.inc').read_text())
 (tests / 'satchel.mk').write_text('include Makefile\n' + ''.join(
     name + ': ' + name + '.m $(MTL_T_DEP)\n\tclang $(CFLAGS) -fobjc-arc -o $@ ' + name + '.m $(MTL_T_SRC) $(FW)\n'
-    for name in ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_satchel_shader_queue']))
+    for name in ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']))
 tools = Path.home() / 'SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 env = runpy.run_path(str(root / 'scripts/switch_native.py'))['tool_environment'](tools)
 import json
@@ -94,7 +97,7 @@ env.update(SATCHEL_METAL_TOOLCHAIN=json.loads((Path.home() / 'SatchelBuild/zelda
            TMPDIR=str(a.output / 'tmp'), PYTHONDONTWRITEBYTECODE='1', MAKEFLAGS='-j2')
 Path(env['TMPDIR']).mkdir(exist_ok=True)
 # Keep upstream test fixtures in this task's scratch directory.
-for name in ['t_pso_pending.m', 't_pso_archive.m', 't_pso_warm.m', 't_pull.m', 't_pso_stall.m']:
+for name in ['t_pso_pending.m', 't_pso_archive.m', 't_pso_warm.m', 't_pull.m', 't_pull_inv.m', 't_pso_stall.m']:
     f = tests / name
     f.write_text((a.engine / 'dm/gfx/tests' / name).read_text().replace('/tmp/', env['TMPDIR'] + '/'))
 # Demand now joins a worker instead of invoking Metal on the submitter. Retain
@@ -116,7 +119,8 @@ for before, after in replacements.items():
     assert text.count(before) == 1, before
     text = text.replace(before, after)
 pending.write_text(text)
-targets = ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_pso_pending', 't_pso_archive', 't_pso_warm', 't_pull', 't_pso_stall', 't_satchel_shader_queue']
+(tests / 't_satchel_async.m').write_text('#define main original_main\n' + pending.read_text() + '\n' + Path(__file__).with_name('async-test.inc').read_text())
+targets = ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_pso_pending', 't_pso_archive', 't_pso_warm', 't_pull', 't_pull_inv', 't_pso_stall', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']
 # Both prerequisites resolve the same profile symlink, so prepare them serially.
 subprocess.run(['make', '-j1', 'game_profile', 'host_msl'], cwd=engine / 'dm/host', env=env, check=True)
 subprocess.run(['make', '-j2', '-f', 'satchel.mk', *targets], cwd=tests, env=env, check=True)
@@ -146,7 +150,7 @@ subprocess.run([executable('t_satchel_archive_live')], cwd=tests, env=dict(env, 
 for mode in ['0', '1']:
     for test in ['t_satchel_seed', 't_pso_warm']:
         subprocess.run([executable(test)], cwd=tests, env=dict(env, MTL_DEBUG_LAYER='1', DM_PSO_MTL4=mode), check=True)
-for test in ['t_pso_pending', 't_pull', 't_pso_stall', 't_satchel_shader_queue']:
+for test in ['t_pso_pending', 't_pull', 't_pull_inv', 't_pso_stall', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']:
     subprocess.run([executable(test)], cwd=tests, env=dict(env, MTL_DEBUG_LAYER='1'), check=True)
 # Run both commands from check_t_pso_archive with the recognized executable name.
 archive = executable('t_pso_archive')
