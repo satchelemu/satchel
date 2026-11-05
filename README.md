@@ -67,6 +67,15 @@ save manager lists dated, sized backups, keeps the newest three, restores with
 confirmation and exports through the share sheet. Import accepts title-bound Satchel
 ZIPs, not arbitrary emulator archives. See [the test guide](docs/testing.md).
 
+Also built and awaiting hardware validation: per-title rumble strength (0 to 300%) and
+controller rumble cutoff, on the game page and live in the pause menu; optional iCloud save
+sync through a folder you choose in Settings > Storage (one file per game, synced at start,
+after saves, on background and at Quit, with the replaced save kept on the phone); and the
+game view following the shape of the picture a game presents. The iPhone Duo picture shape
+(1.43:1) needs per-game patches that none of the tested games has, so it stays off and
+hidden. Phone motion (gyro) is on for every game. TV output through a cable or AirPlay is
+wired to the engine but only offered with Developer controls until it is checked.
+
 Native import format limits, Prepare read measurements and synthetic coverage are
 documented in [the importer validation guide](docs/importer-validation.md). These Mac
 checks do not add phone compatibility claims.

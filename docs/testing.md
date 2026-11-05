@@ -79,7 +79,8 @@ are retained. `Tests/Saves/run.py` checks the production archive/store over synt
 including wrong-title rejection, corruption, atomic restore and bounded three-backup rotation.
 
 Simulator journeys `testGameSettingsPersistResetAndBothLandscapes` and
-`testGameSettingsShareMenuValues` cover all five settings, background/relaunch persistence,
+`testGameSettingsShareMenuValues` cover all seven visible settings (including rumble
+strength and rumble cutoff), background/relaunch persistence,
 reset, both landscape orientations and the page/menu shared screen setting. Save journeys
 cover archive export/import, restore confirmation and cancellation, dated backup rows,
 wrong titles, corrupt ZIPs, automatic backups on quit/background and paused-session gates.
@@ -89,14 +90,20 @@ cannot trap the user in the document picker.
 Other save journeys replace only document-provider selection with synthetic fixture URLs.
 They do not contact iCloud or prove a game can load restored progress.
 
-The existing menu exposes screen mode and haptics. Its reads now use the shared title store.
+The existing menu exposes screen mode, haptics, rumble strength and rumble cutoff. Its reads
+use the shared title store. Rumble strength (`DM_RUMBLE_GAIN`, 0 to 3) scales controller
+rumble and the phone's haptics; the cutoff (`DM_RUMBLE_MIN`, 0 to 0.9) silences a
+controller's weakest levels. Both retune a running engine at once
+(`satchel_haptics_tune`, `NativeHost/controllers/overlay.py`); `NativeHost/controllers/check.py`
+runs the retune against the pinned engine's fake haptics queue and
+`Tests/PlayerSettings/run.py` checks validation, launch environment and reset.
 FPS, render scale and pipeline selection are on the game page and take effect after Quit
 and a fresh launch. Adding these three selectors to the menu remains with the menu owner.
 The shared `SatchelQueuePlayerSetting` API is available for that integration.
 
 Phone follow-up for the orchestrator:
 
-1. On a game's page, change all five settings. Confirm global/title defaults and override
+1. On a game's page, change all seven settings. Confirm global/title defaults and override
    markers, close/reopen and restart the app, then reset each setting. A second title must
    keep its own settings. Check both landscape orientations and Duo postures.
 2. Launch, change screen/haptics in the menu, return to the page and confirm the same
@@ -106,7 +113,11 @@ Phone follow-up for the orchestrator:
 3. Export a known save using Save to Files in the share sheet. Quit the game, import that
    title's ZIP and check the game loads its progress. Cancel a backup restore, then confirm
    one; verify current data was backed up first. Dates and sizes must match the archives.
-4. Make four distinct saves with background/quit between them. Only the newest three
+4. Rumble: with a controller, set Rumble strength to 0%, 50% and 300% from the menu while
+   a game rumbles and feel the change at once; set a cutoff of 45% and check light rumble
+   stops while strong rumble remains. With touch controls, check the phone's haptics follow
+   the strength. Quit and relaunch: the title keeps its values, another title does not.
+5. Make four distinct saves with background/quit between them. Only the newest three
    backups remain. While paused, export/import/restore stay disabled. A wrong-title or
    corrupt ZIP must show an error and preserve the existing save. Arbitrary emulator ZIPs
    are unsupported; the imported archive needs Satchel's title-bound inventory.
@@ -164,6 +175,69 @@ Orchestrator hardware checks, in a separate authorized phone session:
 These checks need no game, keys, identity import or library changes. A separately
 provisioned experiment is needed for a same-device baseline with an entitlement absent;
 do not replace the user's app to manufacture it.
+
+### iCloud save sync
+
+Settings > Storage > iCloud save sync chooses one folder (usually in iCloud Drive) through
+the Files folder picker and keeps a security-scoped bookmark, or turns sync off. At each
+game start the bridge sets `DM_SAVE_SYNC` to the folder (or 0) and the pinned engine's
+`save_sync.c` keeps `<folder>/<title ID>/save.dmsync`: the cloud's copy comes in at the
+first save mount when it is the one to keep, the committed save goes out a few seconds
+after each Commit, on background and at Quit, and whichever save is replaced is kept in
+`NativeRuntime/<title ID>/save-backups/`. `App/GameSavePanel.swift` documents how this and
+the save manager share the save folder without writing it at the same time.
+
+```bash
+python3 -B NativeHost/session/check_save_sync.py
+```
+
+Session lifetime over a plain folder: off, send at stop, a same-process remount with
+another title, an in-step remount and a pull with the engine's backup. Simulator journeys
+`testCloudSaveFolderChooseRelaunchAndOff` (synthetic folder in place of the picker; real
+bookmark storage) and `testCloudSaveFolderPickerCancellation` (the real Files folder picker,
+cancelled) cover the setting. Nothing here contacts iCloud.
+
+Phone follow-up for the orchestrator (two devices or a reinstall with the same signature):
+
+1. Choose an iCloud Drive folder, play and save, Quit. The folder shows
+   `<title ID>/save.dmsync` within a minute; `host.log` has `save sync: sent`.
+2. Background the app right after a save and check the file updates.
+3. On a second device (or after deleting the local save), start the game: `host.log` has
+   `brought in the cloud's save` and the game loads that progress.
+4. Change the save on both sides, then start: the newer one is used and the other appears
+   in `save-backups/`. Import or restore a save on the game page, start the game and check
+   it is sent.
+5. Re-sign the app with another identity: Settings shows the choose-again note and games
+   start with sync off. Turn sync off and check no further sends.
+
+### iPhone Duo harness
+
+```bash
+SATCHEL_DUO_SIMULATOR=<private simulator udid> python3 -B Tests/Duo/run.py
+```
+
+XCTest over the production display layout with the posture test override: the
+half-folded split (picture above the fold, controls below), posture changes without a
+resize, both screens and odd heights, a camera beside either half, and the real scene in
+both landscape rotations. `Tests/Duo/test_orientation_policy.py` (also run by the driver)
+keeps every orientation declaration landscape only. See `Tests/Duo/README.md`. Synthetic:
+the hinge sensor, real touches and the renderer are not involved.
+
+Phone follow-up: on the Duo, play with the hinge half open in both landscape rotations,
+open and close it while playing, and check the picture stays on the top half, the controls
+on the bottom half, and no input sticks across a change.
+
+### Picture shape, motion and TV
+
+The game view follows the shape of the picture a game presents
+(`NativeHost/display/picture-shape.patch`); 16:9 games keep their layout. The Duo picture
+shape setting (`DM_SCREEN_ASPECT`) is hidden for every tested title (`PlayerProfiles.plist`
+`screenAspectTitles` is empty) and each launch gets 0; `NativeHost/display/check.m` covers the
+gate and the taller-picture geometry. Phone motion is on for every game (no `DM_MOTION`
+override): check a motion-aiming game turns with the phone on both Duo screens. External
+display (TV) output is routed to the engine only with Developer controls on: with them on,
+connect a cable or AirPlay TV during a game and check the picture moves there, the phone
+keeps the controls, and Quit and the pause menu still work.
 
 ## The Mac harness: run a game on the Mac
 

@@ -43,6 +43,12 @@ one-app scheme.
   and cancel; content selection for successful round trips uses the synthetic provider.
 - Simulator only: rumble is changed, saved by Play, and checked after process relaunch;
   a second title retains its own choice. Physical vibration is not measured.
+- Simulator only: rumble strength and cutoff on the game page and in the pause menu, read
+  and written through the shared title store, with reset.
+- Simulator only: iCloud save sync in Settings > Storage, off by default, a chosen
+  folder kept across background and relaunch in both landscapes, Turn off, and the real
+  Files folder picker opened and cancelled. The folder choice uses a synthetic folder;
+  nothing contacts iCloud.
 - Simulator only: split `.nsz.00/.01/.02` and `.xcz.00/.01/.02` imports must produce one
   container and deduplicate a second selection. These are positive requirements, not
   expected failures. The `.nsz.00` and `.xcz.00` names remain distinct requirements
