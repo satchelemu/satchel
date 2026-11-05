@@ -190,10 +190,9 @@ static BOOL inside(CGRect outer, CGRect inner) { return CGRectContainsRect(CGRec
     }
 }
 
-// The real scene: half folding a game turns it upright, with the picture on the top half and
-// the controls on the bottom half; opening or closing the phone turns it back to landscape,
-// in either landscape rotation. The Info.plist stays landscape only: the scene delegate's
-// answer (SatchelGameOrientationMask) is what allows the turn.
+// Half folded, the game plays upright: the scene stays landscape and the host turns the game's
+// window a quarter, upright-sized and still covering the whole scene. Open again, the window is
+// plain. Checked from both landscape rotations.
 - (void)testHalfFoldedGameTurnsUprightAndBackToLandscape {
     UIWindow *window = keyWindow(); UIWindowScene *scene = window.windowScene;
     for (NSNumber *mask in @[@(UIInterfaceOrientationMaskLandscapeRight), @(UIInterfaceOrientationMaskLandscapeLeft)]) {
@@ -204,25 +203,40 @@ static BOOL inside(CGRect outer, CGRect inner) { return CGRectContainsRect(CGRec
         // case may have left the scene turning), so wait for both.
         for (int i = 0; i < 80 && (scene.effectiveGeometry.interfaceOrientation != want || window.bounds.size.width <= window.bounds.size.height); i++) spin(0.05);
         XCTAssertEqual(scene.effectiveGeometry.interfaceOrientation, want);
+        CGRect whole = scene.effectiveGeometry.coordinateSpace.bounds;
         [self layout:window.bounds.size];
         XCTAssertGreaterThan(_root.bounds.size.width, _root.bounds.size.height, @"open: landscape");
-        XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+        XCTAssertFalse(SatchelGameIsUpright());
+        XCTAssertTrue(CGAffineTransformIsIdentity(window.transform));
 
         posture("half");
-        XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown);
-        for (int i = 0; i < 80 && (!UIInterfaceOrientationIsPortrait(scene.effectiveGeometry.interfaceOrientation) || window.bounds.size.height <= window.bounds.size.width); i++) spin(0.05);
-        XCTAssertTrue(UIInterfaceOrientationIsPortrait(scene.effectiveGeometry.interfaceOrientation), @"half folded from rotation %ld: the scene turns upright", (long)want);
+        XCTAssertTrue(SatchelGameIsUpright(), @"half folded from rotation %ld: the game turns upright", (long)want);
+        XCTAssertEqual(scene.effectiveGeometry.interfaceOrientation, want, @"the scene itself stays landscape");
+        // The phone's top edge up: a quarter clockwise from landscape left, counterclockwise from landscape right.
+        CGFloat turn = atan2(window.transform.b, window.transform.a);
+        XCTAssertEqualWithAccuracy(turn, want == UIInterfaceOrientationLandscapeLeft ? M_PI_2 : -M_PI_2, 0.001);
+        assertRectNear(window.bounds, CGRectMake(0, 0, whole.size.height, whole.size.width), @"upright window size");
+        assertRectNear(window.frame, whole, @"the turned window still covers the whole scene");
         [self layout:window.bounds.size];
         XCTAssertGreaterThan(_root.bounds.size.height, _root.bounds.size.width, @"upright");
         XCTAssertTrue(inside(self.topHalf, _game.frame), @"picture %@ on the top half", NSStringFromCGRect(_game.frame));
         XCTAssertEqualWithAccuracy(_game.frame.size.width, _root.bounds.size.width, kTolerance, @"the picture takes the half's full width");
         for (NSString *key in @[@"faceCenter", @"stickHome", @"dpadCenter"])
             XCTAssertTrue(CGRectContainsPoint(self.bottomHalf, [self pad:key]), @"%@ on the bottom half", key);
+        // A point on the upright top half lands on one side of the fold on the landscape screen.
+        CGPoint top = [window convertPoint:CGPointMake(CGRectGetMidX(window.bounds), 10) toCoordinateSpace:scene.effectiveGeometry.coordinateSpace];
+        CGPoint bottom = [window convertPoint:CGPointMake(CGRectGetMidX(window.bounds), CGRectGetMaxY(window.bounds) - 10) toCoordinateSpace:scene.effectiveGeometry.coordinateSpace];
+        XCTAssertEqualWithAccuracy(top.y, CGRectGetMidY(whole), 1); XCTAssertEqualWithAccuracy(bottom.y, CGRectGetMidY(whole), 1);
+        XCTAssertGreaterThan((top.x - CGRectGetMidX(whole)) * (CGRectGetMidX(whole) - bottom.x), 0, @"top %@ and bottom %@ on opposite sides of the fold", NSStringFromCGPoint(top), NSStringFromCGPoint(bottom));
+        XCTAssertEqual(top.x < CGRectGetMidX(whole), want == UIInterfaceOrientationLandscapeRight, @"which side of the landscape screen is the upright top");
+        spin(0.6);   // UIKit and the 250 ms tick leave the turn in place
+        XCTAssertEqualWithAccuracy(atan2(window.transform.b, window.transform.a), turn, 0.001);
+        assertRectNear(window.frame, whole, @"still covering the scene");
 
         posture("open");
-        XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
-        for (int i = 0; i < 80 && (!UIInterfaceOrientationIsLandscape(scene.effectiveGeometry.interfaceOrientation) || window.bounds.size.width <= window.bounds.size.height); i++) spin(0.05);
-        XCTAssertTrue(UIInterfaceOrientationIsLandscape(scene.effectiveGeometry.interfaceOrientation), @"open again: back to landscape");
+        XCTAssertFalse(SatchelGameIsUpright(), @"open again: back to landscape");
+        XCTAssertTrue(CGAffineTransformIsIdentity(window.transform));
+        assertRectNear(window.frame, whole, @"plain window");
         [self layout:window.bounds.size];
         assertRectNear(_game.frame, SatchelPictureRect(_root.bounds, 0), @"open picture after the turn");
     }
@@ -230,16 +244,22 @@ static BOOL inside(CGRect outer, CGRect inner) { return CGRectContainsRect(CGRec
 
 // Only a game on screen turns: the library over a paused game and an emulated screen stay landscape.
 - (void)testOnlyAGameOnScreenTurnsUpright {
+    UIWindow *window = keyWindow();
     posture("half");
-    XCTAssertNotEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+    XCTAssertTrue(SatchelGameIsUpright());
+    XCTAssertFalse(CGAffineTransformIsIdentity(window.transform));
     [_root removeFromSuperview]; SatchelDisplayDidLayout();
-    XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape, @"no game surface in a window");
-    [keyWindow().rootViewController.view addSubview:_root]; SatchelDisplayDidLayout();
-    XCTAssertNotEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+    XCTAssertFalse(SatchelGameIsUpright(), @"no game surface in a window");
+    XCTAssertTrue(CGAffineTransformIsIdentity(window.transform), @"the window is plain again");
+    XCTAssertGreaterThan(window.bounds.size.width, window.bounds.size.height);
+    [window.rootViewController.view addSubview:_root]; SatchelDisplayDidLayout();
+    XCTAssertTrue(SatchelGameIsUpright());
     SatchelGameOrientationFollowsPosture(NO);
-    XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape, @"a fixture that draws its own screen");
+    XCTAssertFalse(SatchelGameIsUpright(), @"a fixture that draws its own screen");
+    XCTAssertTrue(CGAffineTransformIsIdentity(window.transform));
     SatchelGameOrientationFollowsPosture(YES);
     posture("closed");
-    XCTAssertEqual(SatchelGameOrientationMask(), UIInterfaceOrientationMaskLandscape);
+    XCTAssertFalse(SatchelGameIsUpright());
+    XCTAssertTrue(CGAffineTransformIsIdentity(window.transform));
 }
 @end

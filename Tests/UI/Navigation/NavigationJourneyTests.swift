@@ -2189,39 +2189,48 @@ final class NavigationJourneyTests: XCTestCase {
     }
 
     /// Menu > Library leaves a card on the home header; Play reads Resume for that game.
-    /// The real scene, through the app's own orientation code: a half-folded game turns
-    /// upright with the picture on the top half and the controls on the bottom half, the pause
-    /// menu stays upright, the library returns to landscape, and so does opening the phone.
+    /// The real window: a half-folded game is turned a quarter inside the landscape scene, so
+    /// on the landscape screen the picture fills one side of the fold and the controls the other.
+    /// The pause menu stays with the controls, the library is plain landscape again, and so is
+    /// an opened phone. Taps go through the turned window.
     func testHalfFoldedGameTurnsUprightAndLibraryReturnsToLandscape() throws {
         try startSessionFixture()
-        let window = app.windows.firstMatch
+        let screen = app.windows.firstMatch.frame
+        func picture() -> CGRect { app.images["fixture-picture"].frame }
         func turned(upright: Bool, _ what: String) {
             let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                upright ? window.frame.height > window.frame.width : window.frame.width > window.frame.height
+                let frame = picture()
+                return frame.width > 0 && (upright ? frame.height > frame.width : frame.width > frame.height)
             }, object: nil)
-            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 8), .completed, what + ": window \(window.frame)")
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 8), .completed, what + ": picture \(picture())")
         }
         turned(upright: false, "A game on an open phone is landscape")
         try tap("fixture.fold-half")
         turned(upright: true, "A half-folded game turns upright")
-        let picture = app.images["fixture-picture"].frame
-        XCTAssertLessThanOrEqual(picture.maxY, window.frame.midY + 1, "The picture stays on the top half")
-        XCTAssertEqual(picture.width / picture.height, 16 / 9.0, accuracy: 0.01, "Fit must not stretch the frame")
-        XCTAssertEqual(picture.width, window.frame.width, accuracy: 1, "The picture takes the half's full width")
-        XCTAssertGreaterThanOrEqual(try button("game.pause").frame.minY, window.frame.midY - 1, "The controls are on the bottom half")
+        let shown = picture()
+        let pictureFirst = shown.midX < screen.midX
+        func onPictureSide(_ frame: CGRect) -> Bool { pictureFirst ? frame.maxX <= screen.midX + 1 : frame.minX >= screen.midX - 1 }
+        func onControlSide(_ frame: CGRect) -> Bool { pictureFirst ? frame.minX >= screen.midX - 1 : frame.maxX <= screen.midX + 1 }
+        XCTAssertTrue(onPictureSide(shown), "The picture stays on one side of the fold: \(shown) on \(screen)")
+        XCTAssertEqual(shown.height / shown.width, 16 / 9.0, accuracy: 0.01, "Fit must not stretch the frame")
+        XCTAssertEqual(shown.height, screen.height, accuracy: 1, "The picture takes the half's full width")
+        XCTAssertEqual(app.windows.firstMatch.frame.width, screen.width, accuracy: 1, "The turned window still covers the screen")
+        XCTAssertTrue(onControlSide(try button("game.pause").frame), "The controls are on the other side of the fold")
         try tap("game.pause")
         let menu = app.scrollViews.containing(.button, identifier: "menu-library").firstMatch
         let library = try button("menu-library", scroll: menu)
         turned(upright: true, "The pause menu stays upright")
-        XCTAssertGreaterThan(library.frame.minY, picture.maxY, "Menu actions are below the game")
+        XCTAssertTrue(onControlSide(library.frame), "Menu actions are beside the game, on the controls' half: \(library.frame)")
         library.tap()
         _ = try button("import-homebrew")
-        turned(upright: false, "The library over a paused game is landscape")
-        try tap("paused-game-card")
+        let card = try button("paused-game-card")
+        XCTAssertGreaterThan(card.frame.width, card.frame.height, "The library over a paused game is plain landscape: card \(card.frame)")
+        card.tap()
         turned(upright: true, "Returning to the half-folded game turns upright again")
         try tap("menu-resume", scroll: app.scrollViews.containing(.button, identifier: "menu-resume").firstMatch)
         try tap("fixture.fold-open")
         turned(upright: false, "Opening the phone returns the game to landscape")
+        XCTAssertEqual(picture().width / picture().height, 16 / 9.0, accuracy: 0.01)
         _ = try button("game.pause")
         sessionState("started=1 paused=0")
     }

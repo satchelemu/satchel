@@ -156,7 +156,7 @@ UIView *dm_gamepad_view(CGRect frame);
             int satchel_display_command(const char *); satchel_display_command("quit");
         }] forControlEvents:UIControlEventTouchUpInside];
         [self.view addSubview:remote];
-        // Half fold and open again on the real scene (the host's posture test override), for
+        // Half fold and open again in the real window (the host's posture test override), for
         // the journey that follows the game upright and back.
         NSArray *folds = @[@[@"Synthetic half fold", @"fixture.fold-half", @"posture half"], @[@"Synthetic open", @"fixture.fold-open", @"posture open"]];
         for (NSUInteger i = 0; i < folds.count; i++) {
@@ -204,7 +204,7 @@ UIView *dm_gamepad_view(CGRect frame);
     self.view.backgroundColor = UIColor.blackColor;
     self.fold = [NSUserDefaults.standardUserDefaults stringForKey:@"SatchelPreviewFold"] ?: @"front";
     // The inner screen is drawn inside the real window (tall is the upright half-folded game),
-    // so the real scene stays landscape. Tests/Duo turns a real scene upright.
+    // so the real window stays plain. Tests/Duo turns a real window upright.
     SatchelGameOrientationFollowsPosture(NO);
     self.surface = [PreviewGameController new];
     [self addChildViewController:self.surface]; [self.view addSubview:self.surface.view];

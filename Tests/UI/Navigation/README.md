@@ -24,9 +24,10 @@ the real picker must appear, dismiss and reopen, including after background/retu
 - Home content, search, sort, Add, prepared-only shelves with zero imported records,
   cached artwork, retained records after original removal and empty-library entry points.
 - Both landscape rotations and portrait requests while home and Settings remain landscape.
-- A half-folded game on the real scene turns upright (picture on the top half, controls and
-  pause menu on the bottom half); the library over the paused game and an opened phone
-  return to landscape (`testHalfFoldedGameTurnsUprightAndLibraryReturnsToLandscape`).
+- A half-folded game in the real window is turned a quarter inside the landscape scene
+  (picture on one side of the fold, controls and pause menu on the other, taps through the
+  turned window); the library over the paused game and an opened phone are plain landscape
+  again (`testHalfFoldedGameTurnsUprightAndLibraryReturnsToLandscape`).
 - Simulator only: Device check opens in both landscape orientations, refreshes and
   survives background/return. Synthetic present, missing and unknown entitlements
   have distinct labels. Copy report is read from the real clipboard and checked with

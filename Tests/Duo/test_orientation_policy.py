@@ -49,24 +49,25 @@ class OrientationPolicy(unittest.TestCase):
                     checked += 1
         self.assertGreaterEqual(checked, 3, 'the app and both preview projects declare their orientations')
 
-    def test_runtime_rule(self):
-        # GameOrientation.swift and the pause menu name no orientation of their own beyond
-        # landscape: they repeat the host's answer.
+    def test_runtime_lock(self):
+        # GameOrientation.swift: the scene lock and every controller's mask stay landscape.
         source = (ROOT / 'App/GameOrientation.swift').read_text()
-        self.assertIn('return SatchelGameOrientationMask()', source)
+        self.assertRegex(source, r'static let supportedMask: UIInterfaceOrientationMask = \.landscape\n')
         self.assertNotRegex(source, r'\.portrait|\.allButUpsideDown|\.all\b')
-        menu = (ROOT / 'NativeHost/SatchelMenuSession.swift').read_text()
-        self.assertIn('supportedInterfaceOrientations: UIInterfaceOrientationMask { SatchelGameOrientationMask() }', menu)
-        self.assertNotRegex(menu, r'\.portrait|\.allButUpsideDown|\.all\b')
-        # The host's rule: upright only for a game on screen while half folded, else landscape.
-        host = (ROOT / 'NativeHost/DisplayControls.m').read_text()
-        self.assertEqual(host.count('UIInterfaceOrientationMaskPortrait'), 2, 'one upright answer, both ways up')
-        self.assertRegex(host, r'return gameUpright \? UIInterfaceOrientationMaskPortrait \| UIInterfaceOrientationMaskPortraitUpsideDown : UIInterfaceOrientationMaskLandscape;')
-        self.assertRegex(host, r'BOOL upright = orientationFollowsPosture && onScreen && effectivePosture\(\) == 2;')
+        # No app or host source asks the system for an upright scene: a half-folded game is
+        # turned by the host inside the landscape scene (DisplayControls.h).
         for name in ['App', 'NativeHost']:
             for path in sorted((ROOT / name).rglob('*')):
-                if path.suffix in {'.swift', '.m', '.h'} and path.name != 'DisplayControls.m':
-                    self.assertNotRegex(path.read_text(errors='replace'), r'UIInterfaceOrientationMaskPortrait|UIInterfaceOrientationMask(\.|\()?\.?portrait\b|: \.portrait\b|\.allButUpsideDown', str(path))
+                if path.suffix in {'.swift', '.m', '.h'}:
+                    self.assertNotRegex(path.read_text(errors='replace'), r'UIInterfaceOrientationMaskPortrait|UIInterfaceOrientationMaskAll|: \.portrait\b|\.allButUpsideDown', str(path))
+
+    def test_upright_rule(self):
+        # The host's rule: upright only for a game on screen while half folded, and the turn is
+        # a quarter turn of the game's window, never a request to the system.
+        host = (ROOT / 'NativeHost/DisplayControls.m').read_text()
+        self.assertRegex(host, r'BOOL upright = orientationFollowsPosture && onScreen && effectivePosture\(\) == 2;')
+        self.assertEqual(host.count('CGAffineTransformMakeRotation('), 1, 'one place turns the window')
+        self.assertNotIn('requestGeometryUpdateWithPreferences', host)
 
     def test_native_fixtures(self):
         for name in ['NativeHost/display/simulator.py', 'Tests/Duo/run.py']:

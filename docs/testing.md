@@ -148,11 +148,13 @@ is the 669 by 951 point inner viewport with the fold across it, drawn inside the
 landscape simulator window. These are scaled layout previews, not hinge events.
 
 A half-folded game plays upright: the hinge crosses the long side of the inner screen, so
-the scene turns to portrait while a game is on screen and the hinge is partly open, and back
-to landscape when the phone is opened or closed, the session ends or the library is shown.
-`testHalfFoldedGameTurnsUprightAndLibraryReturnsToLandscape` follows that turn on the real
-simulator scene through the app's own orientation code. The emulated `book` and `tall`
-viewports below keep the real scene in landscape; `tall` is the layout the phone shows.
+the host turns the game's window a quarter inside the landscape scene while a game is on
+screen and the hinge is partly open, and restores the plain window when the phone is opened
+or closed, the session ends or the library is shown. The scene itself never turns: on the
+phone iOS fits a portrait scene into the landscape screen as a small window.
+`testHalfFoldedGameTurnsUprightAndLibraryReturnsToLandscape` follows that turn in the real
+simulator window, taps included. The emulated `book` and `tall` viewports below keep the
+real window plain; `tall` is the layout the phone shows.
 
 The posture journeys open the library, game page, Settings and native pause menu in
 all four layouts. The half-fold game uses the top half and the menu actions use the
@@ -210,7 +212,11 @@ Orchestrator phone steps, in a separately authorized hardware session:
    menu: the picture stays above and Resume, Library and settings are below and scrollable.
    Choose Library: the app returns to landscape. Resume: the game turns upright again. Open
    the phone flat: the game returns to landscape. `host.log` records each change as
-   `Satchel orientation:`.
+   `Satchel orientation:`, and the `Satchel posture:` line shows the upright size, the turn
+   and the direction the phone reports (`points=669x951 turn=clockwise device=1`). A capture
+   of the inner screen from the Mac shows the result:
+   `xcrun devicectl device capture screenshot --device <udid> --display-unique-id <inner display id> --destination shot.png`
+   (the ids are listed by `xcrun devicectl device info displays`).
    Change posture with the menu open, close it and verify the same game resumes. Repeat
    background/return during a running and a paused session.
 6. Check hinge records privately for `source=UIKit` and the correct posture, rather than
@@ -315,10 +321,10 @@ SATCHEL_DUO_SIMULATOR=<private simulator udid> python3 -B Tests/Duo/run.py
 
 XCTest over the production display layout with the posture test override: the
 half-folded split (picture above the fold, controls below), posture changes without a
-resize, both screens and odd heights, a camera beside either half, and the real scene
-turning upright for a half-folded game and back to landscape, from both landscape
+resize, both screens and odd heights, a camera beside either half, and the real window
+turning a quarter for a half-folded game and back to plain, from both landscape
 rotations. `Tests/Duo/test_orientation_policy.py` (also run by the driver) keeps every
-declaration landscape only and the one upright answer in `NativeHost/DisplayControls.m`. See `Tests/Duo/README.md`. Synthetic:
+declaration landscape only, with no request for an upright scene, and the one upright rule in `NativeHost/DisplayControls.m`. See `Tests/Duo/README.md`. Synthetic:
 the hinge sensor, real touches and the renderer are not involved.
 
 Phone follow-up: on the Duo, half fold the phone while playing, starting from both landscape

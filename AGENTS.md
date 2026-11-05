@@ -63,7 +63,10 @@ is provided by the rename. Keep third-party notices and `Validation/history` int
   (`com.dell.satchel.<name>`) so the installed app and its library stay untouched.
 - Keep the UI landscape-locked, with one exception the maintainer asked for (2026-11-05): a
   game on a half-folded Duo plays upright, picture on the top half and controls on the
-  bottom half (`NativeHost/DisplayControls.h`). Preserve the existing library and imported files.
+  bottom half. The scene and every declaration stay landscape: the host turns the game's
+  window a quarter itself (`NativeHost/DisplayControls.h`). Do not ask iOS for a portrait
+  scene; on the phone that gives a small upright window inside the landscape screen.
+  Preserve the existing library and imported files.
 
 ## Reporting
 

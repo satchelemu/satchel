@@ -66,12 +66,7 @@ void mtl_grab_next_present(void (^callback)(CGImageRef)) {
     self.window.rootViewController = [UIViewController new];
     self.window.rootViewController.view.backgroundColor = UIColor.blackColor;
     [self.window makeKeyAndVisible];
-    // As App/GameOrientation.swift does: the scene follows the host's orientation rule.
-    __weak UIWindowScene *weakScene = (UIWindowScene *)scene;
-    [NSNotificationCenter.defaultCenter addObserverForName:SatchelGameOrientationDidChange object:nil queue:NSOperationQueue.mainQueue
-                                                usingBlock:^(NSNotification *note) { SatchelFollowGameOrientation(weakScene); }];
 }
-- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene *)windowScene { return SatchelGameOrientationMask(); }
 @end
 @interface DuoHarnessApp : UIResponder <UIApplicationDelegate>
 @end
@@ -81,7 +76,6 @@ void mtl_grab_next_present(void (^callback)(CGImageRef)) {
     setenv("DM_MOTION", "0", 1);
     return YES;
 }
-- (UIInterfaceOrientationMask)application:(UIApplication *)application supportedInterfaceOrientationsForWindow:(UIWindow *)window { return SatchelGameOrientationMask(); }
 - (UISceneConfiguration *)application:(UIApplication *)application configurationForConnectingSceneSession:(UISceneSession *)session options:(UISceneConnectionOptions *)options {
     UISceneConfiguration *config = [[UISceneConfiguration alloc] initWithName:@"Harness" sessionRole:session.role];
     config.delegateClass = DuoHarnessScene.class; return config;

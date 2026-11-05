@@ -164,8 +164,7 @@ enum SatchelMenu {
 final class MenuHostingController: UIHostingController<InGameMenuScreen> {
     override var prefersStatusBarHidden: Bool { false }
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
-    // Landscape, or upright with the game on a half-folded Duo (DisplayControls.h).
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { SatchelGameOrientationMask() }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
 }
 
 /// One process-scoped cycle, driven by the same prepared-game route as Play.

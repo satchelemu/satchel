@@ -128,9 +128,11 @@ rendering smaller. A manual frame setting may come back later.
   the edge on the other side: `display` second run (gamepad), `redesign` (app screens)
 - [~] Open (inner screen): full layout: `display`, `redesign`
 - [~] Half-folded: game on the top half, controls on the bottom half, like a handheld. The
-  hinge crosses the long side of the inner screen, so the game turns upright (portrait) while
-  half folded and back to landscape when opened, closed or sent to the library (user report
-  2026-11-05: the landscape split put both halves across the fold): `display`
+  hinge crosses the long side of the inner screen, so the game turns upright while half
+  folded and back to landscape when opened, closed or sent to the library (user report
+  2026-11-05: the landscape split put both halves across the fold). The app turns the game
+  itself and fills the screen; asking iOS for a portrait scene only gave a small upright
+  window inside the landscape screen (second user report, same day): `display`
 - [~] Switching between states while playing keeps the game running and relayouts at once:
   built with `UIHingeInteraction`; the phone reports the open posture correctly: `display`
 
