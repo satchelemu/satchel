@@ -173,6 +173,20 @@ def generate(mode, out):
             if row['path'] == str(ROOT / 'App'):
                 row.setdefault('excludes', []).append('GameSavePanel.swift')
         project['targets'][app]['sources'].append({'path': str(save_staged)})
+        # Substitute only the folder picker when the synthetic cloud-folder flag is set.
+        # Bookmark storage, resolution, state and the off switch stay production code.
+        cloud_source = ROOT / 'App/CloudSaveSyncPanel.swift'
+        cloud_original = cloud_source.read_text()
+        boundary = '        picking = true\n'
+        assert cloud_original.count(boundary) == 1
+        cloud_staged = out / 'CloudSaveSyncPanel.swift'
+        write_changed(cloud_staged, cloud_original.replace(boundary,
+            '        if let url = CloudSaveFixture.folder() { choose(url); return }\n' + boundary))
+        for row in project['targets'][app]['sources']:
+            if row['path'] == str(ROOT / 'App'):
+                row.setdefault('excludes', []).append('CloudSaveSyncPanel.swift')
+        project['targets'][app]['sources'].append({'path': str(cloud_staged)})
+        project['targets'][app]['sources'].append({'path': str(ROOT / 'Tests/UIPreview/CloudSaveFixture.swift')})
     if mode.startswith('sim-'):
         peer = 'NavigationBackground'
         project['targets'][peer] = {

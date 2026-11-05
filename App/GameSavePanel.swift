@@ -3,6 +3,22 @@ import UniformTypeIdentifiers
 import UIKit
 
 #if !SATCHEL_UI_PREVIEW_MINIMAL
+/// Satchel's save manager and the engine's iCloud save sync (Settings > Storage, the engine's
+/// save_sync.c through App/CloudSaveFolder.m) share one local save but never write it at once:
+///
+/// - Files: under Documents/NativeRuntime/<title ID>/, this panel and SaveStore own `save`
+///   (export reads a clone; import and restore swap it), `SaveBackups/` and `.satchel-save-*`.
+///   The sync owns `save.sync` (the hash last known to match the cloud), `save.sync-tmp/`
+///   and `save-backups/` (the copies it keeps before replacing a save, newest 10 per side), and
+///   the one packed file per game in the chosen folder. Neither touches the other's files.
+/// - Time: the sync replaces `save` (and `save_device`) only at the game's first save mount, in
+///   a running session. Export, import and restore are disabled while a session holds the
+///   title (`running`), so the two never write `save` together. Between those points the sync
+///   only reads committed clones and writes the cloud file and `save.sync`.
+/// - Effect of an import or restore with sync on: the local save no longer matches `save.sync`,
+///   so the next start sends it to the cloud. If another device sent a newer save in the
+///   meantime, both changed and the newer file date wins: the imported save is then kept in
+///   `save-backups/`, not lost. Automatic backups here keep running on quit and background.
 struct GameSavePanel: View {
     let titleID: String
     let gameName: String
@@ -58,6 +74,11 @@ struct GameSavePanel: View {
             if running { Text("Quit this game to home before exporting or restoring. Pausing is not enough.") }
             Text("Up to 3 automatic backups after changed saves, on quit or background. Limit: 512 MiB per save, 1.6 GB of backups per game. Import accepts Satchel save ZIPs and backs up the current save first.")
                 .font(.system(size: 12)).foregroundStyle(SatchelTheme.textDim)
+            if SatchelCloudSaveFolderName() != nil {
+                Text("iCloud save sync is on. An imported or restored save goes to iCloud the next time you play this game.")
+                    .font(.system(size: 12)).foregroundStyle(SatchelTheme.textDim)
+                    .accessibilityIdentifier("save-cloud-note")
+            }
             if let backupError { Text(backupError).foregroundStyle(SatchelTheme.spark) }
             if let message { Text(message).foregroundStyle(SatchelTheme.textDim).accessibilityIdentifier("save-result") }
         }

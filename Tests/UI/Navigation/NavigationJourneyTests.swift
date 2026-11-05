@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings"]
+        let fixtureFamilies = ["testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -1697,6 +1697,59 @@ final class NavigationJourneyTests: XCTestCase {
             XCTAssertEqual(app.buttons["game-setting-" + key].value as? String, value)
         }
     }
+
+#if NAVIGATION_PREVIEW && NAVIGATION_NATIVE
+    private func openCloudSaves() throws {
+        _ = try button("import-homebrew")
+        try tap("open-settings")
+        try tap("settings-Storage")
+        XCTAssertTrue(app.staticTexts["settings-page-Storage"].waitForExistence(timeout: 5))
+        revealDeviceCheckControl(app.buttons["cloud-saves-choose"], in: app.scrollViews.containing(.button, identifier: "cloud-saves-choose").firstMatch)
+    }
+
+    private func cloudSaveState() -> String { app.staticTexts["cloud-saves-state"].label }
+
+    /// iCloud save sync: off by default, a chosen folder persists across background and
+    /// relaunch in both landscapes, and Turn off returns to off. The folder choice is the
+    /// synthetic fixture; bookmark storage and resolution are production code.
+    func testCloudSaveFolderChooseRelaunchAndOff() throws {
+        app.launchArguments += ["-SatchelPreviewCloudFolder", "YES"]
+        app.launch()
+        try openCloudSaves()
+        if app.buttons["cloud-saves-off"].exists { try tap("cloud-saves-off") }
+        XCTAssertEqual(cloudSaveState(), "Off")
+        absent(app.buttons["cloud-saves-off"])
+        XCTAssertEqual(app.buttons["cloud-saves-choose"].label, "Choose folder")
+        try tap("cloud-saves-choose")
+        XCTAssertEqual(cloudSaveState(), "On: Satchel Saves")
+        XCTAssertEqual(app.buttons["cloud-saves-choose"].label, "Change folder")
+        absent(app.staticTexts["cloud-saves-error"])
+        backgroundAndReturn(app.staticTexts["cloud-saves-state"])
+        XCTAssertEqual(cloudSaveState(), "On: Satchel Saves")
+        app.terminate(); app.launch()
+        XCUIDevice.shared.orientation = .landscapeRight
+        try openCloudSaves()
+        XCTAssertEqual(cloudSaveState(), "On: Satchel Saves", "The bookmark survives a relaunch")
+        revealDeviceCheckControl(app.buttons["cloud-saves-off"], in: app.scrollViews.containing(.button, identifier: "cloud-saves-off").firstMatch)
+        try tap("cloud-saves-off")
+        XCTAssertEqual(cloudSaveState(), "Off")
+        absent(app.buttons["cloud-saves-off"])
+        app.terminate(); app.launch()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        try openCloudSaves()
+        XCTAssertEqual(cloudSaveState(), "Off", "Off persists")
+    }
+
+    /// The real Files folder picker opens and cancels twice, leaving sync off.
+    func testCloudSaveFolderPickerCancellation() throws {
+        app.launch()
+        try openCloudSaves()
+        if app.buttons["cloud-saves-off"].exists { try tap("cloud-saves-off") }
+        try pickerCycle(open: "cloud-saves-choose")
+        XCTAssertEqual(cloudSaveState(), "Off")
+        absent(app.staticTexts["cloud-saves-error"])
+    }
+#endif
 
     func testGameSettingsShareMenuValues() throws {
         app.launchArguments += ["-SatchelPreviewSessionTests", "YES"]

@@ -87,6 +87,19 @@ unfinished work. The probe stops between two updates of a second transaction and
 checks that both files from the prior commit return on the next session. Quit
 cannot create a game save. Save in game before quitting.
 
+Cloud save sync (Settings > Storage, the pinned engine's `save_sync.c`) is session
+scoped. `SessionBridge.m` sets `DM_SAVE_SYNC` to the chosen folder's path, or 0, after
+the manifest environment; the coordinator still refuses any other non-zero value,
+including the Mac's `icloud`. `save_sync_overlay.py` makes the sender joinable and adds
+`satchel_save_sync_session_stop`, the `save-sync-stop` stage right after `guest-join`:
+no Commit can arrive any more, and the file system state a send clones from is still
+intact. The stage flushes what was committed (at most 20 seconds), stops and joins the
+sender and clears the once-per-process mount state, so the next session mounts again.
+A send still running at the deadline fails the stage with ETIMEDOUT and Quit can be
+retried; a save that did not reach the cloud goes out at the next start.
+`check_save_sync.py` covers off, send at stop, a same-process remount with another
+title, an in-step remount and a pull with the engine's own backup, over a plain folder.
+
 ## Validation
 
 Run from the worktree, on an ARM64 Mac with the canonical engine provisioned:

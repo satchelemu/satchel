@@ -37,3 +37,4 @@
 #include "GuestVulkanWindows.h"
 
 #import "ControllerProfiles.h"
+#import "CloudSaveFolder.h"

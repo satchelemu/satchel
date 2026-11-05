@@ -68,7 +68,8 @@ def prepare(unsigned=False):
                 incs.append(str(p.parent))
                 if not p.stem.endswith('_mac') and 'ios/Sources' not in str(p): src.append(p)
     incs.extend([str(ENGINE / 'dm/host'), str(ENGINE / 'dm/ios/Sources'), str(ROOT / 'NativeHost')])
-    src += [ENGINE / 'dm/ios/Sources' / n for n in ['front_ios.m', 'DmGamepad.m']]
+    # SaveSync.m moves the cloud save file through NSFileCoordinator (iCloud downloads, no torn writes).
+    src += [ENGINE / 'dm/ios/Sources' / n for n in ['front_ios.m', 'DmGamepad.m', 'SaveSync.m']]
     groups = {'SatchelNativeHost': [], 'SatchelNativeGraphics': [], 'SatchelNativeMedia': []}
     for p in dict.fromkeys(src):
         group = 'SatchelNativeMedia' if '/third_party/' in str(p) else 'SatchelNativeGraphics' if '/gfx/' in str(p) else 'SatchelNativeHost'
