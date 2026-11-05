@@ -52,7 +52,10 @@ pass used for presentation, at the current drawable size. It excludes UIKit cont
 chrome. Without a drawable it uses the swapchain dimensions as the output canvas, still applying
 the crop. `DM_NVN_SHOT_OUT=WIDTHxHEIGHT` selects a comparison canvas and
 `DM_NVN_SHOT_OUT=raw` explicitly requests the old full-texture diagnostic. Texture dumps remain
-raw. External-display presentation remains unvalidated.
+raw. External-display presentation remains unvalidated: the pinned engine's
+`DmTVSceneDelegate` is compiled in and registers its iOS 27 scene accessory once a game starts,
+but `App/GameOrientation.swift` routes an external display scene to it only while Developer
+controls are on, until the maintainer checks a cable or AirPlay TV on the phone.
 
 `test-frame-shot.py` runs the pinned engine's real Metal crop regressions and checks frame
 screenshots, resizing, aspect fit, windowless capture, explicit output sizes and raw diagnostics.

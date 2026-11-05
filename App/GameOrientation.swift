@@ -45,6 +45,14 @@ final class SatchelAppDelegate: NSObject, UIApplicationDelegate {
                      options: UIScene.ConnectionOptions) -> UISceneConfiguration {
         let configuration = UISceneConfiguration(name: nil, sessionRole: session.role)
         if session.role == .windowApplication { configuration.delegateClass = SatchelWindowSceneDelegate.self }
+        // A TV by cable or AirPlay: the pinned engine's front end (front_ios.m DmTVSceneDelegate,
+        // registered as an iOS 27 scene accessory once a game starts) moves the picture there and
+        // keeps the controls on the phone. Unvalidated on hardware, so only with Developer controls.
+        if session.role == .windowExternalDisplayNonInteractive,
+           UserDefaults.standard.bool(forKey: "SatchelDeveloperControls"),
+           let tv = NSClassFromString("DmTVSceneDelegate") {
+            configuration.delegateClass = tv
+        }
         return configuration
     }
 
