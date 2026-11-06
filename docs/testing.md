@@ -35,6 +35,8 @@ fixtures. Likewise `Tests/Onboarding/run.py`, `Tests/PrepareCleanup/run.py` and
 `Tests/Saves/run.py`. `Tests/PreparedPackages/run.py <out>` checks that a package from
 another engine shows as needing Prepare (never Play) on the shelf and that a verified
 Prepare removes the title's older packages, while a failed or cancelled one keeps them.
+`Tests/PrepareUpdate/run.py <out>` checks the caution Prepare shows when it leaves out a base's
+newest imported update, including when an older update of the same game is chosen.
 
 ```bash
 zsh scripts/validate.sh

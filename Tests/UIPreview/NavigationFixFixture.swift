@@ -19,6 +19,15 @@ enum NavigationFixFixture {
         defaults.removeObject(forKey: "SatchelPreviewWarmupFinish")
         defaults.removeObject(forKey: "SatchelPreviewWarmupRelease")
         defaults.removeObject(forKey: "SatchelPreviewWarmupStarts")
+        // A warm-up journal left by a failed package check, written as releases before the
+        // packageFailed field did: "stale" and "missing" carry no field, "failed" carries it.
+        if let mode = defaults.string(forKey: "SatchelPreviewStaleWarmup") {
+            var progress = WarmupProgress(stage: "Package check failed. Prepare this game again.")
+            progress.state = "failed"
+            let journal = WarmupJob.Journal(package: mode == "missing" ? "LanternDrift-0.9.0" : "LanternDrift-1.2.0", title: "Lantern Drift",
+                                            progress: progress, packageFailed: mode == "failed" ? true : nil)
+            if let data = try? JSONEncoder().encode(journal) { defaults.set(data, forKey: "SatchelWarmupJob") }
+        }
         guard defaults.bool(forKey: "SatchelPreviewFixTests"), defaults.string(forKey: "SatchelPreviewDemo") == "library" else { return }
         do {
             let fm = FileManager.default

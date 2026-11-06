@@ -1713,6 +1713,42 @@ final class NavigationJourneyTests: XCTestCase {
         _ = try button("import-homebrew")
     }
 
+    /// A warm-up card left by a failed package check never offers Play for a package this
+    /// build cannot start: it offers Prepare again through the game page. The card of a
+    /// package that is gone (a newer Prepare replaced it) leaves the home screen.
+    func testWarmupCardForStalePackageOffersPrepare() throws {
+        let base = app.launchArguments + ["-SatchelPreviewKeys", "YES"]
+        app.launchArguments = base + ["-SatchelPreviewStalePackage", "YES", "-SatchelPreviewStaleWarmup", "stale"]
+        app.launch()
+        let card = try button("warmup-home-card")
+        XCTAssertTrue(card.label.contains("Needs Prepare again"), card.label)
+        XCTAssertFalse(app.buttons["warmup-home-play"].exists, "A stale package must not offer Play")
+        XCTAssertFalse(app.buttons["Play now"].exists, "A stale package must not offer Play")
+        try tap("warmup-home-prepare")
+        let prepare = try button("prepare-game")
+        XCTAssertTrue(prepare.label.contains("Prepare again"), prepare.label)
+        XCTAssertFalse(app.buttons["play-game"].exists, "A stale package must not offer Play")
+        try tap("close-game-detail")
+        _ = try button("warmup-home-card")
+        // The card itself leads to the game page as well, never to a launch.
+        try tap("warmup-home-card")
+        _ = try button("prepare-game")
+        try tap("close-game-detail")
+        // A current package whose check failed: Prepare again, no Play.
+        app.terminate()
+        app.launchArguments = base + ["-SatchelPreviewStaleWarmup", "failed"]
+        app.launch()
+        _ = try button("warmup-home-prepare")
+        XCTAssertFalse(app.buttons["warmup-home-play"].exists, "A package that failed its check must not offer Play")
+        // The package is gone: no card at all.
+        app.terminate()
+        app.launchArguments = base + ["-SatchelPreviewStaleWarmup", "missing"]
+        app.launch()
+        _ = try button("import-homebrew")
+        absent(app.buttons["warmup-home-card"])
+        XCTAssertFalse(app.buttons["warmup-home-play"].exists)
+    }
+
     func testWarmupFailedCardCanBeDismissed() throws {
         try startWarmupFixture(ending: "failed")
         try tap("fixture-warmup-finish")

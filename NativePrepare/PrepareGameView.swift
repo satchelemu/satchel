@@ -41,12 +41,19 @@ struct PrepareGameView: View {
         updateBaseID = baseID
         updateID = matchingUpdate?.id ?? ""
     }
-    /// A plain note when a matching update is imported but set aside. Prepare still works.
+    /// A plain note when a matching update is imported but set aside, or a newer one than the
+    /// chosen update is. Prepare still works.
     private var updateCaution: String? {
-        guard updateID.isEmpty, let update = matchingUpdate, let base = bases.first(where: { $0.id == baseID }) else { return nil }
-        let baseVersion = artwork.info(base)?.displayVersion ?? "", updateVersion = artwork.info(update)?.displayVersion ?? ""
-        let versions = baseVersion.isEmpty || updateVersion.isEmpty ? "" : " (base v\(baseVersion); update v\(updateVersion) is left out)"
-        return "This game will be prepared without its imported update" + versions + "."
+        guard let base = bases.first(where: { $0.id == baseID }), let info = artwork.info(base),
+              let target = applicationID.isEmpty ? info.applicationID : UInt64(applicationID, radix: 16) else { return nil }
+        let candidates = updates.compactMap { item in artwork.info(item).map { (id: item.id, info: $0) } }
+        return PrepareUpdateCaution.text(base: info, applicationID: target,
+                                         selected: updates.first { $0.id == updateID }.flatMap { artwork.info($0) }, among: candidates)
+    }
+    /// Play is offered only for a package this build can start.
+    private var warmupPlayable: Bool {
+        guard let package = warmup.journal?.package else { return false }
+        return warmup.journal?.packageFailed != true && artwork.prepared.contains { $0.folder == package && $0.current }
     }
     private var lockedReason: String { "Locked while \(job.title.isEmpty ? "a game" : job.title) prepares. Closing this screen keeps it going." }
 
@@ -179,11 +186,15 @@ struct PrepareGameView: View {
 
     private var statusPanel: some View {
         VStack(spacing: 14) {
-            WarmupPanel(play: play)
+            WarmupPanel(play: warmupPlayable ? play : nil)
             SatchelPanel(title: job.running ? "Preparing" : "Status", tint: job.running ? SatchelTheme.tide : statusTint) {
                 Text(job.message).font(.system(size: 14, weight: .semibold, design: .rounded))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("prepare-status")
+                // While it runs the message follows the steps; the finished message includes this.
+                if job.running, let warning = job.updateWarning {
+                    SatchelDisabledReason(text: warning, systemImage: "exclamationmark.triangle.fill").accessibilityIdentifier("prepare-update-warning")
+                }
                 if !job.package.isEmpty {
                     Button("Game diagnostics") { showGameReport = true }.accessibilityIdentifier("prepare-game-diagnostics")
                     ShareLink(item: NativeGameReport.url(package: job.package)) { Label("Export preparation report", systemImage: "square.and.arrow.up") }
@@ -389,9 +400,12 @@ struct PrepareJobSlot: View {
     @ObservedObject private var warmup = WarmupJob.shared
 
     var body: some View {
-        // A finished warm-up leaves the header: only running, paused or failed work stays.
-        if let journal = warmup.journal, warmup.running || (!job.running && ["paused", "failed"].contains(journal.progress.state)) {
-            WarmupHomeCard(open: openWarmup, play: play)
+        // A finished warm-up leaves the header: only running, paused or failed work stays, and
+        // only while its package is still there (a newer Prepare replaces the old one).
+        let package = warmup.journal.flatMap { journal in artwork.prepared.first { $0.folder == journal.package } }
+        if let journal = warmup.journal, warmup.running || (!job.running && package != nil && ["paused", "failed"].contains(journal.progress.state)) {
+            // A package an older engine made, or one that failed its check, is never played from here.
+            WarmupHomeCard(open: openWarmup, play: play, playable: package?.current == true && journal.packageFailed != true)
         } else if job.running || job.outcome != nil {
             PrepareJobCard(job: job, art: library.items.first { $0.id == job.baseID }.flatMap(artwork.image),
                            retry: { job.retry(library: library, artwork: artwork, title: artwork.title) }, open: open, play: play)

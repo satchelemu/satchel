@@ -145,7 +145,8 @@ It is a clean break. After installing a build with this engine:
   saves and per-game settings stay as they are.
 - A Prepare that passes verification removes the game's older prepared copies. Settings,
   Prepared games lists each copy with its date and a Current or Needs Prepare again tag,
-  and can delete one.
+  and can delete one. A warm-up card left over for an older package offers Prepare again,
+  never Play.
 - Expect first-play stutter again. Translated shaders and pipeline caches are kept per
   engine, so every game refills its caches the first time it is played.
 - The code rewriter Prepare runs now follows the same upstream revision. For Zelda,

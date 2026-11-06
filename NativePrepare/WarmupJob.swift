@@ -36,6 +36,8 @@ final class WarmupScheduling: @unchecked Sendable {
         /// True only when iOS ended the background time the run had (not Pause, not a
         /// memory warning). Such a run resumes when the app is active again.
         var interrupted: Bool? = nil
+        /// True when the package itself failed its check: it cannot be played, only prepared again.
+        var packageFailed: Bool? = nil
     }
     /// A package's last known warm-up, from the live journal or its own `progress.json`.
     struct Status {
@@ -167,10 +169,10 @@ final class WarmupScheduling: @unchecked Sendable {
     private func save() {
         if let journal, let data = try? JSONEncoder().encode(journal) { UserDefaults.standard.set(data, forKey: "SatchelWarmupJob") }
     }
-    private func receive(_ progress: WarmupProgress, for value: Context, interrupted: Bool = false) {
+    private func receive(_ progress: WarmupProgress, for value: Context, interrupted: Bool = false, packageFailed: Bool = false) {
         guard context?.token === value.token else { return }
         journal = Journal(package: value.package.lastPathComponent, title: value.title, progress: progress,
-                          interrupted: interrupted ? true : nil); save()
+                          interrupted: interrupted ? true : nil, packageFailed: packageFailed ? true : nil); save()
     }
 
     /// Marks the running warm-up as stopped by iOS; called by the expiration handlers.
@@ -188,7 +190,7 @@ final class WarmupScheduling: @unchecked Sendable {
                 state.stage = byIOS ? "Package check stopped by iOS in the background. It resumes when you return."
                     : value.token.cancelled ? "Package check paused. Resume to check it before warm-up." : "Package check failed. Prepare this game again."
             }
-            receive(state, for: value, interrupted: byIOS)
+            receive(state, for: value, interrupted: byIOS, packageFailed: !verified && !value.token.cancelled)
         }
         // The run rewrote this package's progress.json; read it again next time.
         storedStamp[value.package.lastPathComponent] = nil

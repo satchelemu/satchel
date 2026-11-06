@@ -39,6 +39,9 @@ the real picker must appear, dismiss and reopen, including after background/retu
   it to reset off when Settings reopens.
 - Settings, Prepare, identity controls, player settings, detail, picker cancellation,
   background/return, close/reopen and prepared removal cancellation.
+- Simulator only: a warm-up card left by a failed package check offers Prepare again and no
+  Play for an older engine's package or one that failed its check, and leaves when its package
+  is gone.
 - Simulator only: a package from an older engine offers Prepare again and no Play, and with
   its original removed says to import the game again; Settings, Prepared games tells two
   packages of one title apart and a confirmed delete removes only the chosen one.

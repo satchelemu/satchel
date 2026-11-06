@@ -49,6 +49,8 @@ import SwiftUI
     }
     @Published private(set) var cancelling = false
     @Published private(set) var finalizing = false
+    /// Set when this job runs without the newest imported update of its game.
+    @Published private(set) var updateWarning: String?
     /// `-SatchelAutoPrepare` starts one job per launch, even if the screen opens again.
     var autoPrepareUsed = false
 
@@ -78,7 +80,7 @@ import SwiftUI
         // A paused game holds gigabytes of memory and its package; Prepare is untested beside it.
         guard !Self.gameSessionOpen else { message = Self.sessionBlocked; return }
         baseID = base.id; updateID = update?.id ?? ""; self.title = title
-        selectedTitleID = applicationID
+        selectedTitleID = applicationID; updateWarning = nil
         guard artwork.keysAvailable else { message = FirstRunHelp.noKeys; return }
         guard library.hasOriginal(base), update.map(library.hasOriginal) ?? true else {
             message = "Import the original game and matching update again before preparing a new package."
@@ -92,6 +94,14 @@ import SwiftUI
         // Only remove updates covered by this Prepare, never a newer imported update.
         let info = artwork.info(base)
         let targetID = applicationID ?? info?.applicationID
+        // A base prepared without its update can fail to start: say so when a newer matching
+        // update is imported but not chosen (the Prepare screen shows the same caution).
+        if let info, let targetID {
+            let candidates = library.items.filter { $0.id != base.id && library.hasOriginal($0) }
+                .compactMap { item in artwork.info(item).map { (id: item.id, info: $0) } }
+            updateWarning = PrepareUpdateCaution.text(base: info, applicationID: targetID,
+                                                      selected: update.flatMap { artwork.info($0) }, among: candidates)
+        }
         let version = update.flatMap { artwork.info($0)?.version } ?? (info?.applicationID == targetID ? info?.version : nil) ?? 0
         var originals = [base] + library.items.filter {
             guard let other = artwork.info($0), let targetID else { return false }
@@ -339,6 +349,7 @@ import SwiftUI
         case .failure(let error):
             kind = .failed; message = FirstRunHelp.message(error)
         }
+        if let updateWarning, kind != .cancelled { message += " " + updateWarning }
         outcome = Outcome(kind: kind, package: package, title: title, message: message,
                           baseID: baseID, updateID: updateID, finishedAt: Date(), applicationID: selectedTitleID)
         let state: String
@@ -377,5 +388,23 @@ import SwiftUI
         let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("prepare-progress.json")
         if let data = try? JSONSerialization.data(withJSONObject: row) { try? data.write(to: url, options: .atomic) }
+    }
+}
+
+/// Plain words for a Prepare that leaves out the base's newest imported update, matched as the
+/// shelf groups updates (`GameInfo.newestUpdate`), or nil. Prepare is never blocked by it. A
+/// chosen update of another game counts as none; a cartridge's bundled update counts through the
+/// base's own version. Pure, so the Prepare screen, the job and `Tests/PrepareUpdate` share it.
+enum PrepareUpdateCaution {
+    static func text(base: GameInfo, applicationID: UInt64, selected: GameInfo?, among candidates: [(id: String, info: GameInfo)]) -> String? {
+        let chosen = selected.flatMap { $0.kind == .update && $0.applicationID & ~0x800 == applicationID & ~0x800 ? $0 : nil }
+        guard let id = GameInfo.newestUpdate(for: applicationID, baseVersion: max(base.version, chosen?.version ?? 0), in: candidates),
+              let newest = candidates.first(where: { $0.id == id })?.info else { return nil }
+        if let chosen {
+            let versions = chosen.displayVersion.isEmpty || newest.displayVersion.isEmpty ? "" : " (v\(newest.displayVersion); v\(chosen.displayVersion) is selected)"
+            return "A newer imported update is not selected" + versions + ". Choose it under Update to prepare the game with it."
+        }
+        let versions = base.displayVersion.isEmpty || newest.displayVersion.isEmpty ? "" : " (base v\(base.displayVersion); update v\(newest.displayVersion) is left out)"
+        return "This game will be prepared without its imported update" + versions + "."
     }
 }

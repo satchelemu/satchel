@@ -588,7 +588,10 @@ enum PreviewManifest {
                 "version": version, "recipe": recipeObject, "preparedProfile": profileObject,
                 "enginePin": stale ? "previous-engine" : profile.enginePin, "shaderChain": profile.shaderChain,
                 "shaderInputs": profile.shaderInputs, "modules": profile.modules, "environment": profile.environment,
-                "files": ["profile.tsv": ["bytes": 0, "sha256": profile.profileSHA256]]]
+                "files": ["profile.tsv": ["bytes": 0, "sha256": profile.profileSHA256]],
+                // A phone Prepare records the rewriter it followed (cd75caa); without it a synthetic
+                // build counts as rewritten by the earlier rewriter, so every fixture looked stale.
+                "rewriter": NativePreparationRecipe.rewriterRevision]
     }
 }
 

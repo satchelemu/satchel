@@ -143,6 +143,9 @@ struct WarmupHomeCard: View {
     /// Opens the game page for the warming package (or its play screen).
     let open: (String) -> Void
     let play: (String) -> Void
+    /// False for a package this build cannot start (an older engine made it, or it failed its
+    /// check): the card offers Prepare again, through the game page, and never Play.
+    var playable = true
     @ObservedObject private var job = WarmupJob.shared
     var body: some View {
         if let journal = job.journal {
@@ -150,12 +153,19 @@ struct WarmupHomeCard: View {
                 Button { open(journal.package) } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Warm up " + journal.title).font(.system(size: 13, weight: .bold))
-                        Text(job.running ? "\(journal.progress.stage) · \(journal.progress.completed)/\(journal.progress.total)" : journal.progress.stage)
+                        Text(job.running ? "\(journal.progress.stage) · \(journal.progress.completed)/\(journal.progress.total)"
+                             : playable ? journal.progress.stage : "Needs Prepare again before it can be played.")
                             .font(.system(size: 11)).lineLimit(1)
                     }
                 }.accessibilityIdentifier("warmup-home-card")
                 Spacer()
-                Button("Play now", systemImage: "play.fill") { job.cancel(); play(journal.package) }
+                if playable {
+                    Button("Play now", systemImage: "play.fill") { job.cancel(); play(journal.package) }
+                        .accessibilityIdentifier("warmup-home-play")
+                } else if !job.running {
+                    Button("Prepare again", systemImage: "hammer.fill") { open(journal.package) }
+                        .accessibilityIdentifier("warmup-home-prepare")
+                }
                 if !job.running {
                     Button("Dismiss", systemImage: "xmark") { job.dismiss() }
                         .labelStyle(.iconOnly).accessibilityIdentifier("warmup-home-dismiss")

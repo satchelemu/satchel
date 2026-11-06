@@ -531,6 +531,12 @@ struct HomebrewView: View {
     private func openWarmup(_ package: String) {
         if let item = library.items.first(where: { artwork.preparedPackage(for: $0)?.folder == package }) {
             open(.detail(item.id))
+        } else if let game = artwork.prepared.first(where: { $0.folder == package }), !game.current {
+            // An older engine's package would only fail its launch check: the game page offers
+            // Prepare again, or says to import the game again when its original is gone.
+            if let item = library.items.first(where: { artwork.newestPackage(for: $0)?.applicationID == game.applicationID }) {
+                open(.detail(item.id))
+            } else { openEntry(GameArtworkStore.preparedPrefix + package) }
         } else {
             open(.preparedPackage(package))
         }
