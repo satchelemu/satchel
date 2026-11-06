@@ -134,9 +134,10 @@ these controls do not establish a new phone stability result.
 ## Engine update of 2026-11-05: prepare your games again
 
 The native engine moved from nxnative `bbc3b737` to `f8a5618d` (265 upstream commits,
-shader chain `26dc2fa9477c`). This build has been compiled and checked on the Mac. It has
-not been installed or played on a phone yet, so every result under "What works today" was
-measured with the previous engine.
+shader chain `26dc2fa9477c`). This build has been compiled and checked on the Mac. On the
+phone on 2026-11-06 (main 96242d7), Castlevania, Zelda and Super Mario Odyssey 1.4.1
+(prepared again) passed unattended start and Quit cycles, cold and warm; the hands-on
+results under "What works today" were measured with the previous engine.
 
 It is a clean break. After installing a build with this engine:
 

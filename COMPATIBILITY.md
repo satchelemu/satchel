@@ -20,8 +20,11 @@ See [warm-up measurement steps](NativeShaders/WarmupSpeed.md).
 Test hardware so far: one iPhone Duo (iPhone19,4, A20 Pro), iOS 27.1, landscape.
 
 Engine update of 2026-11-05: the native engine moved from nxnative `bbc3b737` to
-`f8a5618d`. Every row below was measured with the previous engine and has not been
-repeated. A build with the new engine refuses packages prepared before it and starts with
+`f8a5618d`. Every row below was measured by hand with the previous engine. On the phone on
+2026-11-06, on the new engine (main 96242d7), Castlevania and Zelda passed the unattended
+cold and warm cycle and Super Mario Odyssey 1.4.1, prepared again, passed 6 of 6 visits at
+60 FPS; those were unattended runs, so the hands-on checks behind each row are not
+repeated yet. A build with the new engine refuses packages prepared before it and starts with
 empty shader caches, so each game has to be prepared again (the library marks it as
 needing Prepare instead of offering Play) and will stutter on first play until its caches
 refill. Castlevania's reviewed profile now follows upstream's checked
@@ -33,7 +36,9 @@ Castlevania 1.0.0 unchanged (checked on the Mac), so they need no further Prepar
 Kart 8 Deluxe was not checked: a package of it from before that move needs Prepare again.
 The phone's shader translator then moved to the same engine pin; its shader caches start
 empty again, prepared packages stay valid
-([BUILDING.md](BUILDING.md#the-shader-translator-pin)). No row was measured with it.
+([BUILDING.md](BUILDING.md#the-shader-translator-pin)). Castlevania, Zelda and Odyssey 1.4.1
+ran cold and warm with it on the phone (2026-11-06) with no shader failures; no row's rating
+was measured with it.
 
 Super Mario Odyssey 1.0.0 prepared without its update crashed at startup on the phone
 (2026-11-05): its SDK hands a game play recording buffer to a system applet the host does
@@ -116,9 +121,11 @@ an empty `game_env`. A fix with a Mac regression check followed (commit bcbef50)
 2026-11-06 the unattended phone cycle ran on that build, Castlevania then Zelda, 60 seconds
 each, 2 rounds: 4 of 4 runs ended cleanly, stops took 0.07 to 0.15 seconds, the last window
 had no dropped frames and no missing services, and the same app process stayed alive
-through every Quit. The cycle was driven from the Mac: Quit and Library from the pause menu
-by hand have not been repeated on this build, and Super Mario Odyssey was not in the cycle
-(it has to be prepared again with its update).
+through every Quit. On the later main 96242d7 (which also carries the new shader
+translator), also on 2026-11-06, Castlevania and Zelda passed 4 of 4 unattended cold and
+warm visits with Quit returning home each time, and Super Mario Odyssey 1.4.1, prepared again with its update,
+passed 6 of 6 visits at 60 FPS with a warm p99 of 16.67 ms. The cycles were driven from the
+Mac: Quit and Library from the pause menu by hand have not been repeated on the new engine.
 
 ## Import and Prepare checks
 
