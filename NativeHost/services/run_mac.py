@@ -39,6 +39,8 @@ parser.add_argument('--variant', choices=['baseline', 'services'], action='appen
 parser.add_argument('--seconds', type=int, default=125)
 parser.add_argument('--shots', default='300,1200,3000', help='Required frame captures; must include 300, 1200 and 3000')
 parser.add_argument('--keys', help='Override the scripted route for one explicitly selected title')
+parser.add_argument('--package', type=Path, help='A private prepared package for one explicitly selected title (for example a base without its update)')
+parser.add_argument('--inputs', type=Path, help='Rewritten modules extracted from --package')
 parser.add_argument('--count-sdk', action='store_true', help='Collect Mac-only SDK call counts')
 parser.add_argument('--save-seed', type=Path, help='Copy TITLE/save folders into private run saves')
 parser.add_argument('--route', action='store_true', help='Exercise the save/menu route (default)')
@@ -48,6 +50,7 @@ args = parser.parse_args()
 requested_shots = sorted(set(int(x) for x in args.shots.split(',')))
 if not {300, 1200, 3000}.issubset(requested_shots): parser.error('Required checkpoints are 300, 1200 and 3000.')
 if args.keys is not None and len(args.title or []) != 1: parser.error('--keys requires exactly one --title.')
+if (args.package is None) != (args.inputs is None) or (args.package and len(args.title or []) != 1): parser.error('--package and --inputs go together, with exactly one --title.')
 if args.seconds < 120: parser.error('Long regression requires at least 120 seconds.')
 routes = {'Castlevania': (Path(__file__).parents[1] / 'memory/castlevania-route.txt').read_text().strip(),
           'Odyssey': 'f900:A~f9,f1200:A~f9,f1500:A~f9,f2100:A~f9',
@@ -72,9 +75,9 @@ for title in args.title or ['Castlevania', 'Odyssey', 'TOTK']:
             seed_hashes = save_hashes(seed)
             shutil.copytree(seed, work / 'save', dirs_exist_ok=True)
             assert save_hashes(work / 'save') == seed_hashes, 'Private save copy mismatch'
-        package = ROOT / 'packages' / title
+        package = args.package or ROOT / 'packages' / title
         host = OUT / 'mac' / ('dmhost-' + variant)
-        patched = ROOT / 'host-inputs' / title
+        patched = args.inputs or ROOT / 'host-inputs' / title
         for path in [host, patched, package / 'profile.tsv', package / 'romfs.img', CACHES[title], TABLES[title] / 'shader_map.tsv']: assert path.exists(), path
         env = {k:v for k,v in os.environ.items() if not k.startswith('DM_')}
         env.update(DM_PROFILE=str(package/'profile.tsv'), DM_ROMFS=str(package/'romfs.img'),

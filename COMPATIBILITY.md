@@ -32,6 +32,14 @@ upstream revision leaves the rewritten code of Zelda 1.4.3, Odyssey 1.0.0 and 1.
 Castlevania 1.0.0 unchanged (checked on the Mac), so they need no further Prepare. Mario
 Kart 8 Deluxe was not checked: a package of it from before that move needs Prepare again.
 
+Super Mario Odyssey 1.0.0 prepared without its update crashed at startup on the phone
+(2026-11-05): its SDK hands a game play recording buffer to a system applet the host does
+not run. The host now takes those calls over and implements the transfer memory calls
+behind them. On the Mac with the new engine, the 1.0.0 base alone boots and passes its
+frame 300, 1200 and 3000 checkpoints with no missing service; this is not yet checked on
+the phone, so the table still lists Odyssey 1.4.1 only. Mac runs on the new engine have
+no translated shader libraries yet, so they check boot progress, not the picture.
+
 ## Ratings
 
 The rating is a percentage of "fully working", judged on five things that each count

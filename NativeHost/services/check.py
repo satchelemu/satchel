@@ -52,6 +52,16 @@ run(['nice', '-n', '10', 'xcrun', 'clang', '-g', '-O1', '-Wall', '-Wextra', '-Wn
 run(['nice', '-n', '10', 'xcrun', 'clang', '-g', '-O1', '-Wall', '-Wextra', '-Werror',
      '-fsanitize=address,undefined', '-fno-sanitize-recover=all', support, '-o', OUT / 'test-support'])
 run([OUT / 'test-support', OUT / 'synthetic-dlc'])
+kernel = OUT / 'kernel'; overlay_tools = runpy.run_path(str(HERE / 'overlay.py'))
+svc_source = overlay_tools['prepare_svc'](engine / 'dm/host/hle_svc.c', kernel)
+thread_source = overlay_tools['prepare_support'](engine / 'dm/host/hle_thread.c', kernel)
+# The pinned engine's own synthetic memory profile and thread stubs (dm/host/tests).
+kernel_flags = ['-g', '-O1', '-Wall', '-Wextra', '-Wno-unused-function', '-Wno-unused-parameter', '-Wno-sign-compare',
+                '-I' + str(engine / 'dm/host/tests/memory_profile'), '-I' + str(engine / 'dm/host'), '-DSATCHEL_SVC_SOURCE="' + str(svc_source) + '"']
+kernel_inputs = [HERE / 'test_kernel_svc.c', thread_source, engine / 'dm/host/tests/t_condvar_stub.c', engine / 'dm/host/hle_profile.c']
+for name, sanitizers in [('test-kernel-svc', ['-fsanitize=address,undefined', '-fno-sanitize-recover=all']), ('test-kernel-svc-tsan', ['-fsanitize=thread'])]:
+    run(['nice', '-n', '10', 'xcrun', 'clang', *kernel_flags, *sanitizers, *kernel_inputs, '-o', kernel / name])
+    run([kernel / name])
 report = OUT / 'adapter-services.log'; report.write_text('')
 run([OUT / 'test-adapter', report])
 summary = json.loads(Path(str(report) + '.json').read_text())

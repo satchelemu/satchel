@@ -49,6 +49,16 @@ def prepare(source, destination):
                    'HLE_FORCE_BIG("_ZN2nn2sf4hipc20ConnectToHipcService')
     if 'int satchel_sf_session_reset(void)' in text:
         text = replace(text, 'memset(g_sf, 0, sizeof g_sf);', 'satchel_sessions_reset();')
+    text += '\n' + (HERE / 'SdkRecording.inc').read_text()
+    text += '''
+// svcSendSyncRequest and svcSendSyncRequestWithUserBuffer without the SDK wrapper
+// (KernelSVC.inc) reach the same host sessions as the nn::sf::hipc hooks.
+int satchel_sf_svc_session(uint32_t handle) {
+    pthread_mutex_lock(&satchel_session_mu); int found = satchel_session_slot(handle) >= 0; pthread_mutex_unlock(&satchel_session_mu);
+    return found;
+}
+uint32_t satchel_sf_svc_send(uint32_t handle, void *message, size_t size, void *caller) { return satchel_session_send(handle, message, size, caller); }
+'''
     target = destination / 'hle_sf.c'; target.write_text(text)
     for name in ['ServiceIPC.inc', 'EngineAdapter.inc', 'SessionIPC.inc', 'MissingServices.inc', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc']:
         shutil.copyfile(HERE / name, destination / name)
@@ -75,7 +85,42 @@ def apply(root, engine, out, groups):
         elif Path(row['path']).name == 'hle_time.c':
             row['path'] = str(prepare_time(Path(row['path']), out / 'overlays/services'))
             found.add('time')
-    if found != {'sf', 'fs', 'time', 'hle_thread', 'hle_misc'}: raise RuntimeError('Service overlay requires sf, time, thread and misc sources')
+        elif Path(row['path']).name == 'hle_svc.c':
+            source = Path(row['path'])
+            # Keep the graphics overlay's quoted headers (HostPause.h) reachable, as for hle_fs.c.
+            row['compilerFlags'] = (row.get('compilerFlags', '') + ' -iquote ' + shlex.quote(str(source.parent))).strip()
+            row['path'] = str(prepare_svc(source, out / 'overlays/services'))
+            found.add('svc')
+    if found != {'sf', 'fs', 'time', 'svc', 'hle_thread', 'hle_misc'}: raise RuntimeError('Service overlay requires sf, time, svc, thread and misc sources')
+
+
+def prepare_svc(source, destination):
+    """Transfer memory and the remaining application SVCs (KernelSVC.inc)."""
+    destination.mkdir(parents=True, exist_ok=True)
+    text = source.read_text()
+    text = replace(text, 'static uint8_t g_seen[256];', '''static uint8_t g_seen[256];
+// Satchel kernel objects (KernelSVC.inc, appended below).
+static int satchel_tmem_source_busy(uint64_t, uint64_t);
+static int satchel_tmem_mapping_busy(uint64_t, uint64_t);
+static void satchel_tmem_query(uint64_t, uint64_t *, uint64_t *, uint64_t *, uint32_t *, uint64_t *);
+static void satchel_tmem_reset_locked(void);
+static int satchel_kernel_svc(int, uint64_t *);''')
+    # A transfer memory owner range is borrowed like a stack mapping's source:
+    # heap shrink, decommit, permission stubs, stack mappings and NRO unload refuse it.
+    text = replace(text, 'static int map_source_busy(uint64_t addr, uint64_t size) { // g_map_lock held; nonwrapping ranges\n',
+                   'static int map_source_busy(uint64_t addr, uint64_t size) { // g_map_lock held; nonwrapping ranges\n    if (satchel_tmem_source_busy(addr, size)) return 1;\n')
+    text = replace(text, 'if (map_find(dst, size) || map_source_busy(src, size) || !map_source_backed(src, size)) result = 0xD401;',
+                   'if (map_find(dst, size) || satchel_tmem_mapping_busy(dst, size) || map_source_busy(src, size) || !map_source_backed(src, size)) result = 0xD401;')
+    text = replace(text, '    m->loaded = 0;\n', '    if (satchel_tmem_source_busy(base, m->size)) { pthread_mutex_unlock(&g_map_lock); return 0; }\n    m->loaded = 0;\n')
+    text = replace(text, '        map_source_query(addr, &base, &size, &attr, &perm);\n',
+                   '        map_source_query(addr, &base, &size, &attr, &perm);\n        satchel_tmem_query(addr, &base, &size, &state, &attr, &perm);\n')
+    text = replace(text, '    default:\n        if (!g_seen[num & 0xff]) {', '    default:\n        if (satchel_kernel_svc(num, regs)) return 0;\n        if (!g_seen[num & 0xff]) {')
+    # The session overlay's memory reset unmaps the whole guest block.
+    if 'int satchel_memory_session_reset(void)' in text:
+        text = replace(text, 'memset(g_map, 0, sizeof g_map); g_nmap = 0;', 'memset(g_map, 0, sizeof g_map); g_nmap = 0; satchel_tmem_reset_locked();')
+    text += '\n' + (HERE / 'KernelSVC.inc').read_text()
+    target = destination / 'hle_svc.c'; target.write_text(text)
+    return target
 
 
 def prepare_fs(source, destination):
@@ -170,6 +215,32 @@ unsigned satchel_host_aoc_list(uint32_t *out, unsigned start, unsigned count) {
 uint64_t satchel_host_program_id(void) { return dm_prof()->program_id; }
 """
     elif source.name == 'hle_thread.c':
+        text = replace(text, 'enum { O_FREE, O_THREAD, O_EVENT_R, O_EVENT_W };', '''enum { O_FREE, O_THREAD, O_EVENT_R, O_EVENT_W };
+// Satchel kernel objects (NativeHost/services/KernelSVC.inc in hle_svc.c) share this table.
+// None is a wait object: WaitSynchronization reports them as invalid handles, as Horizon does.
+#define SATCHEL_O_TMEM 16
+void satchel_tmem_close_locked(void *object);   // hle_svc.c overlay, called with G held''')
+        text = replace(text, '        } else if (i > 0 && i < MAX_H && g_h[i].type == O_THREAD) {\n', '''        } else if (i > 0 && i < MAX_H && g_h[i].type == SATCHEL_O_TMEM) {
+            void *object = g_h[i].obj;
+            g_h[i].type = O_FREE; g_h[i].obj = NULL;
+            satchel_tmem_close_locked(object);   // takes the memory lock after G
+        } else if (i > 0 && i < MAX_H && g_h[i].type == O_THREAD) {
+''')
+        text += """
+// Kernel objects of hle_svc.c's overlay. G comes before the memory lock there.
+void satchel_kernel_lock(void) { pthread_mutex_lock(&G); }
+void satchel_kernel_unlock(void) { pthread_mutex_unlock(&G); }
+// Unlike h_new, exhaustion returns 0 so the SVC can answer HandleTableFull.
+uint32_t satchel_kernel_handle_new_locked(int type, void *object) {
+    for (unsigned i = 1; i < MAX_H; i++) if (!g_h[i].type) { g_h[i].type = type; g_h[i].obj = object; return 0x1000 + i; }
+    return 0;
+}
+void *satchel_kernel_handle_object_locked(uint32_t handle, int type) { return h_peek(handle, type); }
+int satchel_kernel_thread_handle(uint32_t handle) {
+    pthread_mutex_lock(&G); int found = h_peek(handle, O_THREAD) != NULL; pthread_mutex_unlock(&G);
+    return found;
+}
+"""
         text += """
 // IPC copy handles are real read ends in the existing kernel table. Each object
 // retains one owner handle; clients close their independent copies through SVC.

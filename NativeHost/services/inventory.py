@@ -259,6 +259,31 @@ for name in ['hle_svc.c', 'hle_thread.c']:
         svcs.append(dict(number=m[1], source='dm/host/'+name, line=text.count('\n',0,m.start())+1,
                          note=text[m.start():text.find('\n',m.start())].strip()))
 write('engine-svc.tsv', svcs)
+# Every SVC Ryujinx 1.3.3 implements, against the pinned engine and Satchel's kernel overlay.
+syscall = a.ryujinx / 'src/Ryujinx.HLE/HOS/Kernel/SupervisorCall/Syscall.cs'
+syscall_text = syscall.read_text()
+overlay_svcs = {int(m[1], 16) for m in re.finditer(r'case (0x[0-9a-fA-F]+)\s*:', (HERE / 'KernelSVC.inc').read_text())}
+engine_svcs = {int(x['number'], 16): x for x in svcs}
+UNIMPLEMENTED = {
+    0x07: 'Ends the process. The app has no path from a guest SVC to its own end of a game (the menu Quit stops the session); not reached by the tested games, the placeholder still returns success',
+    0x23: 'Asynchronous IPC needs a reply event; SDK clients use the synchronous forms, which reach the host sessions',
+}
+for n, why in [((0x40, 0x41, 0x43, 0x44, 0x70, 0x71, 0x72), 'Server side of IPC, for system modules that host services; an application is a client and the host serves IPC itself'),
+               ((0x4B, 0x4C), 'nn::jit code memory: runtime JIT is out of scope (AGENTS.md); the pinned hle_jit.c takes nn::jit over at the SDK level and Satchel offers no JIT image'),
+               ((0x65, 0x6F, 0x73, 0x74, 0x75, 0x77, 0x78, 0x7B, 0x7D, 0x7E), 'Privileged: loader, process manager and debugger calls that an application NPDM does not grant; the host runs one process')]:
+    UNIMPLEMENTED.update(dict.fromkeys(n, why))
+svc_rows = []
+for m in re.finditer(r'\[Svc\((0x[0-9a-fA-F]+|\d+)\)\]\s*\n\s*public \w+ (\w+)\(', syscall_text):
+    number = int(m[1], 0)
+    if number in engine_svcs: status, where, why = 'pinned engine', engine_svcs[number]['source'] + ':' + str(engine_svcs[number]['line']), ''
+    elif number in overlay_svcs: status, where, why = 'Satchel overlay', 'NativeHost/services/KernelSVC.inc', ''
+    else: status, where, why = 'not implemented', '', UNIMPLEMENTED[number]
+    svc_rows.append(dict(number='0x%02X' % number, name=m[2], ryujinx='src/Ryujinx.HLE/HOS/Kernel/SupervisorCall/Syscall.cs:' + str(syscall_text.count('\n', 0, m.start()) + 1),
+                         status=status, implementation=where, reason=why))
+assert len(svc_rows) == 72 and not overlay_svcs & set(engine_svcs), (len(svc_rows), overlay_svcs & set(engine_svcs))
+assert not set(UNIMPLEMENTED) & (overlay_svcs | set(engine_svcs))
+svc_rows.sort(key=lambda x: int(x['number'], 16))
+write('svc-table.tsv', svc_rows)
 summary = dict(engine_pin=PIN, ryujinx='Ryubing 1.3.3, local read-only reference', sdk_hooks=len(engine),
                service_registrations=len(registrations), command_rows=len(rows), source_hashes=hashes)
 (a.output / 'sources.json').write_text(json.dumps(summary, indent=2)+'\n')
