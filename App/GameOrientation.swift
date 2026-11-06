@@ -32,9 +32,6 @@ enum GameOrientation {
 final class SatchelAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         MainActor.assumeIsolated { GameOrientation.lockOrientation() }
-        // Controllers that were connected before launch are reported asynchronously;
-        // observe from launch so every screen and the diagnostics see them.
-        MainActor.assumeIsolated { ControllerInputMonitor.shared.start() }
         // Touch recorder for device-only input problems (App/TouchDiagnostics.swift).
         NotificationCenter.default.addObserver(forName: UIWindow.didBecomeVisibleNotification, object: nil, queue: .main) { note in
             MainActor.assumeIsolated {
