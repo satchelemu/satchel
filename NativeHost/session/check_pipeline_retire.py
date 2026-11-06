@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Exercise the pinned pipeline structs with the real typed retirement helper."""
+"""Exercise the pinned pipeline structs with the real typed retirement helper.
+
+The second part runs the large pool table (g_big) through the engine's own removal and the
+retirement's release of its chunk tables, under AddressSanitizer: a removed pool must not be
+freed again at stop. --baseline-ref REV also runs that revision's SessionGraphicsState.inc,
+which must fail.
+"""
+import argparse
 import os
 from pathlib import Path
 import re
@@ -7,6 +14,9 @@ import runpy
 import subprocess
 
 HERE = Path(__file__).resolve().parent
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--baseline-ref', help='Also reproduce the large pool double free from this git revision')
+args = parser.parse_args()
 OUT = Path(os.environ.get('SESSION_CHECK_OUT', Path.home() / 'SatchelBuild/session')) / 'soak-pipeline-check'
 ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine/dm/gfx/nvn/nvn_mtl.m'
 source = ENGINE.read_text()
@@ -73,3 +83,51 @@ for mode, expected in [('raw', 1), ('typed', 0)]:
     result = subprocess.run([str(OUT / 'fixture'), mode], timeout=5)
     assert result.returncode == expected, (mode, result.returncode)
     print('PASS: ' + mode + ' pipeline lifetime behavior', flush=True)
+
+# Large pools. mtl_pool_del frees a pool's chunk table and moves the last entry into its
+# place; the vacated slot keeps the old copy. The retirement must free each table once.
+def big_release(state_text):
+    body = state_text.split('static void satchel_mtl_release_strong(void) {', 1)[1]
+    return body[body.index('SATCHEL_RETIRE_MARK(330);') + len('SATCHEL_RETIRE_MARK(330);'):body.index('SATCHEL_RETIRE_MARK(329);')]
+big_enum = re.search(r'enum \{ BIG_MIN = [^\n]*?\};', source)[0]
+big_type = re.search(r'typedef struct \{ uintptr_t lo, hi, a, b; const void \*mem; int \*chunk, full; NSMutableArray \*old; \} big_pool;', source)[0]
+big_table = 'static big_pool g_big[BIG_MAX]; static int g_nbig;'
+big_remove = 'free(g_big[bg].chunk); g_big[bg] = g_big[--g_nbig];'
+assert big_table in source and big_remove in source, 'the engine changed its large pool table; review this check'
+versions = [('after', state)]
+if args.baseline_ref:
+    versions.insert(0, ('before', subprocess.check_output(['git', '-C', HERE.parents[1], 'show', args.baseline_ref + ':NativeHost/session/SessionGraphicsState.inc'], text=True)))
+big_main = r'''
+static void big_add(void) { g_big[g_nbig++] = (big_pool){0, 0, 0, 0, NULL, calloc(16, sizeof(int)), 0, [NSMutableArray array]}; }
+int main(void) {
+    for (int cycle = 0; cycle < 3; cycle++) {
+        @autoreleasepool {
+            big_add(); big_add(); big_add();
+            big_del(1);              // a middle pool: the last moves into its place
+            big_del(g_nbig - 1);     // the last pool
+            release();
+        }
+        printf("[big-pool-retire] cycle=%d live=%d\n", cycle, g_nbig);
+        for (int i = 0; i < BIG_MAX; i++) if (g_big[i].chunk || g_big[i].old) return 1;
+    }
+    return 0;
+}
+'''
+for label, text in versions:
+    fixture = ('#import <Foundation/Foundation.h>\n#include <stdio.h>\n#include <stdlib.h>\n#define SATCHEL_RETIRE_MARK(n) ((void)0)\n'
+               + big_enum + '\n' + big_type + '\n' + big_table + '\n'
+               + 'static void big_del(int bg) { ' + big_remove + ' }\n'
+               + 'static void release(void) {' + big_release(text) + '}\n' + big_main)
+    path = OUT / ('big-pool-' + label + '.m')
+    path.write_text(fixture)
+    binary = OUT / ('big-pool-' + label)
+    subprocess.run(['nice', '-n', '10', 'xcrun', 'clang', '-g', '-O1', '-fobjc-arc', '-Wall', '-Werror', '-fsanitize=address',
+                    str(path), '-framework', 'Foundation', '-o', str(binary)], check=True)
+    result = subprocess.run([str(binary)], timeout=30, capture_output=True, text=True)
+    if label == 'before':
+        assert result.returncode != 0 and 'double-free' in result.stderr, ('the baseline release should double free', result.returncode, result.stderr[-600:])
+        print('PASS: the baseline retirement frees a removed large pool chunk table again (AddressSanitizer: double-free)', flush=True)
+    else:
+        assert result.returncode == 0, (result.returncode, result.stdout[-600:], result.stderr[-1500:])
+        print(result.stdout, end='')
+        print('PASS: large pool chunk tables are freed once at stop after the game removed pools', flush=True)

@@ -836,7 +836,12 @@ static void satchel_mtl_release_strong(void) {
     satchel_mtl_release_pending();
     // Owners the f8a5618d pin added. Raw allocations inside them go first.
     SATCHEL_RETIRE_MARK(330);
-    for (unsigned i = 0; i < sizeof g_big / sizeof g_big[0]; i++) { free(g_big[i].chunk); g_big[i] = (typeof(g_big[0])){0}; }
+    // mtl_pool_del moves the last large pool into the freed one's place and leaves the old last
+    // slot as it was: a copy of a live chunk table or of the one it just freed. Free only the
+    // g_nbig live tables, then clear every slot.
+    for (int i = 0; i < g_nbig; i++) free(g_big[i].chunk);
+    for (unsigned i = 0; i < sizeof g_big / sizeof g_big[0]; i++) g_big[i] = (typeof(g_big[0])){0};
+    g_nbig = 0;
     SATCHEL_RETIRE_MARK(329);
     for (unsigned i = 0; i < sizeof g_tb2_gone / sizeof g_tb2_gone[0]; i++) { if (g_tb2_gone[i].v) CFRelease(g_tb2_gone[i].v); g_tb2_gone[i] = (typeof(g_tb2_gone[0])){0}; }
     SATCHEL_RETIRE_MARK(328);

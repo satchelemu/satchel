@@ -126,8 +126,10 @@ the app cannot fix an earlier prepared-game certificate deadline. The maintainer
 First launch opens the home screen. Install and refresh help is in Settings > About.
 Import your own prod.keys, then your base XCI, NSP, XCZ or NSZ from Files or iCloud
 Drive. Download cloud files fully before importing when possible; the importer also
-reports iCloud download progress. Add matching updates from the library. Keep
-original dumps outside Satchel; Prepare can clean up imported copies after verification.
+reports iCloud download progress. Add matching updates from the library. Prepare
+selects the newest imported update for the chosen game; if you clear it, Prepare says the
+game will be prepared without it. Keep original dumps outside Satchel; Prepare can clean
+up imported copies after verification.
 
 Prepare needs your own Apple Development signing identity as well as console keys.
 The identity must belong to the team that signed the installed app. You must obtain and

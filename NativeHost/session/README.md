@@ -396,7 +396,17 @@ Pending and amplified pipeline arrays contain strong Objective-C fields. Their
 typed retirement clears those fields before restoring scalar keys and counters.
 `check_pipeline_retire.py` uses the pinned struct declarations and production
 retirement helper to verify release across five resets, and reproduces the leak
-when only the old byte restoration runs.
+when only the old byte restoration runs. Its second part runs the large pool table
+through the engine's own removal (which leaves a stale copy in the vacated slot) and
+the retirement under AddressSanitizer: each chunk table is freed once. With
+`--baseline-ref <rev>` it also reproduces the double free of an older revision.
+
+The engine frees its `game_env` copy itself when the profile's `game_env` is empty;
+the services overlay then forgets its own pointer to that copy, so the os resources
+reset frees it once (the quit abort seen in Castlevania on 2026-11-05).
+`check_second_launch.py` cuts the generated getenv table and reset from `hle_os.c`
+and runs a stop after `getenv` with an empty `game_env` and later sessions under
+AddressSanitizer; `--baseline-ref <rev>` reproduces the abort.
 
 Dirty-range growth retains replaced state and generation arrays for fault readers.
 The session reset frees those retired arrays only after guest quiescence, closed

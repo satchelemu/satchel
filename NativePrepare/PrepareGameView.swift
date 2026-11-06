@@ -12,6 +12,8 @@ struct PrepareGameView: View {
     @State private var showGameReport = false
     @State private var baseID = ""
     @State private var updateID = ""
+    /// The base the update choice belongs to: a new base gets its own newest update preselected.
+    @State private var updateBaseID = ""
     @State private var applicationID = ""
     @Environment(\.dismiss) private var dismiss
     private var bases: [HomebrewItem] { library.items.filter { $0.package != nil && artwork.info($0)?.kind != .addOnContent && library.hasOriginal($0) } }
@@ -24,6 +26,27 @@ struct PrepareGameView: View {
         guard let target else { return [] }
         let infos = library.items.filter { library.hasOriginal($0) }.compactMap { artwork.info($0) }
         return GameInfo.addOns(for: target, in: infos)
+    }
+    /// The newest imported update for the chosen base, matched as the shelf groups updates.
+    private var matchingUpdate: HomebrewItem? {
+        guard let base = bases.first(where: { $0.id == baseID }), let info = artwork.info(base),
+              let target = applicationID.isEmpty ? info.applicationID : UInt64(applicationID, radix: 16) else { return nil }
+        let candidates = updates.compactMap { item in artwork.info(item).map { (id: item.id, info: $0) } }
+        guard let id = GameInfo.newestUpdate(for: target, baseVersion: info.version, in: candidates) else { return nil }
+        return updates.first { $0.id == id }
+    }
+    /// When the base changes, choose its newest imported update (or none when it has none).
+    private func preselectUpdate() {
+        guard !job.running, updateBaseID != baseID else { return }
+        updateBaseID = baseID
+        updateID = matchingUpdate?.id ?? ""
+    }
+    /// A plain note when a matching update is imported but set aside. Prepare still works.
+    private var updateCaution: String? {
+        guard updateID.isEmpty, let update = matchingUpdate, let base = bases.first(where: { $0.id == baseID }) else { return nil }
+        let baseVersion = artwork.info(base)?.displayVersion ?? "", updateVersion = artwork.info(update)?.displayVersion ?? ""
+        let versions = baseVersion.isEmpty || updateVersion.isEmpty ? "" : " (base v\(baseVersion); update v\(updateVersion) is left out)"
+        return "This game will be prepared without its imported update" + versions + "."
     }
     private var lockedReason: String { "Locked while \(job.title.isEmpty ? "a game" : job.title) prepares. Closing this screen keeps it going." }
 
@@ -56,9 +79,9 @@ struct PrepareGameView: View {
         }
         .sheet(isPresented: $showGameReport) { NativeGameReportView(package: job.package, titleID: "") }
         .onAppear {
-            if !job.running, let initialBaseID, baseID.isEmpty { baseID = initialBaseID }
+            if !job.running, let initialBaseID, baseID.isEmpty { baseID = initialBaseID; preselectUpdate() }
             // Show the running or last job's choices.
-            if !job.baseID.isEmpty, baseID.isEmpty { baseID = job.baseID; updateID = job.updateID }
+            if !job.baseID.isEmpty, baseID.isEmpty { baseID = job.baseID; updateID = job.updateID; updateBaseID = job.baseID }
             // Developer controls: `-SatchelAutoPrepare YES` lets the Mac start Prepare with no taps, using the imported
             // Zelda base and update (names matched case-insensitively). Once per launch.
             guard UserDefaults.standard.bool(forKey: "SatchelDeveloperControls"), UserDefaults.standard.bool(forKey: "SatchelAutoPrepare"), !job.running, !job.autoPrepareUsed else { return }
@@ -67,12 +90,13 @@ struct PrepareGameView: View {
             guard let base = bases.first(where: { match($0) && $0.fileExtension == "xci" }) ?? bases.first(where: match) else {
                 job.note("Auto prepare: no imported Zelda base found."); return
             }
-            baseID = base.id
+            baseID = base.id; updateBaseID = base.id
             let update = updates.first(where: { match($0) && $0.id != base.id })
             updateID = update?.id ?? ""
             job.start(base: base, update: update, title: artwork.title(base), library: library, artwork: artwork,
                       applicationID: applicationID.isEmpty ? artwork.info(base)?.applicationID : UInt64(applicationID, radix: 16))
         }
+        .onChange(of: baseID) { preselectUpdate() }
     }
 
     private func column<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -126,6 +150,9 @@ struct PrepareGameView: View {
                        items: bases, none: "Select base", selection: $baseID, identifier: "prepare-base")
                 picker("Update", detail: "The matching update NSP", systemImage: "arrow.up.circle.fill", tint: SatchelTheme.violet,
                        items: updates, none: "No update selected", selection: $updateID, identifier: "prepare-update")
+                if let updateCaution {
+                    SatchelDisabledReason(text: updateCaution, systemImage: "exclamationmark.triangle.fill").accessibilityIdentifier("prepare-update-caution")
+                }
                 addOnRow
             }
             .disabled(job.running)

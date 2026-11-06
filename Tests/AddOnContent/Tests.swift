@@ -96,6 +96,17 @@ import Foundation
         let shelf = artwork.shelf([dlcItem,updateItem,baseItem])
         check(shelf.count == 1 && shelf[0].item.id == "base" && shelf[0].updates.map(\.id) == ["update"])
         check(artwork.shelf([dlcItem,updateItem]).isEmpty)
+        // Prepare preselects the same update the shelf groups: the newest for the base's
+        // application (or its update title ID), newer than what the base carries; never DLC.
+        let older = GameInfo(applicationID: title, kind: .update, version: 1, displayVersion: "1.1", title: "Older", publisher: "", hasIcon: false, accent: nil)
+        let other = GameInfo(applicationID: title + 0x2000, kind: .update, version: 9, displayVersion: "9", title: "Other game", publisher: "", hasIcon: false, accent: nil)
+        let byUpdateID = GameInfo(applicationID: title + 0x800, kind: .update, version: 3, displayVersion: "3", title: "Update ID", publisher: "", hasIcon: false, accent: nil)
+        let candidates: [(id: String, info: GameInfo)] = [("older", older), ("update", artwork.infos["update"]!), ("other", other), ("dlc", info)]
+        check(GameInfo.newestUpdate(for: title, baseVersion: 0, in: candidates) == "update")
+        check(GameInfo.newestUpdate(for: title, baseVersion: 2, in: candidates) == nil)
+        check(GameInfo.newestUpdate(for: title, baseVersion: 0, in: candidates + [("byid", byUpdateID)]) == "byid")
+        check(GameInfo.newestUpdate(for: title + 0x1000, baseVersion: 0, in: candidates) == nil)
+        check(GameInfo.newestUpdate(for: title, baseVersion: 0, in: [("dlc", info)]) == nil)
         var pending = item("pending"); pending.package = imported.summary
         check(artwork.shelf([pending]).isEmpty)
         let reader = try SwitchExecutableReader.ContentPackage(source, keys: ExecutableTests.keys, cancelled: { false })

@@ -33,7 +33,7 @@ final class NavigationJourneyTests: XCTestCase {
             "testGamePagePrepareSelectsBase", "testPrepareKeyAndStorageRecoveryMessages",
             "testStalePackageNeedsPrepareAgain", "testSettingsPreparedGamesDeletesOnlyChosenPackage",
             "testRemovePreparedGameRemovesAllContentAndTile", "testRemoveOnlyUpdateKeepsPreparedGameAndDLC",
-            "testPrepareDLCRowTracksBaseSelection", "testControllerRumblePersistsPerGame",
+            "testPrepareDLCRowTracksBaseSelection", "testPrepareUpdatePreselectedAndCaution", "testControllerRumblePersistsPerGame",
             "testDeveloperQuitGateAndMenuStillWorks", "testDeveloperQuitReturnsHome", "testDeveloperCycleTwoRounds", "testDeveloperCycleMissingPackage",
             "testQuitReturnsHomeAndCanLaunchAgain", "testQuitThenStartDifferentPreparedGame",
             "testPlainMenuQuitReturnsHome", "testLibraryPausesAndResumes", "testPausedGameCardResumes", "testSwitchingGameStopsFirst"]
@@ -528,6 +528,48 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("close-prepare")
         absent(app.buttons["close-prepare"])
         _ = try button("import-homebrew")
+    }
+
+    /// Prepare preselects the base's newest imported update, from the game page and from
+    /// Workshop. Clearing it leaves Prepare available and shows a plain caution with the versions.
+    func testPrepareUpdatePreselectedAndCaution() throws {
+        let caution = app.descendants(matching: .any).matching(identifier: "prepare-update-caution").firstMatch
+        let original = app.launchArguments
+        try launchDLCFixture("unprepared")
+        try tap("prepare-game")
+        _ = try button("close-prepare")
+        XCTAssertEqual(app.buttons["prepare-base"].value as? String, "Lantern Drift [Base]")
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "Lantern Drift [Update]", "The game page must preselect the imported update")
+        XCTAssertFalse(caution.exists, "No caution while the update is selected")
+        try tap("prepare-update")
+        try tap("No update selected")
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "No update selected")
+        XCTAssertTrue(caution.waitForExistence(timeout: 5), "Clearing a matching update must show the caution")
+        XCTAssertTrue(caution.label.contains("without its imported update") && caution.label.contains("v1.0.0") && caution.label.contains("v1.2.0"), caution.label)
+        let reason = app.descendants(matching: .any).matching(identifier: "prepare-start-reason").firstMatch
+        XCTAssertFalse(reason.exists && reason.label.lowercased().contains("update"), "The caution must not block Prepare: \(reason.label)")
+        try tap("close-prepare")
+        absent(app.buttons["close-prepare"])
+
+        // The Workshop route on a fresh fixture, without the game page fixture's arguments.
+        app.launchArguments = original
+        try launchFixFixture()
+        try workshop("workshop-prepare")
+        let column = app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch
+        func select(_ picker: String, _ title: String) throws {
+            for _ in 0..<4 where !app.buttons[picker].isHittable { column.swipeDown() }
+            try tap(picker)
+            try tap(title)
+        }
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "No update selected")
+        try select("prepare-base", "Lantern Drift [Base]")
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "Lantern Drift [Update]", "Workshop must preselect the update of the chosen base")
+        XCTAssertFalse(caution.exists)
+        try select("prepare-base", "Tidebreaker")
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "No update selected", "Another game must not keep this game's update")
+        XCTAssertFalse(caution.exists, "No caution for a game without an imported update")
+        try select("prepare-base", "Lantern Drift [Base]")
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "Lantern Drift [Update]")
     }
 
     /// A package from an older engine never offers Play: the page offers Prepare again, and

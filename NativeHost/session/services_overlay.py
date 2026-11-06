@@ -36,6 +36,10 @@ def common(text):
                    'static char *satchel_env_storage;\nstatic pthread_mutex_t satchel_env_mu = PTHREAD_MUTEX_INITIALIZER;\nstatic const char **g_env_kv;')
     text = replace(text, 'char *s = strdup(e); int k = 0;',
                    'char *s = satchel_env_storage = strdup(e); if (!s) die("game_env allocation failed"); int k = 0;')
+    # The engine frees the copy itself when no entry was accepted (an empty game_env). The reset
+    # below frees satchel_env_storage, so forget the pointer there: one free in every path.
+    text = replace(text, '    else free(s);   // no accepted entry points into the copy',
+                   '    else { free(s); satchel_env_storage = NULL; }   // no accepted entry points into the copy')
     text = replace(text, 'static const char *const *game_env(void) { static pthread_once_t once = PTHREAD_ONCE_INIT; pthread_once(&once, game_env_init); return g_env_kv; }',
                    'static const char *const *game_env(void) { pthread_mutex_lock(&satchel_env_mu); if (!g_env_kv) game_env_init(); pthread_mutex_unlock(&satchel_env_mu); return g_env_kv; }')
     text = remember(text, 'static char *(*orig)(const char *);', 'orig')

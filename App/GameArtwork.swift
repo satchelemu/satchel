@@ -35,6 +35,14 @@ struct GameInfo: Codable, Equatable {
         return selected.values.sorted { $0.titleID < $1.titleID }
     }
 
+    /// The newest imported update for a base game, as the shelf groups them: an update whose
+    /// application is the base's (an update's own title ID is the base's with the 0x800 bit)
+    /// and newer than what the base already carries (a cartridge can bundle one). nil when none.
+    static func newestUpdate(for applicationID: UInt64, baseVersion: UInt32, in candidates: [(id: String, info: GameInfo)]) -> String? {
+        candidates.filter { $0.info.kind == .update && $0.info.applicationID & ~0x800 == applicationID & ~0x800 && $0.info.version > baseVersion }
+            .max { $0.info.version < $1.info.version }?.id
+    }
+
     var accentColor: Color? {
         guard let accent, accent.count == 3 else { return nil }
         return Color(red: accent[0], green: accent[1], blue: accent[2])
