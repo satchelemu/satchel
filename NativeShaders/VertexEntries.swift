@@ -42,7 +42,7 @@ extension ShaderTransforms {
             + "static inline void dm_cw(constant dm_geometry_capture& g, device uint* p, uint k, uint v) { short s = g.slot[k]; if (s >= 0) p[s] = v; }\n"
             + "vertex void main0_gs(" + params + ")\n{\n" + pro + body.replacingOccurrences(of: "return out;", with: epilogue)
     }
-    static func layerEntries(_ full: String) -> (String, [String: Any]?) {
+    static func layerEntries(_ full: String) throws -> (String, [String: Any]?) {
         guard let i = find(full, "struct main0_out\n{\n"), let j = find(full, "\n};", i), full.contains("gl_InstanceIndex"), !slice(full, i, j).contains("[[render_target_array_index]]") else { return (full, nil) }
         let fields = matches(#"\n    float4 (\w+) \[\[user\(locn(\d+)\)\]\];"#, slice(full, i, j))
         let locs = Dictionary(uniqueKeysWithValues: fields.map { ($0[1], Int($0[2])!) })
@@ -56,7 +56,7 @@ extension ShaderTransforms {
             guard let a = match("\\bvertex\\s+main0_out\\s+\(entry)\\s*\\(", full), let b = find(full, "{", a.end), let end = close(full, b + 1, 123, 125) else { return (full, nil) }
             var fn = slice(full, a.start, end).replacingOccurrences(of: "main0_out", with: "main0l_out")
             fn = replacingFirst(fn, " \(entry)(", " \(new)(")
-            fn = sub(#"\n    out\.gl_PointSize = [^;\n]*;"#, fn) { _ in "" }
+            fn = try dropPointSize(fn)
             add += "\n" + fn.replacingOccurrences(of: "return out;", with: "out.gl_Layer = as_type<uint>(out.\(name).\(comp));\n    return out;") + "\n"
         }
         return (full + add, ["loc": locs[name]!, "comp": comp])
@@ -65,7 +65,7 @@ extension ShaderTransforms {
         guard let index = find(src, "vertex main0_out main0(") else { return [:] }
         let body = slice(src, index)
         var out: [String: String] = [:]
-        for field in matches(#"(\w+)\s+(\w+)\s*\[\[attribute\((\d+)\)\]\]"#, src) {
+        for field in attributes(src) {
             let name = field[2], location = field[3]
             var nint = 0, bad = false
             for use in matches("in\\.\(escaped(name))\\b", body) {

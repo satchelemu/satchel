@@ -14,21 +14,28 @@ enum ShaderSourcePipeline {
         }
         var source = input
         try ShaderTransforms.checkAtomics(source)
-        source = try ShaderTransforms.border(ShaderTransforms.pools(ShaderTransforms.precise(source)))
+        source = ShaderTransforms.precise(source)
+        try ShaderTransforms.checkTensor(source)
+        source = try ShaderTransforms.border(ShaderTransforms.wideLoads(ShaderTransforms.pools(source)))
+        var firstStores: [(String, Int, Int)] = [], spill = 0
+        if stage == "cs" {
+            (source, firstStores) = ShaderTransforms.firstStore(source, local: job["local"] as? [Int])
+            (source, spill) = try ShaderTransforms.spillShared(source)
+        }
         var padded: [Int] = [], layer: [String: Any]?, discard = false
         var full = source
         if stage == "vs" {
-            source = ShaderTransforms.baseInstance(ShaderTransforms.layer(ShaderTransforms.initializeVertex(source)))
+            source = ShaderTransforms.baseInstance(try ShaderTransforms.layer(ShaderTransforms.initializeVertex(source)))
             (source, padded) = ShaderTransforms.pad(source, wanted: wanted)
             let capture = try ShaderTransforms.capture(source)
             (source, full) = try ShaderTransforms.depth(source)
             full += capture
-            discard = try ShaderReflection.bindings(stage: stage, source: source, resources: resources).contains { $0["rw"] as? Bool == true }
+            discard = ShaderTransforms.vertexWrites(source, bindings: try ShaderReflection.bindings(stage: stage, source: source, resources: resources))
             if discard { full += try ShaderTransforms.discard(source) }
             if let tf = job["tf"] as? [Any] { full += try ShaderTransforms.feedback(source, layout: tf) }
-            (full, layer) = ShaderTransforms.layerEntries(full)
+            (full, layer) = try ShaderTransforms.layerEntries(full)
         }
-        let (uint, mask) = stage == "ps" ? ShaderTransforms.uintFragment(source) : (nil, 0)
+        let (uint, mask) = stage == "ps" ? try ShaderTransforms.uintFragment(source) : (nil, 0)
         let dualEntry = stage == "ps" && dual ? ShaderTransforms.dualFragment(source) : nil
         if uint != nil || dualEntry != nil { full = (uint ?? source) + (dualEntry ?? "") }
         let entry = match(#"(vertex|fragment|kernel)\s+\S+\s+(\w+)\s*\("#, source)
@@ -40,8 +47,8 @@ enum ShaderSourcePipeline {
             "source": job["source"] ?? "native", "pc_paired": job["pc_paired"] ?? "", "stage": stage,
             "entry": entry?[2] ?? "main0", "msl_entry_kind": entry.map { $0[1] as Any } ?? NSNull(),
             "threadgroup_size": job["local"] ?? NSNull(), "c1": job["c1"] ?? "", "notes": notes,
-            "drv_reads": reads, "drv_unfillable": ShaderReflection.unfillable(reads), "bindings": bindings,
-            "vertex_inputs": matches(#"(\w+)\s+\w+\s*\[\[attribute\((\d+)\)\]\]"#, source).map { ["location": Int($0[2])!, "msl_type": $0[1]] as [String: Any] },
+            "drv_reads": reads, "drv_unfillable": ShaderReflection.unfillable(reads, stage: stage), "bindings": bindings,
+            "vertex_inputs": ShaderTransforms.attributes(source).map { ["location": Int($0[3])!, "msl_type": $0[1]] as [String: Any] },
             "raster": ShaderReflection.raster(stage: stage, source: source), "vs_pad": padded]
         if stage == "vs" { reflection["entry_z"] = "main0_z"; reflection["entry_geometry_capture"] = "main0_gs" }
         if discard { reflection["entry_discard"] = "main0_discard" }
@@ -52,6 +59,15 @@ enum ShaderSourcePipeline {
         if let layer { reflection["entry_layer"] = "main0_l"; reflection["entry_layer_z"] = "main0_lz"; reflection["layer_from"] = layer }
         if uint != nil { reflection["entry_u"] = "main0_u"; if mask != 0 { reflection["entry_m"] = "main0_m"; reflection["uint_mask_m"] = mask } }
         if dualEntry != nil { reflection["entry_d"] = "main0_d" }
+        if !firstStores.isEmpty {
+            reflection["first_store"] = try firstStores.map { store -> [String: Any] in
+                guard let binding = bindings.first(where: { $0["msl_name"] as? String == store.0 }), let reg = binding["reg"] else {
+                    throw ShaderTransformError.unsupported("first store without a storage binding")
+                }
+                return ["reg": reg, "word": store.1, "value": store.2]
+            }
+        }
+        if spill != 0 { reflection["tg_spill"] = spill }
         var sources = ["b": full]
         if stage == "vs" {
             if let v = ShaderVariants.vin(full) { sources["bv"] = v.source; reflection["vin"] = ["entry": "main0", "entry_z": "main0_z", "shadow": v.info] }

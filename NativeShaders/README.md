@@ -1,5 +1,13 @@
 # Native shader preparation
 
+Since 2026-11-05 the reference is the engine pin, nxnative `f8a5618d` (translator sources,
+`dmsh_xlate` accessor and `dmsh_build.py` transforms; see
+[BUILDING.md](../BUILDING.md#the-shader-translator-pin)). On the Mac the NativeAOT
+translator matched the engine's prebuilt `dmsh_xlate` for every Zelda (28,669) and Odyssey
+(27,984) shader, and the full native pipeline matched an unmodified `dmsh_build.py` run,
+byte for byte in every source, variant and reflection, for 4,719 Zelda, 5,447 Odyssey and
+198 Castlevania shaders. The record counts below are from the earlier pin.
+
 Satchel M5's full Zelda native parity passed: 28,669 records, 71,621 exact MSL
 sources and 28,669 exact semantic reflection files after removing offline
 compiler provenance. General translation, discovery, runtime compilation and

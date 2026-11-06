@@ -30,6 +30,8 @@ enum ShaderRecord {
         let ci = 0x38 + codeSize
         let control = record.subdata(in: ci..<record.count)
         var code = record.subdata(in: 0x38..<ci)
+        // Switch 2 (NVN2, control version 0xc9) records take the pinned engine's Ampere route, which this Switch app does not offer.
+        if try word(control,0) == 0x98761234, try word(control,4) == 0xc9 { throw ShaderTransformError.unsupported("NVN2 shader record") }
         guard try word(control,0) == 0x98761234, Int(try word(control,0x704)) == code.count else { throw ShaderTransformError.unsupported("invalid shader control") }
         let declared = Int(try word(control,0x20)), keyLength = (0x760...0x880).contains(declared) ? declared : 0x880
         guard keyLength <= control.count else { throw ShaderTransformError.unsupported("short shader control") }

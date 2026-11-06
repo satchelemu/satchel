@@ -81,7 +81,8 @@ result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,pipelineBudgetMs=a.pipeli
 timings={}
 for line in (work/'frames.tsv').read_text().splitlines():
     cells=line.split('\t')
-    if len(cells)==3 and cells[1].startswith('@'):
+    # Since the f8a5618d pin some probes are written with no value (@use_skip); they carry no timing.
+    if len(cells)==3 and cells[1].startswith('@') and cells[2]:
         timings.setdefault(int(cells[0]),{})[cells[1]]=float(cells[2])
 for line in (work/'pipeline-skips.tsv').read_text().splitlines() if (work/'pipeline-skips.tsv').exists() else []:
     frame, count = map(int, line.split('\t'))

@@ -31,6 +31,9 @@ settings (30 FPS cap, handheld mode) are unchanged. See
 upstream revision leaves the rewritten code of Zelda 1.4.3, Odyssey 1.0.0 and 1.4.1 and
 Castlevania 1.0.0 unchanged (checked on the Mac), so they need no further Prepare. Mario
 Kart 8 Deluxe was not checked: a package of it from before that move needs Prepare again.
+The phone's shader translator then moved to the same engine pin; its shader caches start
+empty again, prepared packages stay valid
+([BUILDING.md](BUILDING.md#the-shader-translator-pin)). No row was measured with it.
 
 Super Mario Odyssey 1.0.0 prepared without its update crashed at startup on the phone
 (2026-11-05): its SDK hands a game play recording buffer to a system applet the host does

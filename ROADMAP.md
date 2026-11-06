@@ -44,9 +44,11 @@ package and every shader cache from before the move is invalid by design (see
 
 Left open by the move:
 
-- The phone's shader translator still follows NX2Apple `8227f80f`. Upstream's translator
-  fixes since then (denormal comparisons, bank selection at run time, storage words read
-  whole, Switch 2 shaders) need that pin to move and `dmsh_build` to be ported again.
+- Done on the Mac (2026-11-05), phone check open: the phone's shader translator moved from
+  NX2Apple `8227f80f` to the engine pin, with `dmsh_build` ported again. Its output matches
+  the engine's own tools on the Mac for Zelda, Odyssey and Castlevania; shader caches start
+  empty once more, prepared packages stay valid. Switch 2 shaders stay refused. See
+  [BUILDING.md](BUILDING.md#the-shader-translator-pin).
 - Done on the Mac: the on-phone rewriter now reproduces `patch_nso.py` at `f8a5618d`, with
   upstream's stricter register-write proofs for jump tables, the padded and framed tail call
   forms, the frame rate target lookup (passed to the host's limiter through the fixups) and

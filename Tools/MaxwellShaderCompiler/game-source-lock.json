@@ -1,4 +1,7 @@
 {
-  "commit": "8227f80f9b381c680611303319656c4e0c806a50",
-  "Program.cs": "de6b7684afa0aee9f97f8bfb18e0cd9d0aa6237a0453e77892daecc860eb4102"
+  "repository": "https://github.com/seedds/nxnative",
+  "commit": "f8a5618d5f505a4c0a0bcac7c413872d3a53c009",
+  "source_file_count": 223,
+  "source_sha256": "07b788419f8daf2c5b5c56a129f53799a300994206fa65c194176bbe82bcf35b",
+  "Program.cs": "4f42b66ba487cf842dba56d97e01ae20b1a10fdb6881126a2a3a628a45ed7128"
 }

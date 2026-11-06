@@ -34,6 +34,12 @@ enum ShaderReflection {
         if h.type == 3 { return (h.textureBank - 3, h.word0 * 4, "id", h.word1, 0) }
         return (h.textureBank - 3, h.word0 * 4, "ubo", h.samplerBank - 3, (h.type == 1 ? h.word1 : h.word0) * 4)
     }
+    // dmsh_build decode_ubo_img: an image handle kept in the game's own uniform buffer (uniform slot, byte offset).
+    static func uboImage(_ name: String) -> (Int, Int)? {
+        guard let m = match(#"^[a-z]+_i\w*?_cb(\d+)_([0-9A-F]+)"#, name), let bank = Int(m[1]), (3...16).contains(bank),
+              let word = Int(m[2], radix: 16) else { return nil }
+        return (bank - 3, word * 4)
+    }
     static func c2Array(_ name: String, _ type: String) -> (Int, Int?)? {
         let n = name.hasSuffix("Smplr") ? String(name.dropLast(5)) : name
         guard type.hasPrefix("array<"), match(#"^[a-z]+_t\w*?_cb\d+_[0-9A-F]+$"#, n) != nil, let h = handle(n, textureOnly: true) else { return nil }
@@ -63,9 +69,18 @@ enum ShaderReflection {
                 else { e["kind"] = n == 1 ? "c1" : "drvcb"; e["bank"] = n }
             } else if let sb = match(#"^[a-z]+_s(\d+)$"#, nm) { e["kind"] = "sbuf"; e["index"] = Int(sb[1])! }
             else if let u = ubo(nm.hasSuffix("Smplr") ? String(nm.dropLast(5)) : nm) {
-                if nm.hasSuffix("Smplr") { e["kind"] = u.2 == "id" ? "samp_id" : "samp_ubo"; e["reg"] = u.3; if u.2 != "id" { e["off"] = u.4 } }
-                else if ty.contains("texture_buffer") { e["kind"] = "?" }
-                else { e["kind"] = "tex_ubo"; e["reg"] = u.0; e["off"] = u.1 }
+                // Handle type 1: the word of the other half, which the host ORs in (pinned reflect soff and sreg).
+                let other = u.2 != "id" && (u.3 != u.0 || u.4 != u.1)
+                if nm.hasSuffix("Smplr") {
+                    e["kind"] = u.2 == "id" ? "samp_id" : "samp_ubo"; e["reg"] = u.3
+                    if u.2 != "id" { e["off"] = u.4 }
+                    if other { e["soff"] = u.1; e["sreg"] = u.0 }
+                }
+                else if ty.contains("texture_buffer") { e["kind"] = "tbuf_ubo"; e["reg"] = u.0; e["off"] = u.1 }
+                else { e["kind"] = "tex_ubo"; e["reg"] = u.0; e["off"] = u.1; if other { e["soff"] = u.4; e["sreg"] = u.3 } }
+            } else if let image = uboImage(nm) {
+                e["kind"] = "img_ubo"; e["reg"] = image.0; e["off"] = image.1
+                if hasWord(source, nm + ".atomic_") { e["atomic"] = true }
             } else if let array = c2Array(nm, ty) {
                 e["kind"] = nm.hasSuffix("Smplr") ? "samp_c2a" : "tex_c2a"; e["off"] = array.0
                 if let off = array.1 { e["soff"] = off }
@@ -79,10 +94,10 @@ enum ShaderReflection {
                     e["kind"] = match(#"^[a-z]+_i"#, nm) != nil ? "img" : (ty.contains("texture_buffer") ? "tbuf" : "tex")
                     e["reg"] = d.0.map { $0 as Any } ?? NSNull()
                 } else { e["kind"] = "?" }
-                if e["kind"] as? String == "img" && match("\\b\(escaped(nm))\\.atomic_", source) != nil { e["atomic"] = true }
+                if e["kind"] as? String == "img" && hasWord(source, nm + ".atomic_") { e["atomic"] = true }
                 if e["kind"] as? String == "tex", let reg = e["reg"] as? Int, (resources["fetch1d"] as? [Int] ?? []).contains(reg) {
                     e["fetch1d"] = true
-                    if match("\\b\(escaped(nm))\\.get_width\\(", source) != nil { e["fetch1d_size"] = true }
+                    if hasWord(source, nm + ".get_width(") { e["fetch1d_size"] = true }
                 }
             }
             if e["kind"] as? String == "sbuf" {
@@ -90,6 +105,15 @@ enum ShaderReflection {
                 let b = index < sbufs.count ? sbufs[index] : [:]
                 let bank = b["cb_slot"] as? Int, cbOffset = b["cb_offset"] as? Int
                 let off = bank == 0 ? cbOffset.map { $0 * 4 } : nil
+                // Global memory traced to no storage buffer: the host's pool table or its write log (DMSH_GMEM_MAP_CB_SLOT 0xFF, DMSH_GMEM_LOG_CB_OFFSET 1).
+                if bank == 0xFF {
+                    if cbOffset == 1 { e["kind"] = "gmem_log"; e["rw"] = true }
+                    else {
+                        let notes = resources["notes"] as? [String] ?? []
+                        e["kind"] = "gmem_map"; e["rw"] = notes.contains { match(#"operation "(Store|Atomic\w*)" traced to no storage buffer"#, $0) != nil }
+                    }
+                    binds.append(e); continue
+                }
                 if stage == "cs", let off, (0x210..<0x310).contains(off), (off - 0x210) % 16 == 0 { e["kind"] = "ubo_ptr"; e["reg"] = (off - 0x210) / 16 }
                 else if let bank, bank >= 3, let cbOffset { e["kind"] = "sbuf_ubo"; e["reg"] = bank - 3; e["off"] = cbOffset * 4 }
                 else if let off, let base = ["vs": 0x110, "cs": 0x310, "gs": 0x410, "ps": 0x510][stage], (0..<256).contains(off - base), (off - base) % 16 == 0 { e["reg"] = (off - base) / 16 }
@@ -113,13 +137,17 @@ enum ShaderReflection {
         }
         return out
     }
-    static func unfillable(_ reads: [String: Any]) -> [String] {
+    static func unfillable(_ reads: [String: Any], stage: String) -> [String] {
         let filled = ["0": [(0x110,0x210),(0x310,0x410),(0x410,0x510),(0x510,0x610)], "2": [(0x20,0x168),(0x120,0x160),(0x168,0x568),(0x568,0x968)]]
+        // The pixel stage's sample position rows (DMSH_C0_SAMPLE_TABLE 0x620, 16 bytes; DMSH_C0_SAMPLE_INFO 0x630).
+        let samples = [(0x620, 0x630), (0x630, 0x640)]
         var bad: [String] = []
         for bank in ["0", "2"] {
             guard let read = reads[bank] as? [String: Any] else { continue }
-            if bank == "0" && read["dynamic"] as? Bool == true { bad.append("c0 dynamic index") }
-            for off in read["vec4_offsets"] as? [Int] ?? [] where !filled[bank]!.contains(where: { off < $0.1 && $0.0 < off + 16 }) { bad.append("c\(bank)+0x\(String(off, radix: 16))") }
+            let offsets = read["vec4_offsets"] as? [Int] ?? []
+            let fill = filled[bank]! + (bank == "0" && stage == "ps" ? samples : [])
+            if bank == "0" && read["dynamic"] as? Bool == true && !(stage == "ps" && offsets.contains(0x630)) { bad.append("c0 dynamic index") }
+            for off in offsets where !fill.contains(where: { off < $0.1 && $0.0 < off + 16 }) { bad.append("c\(bank)+0x\(String(off, radix: 16))") }
         }
         return bad
     }

@@ -32,21 +32,25 @@ def source_files(checkout):
     return sorted(files, key=lambda p: p.relative_to(checkout).as_posix())
 
 
-def verify_source(checkout):
+def verify_source(checkout, fixture):
+    # The game translator follows the engine pin (game-source-lock.json); the original fixture
+    # stays on the reviewed NX2Apple checkout of source-lock.json. Both read the same file list.
+    lock = LOCK if fixture else json.loads((HERE / "game-source-lock.json").read_text())
+    name = "source-lock.json" if fixture else "game-source-lock.json"
     commit = subprocess.check_output(["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
-    if commit != LOCK["commit"]:
-        raise RuntimeError("NX2Apple commit does not match source-lock.json.")
-    game_lock = json.loads((HERE / "game-source-lock.json").read_text())
-    front = checkout / "dm/gfx/tools/dmsh_xlate/Program.cs"
-    if hashlib.sha256(front.read_bytes()).hexdigest() != game_lock["Program.cs"]:
-        raise RuntimeError("Game accessor source differs from its pinned hash.")
+    if commit != lock["commit"]:
+        raise RuntimeError("Translator checkout commit does not match " + name + ".")
+    if not fixture:
+        front = checkout / "dm/gfx/tools/dmsh_xlate/Program.cs"
+        if hashlib.sha256(front.read_bytes()).hexdigest() != lock["Program.cs"]:
+            raise RuntimeError("Game accessor source differs from its pinned hash.")
     files = source_files(checkout)
     digest = hashlib.sha256()
     for source in files:
         digest.update(source.relative_to(checkout).as_posix().encode() + b"\0")
         digest.update(source.read_bytes())
         digest.update(b"\0")
-    if len(files) != LOCK["source_file_count"] or digest.hexdigest() != LOCK["source_sha256"]:
+    if len(files) != lock["source_file_count"] or digest.hexdigest() != lock["source_sha256"]:
         raise RuntimeError("Translator sources or license texts differ from the pinned source hash.")
     print(f"Verified {len(files)} pinned source/resource/license files.", flush=True)
 
@@ -64,7 +68,7 @@ def run(args, env=None, log=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkout", type=Path, required=True, help="Existing pinned NX2Apple checkout; read only")
+    parser.add_argument("--checkout", type=Path, required=True, help="Existing pinned checkout (the engine for the game translator, NX2Apple for the fixture); read only")
     parser.add_argument("--dotnet", type=Path, required=True, help="Existing .NET 10.0.403 executable")
     parser.add_argument("--work", type=Path, default=Path("/tmp/satchel-shader-aot"))
     parser.add_argument("--platform", choices=("host", "ios", "all"), default="all")
@@ -83,7 +87,7 @@ def main():
     if args.original_fixture and args.platform in ("host", "all") and not validator:
         raise RuntimeError("The original fixture host gate requires the already-installed spirv-val tool.")
     before = inputs('aot')
-    verify_source(checkout)
+    verify_source(checkout, args.original_fixture)
     work.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env.update(DOTNET_CLI_HOME=str(work / "cli"), NUGET_PACKAGES=os.environ.get("NUGET_PACKAGES", str(work / "packages")),

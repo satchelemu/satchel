@@ -75,6 +75,8 @@ the new engine builds pipelines differently (one `_bx` side library for the alph
 and logic operation entry points, continued render passes, sparse and chunked pools).
 Archives under the earlier `bbc3b737-e65a4ebd3322-v1` namespace are left on disk and are
 never read again; every game rebuilds its pipelines on first play after the update.
+It is `f8a5618d-26dc2fa9477c-v3` since the phone's shader translator moved to the engine pin
+(also 2026-11-05): the translated shaders changed, so `-v2` archives are not read either.
 
 A source cache hit does not prove that Metal avoided compilation. Apple's public
 [MTLLibrary API](https://developer.apple.com/documentation/metal/mtllibrary/)

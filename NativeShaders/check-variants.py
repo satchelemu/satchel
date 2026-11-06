@@ -12,7 +12,7 @@ import time
 
 sys.dont_write_bytecode = True
 ROOT = Path.home() / 'SatchelBuild/m5'
-TOOLS = Path.home() / 'SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/NX2Apple/dm/gfx/tools'
+from oracle import TOOLS
 CORPUS = Path.home() / 'SatchelBuild/shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 sys.path.insert(0, str(TOOLS))
 import dmsh_vin, dmsh_pull, dmsh_fetch

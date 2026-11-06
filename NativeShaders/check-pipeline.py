@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Full native output versus proven Zelda MSL and reflection, streamed to scratch."""
+"""Native output versus the pinned engine's Mac MSL and reflection for one game, streamed to scratch.
+
+The game is the oracle's profile and packages (SATCHEL_SHADER_PROFILE, SATCHEL_SHADER_PACKAGES; default Zelda);
+--corpus is the Mac pipeline's b-<chain> folder for it and --keys limits the run to a key list."""
 import argparse
 import collections
 import ctypes
@@ -22,7 +25,7 @@ _spec=importlib.util.spec_from_file_location("check_translator",Path(__file__).w
 _translator=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_translator)
 native=_translator.native
 ROOT = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5')))
-CORPUS = Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
+DEFAULT_CORPUS = Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 
 def main():
     parser = argparse.ArgumentParser()
@@ -32,10 +35,13 @@ def main():
     parser.add_argument('--source-stages',action='store_true')
     parser.add_argument('--limit', type=int, default=0)
     parser.add_argument('--label', required=True)
+    parser.add_argument('--corpus', type=Path, default=DEFAULT_CORPUS, help='The Mac pipeline output folder b-<chain> of this game')
+    parser.add_argument('--keys', type=Path, help='Only these keys (one per line); keys the Mac pipeline did not build are counted, not compared')
     parser.add_argument('--batch-size', type=int, default=500)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--max-batches', type=int, default=0, help='Stop at a resumable batch boundary')
     args = parser.parse_args()
+    CORPUS = args.corpus
     if not os.environ.get('SATCHEL_M5_WATCHDOG_PID'):
         parser.error('Run through NativeShaders/guard.py --light for RSS, swap and disk monitoring')
     if not 1 <= args.batch_size <= 2000: parser.error('Batch size must be between 1 and 2000')
@@ -87,8 +93,29 @@ def main():
     inventory=collections.defaultdict(set)
     for path in CORPUS.glob('*.metal'):
         key,suffix=path.stem.rsplit('_',1);inventory[key].add(suffix)
+    # The engine's own build keeps only <key>_b.metal and compiles its variants from it with these pure text
+    # functions; a variant exists when its Mac library does. A retained corpus with variant sources is read as is.
+    sys.path.insert(0,str(TOOLS))
+    import dmsh_vin, dmsh_pull, dmsh_side, dmsh_fetch
+    for path in CORPUS.glob('*_b.metallib'):
+        key=path.name[:-len('_b.metallib')]
+        inventory[key].update(sfx for sfx in ('bv','bp','bx','bf') if (CORPUS/(key+'_'+sfx+'.metallib')).exists())
+    def expected_source(key,suffix):
+        path=CORPUS/(key+'_'+suffix+'.metal')
+        if path.exists(): return path.read_bytes()
+        full=(CORPUS/(key+'_b.metal')).read_text()
+        if suffix=='bv': text=dmsh_vin.variant(full)[0]
+        elif suffix=='bp': text=dmsh_pull.variant(full)[0]
+        elif suffix=='bx': text=dmsh_side.unit(full)[0]
+        else: text=dmsh_fetch.variant(full,json.loads((CORPUS/(key+'_b.json')).read_bytes())['bindings'],om_only_ok=key in bf)[0]
+        return (text or '').encode()
     counts=collections.Counter(); differences=[]; packs={}; timings=[]; start=time.monotonic()
     ordered=[args.key] if args.key else sorted(rows)[args.start:]
+    if args.keys:
+        listed=set(args.keys.read_text().split())
+        ordered=[k for k in ordered if k in listed]
+    unbuilt=[k for k in ordered if not (CORPUS/(k+'_b.json')).exists()]
+    ordered=[k for k in ordered if k not in set(unbuilt)]
     if args.limit: ordered=ordered[:args.limit]
     digest=hashlib.sha256()
     for path in [Path(__file__),executable,ROOT/'aot/repro/host-publish/SatchelShaderProbe.dylib']:
@@ -96,7 +123,8 @@ def main():
     facts_identity={'rows':rows,'facts':scope['FACTS'],'pairing':pc,
         'pairs':{k:sorted(v) for k,v in pairs.items()},'mapping':sorted(bf),'dual':sorted(dual)}
     input_digest=hashlib.sha256(json.dumps(facts_identity,sort_keys=True,separators=(',',':')).encode())
-    input_digest.update((CORPUS.parents[1]/'manifest.json').read_bytes())
+    manifest=CORPUS.parents[1]/'manifest.json'
+    input_digest.update((manifest if manifest.exists() else CORPUS/'_b_build.json').read_bytes())
     config={'version':1,'source_stages':args.source_stages,'batch_size':args.batch_size,
             'keys_sha256':hashlib.sha256('\n'.join(ordered).encode()).hexdigest(),
             'count':len(ordered),'implementation_sha256':digest.hexdigest(),
@@ -181,7 +209,7 @@ def main():
                 if actual_names != expected_names:
                     differences.append({'key':key,'variant_inventory':{'missing':sorted(expected_names-actual_names),'extra':sorted(actual_names-expected_names)}})
                 for suffix in sorted(expected_names & actual_names):
-                    expected=(CORPUS/(key+'_'+suffix+'.metal')).read_bytes();actual=(scratch/(suffix+'.metal')).read_bytes()
+                    expected=expected_source(key,suffix);actual=(scratch/(suffix+'.metal')).read_bytes()
                     counts[suffix+'_attempted']+=1;counts[suffix+'_byte_equal']+=actual==expected
                     if actual!=expected:
                         differences.append({'key':key,'kind':suffix,'expected_sha256':hashlib.sha256(expected).hexdigest(),'actual_sha256':hashlib.sha256(actual).hexdigest(),'whitespace_only':re.sub(rb'\s+',b'',actual)==re.sub(rb'\s+',b'',expected),'trailing_only':actual.rstrip()==expected.rstrip(),'expected_bytes':len(expected),'actual_bytes':len(actual)})
@@ -212,7 +240,7 @@ def main():
         if child is not None:
             stop_batch();completed_batches+=1
         save()
-        summary={'counts':counts,'differences':differences,'seconds':elapsed+time.monotonic()-start,
+        summary={'counts':counts,'differences':differences,'not_built_by_reference':unbuilt,'seconds':elapsed+time.monotonic()-start,
                  'complete':next_index==len(ordered),'completed_batches':completed_batches,
                  'excluded_reflection_fields':['chain_metal','chain_compiler']}
         if timings:

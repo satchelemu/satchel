@@ -14,10 +14,13 @@ below. The original `satchel_shader_probe` entry point is unchanged.
 ## Reproduce
 
 Requirements: Apple Silicon macOS, Xcode with the iPhoneOS SDK, Python 3, an
-existing .NET SDK **10.0.403**, and an existing NX2Apple checkout at
-**8227f80f9b381c680611303319656c4e0c806a50**. No SDK/workload is installed by this
-script. `source-lock.json` verifies the commit and all 216 included source,
-resource, and upstream license files before restoring or compiling anything.
+existing .NET SDK **10.0.403**, and an existing checkout of the translator sources.
+The game translator (the default build) reads the engine snapshot at nxnative
+**f8a5618d5f505a4c0a0bcac7c413872d3a53c009** (`<deps>/NX2Apple/engine`):
+`game-source-lock.json` verifies that commit, its 223 source, resource and license files
+and the pinned `dmsh_xlate/Program.cs`. The original fixture (`--original-fixture`) and
+the probe below keep the NX2Apple checkout at **8227f80f9b381c680611303319656c4e0c806a50**,
+verified by `source-lock.json` (216 files). No SDK/workload is installed by this script.
 
 From the repository root:
 
@@ -216,8 +219,11 @@ no canonical framework has been replaced. The production host library is
 
 ## Sources and licenses
 
-- [Pinned NX2Apple translator](https://github.com/LNPANDY/NX2Apple/tree/8227f80f9b381c680611303319656c4e0c806a50/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader):
-  Ryujinx Team and Contributors, MIT.
+- [Pinned engine translator](https://github.com/seedds/nxnative/tree/f8a5618d5f505a4c0a0bcac7c413872d3a53c009/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader)
+  for the game translator, and the
+  [NX2Apple translator](https://github.com/LNPANDY/NX2Apple/tree/8227f80f9b381c680611303319656c4e0c806a50/dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader)
+  for the original fixture: Ryujinx Team and Contributors, MIT. The accessor port is from
+  nxnative (MIT, `licenses/nxnative.MIT.txt`).
 - Vendored Spv.Generator: MIT; its complete license is retained separately.
 - .NET NativeAOT: MIT and third-party notices from runtime pack 10.0.14.
 - [Microsoft's iOS NativeAOT framework/static-library instructions](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/ios-like-platforms/creating-and-consuming-custom-frameworks).

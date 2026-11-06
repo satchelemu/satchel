@@ -170,7 +170,7 @@ named next to it. The pins are the ones the maintainer validated against.
 | OpenSSL for iOS | 3.6.3, static | `~/SatchelBuild/spike/openssl-ios` | `SATCHEL_OPENSSL_IOS` |
 | MoltenVK | v1.4.2 | built by `Tools/VulkanBackend` scripts | see that README |
 | SPIRV-Cross, SPIRV-Tools, SPIRV-Headers | pinned in `Tools/ShaderBridge` and `Tools/VulkanBackend` | same | same |
-| Shader translator (Ryujinx 1.3.2 parts, NativeAOT) | pinned in `Tools/MaxwellShaderCompiler` and `NativeShaders` | `~/SatchelDeps/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
+| Shader translator (the engine's Ryujinx shader parts, NativeAOT) | engine commit above, see [the shader translator pin](#the-shader-translator-pin) | `~/SatchelDeps/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
 | Ryujinx 1.3.3 full source (reference only, not linked) | tag 1.3.3 | `~/SatchelDeps/reference/ryujinx-1.3.3` | none |
 
 The per-component READMEs under `Tools/` describe how each library was fetched and built
@@ -192,13 +192,10 @@ and only then applies Satchel's own overlays to the copy. The snapshot is never 
 | Engine commit | `f8a5618d5f505a4c0a0bcac7c413872d3a53c009` (seedds/nxnative main, 2026-11-05) | `scripts/deps/upstream/nxnative-queue/.upstream-ref`, `scripts/deps/inputs.lock.json`, `PIN` in `NativeHost/build.py` |
 | Fork patches | 29 (25 as published by NX2Apple `8d13135e`, 4 ported) | `scripts/deps/upstream/nxnative-queue/series` and `ports/`, `PATCHES` in `NativeHost/build.py` |
 | Shader chain | `26dc2fa9477c` | `CHAIN` in `NativeHost/build.py`, `shaderChain` in `App/NativeGameProfile.swift` and `App/NativeGameProfiles.json` |
-| Pipeline cache namespace | `f8a5618d-26dc2fa9477c-v2-<GPU>-<OS build>` | `NativeHost/graphics/PipelineSettings.m`, described in `NativeHost/ShaderStalls.md` |
-| Shader implementation identity | `satchel-native-v3-side-26dc2fa9477c-f11ba9f0` | `NativeShaders/ShaderAPI.swift`, `NativeShaders/integration.json` |
+| Pipeline cache namespace | `f8a5618d-26dc2fa9477c-v3-<GPU>-<OS build>` | `NativeHost/graphics/PipelineSettings.m`, described in `NativeHost/ShaderStalls.md` |
+| Shader implementation identity | `satchel-native-v4-xlate-f8a5618d-26dc2fa9477c-f11ba9f0` | `NativeShaders/ShaderAPI.swift`, `NativeShaders/integration.json` |
 
-One pin did not move with it, on purpose. The shader translator sources stay at NX2Apple
-`8227f80f` (see `Tools/MaxwellShaderCompiler`), so upstream's later translator fixes reach
-shaders built on a Mac with the engine's own tools but not shaders translated on the
-phone.
+The phone's shader translator follows this pin too since its own move on 2026-11-05 (below).
 
 The on-phone rewriter followed in a separate step: it now reproduces `patch_nso.py` at
 `f8a5618d` (newer jump table and tail call proofs, the frame rate target lookup and
@@ -209,6 +206,58 @@ still `bbc3b737`: it stays current only when every module build is one the Mac d
 run proved byte-identical under both references (`rewriterUnchangedBuilds`: Zelda 1.4.3,
 Odyssey 1.0.0 and 1.4.1, Castlevania 1.0.0), and any other one needs Prepare again. When the reference moves again,
 bump `rewriterRevision` and keep only builds proven unchanged in that list.
+
+### The shader translator pin
+
+The phone translates shaders with the same chain as the engine's Mac tools at the engine
+pin. Before 2026-11-05 it followed NX2Apple `8227f80f`, whose translator is nxnative
+`ee6648cb`; the move brings in the upstream translator changes between `ee6648cb` and
+`f8a5618d`: float comparisons that honour flush to zero (a denormal compares as zero),
+`LDC` with its bank chosen at run time, texture types taken from a shader's other
+instructions for a size query, storage words the translator split read whole again,
+compute shared memory past Metal's 32 KB moved to a device buffer, a first-invocation
+store handed to the host, integer colour outputs found by how their values are computed,
+projective and pixel-position tile reads, screen varyings, primitive ID and new bindless
+binding kinds in the reflection. Switch 2 (NVN2, Ampere) records are refused: their
+route, and the mesh stage it needs, is outside this Switch app.
+
+| Item | Value | Recorded in |
+|---|---|---|
+| Translator sources | 223 files of the engine's `dm/third_party/ryujinx` (Ryujinx shader parts, Spv.Generator, five Ryujinx.Common files and licenses), MIT | `Tools/MaxwellShaderCompiler/game-source-lock.json` |
+| Accessor | `dm/gfx/tools/dmsh_xlate/Program.cs`, ported to `GameShaderTranslator.cs` | `Program.cs` hash in the same lock |
+| Source transforms | `dmsh_build.py` and its modules, ported to the Swift files of `NativeShaders` | `NativeShaders/source-lock.json` (the parity oracle's hashes) |
+| Original fixture framework | unchanged at NX2Apple `8227f80f` | `Tools/MaxwellShaderCompiler/source-lock.json` |
+
+`Tools/MaxwellShaderCompiler/build.py --checkout <root>/NX2Apple/engine` builds the game
+translator (the bootstrap's `game-aot` step passes it); `--original-fixture` keeps the
+NX2Apple checkout. Shader outputs changed with the move, so the implementation identity
+and the pipeline namespace above changed with it: translated sources, Metal libraries and
+pipeline archives made by an earlier build are not read, and first play fills them
+again. Prepared packages hold no translated shader, and the engine commit, patch count and
+chain they record are unchanged, so they stay valid: nothing has to be prepared again.
+
+The Mac gates for this pin compare the phone path with the engine's own tools on real games
+(maintainer data, outside the repository):
+
+- `NativeShaders/check-translator.py`: the NativeAOT translator against the engine's
+  prebuilt `dmsh_xlate` (SPIR-V and resource bytes), for every shader of a game.
+- `NativeShaders/check-pipeline.py --corpus <b-chain folder> [--keys <file>]`, with
+  `SATCHEL_SHADER_PROFILE` and `SATCHEL_SHADER_PACKAGES` naming the game: every source,
+  variant and reflection against an unmodified `dmsh_build.py` run of the engine for the
+  same records. The engine keeps only `<key>_b.metal`; variant sources are made from it
+  by the engine's own variant functions, and a variant counts as present when its Mac
+  library exists.
+
+Results on 2026-11-05 (Mac only): `check-translator.py` 28,669 of 28,669 Zelda and 27,984
+of 27,984 Odyssey shaders equal; `check-pipeline.py` with zero differences for 4,719 Zelda
+shaders (every tenth key and its pixel pairs), 5,447 Odyssey shaders (the same) and the 198
+captured Castlevania shaders, every variant included. The public synthetic lock was
+regenerated: 20 of its 23 cases changed, every one through the pinned tools (pixel shaders
+that pass flat inputs to a colour output gain the `main0_u` entry point, which also changes
+their side source and the trailing newline of their tile read variant; every pixel reflection
+gains `primitive_id` and every vertex reflection `screen`); their SPIR-V is unchanged. The pipeline measurement host built from these products completed
+all 12 Mac opening routes (Castlevania, Odyssey and Zelda; exact and async; cold and warm)
+with zero shader failures and zero skipped draws.
 
 ### Clean break of 2026-11-05
 
@@ -441,7 +490,9 @@ Keep cold-cache trials in a fresh task-owned namespace; preserve player data.
 Build the private pipeline measurement host with `NativeApp/build.py
 --pipeline-mac-host --unsigned`, setting `SATCHEL_OUT` to your task folder and
 running through `NativePrepare/guard.py`. It uses the installed pinned shader
-translator and existing Castlevania host prerequisites. The host instruments
+translator and existing Castlevania host prerequisites (only the prebuilt libvpx; since the
+f8a5618d pin it builds dav1d, the profile header and the host's Metal shaders from the
+pinned engine). The host instruments
 skipped-frame captures only when requested; normal timing routes leave capture
 disabled. It is a Mac diagnostic, not an iPhone execution result.
 

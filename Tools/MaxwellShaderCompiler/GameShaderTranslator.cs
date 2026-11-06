@@ -6,6 +6,7 @@ using Ryujinx.Graphics.Shader.Translation;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -27,7 +28,7 @@ internal static class GameShaderTranslator
     {
         readonly byte[] _code; readonly JsonObject _job; int _binding = 1; public readonly List<string> Notes = new();
         readonly byte[] _c1;
-        public Accessor(byte[] code, JsonObject job, Dictionary<int, SamplerType> imageTypes = null) { if (job["geometry_topology"] != null) _binding = 40; _code = code; _job = job; _c1 = job["c1"] is JsonNode h ? Convert.FromHexString((string)h) : Array.Empty<byte>(); _imageTypes = imageTypes; }
+        public Accessor(byte[] code, JsonObject job, Dictionary<int, SamplerType> imageTypes = null, Dictionary<int, SamplerType> textureTypes = null) { if (job["geometry_topology"] != null) _binding = 40; _code = code; _job = job; _c1 = job["c1"] is JsonNode h ? Convert.FromHexString((string)h) : Array.Empty<byte>(); _imageTypes = imageTypes; _textureTypes = textureTypes; }
 
 
 
@@ -38,7 +39,26 @@ internal static class GameShaderTranslator
             foreach (var im in p.Info.Images) if (im.CbufSlot == 2 || im.CbufSlot < 0) types[im.HandleIndex] = im.Type & (SamplerType.Mask | SamplerType.Array);
             return types;
         }
-
+        // Texture types by slot from the shader's other instructions, for a size query on a texture word the answer table does not type (pinned dmsh_xlate TextureTypesOf).
+        readonly Dictionary<int, SamplerType> _textureTypes; readonly HashSet<int> _guessedHandles = new();
+        public Dictionary<int, SamplerType> TextureTypesOf(ShaderProgram p)
+        {
+            var types = new Dictionary<int, SamplerType>(); var mixed = new HashSet<int>();
+            foreach (var t in p.Info.Textures)
+            {
+                if (t.ArrayLength != 1) continue;
+                SamplerType ty = t.Type & (SamplerType.Mask | SamplerType.Array | SamplerType.Multisample);
+                int slot = Slot(t.HandleIndex, t.CbufSlot, false);
+                if (slot < 0 || (ty == SamplerType.Texture2D && _guessedHandles.Contains(t.HandleIndex))) continue;
+                if (types.TryGetValue(slot, out SamplerType seen) && seen != ty) mixed.Add(slot); else types[slot] = ty;
+            }
+            var guessed = new HashSet<int>(_guessedHandles.Select(h => Slot(h, -1, false)));
+            return types.Where(kv => !mixed.Contains(kv.Key) && guessed.Contains(kv.Key) && kv.Value != SamplerType.Texture2D).ToDictionary(kv => kv.Key, kv => kv.Value);
+        }
+        public int QueryConstantBuffer1Size() => _c1.Length;
+        // Ampere (NVN2) queries. ShaderRecord refuses NVN2 records, so these keep the pinned answers for jobs without the fields.
+        public int[] QueryAmpereComputeC0Layout() => _job["nvn2_cs"] is JsonArray l ? l.Select(v => (int)v).ToArray() : null;
+        public int[] QueryAmpereStageMemory() => _job["stage_memory"] is JsonArray l ? l.Select(v => (int)v).ToArray() : null;
         public uint ConstantBuffer1Read(int offset) { if (offset >= 0 && offset + 4 <= _c1.Length) return BitConverter.ToUInt32(_c1, offset); Notes.Add($"c1 read out of bounds +{offset:X} (c1 length {_c1.Length})"); return 0; }
 
 
@@ -49,6 +69,8 @@ internal static class GameShaderTranslator
         public SetBindingPair CreateTextureBinding(int count, bool isBuffer) { int b = _binding; _binding += count; return new(0, b); }
         public ReadOnlySpan<ulong> GetCode(ulong address, int minimumSize)
         {
+            // An address past the code is no code, as in the pinned accessor (an Ampere jump table ends there).
+            if (address >= (ulong)_code.Length) return default;
             if (address > (ulong)_code.Length || minimumSize < 0 || (ulong)minimumSize > (ulong)_code.Length - address)
                 throw new InvalidDataException("Code read outside supplied shader.");
             return MemoryMarshal.Cast<byte, ulong>(_code.AsSpan((int)address));
@@ -86,6 +108,11 @@ internal static class GameShaderTranslator
             {
                 if (_imageTypes != null && _imageTypes.TryGetValue(handle, out SamplerType it)) { Notes.Add($"texture handle {handle:X} is image slot {islot}: type {it} from the shader's image instructions"); return it; }
                 ImageQueryGuessed = true;
+            }
+            if (t == null && slot >= 0 && islot < 0)
+            {
+                if (_textureTypes != null && _textureTypes.TryGetValue(slot, out SamplerType tt)) { Notes.Add($"texture handle {handle:X} is texture slot {slot}: type {tt} from the shader's other instructions"); return tt; }
+                _guessedHandles.Add(handle);
             }
             if (t == null) { Notes.Add($"texture handle {handle:X} (constant buffer {cbufSlot}, slot {slot}) has no type in the answer table, using 2D"); return SamplerType.Texture2D; }
             return t switch
@@ -155,27 +182,29 @@ internal static class GameShaderTranslator
         byte[] readerSpirv = Array.Empty<byte>();
                 var acc = new Accessor(code, job);
 
-                var flags = TranslationFlags.MetalImageAtomics | (job["debug"] is JsonNode dbg && !(bool)dbg ? 0 : TranslationFlags.DebugMode) | ((string)job["stage"] == "cs" ? TranslationFlags.Compute : 0);
+                var flags = TranslationFlags.MetalImageAtomics | (job["debug"] is JsonNode dbg && !(bool)dbg ? 0 : TranslationFlags.DebugMode) | ((string)job["stage"] == "cs" ? TranslationFlags.Compute : 0) | ((string)job["arch"] == "sm86" ? TranslationFlags.Ampere : 0);
                 var ctx = Translator.CreateContext(0, acc, new TranslationOptions(TargetLanguage.Spirv, TargetApi.Vulkan, flags));
                 bool geometry = job["geometry_topology"] != null;
                 ShaderProgram p = ctx.Translate(geometry);
-                Dictionary<int, SamplerType> imageTypes = null;
-                if (acc.ImageQueryGuessed && (imageTypes = Accessor.ImageTypesOf(p)).Count > 0)
+                Dictionary<int, SamplerType> imageTypes = null, textureTypes = null;
+                if (acc.ImageQueryGuessed && (imageTypes = Accessor.ImageTypesOf(p)).Count == 0) imageTypes = null;
+                if ((textureTypes = acc.TextureTypesOf(p)).Count == 0) textureTypes = null;
+                if (imageTypes != null || textureTypes != null)
                 {
-                    acc = new Accessor(code, job, imageTypes);
+                    acc = new Accessor(code, job, imageTypes, textureTypes);
                     ctx = Translator.CreateContext(0, acc, new TranslationOptions(TargetLanguage.Spirv, TargetApi.Vulkan, flags));
                     p = ctx.Translate(geometry);
                 }
                 if (UsesFloat64(p.BinaryCode))
                 {
-                    job["softfloat64"] = true; acc = new Accessor(code, job, imageTypes);
+                    job["softfloat64"] = true; acc = new Accessor(code, job, imageTypes, textureTypes);
                     ctx = Translator.CreateContext(0, acc, new TranslationOptions(TargetLanguage.Spirv, TargetApi.Vulkan, flags));
                     p = ctx.Translate(geometry); acc.Notes.Add("FP64 lowered to FP32 (DoubleToFloat)");
                 }
                 if (geometry)
                 {
 
-                    var reader = Translator.CreateContext(0, new Accessor(code, job, imageTypes), new TranslationOptions(TargetLanguage.Spirv, TargetApi.Vulkan, flags));
+                    var reader = Translator.CreateContext(0, new Accessor(code, job, imageTypes, textureTypes), new TranslationOptions(TargetLanguage.Spirv, TargetApi.Vulkan, flags));
                     readerSpirv = reader.GenerateVertexPassthroughForCompute().BinaryCode;
                 }
                 byte[] spirv = VertexCounterLowering.Apply(code, (string)job["stage"], p.BinaryCode, acc.Notes);

@@ -12,7 +12,7 @@ import sys
 import time
 
 sys.dont_write_bytecode = True
-from oracle import ENGINE, TOOLS, PACKAGES, jobs
+from oracle import DOTNET_ROOT, TOOLS, PACKAGES, jobs
 ROOT = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5')))
 
 def native(library, code, job):
@@ -55,7 +55,7 @@ def main():
                 job, c1 = scope['job_for'](key, name, packs[name][index], str(scratch))
                 batch.append(job)
             jobfile = scratch / 'jobs.json'; jobfile.write_text(json.dumps(batch))
-            env = dict(os.environ, DOTNET_ROOT=str(ENGINE.parent/'dotnet'), DOTNET_PROCESSOR_COUNT='2')
+            env = dict(os.environ, DOTNET_ROOT=str(DOTNET_ROOT), DOTNET_PROCESSOR_COUNT='2')
             # Capture and discard translator diagnostics, which can contain shader bytes.
             result = subprocess.run([TOOLS/'dmsh_xlate_bin/dmsh_xlate', jobfile, scratch], env=env, capture_output=True)
             for job in batch:

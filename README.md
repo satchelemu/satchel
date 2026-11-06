@@ -163,9 +163,13 @@ names the same targets again, AV1 movies through a bundled decoder, the screen c
 services that Super Smash Bros. Ultimate needs to start a match, Bluetooth LE and
 purchase-notification calls answered offline, SDK 19 file system calls, and several
 texture format fixes (RGBA4 channel order, sRGB and linear twins, compressible pools).
-Upstream's shader translator fixes are not part of it on the phone, because the phone's
-translator keeps its own pin. The details and the steps for the next move are in
-[BUILDING.md](BUILDING.md#the-engine-pin).
+The phone's shader translator follows the same pin (moved on 2026-11-05 from NX2Apple
+`8227f80f`): float comparisons that treat a denormal as zero, uniform reads whose bank is
+chosen at run time, storage words read whole, large compute shared memory and more. On the
+Mac its output matches the engine's own tools for every shader compared from Zelda, Odyssey
+and Castlevania. It changes shader output, so shader caches start empty once more; prepared
+games do not need another Prepare for it. Switch 2 shaders are not translated. The details
+and the steps for the next move are in [BUILDING.md](BUILDING.md#the-engine-pin).
 
 ## How it works
 

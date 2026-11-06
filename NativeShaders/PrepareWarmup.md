@@ -77,7 +77,8 @@ Partitioning includes translator implementation, record and query facts; the
 source store also partitions by device identity. Runtime library identity includes
 MSL, device, OS build and compile options. Changing geometry support bumps the
 implementation identity; the engine pin move to chain `26dc2fa9477c` and the single
-alpha and logic side library set it to `satchel-native-v3-side-26dc2fa9477c-f11ba9f0`.
+alpha and logic side library set it to `satchel-native-v3-side-26dc2fa9477c-f11ba9f0`, and
+the translator's move to the engine pin set it to `satchel-native-v4-xlate-f8a5618d-26dc2fa9477c-f11ba9f0`.
 Reserve enough private cache space for the chosen preparation scope. Full Zelda
 MSL is about 4.8 GiB before cache encoding overhead; a 2 GiB default source cache
 will evict entries during a complete warm-up. Configure a larger bounded budget

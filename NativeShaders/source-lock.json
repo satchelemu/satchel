@@ -1,19 +1,23 @@
 {
-  "engine_commit": "8227f80f9b381c680611303319656c4e0c806a50",
+  "engine_commit": "f8a5618d5f505a4c0a0bcac7c413872d3a53c009",
   "spirv_cross_commit": "f11ba9f0b21ba8fc15153d50a2a1ae31ab1cf8f7",
   "oracle_sha256": {
-    "dmsh_build.py": "5fee5f0d7ac7fd24016b5522a5d73669a426709cf8bc58f4cd9921e7829f9235",
-    "dmsh_alpha.py": "943841c5e3f230958ac39038cfa4c7f5a7d6aee67f20e53f0d6a4e75b15e2478",
-    "dmsh_logic.py": "43179bdeae6f6aa1a9c13a6603e2f4fcf3b40fb3c21afedb6248a266aea9bf89",
+    "dmsh_build.py": "b9f11247b96b93a614d53be80c41e5178f0b4185f83810276cd209ff5547cc03",
+    "dmsh_alpha.py": "fcef2b8c804abe9a06a8033642d77b9f2d2eb07343bb92b2c493d5a8b32cc77b",
+    "dmsh_logic.py": "80c5aa7a5eb6b0de1f8632eed4e76ab85b8e58b1262d29a5cc182766115148c7",
     "dmsh_pull.py": "5adde7bbcd4becd49b40d3747761b483ec36231c0fd5a7dbd4d54307cad4043c",
     "dmsh_pull.metal": "898853af97a228e32cfe624e900222fdd36d372a83bc2d3dc573657225a269de",
     "dmsh_vin.py": "5076c6bc3f587435f3d60723d11ef92ac105730c7214fee1135e21a4d0d63f14",
-    "dmsh_fetch.py": "c76494bd4e894e2e4e2bdd8e6871e58b83cd6c6b83551e76bf9f70d603994245",
+    "dmsh_fetch.py": "60cca7237bf282286da2d4cedcc594bf9fc848d50a5bf6ba97563d90f692843c",
     "dmsh_geometry.py": "7d087606a8c2d81064e7cc8327bc7dc5f1eb77fbc99d26cb1146ce4b2f742e50",
-    "dmsh_atomic.py": "e889cf1c5e48df976008181f6f85b8d9ba987d170fe165d4d9d0a5798511dcef",
+    "dmsh_atomic.py": "a54aed1879dd1af765763759c9109310fce09cc1c7922cece59a3567852463aa",
     "dmsh_abi.py": "7fef7aa1ea3a2295abb3cb35ebcaa70ea72bdd7c254c2d393d95626b50b352aa",
     "c1_guard.py": "60fee6f681232b615f268d138c234f0d8b8eeee2a4f70da2a38c03f492a35d61",
     "cb_extent.py": "5d8e1988a0e686e1d114aa3e9f1c5eb8b229c7de2bc01e1cad72b1629c1b08c0",
-    "shader_split.py": "2e935d257282d39c10a1c3754c15cbd26d6af04a76c18b455b705595f78cabfc"
+    "shader_split.py": "50e2f953ee054a6b400d4d18d543ef4c531be77d5e1527a40c7195cd33025175",
+    "dmsh_side.py": "6cac8efa98fd242feeeb0f7ef82168550a4e8d09ecdbec5cfb3df1dcf4e4f7ee",
+    "dmsh_wide.py": "4d9646cd6136d84796871159811998c51abbc2ef8bb824028c156aee4aa7e4f9",
+    "dmsh_ampere.py": "1e3862db0c7dd04f00f72e6f6d5b027e1f87a3e27499d596b9f715b39377c51e",
+    "dmsh_meshstage.py": "73f05e9f44d449ee153a91cf453a9bdedf92d7ffccd8213ceb003c1fe7f07a2a"
   }
 }

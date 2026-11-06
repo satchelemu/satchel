@@ -141,11 +141,12 @@ def main():
         integration = snapshot/'satchel-switch-integration'
         env['NUGET_PACKAGES'] = str(packages)
         env['SATCHEL_NUGET_CONFIG'] = str(root/'Tools/CapturedFlatCompiler/OfflineNuGet.Config')
-        compiler = [sys.executable,'-B',root/'Tools/MaxwellShaderCompiler/build.py','--checkout',integration/'NX2Apple','--dotnet',integration/'dotnet/dotnet']
+        compiler = [sys.executable,'-B',root/'Tools/MaxwellShaderCompiler/build.py','--dotnet',integration/'dotnet/dotnet']
         selected = args.framework or ['fixture-aot','game-aot','captured','vulkan']
+        # The original fixture keeps the reviewed NX2Apple checkout; the game translator follows the engine pin.
         if 'fixture-aot' in selected:
-            execute('fixture-aot', [*compiler,'--work',snapshot/'satchel-shader-aot','--original-fixture'])
-        if 'game-aot' in selected: execute('game-aot', [*compiler,'--work',dest/'m5/aot'])
+            execute('fixture-aot', [*compiler,'--checkout',integration/'NX2Apple','--work',snapshot/'satchel-shader-aot','--original-fixture'])
+        if 'game-aot' in selected: execute('game-aot', [*compiler,'--checkout',dest/'NX2Apple/engine','--work',dest/'m5/aot'])
         captured = dest/'rebuild/captured'
         if 'captured' in selected:
             execute('captured', [sys.executable,'-B',root/'Tools/CapturedFlatCompiler/build.py','--renderer-root',root,'--dotnet',integration/'dotnet/dotnet','--packages',packages,'--out',captured])

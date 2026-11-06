@@ -25,18 +25,19 @@ enum ShaderReflectionJSON {
         return out + "\""
     }
     static func order(_ path: [String]) -> [String] {
-        if path.isEmpty { return ["key","route","chain","dm_ctl","source","pc_paired","stage","entry","msl_entry_kind","entry_z","entry_geometry_capture","entry_discard","entry_tf","tf_strides","entry_layer","entry_layer_z","layer_from","entry_u","entry_m","uint_mask_m","entry_d","threadgroup_size","c1","notes","drv_reads","drv_unfillable","bindings","vertex_inputs","raster","vs_pad","vin","pull","alpha","logic","fetch","chain_metal","chain_compiler"] }
-        if path.first == "bindings" { return ["msl_name","msl_type","arg_id","border_bit","kind","index","reg","bank","off","soff","elem","atomic","fetch1d","fetch1d_size","rw"] }
+        if path.isEmpty { return ["key","route","chain","dm_ctl","source","pc_paired","stage","entry","msl_entry_kind","entry_z","entry_geometry_capture","entry_discard","entry_tf","tf_strides","entry_layer","entry_layer_z","layer_from","entry_u","entry_m","uint_mask_m","entry_d","first_store","tg_spill","threadgroup_size","c1","notes","drv_reads","drv_unfillable","bindings","vertex_inputs","raster","vs_pad","vin","pull","alpha","logic","fetch","chain_metal","chain_compiler"] }
+        if path.first == "bindings" { return ["msl_name","msl_type","arg_id","border_bit","kind","index","reg","bank","off","soff","sreg","elem","atomic","fetch1d","fetch1d_size","rw"] }
         if path.first == "vertex_inputs" { return ["location","msl_type"] }
         if path.first == "raster" {
             if path.contains("uv_affine") { return ["attr","sx","ox","sy","oy"] }
-            return ["discard","sample_mask","colors","pos_attr","pos_w","uv_from_attr","uv_affine"]
+            return ["discard","sample_mask","primitive_id","colors","pos_attr","pos_w","uv_from_attr","uv_affine","screen"]
         }
         if path.first == "drv_reads" { return ["0","2","vec4_offsets","dynamic"] }
         if path.first == "vin" { return ["entry","entry_z","shadow","location","float","sint","uint"] }
         if path.first == "pull" { return ["entry","entry_z","slot","inputs"] }
-        if path.first == "fetch" { return ["calls","mixed_regs","outputs","fc","tex_reg","varying_locn","color","type"] }
+        if path.first == "fetch" { return ["calls","mixed_regs","outputs","fc","tex_reg","varying_locn","proj","frag_pos","color","type"] }
         if path.first == "layer_from" { return ["loc","comp"] }
+        if path.first == "first_store" { return ["reg","word","value"] }
         return []
     }
     static func value(_ object: Any, path: [String], depth: Int) throws -> String {

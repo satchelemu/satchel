@@ -72,7 +72,7 @@ public struct SatchelTranslatedShader: Codable, Sendable {
 
 public enum SatchelShaderTranslator {
     // Bump when source transforms, query semantics or bridge options change.
-    public static let implementationID = "satchel-native-v3-side-26dc2fa9477c-f11ba9f0"
+    public static let implementationID = "satchel-native-v4-xlate-f8a5618d-26dc2fa9477c-f11ba9f0"
 
     static func sha256(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()

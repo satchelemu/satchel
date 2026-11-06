@@ -9,7 +9,7 @@ import struct
 import subprocess
 import tempfile
 import time
-from oracle import functions
+from oracle import ENGINE, records
 
 WORK=Path.home()/'SatchelBuild/m5'
 PACKAGES=Path.home()/'SatchelBuild/games/odyssey/shader/pkg'
@@ -24,8 +24,8 @@ def main():
         if len(fields)>3 and fields[2]=='geometry':
             candidates.append(dict(recordFile=fields[0],recordIndex=int(fields[1]),key=fields[3]))
     assert len(candidates)==3 and len({v['key'] for v in candidates})==3, 'Geometry inventory changed'
-    record_reader=functions({'records'})['records']
-    facts_path=Path.home()/'SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/NX2Apple/dm/games/0100000000010000/shader_facts.tsv'
+    record_reader=records
+    facts_path=ENGINE/'dm/games/0100000000010000/shader_facts.tsv'
     facts={}
     if facts_path.exists():
         for line in facts_path.read_text().splitlines():

@@ -37,6 +37,32 @@ func match(_ pattern: String, _ source: String) -> ShaderMatch? {
     return ShaderRegex.get(pattern).firstMatch(in: source, range: NSRange(location: 0, length: text.length))
         .map { ShaderMatch(source: text, result: $0) }
 }
+// Python's compiled.match(text, pos): anchored at pos, without treating pos as a line start.
+func match(_ pattern: String, _ source: String, at position: Int) -> ShaderMatch? {
+    let text = source as NSString
+    guard position <= text.length else { return nil }
+    return ShaderRegex.get(pattern).firstMatch(in: source, options: [.anchored, .withoutAnchoringBounds],
+        range: NSRange(location: position, length: text.length - position)).map { ShaderMatch(source: text, result: $0) }
+}
+// Python's re.fullmatch.
+func fullMatch(_ pattern: String, _ source: String) -> ShaderMatch? {
+    match("(?:" + pattern + ")\\z", source, at: 0)
+}
+// Whether a word character comes just before offset i (dmsh_build in_word).
+func inWord(_ text: String, _ i: Int) -> Bool {
+    guard i > 0 else { return false }
+    let c = (text as NSString).character(at: i - 1)
+    return c == 95 || (48...57).contains(c) || (65...90).contains(c) || (97...122).contains(c)
+}
+// Whether text occurs with no word character before it (dmsh_build has_word).
+func hasWord(_ source: String, _ text: String) -> Bool {
+    var from = 0
+    while let i = find(source, text, from) {
+        if !inWord(source, i) { return true }
+        from = i + 1
+    }
+    return false
+}
 func sub(_ pattern: String, _ source: String, _ replacement: (ShaderMatch) -> String) -> String {
     let found = matches(pattern, source)
     guard !found.isEmpty else { return source }
