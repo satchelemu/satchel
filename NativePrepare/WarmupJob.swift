@@ -16,6 +16,47 @@ final class WarmupScheduling: @unchecked Sendable {
     func get() -> SatchelWarmupPolicy { lock.lock(); defer { lock.unlock() }; return policy }
 }
 
+// Saved warm-up state. Pure, so Tests/WarmupResume compiles this part on the Mac.
+/// The one warm-up's saved journal (`SatchelWarmupJob` in user defaults).
+struct WarmupJournal: Codable {
+    let package: String
+    let title: String
+    var progress: WarmupProgress
+    /// True only when iOS ended the background time the run had (not Pause, not a
+    /// memory warning).
+    var interrupted: Bool? = nil
+    /// True when the package itself failed its check: it cannot be played, only prepared again.
+    var packageFailed: Bool? = nil
+    /// True when the player started the run (Warm up, Resume). Earlier releases started it
+    /// after every Prepare and wrote no such field: those runs never resume by themselves.
+    var startedByUser: Bool? = nil
+}
+
+/// When a saved warm-up continues without being asked: only a run the player started that
+/// iOS (or the app ending) stopped. Anything else waits on the page's Resume.
+enum WarmupResume {
+    static let interruptedStage = "Warm-up interrupted. Resume to reuse cached work."
+
+    /// A journal read at launch. A run saved as running ended with the app. A stopped run
+    /// the player did not start loses words that promise it resumes by itself.
+    static func restored(_ saved: WarmupJournal) -> WarmupJournal {
+        var value = saved
+        if value.progress.state == "running" {
+            value.progress.state = "paused"; value.progress.stage = interruptedStage
+            value.interrupted = true
+        }
+        if value.interrupted == true, value.startedByUser != true, value.progress.state == "paused" {
+            value.progress.stage = interruptedStage
+        }
+        return value
+    }
+
+    static func resumesByItself(_ journal: WarmupJournal) -> Bool {
+        journal.startedByUser == true && journal.interrupted == true && journal.progress.state == "paused"
+    }
+}
+// End of saved warm-up state.
+
 /// Optional work on an already usable package. Failure never changes its playability.
 @MainActor final class WarmupJob: ObservableObject {
     static let shared = WarmupJob()
@@ -29,16 +70,7 @@ final class WarmupScheduling: @unchecked Sendable {
         /// Cancelled with `token` only when iOS ended the run's background time.
         let expiry = WarmupCancellation()
     }
-    struct Journal: Codable {
-        let package: String
-        let title: String
-        var progress: WarmupProgress
-        /// True only when iOS ended the background time the run had (not Pause, not a
-        /// memory warning). Such a run resumes when the app is active again.
-        var interrupted: Bool? = nil
-        /// True when the package itself failed its check: it cannot be played, only prepared again.
-        var packageFailed: Bool? = nil
-    }
+    typealias Journal = WarmupJournal
     /// A package's last known warm-up, from the live journal or its own `progress.json`.
     struct Status {
         var progress: WarmupProgress
@@ -69,13 +101,10 @@ final class WarmupScheduling: @unchecked Sendable {
         memoryWarning = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.cancel() }
         }
-        if let data = UserDefaults.standard.data(forKey: "SatchelWarmupJob"), var saved = try? JSONDecoder().decode(Journal.self, from: data) {
-            if saved.progress.state == "running" {
-                // The app was ended while it ran: the same as iOS stopping it.
-                saved.progress.state = "paused"; saved.progress.stage = "Warm-up interrupted. Resume to reuse cached work."
-                saved.interrupted = true
-            }
-            journal = saved
+        if let data = UserDefaults.standard.data(forKey: "SatchelWarmupJob"), let saved = try? JSONDecoder().decode(Journal.self, from: data) {
+            // A run saved as running ended with the app, the same as iOS stopping it. Only a
+            // run the player started resumes by itself (`resumeIfInterrupted`).
+            journal = WarmupResume.restored(saved)
         }
     }
     private func refreshScheduling(resigning: Bool = false) {
@@ -91,7 +120,7 @@ final class WarmupScheduling: @unchecked Sendable {
     /// this package, else the last run recorded on disk (nil until read, or never run).
     func status(for package: String) -> Status? {
         if let journal, journal.package == package {
-            return Status(progress: journal.progress, interrupted: journal.interrupted == true, live: running)
+            return Status(progress: journal.progress, interrupted: WarmupResume.resumesByItself(journal), live: running)
         }
         loadStatus(package)
         return stored[package]
@@ -124,18 +153,18 @@ final class WarmupScheduling: @unchecked Sendable {
         let url = documents.appendingPathComponent("NativeRuntime/" + id + "/warmup/" + digest + "/progress.json")
         guard let saved = try? WarmupRunner.bounded(url, maximum: 1024 * 1024),
               var progress = try? JSONDecoder().decode(WarmupProgress.self, from: saved) else { return nil }
-        var interrupted = false
-        // A stored "running" means the app was ended during the run.
+        // A stored "running" means the app was ended during the run. Without the journal
+        // nothing resumes it by itself: the page offers Resume.
         if progress.state == "running" {
-            progress.state = "paused"; progress.stage = "Warm-up interrupted. Resume to reuse cached work."
-            interrupted = true
+            progress.state = "paused"; progress.stage = WarmupResume.interruptedStage
         }
-        return Status(progress: progress, interrupted: interrupted)
+        return Status(progress: progress)
     }
 
-    /// Restarts a run that iOS stopped in the background, when nothing blocks it.
+    /// Restarts a run the player started that iOS stopped in the background, when nothing
+    /// blocks it. A run an earlier release started after Prepare waits for Resume.
     func resumeIfInterrupted() {
-        guard let journal, journal.interrupted == true, journal.progress.state == "paused", !running, !playRequested,
+        guard let journal, WarmupResume.resumesByItself(journal), !running, !playRequested,
               !PrepareJob.shared.running, !AddOnJob.shared.running, !SatchelNativeSessionStarted() else { return }
         start(package: journal.package, title: journal.title)
     }
@@ -144,6 +173,8 @@ final class WarmupScheduling: @unchecked Sendable {
     // its own gate, which clears on Quit without leaving warm-up blocked.
     func playRequestFinished() { playRequested = false }
     func dismiss() { guard !running else { return }; journal = nil; UserDefaults.standard.removeObject(forKey: "SatchelWarmupJob") }
+    /// Only a player's action reaches this: Warm up or Resume on a page, or the automatic
+    /// return of a run the player started. Prepare never starts a warm-up.
     func begin(package: URL, title: String, keepAlive: Bool = true) -> Context? {
         guard !running, !playRequested, !AddOnJob.shared.running, !SatchelNativeSessionStarted() else { return nil }
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -161,7 +192,8 @@ final class WarmupScheduling: @unchecked Sendable {
         context = value; running = true
         UIDevice.current.isBatteryMonitoringEnabled = true
         refreshScheduling()
-        journal = Journal(package: package.lastPathComponent, title: value.title, progress: WarmupProgress(stage: "Checking prepared package"))
+        journal = Journal(package: package.lastPathComponent, title: value.title, progress: WarmupProgress(stage: "Checking prepared package"),
+                          startedByUser: true)
         UIApplication.shared.isIdleTimerDisabled = true
         if keepAlive { background = UIApplication.shared.beginBackgroundTask(withName: "Warm up game") { value.expiry.cancel(); value.token.cancel() } }
         save(); return value
@@ -172,7 +204,7 @@ final class WarmupScheduling: @unchecked Sendable {
     private func receive(_ progress: WarmupProgress, for value: Context, interrupted: Bool = false, packageFailed: Bool = false) {
         guard context?.token === value.token else { return }
         journal = Journal(package: value.package.lastPathComponent, title: value.title, progress: progress,
-                          interrupted: interrupted ? true : nil, packageFailed: packageFailed ? true : nil); save()
+                          interrupted: interrupted ? true : nil, packageFailed: packageFailed ? true : nil, startedByUser: true); save()
     }
 
     /// Marks the running warm-up as stopped by iOS; called by the expiration handlers.
@@ -204,7 +236,8 @@ final class WarmupScheduling: @unchecked Sendable {
     private func endBackgroundTask() {
         if background != .invalid { UIApplication.shared.endBackgroundTask(background); background = .invalid }
     }
-    /// The Prepare worker calls this within its existing continued-processing task.
+    /// The work of one run, inside the continued-processing task `start` asks for (or the
+    /// foreground fallback). `verified` skips the package check when the caller just did it.
     @discardableResult nonisolated static func perform(_ context: Context, verified: Bool,
                                     system: ((WarmupProgress) -> Void)? = nil) -> Bool {
         var failure: Error?, checked = verified

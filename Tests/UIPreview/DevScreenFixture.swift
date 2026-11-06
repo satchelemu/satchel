@@ -149,6 +149,19 @@ enum PreviewPackage {
         return root
     }
 
+    /// The full check Prepare runs before its cleanup, for the manifest-only package the
+    /// preview pipeline just wrote. Enabled only by -SatchelPreviewPrepareTests.
+    static func verifyPrepared(root: URL, cancelled: () -> Bool) throws -> URL {
+        if cancelled() { throw CancellationError() }
+        let games = NavigationFixFixture.documents.appendingPathComponent("PreparedGames").standardizedFileURL.path
+        guard UserDefaults.standard.bool(forKey: "SatchelPreviewPrepareTests"), root.lastPathComponent.hasPrefix("Prepared-"),
+              root.standardizedFileURL.deletingLastPathComponent().path == games,
+              FileManager.default.fileExists(atPath: root.appendingPathComponent("manifest.json").path) else {
+            throw PrepareFailure(message: "Only an explicitly enabled synthetic Prepare can pass this fixture's check.")
+        }
+        return root
+    }
+
     static func verify(root: URL) throws -> URL {
         guard UserDefaults.standard.bool(forKey: "SatchelPreviewSessionTests"),
               ["LanternDrift-1.2.0", "Navigation-Orphan"].contains(root.lastPathComponent),

@@ -28,7 +28,7 @@ import SwiftUI
             guard running != oldValue else { return }
             if running {
                 backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Prepare game") { [weak self] in
-                    self?.backgroundLifetime?.cancel(); self?.cancel(); self?.endBackgroundTask()
+                    self?.cancel(); self?.endBackgroundTask()
                 }
             } else { endBackgroundTask() }
             // Keep the screen awake while preparing in the foreground; a game session holds it on its own.
@@ -55,7 +55,6 @@ import SwiftUI
     var autoPrepareUsed = false
 
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
-    private var backgroundLifetime: WarmupCancellation?
     private var cancellation: PrepareCancellation?
     private var selectedTitleID: UInt64?
     private static let outcomeKey = "PrepareJobOutcome"
@@ -143,7 +142,6 @@ import SwiftUI
     func dismissOutcome() { outcome = nil }
 
     func cancel() {
-        if WarmupJob.shared.running { WarmupJob.shared.cancel(); return }
         guard running else { return }
         guard cancellation?.cancel() == true else { return }
         cancelling = true; message = "Cancelling preparation…"
@@ -161,7 +159,6 @@ import SwiftUI
             let destination = games.appendingPathComponent(name, isDirectory: true)
             let applicationID = selectedTitleID
             let token = PrepareCancellation(); cancellation = token
-            let lifetime = WarmupCancellation(); backgroundLifetime = lifetime
             outcome = nil; package = name; cancelling = false; finalizing = false; running = true
             message = "Waiting for iOS to start preparation…"; fraction = 0; progressSnapshot = nil; startedAt = Date()
             Self.report(state: "waiting", message: message, snapshot: nil, package: name)
@@ -181,7 +178,7 @@ import SwiftUI
                     DispatchQueue.main.async { self.endBackgroundTask() }
                 }
                 systemProgress?.totalUnitCount = 1_000_000
-                task?.expirationHandler = { lifetime.cancel(); token.cancel() }
+                task?.expirationHandler = { token.cancel() }
                 DispatchQueue.main.async {
                     self.startedAt = Date(); if !self.cancelling { self.message = "Opening signing identity…" }
                     Self.report(state: "starting", message: self.message, snapshot: nil, package: name)
@@ -255,34 +252,11 @@ import SwiftUI
                         }
                     }
                     @MainActor func proceed(_ result: Result<PrepareSigningState, Error>, note: String? = nil) {
-                        @MainActor func finish() {
-                            task?.setTaskCompleted(success: { if case .success(.signed) = result { return true } else { return false } }())
-                            self.finish(result, note: note)
-                            artwork.refreshPrepared()
-                        }
-                        // Keep the verified cleanup contract. Optional work begins after its
-                        // commit, so Play or Pause cannot turn off delete-after-Prepare.
+                        // Prepare ends at "Ready to play", after the verified cleanup. The shader
+                        // warm-up is optional and long: only the player starts it, from the game page.
+                        task?.setTaskCompleted(success: { if case .success(.signed) = result { return true } else { return false } }())
+                        self.finish(result, note: note)
                         artwork.refreshPrepared()
-                        guard case .success(.signed) = result, !lifetime.cancelled,
-                              let warmup = WarmupJob.shared.begin(package: destination, title: self.title, keepAlive: task == nil) else { finish(); return }
-                        self.message = "Ready to play. Warming up known shaders…"
-                        self.fraction = 1
-                        // An expiration here is iOS stopping the warm-up: it resumes when the app is active again.
-                        let warmupJob = WarmupJob.shared
-                        task?.expirationHandler = { lifetime.cancel(); warmupJob.expire(warmup) }
-                        // Expiration may race the handler replacement. Cleanup still commits,
-                        // but an expired task must not admit optional work afterward.
-                        if lifetime.cancelled { warmup.token.cancel() }
-                        DispatchQueue.global(qos: .utility).async {
-                            WarmupJob.perform(warmup, verified: true) { value in
-                                systemProgress?.totalUnitCount = 2_000_000
-                                systemProgress?.completedUnitCount = 1_000_000 + Int64(value.systemFraction * 1_000_000)
-                                if let continued = task as? BGContinuedProcessingTask {
-                                    continued.updateTitle("Warming up " + warmup.title, subtitle: value.stage)
-                                }
-                            }
-                            DispatchQueue.main.async { finish() }
-                        }
                     }
                     do { try token.check() } catch { complete(.failure(error)); return }
                     guard case .success(.signed) = outcome else { complete(outcome); return }

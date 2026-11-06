@@ -169,7 +169,7 @@ struct PrepareGameView: View {
             TextField("Title ID (optional for multi-title dumps)", text: $applicationID)
                 .textInputAutocapitalization(.characters).autocorrectionDisabled().disabled(job.running)
                 .accessibilityIdentifier("prepare-title-id")
-            Text("Preparation keeps going when you close this screen or switch apps. Known shaders warm up afterwards; the game page shows their progress. New titles use experimental settings, explained in the game report.")
+            Text("Preparation keeps going when you close this screen or switch apps. Shader warm-up is optional and starts only from the game page. New titles use experimental settings, explained in the game report.")
                 .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
             Button {

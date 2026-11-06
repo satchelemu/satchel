@@ -119,8 +119,8 @@ or a cache namespace bump (an empty archive with the list kept), and the library
 archive-lookup residue of every warm launch. The opt-in launch prewarm
 (`NativeHost/graphics/README.md`, Launch prewarm of recorded pipelines) builds the recorded list
 before the first frame, preparing shaders from the device's own first-use capture. The alternative,
-building exact pipelines in the after-Prepare warm-up, was not taken: that job runs before anything is
-recorded, and it builds only vertex-pulling bases without a vertex layout, which exact draws never
+building exact pipelines in the optional warm-up job, was not taken: on a new package that job runs
+before anything is recorded, and it builds only vertex-pulling bases without a vertex layout, which exact draws never
 use; building exact descriptors there would mean reimplementing the engine's descriptor construction.
 
 Routes: exact, render scale 1.0, 1,800 frames, first-use capture on in every run (as in the app). Clean

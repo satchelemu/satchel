@@ -28,6 +28,17 @@ enum NavigationFixFixture {
                                             progress: progress, packageFailed: mode == "failed" ? true : nil)
             if let data = try? JSONEncoder().encode(journal) { defaults.set(data, forKey: "SatchelWarmupJob") }
         }
+        // A warm-up saved by a release that started it after every Prepare, so it carries no
+        // startedByUser field: "stopped" is a run iOS ended, "running" one the app ended.
+        if let mode = defaults.string(forKey: "SatchelPreviewLegacyWarmup") {
+            var progress = WarmupProgress(stage: mode == "stopped"
+                ? "Stopped by iOS while \(AppBrand.name) was in the background. It resumes when you return." : "Synthetic shader work",
+                completed: 1, total: 2)
+            progress.state = mode == "stopped" ? "paused" : "running"
+            let journal = WarmupJob.Journal(package: "LanternDrift-1.2.0", title: "Lantern Drift", progress: progress,
+                                            interrupted: mode == "stopped" ? true : nil)
+            if let data = try? JSONEncoder().encode(journal) { defaults.set(data, forKey: "SatchelWarmupJob") }
+        }
         guard defaults.bool(forKey: "SatchelPreviewFixTests"), defaults.string(forKey: "SatchelPreviewDemo") == "library" else { return }
         do {
             let fm = FileManager.default

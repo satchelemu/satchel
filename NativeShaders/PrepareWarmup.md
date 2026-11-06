@@ -1,7 +1,7 @@
 # Prepare shader warm-up
 
-`SatchelShaderWarmup` is the bounded background driver for the any-game Prepare
-worker. The shipping source list includes `ShaderWarmup.swift`. No new library or
+`SatchelShaderWarmup` is the bounded background driver for the optional warm-up a
+player starts from a game page (Prepare does not start it). The shipping source list includes `ShaderWarmup.swift`. No new library or
 phone action is required. The Mac tests and iOS link pass. The app integration is
 in `NativePrepare/WarmupJob.swift` and `WarmupRunner.swift`; see
 [Prepare](../NativePrepare/README.md#optional-device-warm-up).
@@ -9,7 +9,7 @@ in `NativePrepare/WarmupJob.swift` and `WarmupRunner.swift`; see
 ## API and lifetime
 
 Create one `SatchelShaderStore` and `SatchelShaderCompiler` for the active game and
-Metal device. Share those exact objects with the renderer. On the existing Prepare
+Metal device. Share those exact objects with the renderer. On the warm-up's
 background task queue, call:
 
 ```swift
@@ -23,7 +23,7 @@ let result = try warmup.run(
     cancelled: { cancellation.isCancelled },
     progress: { state, records in
         // Dispatch UI changes to the main actor. Persist this small progress
-        // summary in the app's Prepare job journal after each completed batch.
+        // summary in the app's warm-up job journal after each completed batch.
         reportPreparedShaders(state.completedRecords, state.totalRecords)
         try saveProgress(state, records)
     })
@@ -113,7 +113,7 @@ A live-library repeat took 0.420 s with 192 source hits and 375 live-library hit
 A separate process took 0.449 s with 192 source hits and 367 runtime library
 acquisitions totaling 23.347 ms. The OS Metal cache was already warm and was never
 cleared. These results do not establish phone latency or cache persistence across
-an OS upgrade, eviction or reboot. They show why Prepare warm-up can move expensive
+an OS upgrade, eviction or reboot. They show why the optional warm-up can move expensive
 compilation out of a launch on this Mac. The earlier shader worker's 436 phone
 compilations at median 0.33 s remain separate historical evidence.
 

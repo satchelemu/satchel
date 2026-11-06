@@ -98,21 +98,31 @@ These are existing sibling-worker artifacts, not newly downloaded packages.
 
 ## Optional device warm-up
 
-After a signed package passes the full launch verifier, Prepare publishes Play and
-runs optional shader warm-up in the same continued-processing task. The Prepare
-screen and home card show the current discovery, shader or pipeline count. Pause,
-background-task expiration, memory pressure or starting a game cancels further
-warm-up work. A currently admitted Metal compile can finish, but Play does not
-join the job. The existing verified original-import cleanup completes before
-optional warm-up, respecting the storage setting. Warm-up failure never marks a
-verified package unplayable.
+Prepare ends at "Ready to play": a signed package passes the full launch verifier,
+the verified original-import cleanup runs (respecting the storage setting), older
+copies are replaced, and Prepare's continued-processing task completes. Prepare
+does not start the shader warm-up. The warm-up is optional and long (hours for a
+large game such as Zelda); a game plays without it, and new areas may stutter the
+first time their shaders build.
 
-The play screen also offers **Warm up** for existing prepared packages. This runs
-the same verifier before reading their content. **Resume warm-up** reuses durable
-source entries and device pipeline archives, including after relaunching Satchel.
-Saved progress does not authorize skipping verification or library acquisition.
-iOS must accept the continued-processing request for extended background time;
-the foreground fallback pauses when its limited background time expires.
+The player starts it with **Warm up** on the game page (the game's settings show the
+same panel). It asks iOS for its own continued-processing task and runs the same
+verifier before reading the package's content. The game page and the home card show
+the current discovery, shader or pipeline count. Pause, background-task expiration,
+memory pressure or starting a game cancels further warm-up work. A currently
+admitted Metal compile can finish, but Play does not join the job. Warm-up failure
+never marks a verified package unplayable.
+
+**Resume** reuses durable source entries and device pipeline archives, including
+after relaunching Satchel. A run the player started that iOS stopped in the
+background, or that ended with the app, resumes when Satchel is active again; the
+saved job records `startedByUser` for this. A saved run from a release that started
+warm-up after every Prepare has no such field: it stays paused with its Resume
+control and cached work, and never resumes by itself (`WarmupResume` in
+`WarmupJob.swift`, checked by `Tests/WarmupResume/run.py`). Saved progress does not
+authorize skipping verification or library acquisition. iOS must accept the
+continued-processing request for extended background time; the foreground fallback
+pauses when its limited background time expires.
 
 Reviewed format 1 packages reuse their bound Metal libraries and published pair
 tables. Their shader records are not translated again. For generated format 2

@@ -48,7 +48,7 @@ struct WarmupPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             switch phase {
             case .notStarted:
-                line("Builds this game's known shaders ahead of time, so play pauses less. Optional: you can play at any time.")
+                line("Optional. Builds this game's known shaders ahead of time, which can take hours for a large game. The game plays without it; new areas may stutter the first time.")
             case .running:
                 if let progress {
                     line(progress.stage)

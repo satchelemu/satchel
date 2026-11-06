@@ -1658,7 +1658,8 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("open-focused")
         let status = app.descendants(matching: .any)["warmup-status"]
         revealControl(status, in: app.scrollViews["detail-scroll"])
-        XCTAssertTrue(status.label.contains("Builds this game's known shaders ahead of time"), status.label)
+        XCTAssertTrue(status.label.contains("Optional. Builds this game's known shaders ahead of time"), status.label)
+        XCTAssertTrue(status.label.contains("The game plays without it"), status.label)
         let start = try button("warmup-start", scroll: app.scrollViews["detail-scroll"])
         XCTAssertEqual(start.label, "Warm up")
         XCTAssertFalse(app.buttons["warmup-play"].exists, "The game page already has its own Play action")
@@ -1673,6 +1674,95 @@ final class NavigationJourneyTests: XCTestCase {
                        "A user pause must not auto-resume on activation")
     }
 
+    /// A signed Prepare ends at Ready to play and never starts the shader warm-up: the
+    /// warm-up stays idle through background and return, and the game page offers Warm up.
+    func testWarmupNotStartedByPrepare() throws {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewWarmupTests", "YES", "-SatchelPreviewPrepareTests", "YES",
+            "-SatchelPreviewDLC", "included", "-SatchelPreviewKeys", "YES", "-SatchelPreviewIdentity", "YES",
+            "-SatchelPreviewPrepareEnd", "signed", "-SatchelPreviewPrepareSeconds", "2"]
+        app.launch()
+        fixtureText("fixture-warmup-state", equals: "idle:none")
+        try workshop("workshop-prepare")
+        try tap("prepare-base")
+        try tap("Lantern Drift [Base]")
+        let column = app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch
+        revealControl(app.buttons["prepare-start"], in: column)
+        try button("prepare-start").tap()
+        let status = app.staticTexts["prepare-status"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            status.exists && status.label.hasPrefix("Ready to play") && !self.app.buttons["prepare-cancel"].exists
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 90), .completed,
+                       "Prepare must finish as Ready to play; actual: \(status.exists ? status.label : "missing")")
+        XCTAssertFalse(status.label.contains("Warming"), status.label)
+        XCTAssertFalse(app.descendants(matching: .any)["warmup-status"].exists, "Prepare must not show a warm-up")
+        try tap("close-prepare")
+        _ = try button("prepare-job-play")
+        fixtureText("fixture-warmup-state", equals: "idle:none")
+        fixtureText("fixture-warmup-lifecycle", equals: "starts=0 interrupted=0")
+        XCTAssertFalse(app.buttons["warmup-home-card"].exists)
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        Thread.sleep(forTimeInterval: 2)
+        fixtureText("fixture-warmup-state", equals: "idle:none")
+        XCTAssertFalse(app.buttons["warmup-home-card"].exists, "Returning to the app must not start a warm-up")
+        // The player starts it from the game page.
+        try findLanternShelf()
+        _ = try button("homebrew-Lantern Drift [Base]")
+        try tap("open-focused")
+        let start = try button("warmup-start", scroll: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(start.label, "Warm up")
+        let panel = app.descendants(matching: .any)["warmup-status"]
+        XCTAssertTrue(panel.label.contains("The game plays without it"), panel.label)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Game page warm-up after Prepare"; shot.lifetime = .keepAlways; add(shot)
+        start.tap()
+        _ = try button("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        fixtureText("fixture-warmup-state", equals: "running:running")
+        try tap("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+    }
+
+    /// A paused warm-up saved by an earlier release, which started it after Prepare, never
+    /// resumes by itself, not even after background and return. Its card and the game page
+    /// offer Resume, which continues the same journal.
+    private func legacyWarmup(_ mode: String) throws {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewWarmupTests", "YES", "-SatchelPreviewLegacyWarmup", mode]
+        app.launch()
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        let card = try button("warmup-home-card")
+        XCTAssertTrue(card.label.contains("Resume to reuse cached work"), card.label)
+        XCTAssertFalse(card.label.contains("resumes when you"), card.label)
+        backgroundAndReturn(app.buttons["warmup-home-card"].firstMatch)
+        Thread.sleep(forTimeInterval: 2)
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        fixtureText("fixture-warmup-lifecycle", equals: "starts=0 interrupted=1")
+        try tap("warmup-home-card")
+        let status = app.descendants(matching: .any)["warmup-status"]
+        revealControl(status, in: app.scrollViews["detail-scroll"])
+        XCTAssertTrue(status.label.contains("Paused. Resume reuses the work already cached."), status.label)
+        XCTAssertFalse(status.label.contains("resumes when you come back"), status.label)
+        let resume = try button("warmup-start", scroll: app.scrollViews["detail-scroll"])
+        XCTAssertEqual(resume.label, "Resume")
+        XCTAssertTrue(resume.isEnabled)
+        resume.tap()
+        _ = try button("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        fixtureText("fixture-warmup-state", equals: "running:running")
+        try tap("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+    }
+
+    func testWarmupLegacySystemStopWaitsForResume() throws {
+        try legacyWarmup("stopped")
+    }
+
+    func testWarmupLegacyRunEndedWithAppWaitsForResume() throws {
+        try legacyWarmup("running")
+    }
+
+    /// `fixture-warmup-start` begins the real job as the page's Warm up does, so the run is
+    /// one the player started: iOS stopping it in the background resumes it on return.
     private func interruptedWarmup(lateAcknowledgement: Bool) throws {
         app.launchArguments += ["-SatchelPreviewWarmupExpire", "YES",
             "-SatchelPreviewWarmupHoldCancellation", lateAcknowledgement ? "YES" : "NO"]

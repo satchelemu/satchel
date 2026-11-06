@@ -149,6 +149,17 @@ def generate(mode, out):
             'try PreviewPackage.verifyWarmup(root: context.package, cancelled: { context.token.cancelled })'))
         for row in project['targets'][app]['sources']:
             if row['path'] == str(warmup_source): row['path'] = str(warmup_staged)
+        # Prepare's completion, cleanup and outcome stay production code. Only the full package
+        # check before cleanup is substituted, for a synthetic Prepare with its own flag.
+        prepare_source = ROOT / 'NativePrepare/PrepareJob.swift'
+        prepare_original = prepare_source.read_text()
+        boundary = 'try PreparedPackage.verify(root: destination, forceFull: true, cancelled: { token.cancelled })'
+        assert prepare_original.count(boundary) == 1
+        prepare_staged = out / 'PrepareJob.swift'
+        write_changed(prepare_staged, prepare_original.replace(boundary,
+            'try PreviewPackage.verifyPrepared(root: destination, cancelled: { token.cancelled })'))
+        for row in project['targets'][app]['sources']:
+            if row['path'] == str(prepare_source): row['path'] = str(prepare_staged)
         # WarmupJob.swift reads the warm-up policy and trial types from the shader module,
         # which the preview does not build. Stage only those two pure types, unchanged.
         policy_source = (ROOT / 'NativeShaders/ShaderWarmup.swift').read_text()

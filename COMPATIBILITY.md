@@ -13,7 +13,8 @@ binding and byte integrity, not gameplay correctness after a restore. Duo postur
 journeys observe synthetic frames and input callbacks; real hinge transitions and
 native game presentation still need the phone and do not change the ratings below.
 
-Warm-up scheduling and MSL transform changes are checked separately on the Mac.
+The shader warm-up is opt-in (since 2026-11-06 Prepare does not start it; the game page's
+Warm up does). Warm-up scheduling and MSL transform changes are checked separately on the Mac.
 They do not change these phone gameplay ratings or establish a phone speedup.
 See [warm-up measurement steps](NativeShaders/WarmupSpeed.md).
 

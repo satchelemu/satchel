@@ -106,9 +106,16 @@ the real picker must appear, dismiss and reopen, including after background/retu
 - Simulator only: cancel a partially copied 2 MiB synthetic import, require no library
   entry or temporary copy and unchanged source bytes, then restart and require one
   byte-identical container. The production importer performs cancellation and cleanup.
-- Simulator only: a game with no warm-up record offers Warm up; a user pause survives
-  background and return. System expiration resumes on return, including cancellation
+- Simulator only: a game with no warm-up record offers Warm up, which says the warm-up is
+  optional and the game plays without it; a user pause survives background and return.
+  System expiration of a run the player started resumes on return, including cancellation
   acknowledged only after the app is active again.
+- Simulator only: a signed synthetic Prepare ends at Ready to play with no warm-up started,
+  also after background and return; the game page's Warm up then starts it
+  (`testWarmupNotStartedByPrepare`). A paused warm-up saved by an earlier release (no
+  `startedByUser`, stopped by iOS or ended with the app) stays paused through background and
+  return, and its card and game page offer Resume, which continues it
+  (`testWarmupLegacy*WaitsForResume`).
 - Simulator only: Prepare is disabled beside a paused game, then enabled after Quit
   with a selected local base and synthetic keys. The game's warm-up also becomes available.
 - Simulator only: upcoming, absent and expired signature reminders with synthetic dates, plus
@@ -169,7 +176,9 @@ completion, cancellation or failure. Other runner requests still fail explicitly
 fixture starts the real job with `verified: true` because its manifests contain no game
 code. The generator also stages `WarmupJob.swift` with only the verifier call replaced
 by a flag-gated synthetic verifier, allowing Resume and the game page's Warm up to
-exercise the real job. A fixture context receives the production expiration callback
+exercise the real job. With `SatchelPreviewPrepareTests`, `PrepareJob.swift` is staged with
+only its full package check before cleanup replaced, for the manifest-only package the
+synthetic Prepare writes; completion, cleanup and the outcome stay production code. A fixture context receives the production expiration callback
 when the app backgrounds; another case withholds cancellation acknowledgement until
 return. This tests recovery routing, not the operating system's expiration schedule.
 It performs no real package verification, shader translation or compilation. The progress
