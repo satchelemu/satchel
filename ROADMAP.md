@@ -47,9 +47,13 @@ Left open by the move:
 - The phone's shader translator still follows NX2Apple `8227f80f`. Upstream's translator
   fixes since then (denormal comparisons, bank selection at run time, storage words read
   whole, Switch 2 shaders) need that pin to move and `dmsh_build` to be ported again.
-- The on-phone rewriter still reproduces `patch_nso.py` at `bbc3b737`. Upstream's newer
-  tail call and jump table proofs, the frame rate target lookup and Snowdrop's page pools
-  need the differential run on private modules before the port can follow.
+- Done on the Mac: the on-phone rewriter now reproduces `patch_nso.py` at `f8a5618d`, with
+  upstream's stricter register-write proofs for jump tables, the padded and framed tail call
+  forms, the frame rate target lookup (passed to the host's limiter through the fixups) and
+  Snowdrop's page pools with each title's reviewed sizes. Every module of Zelda 1.4.3,
+  Odyssey 1.0.0 and 1.4.1 and Castlevania 1.0.0 is byte-identical to the Python oracle, and
+  their rewritten code did not change, so packages already prepared with this engine stay
+  current. Not yet run on the phone.
 - Upstream's multi-program games, `nn::jit` images, Switch 2 video codec and 120 FPS
   profiles are compiled in but not offered: the session reset refuses a second game in
   the same process while one of them is active, and Prepare does not produce their inputs.

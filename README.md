@@ -148,6 +148,10 @@ It is a clean break. After installing a build with this engine:
   and can delete one.
 - Expect first-play stutter again. Translated shaders and pipeline caches are kept per
   engine, so every game refills its caches the first time it is played.
+- The code rewriter Prepare runs now follows the same upstream revision. For Zelda,
+  Super Mario Odyssey and Castlevania its output is unchanged, so a package already
+  prepared with this engine stays current; another game's earlier package is marked as
+  needing Prepare again.
 
 What the new engine brings, as far as it reaches Satchel: one Metal compile for a pixel
 shader's alpha test and logic operation entry points instead of two, lower submit-thread

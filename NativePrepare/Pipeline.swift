@@ -213,7 +213,7 @@ enum PreparePipeline {
                 reporter.update(.rewriting, 0, 0, message: "Rewriting \(name)…", fraction: 0.8 * Double(rewriteDone) / Double(rewriteTotal))
                 try autoreleasepool {
                     let module = content.program.modules.first { $0.name == name }!
-                    try PrepareRewrite.write(SwitchDecodedModule.decode(module), to: scratch, token: token) { fraction, done, total in
+                    try PrepareRewrite.write(SwitchDecodedModule.decode(module), title: title, to: scratch, token: token) { fraction, done, total in
                         reporter.update(.rewriting, done, total, message: "Rewriting \(name)…",
                             fraction: 0.8 * (Double(rewriteDone) + Double(moduleSize) * fraction) / Double(rewriteTotal))
                     }
@@ -334,6 +334,7 @@ enum PreparePipeline {
                 "layout": layout, "buildIDs": recipe.buildIDs, "contentVersion": recipe.contentVersion, "signingStatus": state.rawValue, "files": fileJSON]
             if suppliedPack == nil {
                 manifest["recipe"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(recipe))
+                manifest["rewriter"] = NativePreparationRecipe.rewriterRevision
                 manifest["preparedProfile"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(preparedProfile))
                 manifest["shaderStatus"] = "runtime first-use translation required"
                 manifest["experimental"] = recipe.reviewedVersion == nil

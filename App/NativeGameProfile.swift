@@ -57,6 +57,8 @@ struct PreparedIdentity: Decodable {
     let modules: [String]
     let environment: [String: String]
     let files: [String: FileRecord]
+    /// The rewriter reference a phone Prepare recorded; nil for a package made before it was recorded.
+    let rewriter: String?
 
     /// The profile this package was made for, or the launch verifier's refusal.
     func profile(in profiles: [NativeGameProfile] = NativeGameProfile.all) throws -> NativeGameProfile {
@@ -72,6 +74,9 @@ struct PreparedIdentity: Decodable {
             guard contentVersion == recipe.contentVersion else { throw invalid("DLC content version differs from the preparation recipe.") }
             profile = try recipe.profile(profiles: profiles)
             guard preparedProfile == profile else { throw invalid("Prepared profile differs from its bounded recipe.") }
+            guard recipe.rewrittenByCurrentRewriter(rewriter) else {
+                throw invalid("Prepared with an earlier version of the code rewriter. Prepare the game again.")
+            }
         } else {
             guard format == 1, recipe == nil,
                   let reviewed = NativeGameProfile.find(titleID: titleID, version: version, in: profiles) else {
@@ -130,6 +135,27 @@ struct NativePreparationRecipe: Codable, Sendable {
 
     static let enginePin = "f8a5618d5f505a4c0a0bcac7c413872d3a53c009"
     static let shaderChain = "26dc2fa9477c"
+    /// The on-phone rewriter reproduces nxnative patch_nso.py at this revision (Tools/NativeRewriter).
+    /// Prepare records it in every package it writes; a package without it was rewritten when the
+    /// rewriter still followed bbc3b737.
+    static let rewriterRevision = "f8a5618d5f505a4c0a0bcac7c413872d3a53c009"
+    /// Module builds whose rewritten code and tables are byte-identical under both references, proven
+    /// by the Mac differential run (Tools/NativeRewriter/README.md): Zelda TOTK 1.4.3, Super Mario
+    /// Odyssey 1.0.0 and 1.4.1, and Castlevania: Belmont's Curse 1.0.0 with its NRO. Their earlier
+    /// packages stay current; any other earlier package needs Prepare again.
+    static let rewriterUnchangedBuilds: Set<String> = [
+        "277178b7dba1b6d4949a84778d4abc58", "f39f4c431234c72eb520cfdd1001bbcf", "574284b40c06cf1821a44857939083be",
+        "3ca12dfaaf9c82da064d1698df79cda1", "798c30e126697f2222cf843f78f5c140", "ae34e75d02925f4417b24499ad80c394",
+        "b424be150a8e7d78701cbe7a439d9ebf", "93ff8252d975adf07230cb86c83301c5", "fcf93a41b08c5193a1410d262602dc62",
+        "e7caa6ab07f133269a2705ec9340ac58", "8205ead9e1f93d8b2337feaddefac330", "8af286d7bfb124125a15e96a39cb1ab7",
+        "8233e7b465802062bcc4f7f8fa84ad8f"
+    ]
+    /// Whether this recipe's modules, rewritten by the recorded reference, equal what Prepare writes now.
+    func rewrittenByCurrentRewriter(_ recorded: String?) -> Bool {
+        if recorded == Self.rewriterRevision { return true }
+        guard recorded == nil else { return false }
+        return (Array(buildIDs.values) + nros.map(\.buildID)).allSatisfy { Self.rewriterUnchangedBuilds.contains($0.lowercased()) }
+    }
     // The integration patches applied to the pinned engine (scripts/deps/upstream/nxnative-queue/series).
     static let forkPatchCount = 29
     // The pinned loader sizes its tables from the inventory, including titles

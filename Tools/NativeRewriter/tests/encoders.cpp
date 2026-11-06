@@ -97,7 +97,18 @@ int main() {
     q.max_patch_bytes = cap;
     q.abi_version = 99;
     invoke(NR_INVALID_INPUT);
+    // ABI 1 ends at context: its pool sizes are never read, even when the bytes after it are not zero.
+    q.snowdrop_pools_mb[0] = 9999;
+    q.abi_version = 1;
+    invoke(NR_OK);
     q.abi_version = NR_ABI_VERSION;
+    invoke(NR_INVALID_INPUT);   // pools of 4,096 MB or more in all
+    q.snowdrop_pools_mb[0] = 2048;
+    invoke(NR_INVALID_INPUT);   // a zero pool beside nonzero ones
+    q.snowdrop_pools_mb[1] = 512;
+    q.snowdrop_pools_mb[2] = 512;
+    invoke(NR_OK);
+    q.snowdrop_pools_mb[0] = q.snowdrop_pools_mb[1] = q.snowdrop_pools_mb[2] = 0;
     uint8_t old[4] = {}, replacement[4] = {};
     nr_cut cut{0x100, old, replacement, 4, "synthetic"};
     q.profile.cuts = &cut;

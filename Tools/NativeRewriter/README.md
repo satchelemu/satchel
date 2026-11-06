@@ -1,7 +1,9 @@
 # NativeRewriter
 
-Implemented and validated on macOS for TOTK 1.4.3 main, subsdk0 and sdk. Each patched image
-and all six output tables match the pinned Python oracle byte for byte. This is a bounded,
+Implemented and validated on macOS against the pinned Python oracle, nxnative `patch_nso.py` at
+`f8a5618d`: every module of Zelda TOTK 1.4.3 (main, subsdk0, sdk), Super Mario Odyssey 1.0.0 and
+1.4.1 (main, subsdk0, sdk) and Castlevania: Belmont's Curse 1.0.0 (main, subsdk0, sdk and its NRO)
+matches in the patched image and all six output tables, byte for byte. This is a bounded,
 synchronous C API over a C++17 implementation, usable from Swift through `module.modulemap`.
 Python is used only in development tests and profile export. No Python runtime is linked.
 
@@ -11,26 +13,46 @@ Nothing here was installed or run on a phone, or used to play a game.
 
 ## Pins and dependency
 
-The reference is the Zelda worker's materialized NX2Apple engine at
-`bbc3b73784751d2a706932dc69fd67627e3445d4`, including its published patches. The individual
-Python and profile file hashes are in `profiles/source-lock.json`. The differential runner
-checks those hashes before using the oracle. The older integration-design revision is not
-this task's oracle.
+The reference is the engine pin's materialized nxnative snapshot at
+`f8a5618d5f505a4c0a0bcac7c413872d3a53c009`, including its fork patches
+(`~/SatchelBuild/engine-pin/deps/NX2Apple/engine` on the maintainer's Mac). The individual Python
+and profile file hashes are in `profiles/source-lock.json`, and `profiles/registry.json` is
+exported from the same snapshot by `tests/export_profiles.py`. The differential runner checks
+those hashes before using the oracle.
 
-The host engine pin has since moved to nxnative `f8a5618d5f505a4c0a0bcac7c413872d3a53c009`
-(see BUILDING.md, "Moving the engine pin"). This port and its oracle deliberately stay at
-`bbc3b737`: byte parity with the oracle is what the differential run proves, and repeating
-it needs the maintainer's private modules. The newer host loads this port's output unchanged.
-Its loader reads the same section names and table keys, and the keys upstream added since
-(`FPS_TARGET_PTR`, `FPS_TARGET_FIELD`) are optional. What the port does not have is upstream's
-later rewriter work: stricter register-write tracking in jump table and tail call proofs,
-two more tail call forms (Unity IL2CPP), the larger back patch area split, the frame rate
-target lookup, Snowdrop's page pools and two Switch 2 SDK node cuts. A title that needs one
-of those still stops in Prepare with the same message as before. Moving the oracle is a
-separate task: update `profiles/source-lock.json` from the new snapshot, port the changes
-above, and rerun the differential check on the private modules.
+The port followed upstream from `bbc3b737` to `f8a5618d` on 2026-11-05. The `patch_nso.py`
+changes between them, and what each one changes in the output:
 
-Capstone 5.0.7 is pinned to commit `d2e5739cbb43df93d589a3a726c8f878b95beccb` and a SHA-256
+- Register writes read by what the registers are (`written_w`, `writes_reg`): a write of wN
+  counts as a write of xN, x29 and x30 count under their Capstone names fp and lr, and a compare
+  no longer counts as a write. Used by the table base walk, the candidate table search, both
+  offset table forms and the halfword pad count. Output changes for a function whose table base
+  register is compared (now accepted) or written as wN (now refused) between its adrp + add and
+  the load.
+- A register copy replaces the index instead of adding to it, in the offset table and halfword
+  forms: a check of the old value no longer bounds the table. The offset form also refuses an
+  index changed between its check and the load (a call counts for x0 to x18), and the masked
+  copy check (GLSLC's `and` before the compare) is now ported too. A halfword table whose check
+  was on the old value now gets all 65,536 pads.
+- Tail calls: after the terminal form, a pointer thunk followed only by zero trap padding, and
+  a br x18 with code after it when the frame is provably gone (a 16-byte frame thunk with its
+  error blocks after the br, or an ordinary function with sub sp and add sp around one saved
+  pair). These were refused before; Prepare now accepts them as upstream does.
+- The frame rate target lookup (`fps_target.py`, main only): a global object's int32 field read
+  by at least eight 60.0 / target divisions and set to 30 somewhere. When exactly one exists,
+  the fixups table gets `FPS_TARGET_PTR` and `FPS_TARGET_FIELD`, which the pinned host's
+  `loader.c` reads and `hle_fpslock.c` writes the frame rate target into. It follows GOT slots
+  through the module's relative relocations (`loader_census.py got_values`).
+- Snowdrop's three-pool page allocator (`snowdrop_pools.py`, main only): its constructor is
+  found by structure and eight cuts give its 12 GB reservation the pool sizes of the title's
+  profile (`snowdrop_pools` in its `game.tsv`), else 2048, 512 and 1280 MB. The registry carries
+  the reviewed sizes by base title ID; Prepare passes them through ABI 2 (`snowdrop_pools_mb`).
+- Not ported, and still refused as before: the larger back patch area split (two patch areas),
+  Unreal's engine region size set after its store, the other new jump table recognizers, and
+  the pool shutdown change (no output effect). The registry adds two Switch 2 SDK node cuts,
+  two new game profiles and Sparks of Hope's changed cuts, and drops Kingdom Battle's build cuts.
+
+Capstone 5.0.7 is pinnedCapstone 5.0.7 is pinned to commit `d2e5739cbb43df93d589a3a726c8f878b95beccb` and a SHA-256
 archive digest in CMake. The installed oracle reports Capstone 5.0.7. Only ARM64 is compiled.
 Capstone is necessary to reproduce its operand spelling, register accesses and rejection
 behavior. It is statically linked into the Mac test library. Licenses are retained in
@@ -46,16 +68,28 @@ nice -n 10 cmake -S Tools/NativeRewriter -B "$HOME/SatchelBuild/rewriter/build" 
 nice -n 10 cmake --build "$HOME/SatchelBuild/rewriter/build" -j2
 nice -n 10 ctest --test-dir "$HOME/SatchelBuild/rewriter/build" --output-on-failure
 nice -n 10 swiftc -typecheck -I Tools/NativeRewriter/include Tools/NativeRewriter/tests/swift_api.swift
-nice -n 10 /tmp/satchel-switch-integration/venv/bin/python3 Tools/NativeRewriter/tests/differential.py \
-  --engine "$HOME/SatchelDeps/NX2Apple/engine" \
+PY="$HOME/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/venv/bin/python3"
+ENGINE="$HOME/SatchelBuild/engine-pin/deps/NX2Apple/engine"
+PYTHONDONTWRITEBYTECODE=1 nice -n 10 "$PY" -B Tools/NativeRewriter/tests/differential.py \
+  --engine "$ENGINE" \
   --library "$HOME/SatchelBuild/rewriter/build/libnative_rewriter.dylib" \
   --output "$HOME/SatchelBuild/rewriter/tests" \
-  --private-exefs "$HOME/SatchelBuild/zelda/work/extract/v720896/ExeFS"
-nice -n 10 /tmp/satchel-switch-integration/venv/bin/python3 Tools/NativeRewriter/tests/contracts.py \
-  --engine "$HOME/SatchelDeps/NX2Apple/engine" \
+  --private-modules 0100F2C0115B6000=/private/zelda/modules
+PYTHONDONTWRITEBYTECODE=1 nice -n 10 "$PY" -B Tools/NativeRewriter/tests/contracts.py \
+  --engine "$ENGINE" \
   --library "$HOME/SatchelBuild/rewriter/build/libnative_rewriter.dylib" \
   --output "$HOME/SatchelBuild/rewriter/contracts"
 ```
+
+Without private inputs the differential run covers the synthetic cases: one per proof added
+since `bbc3b737` (table base compares and wN writes, a changed or copied index, the masked
+copy, the halfword pad count, the padded, thunk and frame tail calls and a pair store that must
+be refused, the frame rate target and Snowdrop's pools with default and reviewed sizes), plus
+the original eight. A case marked to be refused passes only when both the oracle and the port
+refuse it. `--private-modules TITLE=DIR` adds every module file in a folder (main, subsdkN, sdk,
+nroN, as NSO or NRO files), with TITLE the base title ID the oracle selects as `DM_GAME` and
+whose reviewed Snowdrop sizes the port receives. Keep those folders and the output outside the
+repository; they hold game code.
 
 For an already extracted, verified Capstone source tree, pass
 `-DFETCHCONTENT_SOURCE_DIR_CAPSTONE="$HOME/SatchelBuild/rewriter/capstone-src"`.
@@ -79,6 +113,10 @@ match the stored oracle manifest. Acceptance runs should omit this option.
    suppresses fallback matching just as upstream does. Otherwise supply selected game rules
    and SDK-wide rules for this module. Keep the two name namespaces distinct when composing
    rules: equal names within one namespace are alternative implementations. Preserve order.
+   With `abi_version` 2, set `snowdrop_pools_mb` for main to the base title's row of the
+   registry's `snowdrop_pools` (large, 512 KB and 64 KB pools in MB, each above zero, under
+   4,096 in all), or leave it zero for upstream's default. Version 1 requests are still
+   accepted; they end at `context` and get the default.
 3. Each `nr_match_rule` contains one or several `nr_match_function` records. Functions must
    match uniquely and at distinct starts; exactly one same-name implementation must match.
    Missing, ambiguous and original-byte-mismatched function rules apply no cuts, as upstream
@@ -126,9 +164,9 @@ Not yet ported:
 
 - Large-text front-size retry, two patch areas, and large-function splitting. These fail
   explicitly instead of attempting an unverified layout or analysis boundary.
-- Extended x18 jump recognizers: far/copied/forward table bases, masked predecessor and
-  complement forms, zero-extension proofs, far byte tables, and tail-call thunks. A jump
-  not covered by the older recognizers fails explicitly.
+- Extended x18 jump recognizers: far/copied/forward table bases, a check before the index copy,
+  masked predecessor and complement forms, zero-extension proofs and far byte tables. A jump
+  not covered by the ported forms or the tail call proofs fails explicitly.
 - Unreal console-variable, Binned3 allocator and engine-region analyzers. Discovery markers
   cause an unsupported error, potentially more conservative than Python's no-match result.
 - Non-ASCII imported-symbol fingerprint JSON escaping. Such a matching candidate fails

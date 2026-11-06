@@ -44,4 +44,10 @@ for bid,init,known in builds: out.append('if(!strcmp(bid,%s)){ *p=(nr_profile)%s
 out.append('if(strcmp(module,"main")) p->recipe=0;')
 for mod,arr,n in sdk: out.append('if(!known_cuts && !strcmp(module,%s)){p->match_rules=%s;p->match_count=%d;}'%(string(mod),arr,n))
 out.append('}')
+# Snowdrop's page pools in MB by base title ID (snowdrop_pools); no row keeps upstream's default.
+out.append('int satchel_registry_snowdrop(const char *title, uint32_t sizes[3]) {')
+for title,sizes in r.get('snowdrop_pools',{}).items():
+    assert len(sizes)==3 and all(isinstance(x,int) and x>0 for x in sizes) and sum(sizes)<4096
+    out.append('if(!strcmp(title,%s)){sizes[0]=%d;sizes[1]=%d;sizes[2]=%d;return 1;}'%(string(title),*sizes))
+out.append('return 0;\n}')
 Path(sys.argv[1]).write_text('\n'.join(out)+'\n')

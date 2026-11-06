@@ -37,6 +37,21 @@ def main():
         funcs = [n.name for n in ast.walk(ast.parse(path.read_text())) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
         if funcs:
             census.append({'profile': path.parent.name, 'functions': funcs})
+    # Snowdrop's page pools (snowdrop_pools.py) follow the title's profile key, read as the pinned
+    # profile_sizes reads it; a title without the key keeps upstream's default in the native rewriter.
+    spec = importlib.util.spec_from_file_location('snowdrop_pools', args.engine/'dm/tools/snowdrop_pools.py')
+    pools = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pools)
+    if pools.DEFAULT != (2048, 512, 1280):
+        raise ValueError('snowdrop_pools.DEFAULT differs from the native rewriter')
+    spec = importlib.util.spec_from_file_location('game', args.engine/'dm/games/game.py')
+    game = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(game)
+    registry['snowdrop_pools'] = {}
+    for tsv in sorted((args.engine/'dm/games').glob('*/game.tsv')):
+        words = game.Game(tsv.parent).words(pools.KEY, '')
+        if words:
+            registry['snowdrop_pools'][tsv.parent.name] = list(pools.parse(words, tsv))
     sources = sorted(set(files + list((args.engine/'dm/tools').glob('*.py'))))
     lock = {'engine_revision': subprocess.check_output(['git', '-C', str(args.engine), 'rev-parse', 'HEAD'], text=True).strip(), 'sources': {str(p.relative_to(args.engine)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}, 'executable_profiles': census}
     args.output.mkdir(parents=True, exist_ok=True)

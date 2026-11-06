@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 #define NR_API __attribute__((visibility("default")))
-#define NR_ABI_VERSION 1u
+#define NR_ABI_VERSION 2u /* 1 is still accepted: it ends at context */
 typedef enum {
     NR_OK,
     NR_INVALID_INPUT,
@@ -68,6 +68,9 @@ typedef struct {
     size_t max_image_bytes, max_patch_bytes, max_function_bytes, max_records;
     int (*cancelled)(void *context);
     void *context;
+    /* ABI 2. Snowdrop's three page pools in MB (large, 512 KB pages, 64 KB pages) from the title's
+       reviewed profile (snowdrop_pools); all zero selects upstream's default 2048, 512, 1280. */
+    uint32_t snowdrop_pools_mb[3];
 } nr_request;
 typedef struct {
     nr_status code;

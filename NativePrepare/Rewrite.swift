@@ -33,9 +33,17 @@ private final class RewriteProgressContext {
 }
 
 enum PrepareRewrite {
-    static func write(_ module: SwitchDecodedModule, to directory: URL, token: PrepareCancellation, progress: @escaping (Double, UInt64, UInt64) -> Void = { _, _, _ in }) throws {
+    /// `title`, the base title ID, selects the title's reviewed Snowdrop pool sizes for main.
+    static func write(_ module: SwitchDecodedModule, title: String? = nil, to directory: URL, token: PrepareCancellation, progress: @escaping (Double, UInt64, UInt64) -> Void = { _, _, _ in }) throws {
         var request = nr_request()
         request.abi_version = NR_ABI_VERSION
+        if module.name == "main", let title {
+            var sizes: (UInt32, UInt32, UInt32) = (0, 0, 0)
+            let found = withUnsafeMutableBytes(of: &sizes) { raw in
+                title.withCString { satchel_registry_snowdrop($0, raw.bindMemory(to: UInt32.self).baseAddress) }
+            }
+            if found != 0 { request.snowdrop_pools_mb = sizes }
+        }
         request.bss_size = UInt64(module.bssSize)
         request.max_image_bytes = 512 * 1024 * 1024
         request.max_patch_bytes = 64 * 1024 * 1024

@@ -138,7 +138,7 @@ else:
     exec(compile((ROOT/'NativeHost/verify_build.py').read_text(),str(ROOT/'NativeHost/verify_build.py'),'exec'),{'__name__':'__main__'})
 app=OUT/'DerivedData/Build/Products/Release-iphoneos'/(app_name + '.app')
 symbols=subprocess.check_output(['nm',str(app/app_name)],text=True)
-for name in ['_nr_rewrite','_cs_open','_cs_disasm','_satchel_registry_profile','_OBJC_CLASS_$_SatchelSigningIdentity'] + ['_satchel_phone_shader_' + name for name in ['prepare', 'inputs', 'reflection', 'library']]:
+for name in ['_nr_rewrite','_cs_open','_cs_disasm','_satchel_registry_profile','_satchel_registry_snowdrop','_OBJC_CLASS_$_SatchelSigningIdentity'] + ['_satchel_phone_shader_' + name for name in ['prepare', 'inputs', 'reflection', 'library']]:
     assert any(line.endswith(' '+name) for line in symbols.splitlines()), 'Missing preparation symbol '+name
 framework = app/'Frameworks/SatchelShaderTranslator.framework'
 assert (framework/'SatchelShaderTranslator').is_file(), 'Native shader translator framework was not embedded'

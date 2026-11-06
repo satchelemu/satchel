@@ -195,11 +195,20 @@ and only then applies Satchel's own overlays to the copy. The snapshot is never 
 | Pipeline cache namespace | `f8a5618d-26dc2fa9477c-v2-<GPU>-<OS build>` | `NativeHost/graphics/PipelineSettings.m`, described in `NativeHost/ShaderStalls.md` |
 | Shader implementation identity | `satchel-native-v3-side-26dc2fa9477c-f11ba9f0` | `NativeShaders/ShaderAPI.swift`, `NativeShaders/integration.json` |
 
-Two pins did not move with it, on purpose. The shader translator sources stay at NX2Apple
+One pin did not move with it, on purpose. The shader translator sources stay at NX2Apple
 `8227f80f` (see `Tools/MaxwellShaderCompiler`), so upstream's later translator fixes reach
 shaders built on a Mac with the engine's own tools but not shaders translated on the
-phone. The on-phone rewriter's reference stays at `bbc3b737`
-(see `Tools/NativeRewriter/README.md`); the new host loads its output unchanged.
+phone.
+
+The on-phone rewriter followed in a separate step: it now reproduces `patch_nso.py` at
+`f8a5618d` (newer jump table and tail call proofs, the frame rate target lookup and
+Snowdrop's page pools; see `Tools/NativeRewriter/README.md`). Its reference is recorded in
+every package Prepare writes (`rewriter` in the manifest, `rewriterRevision` in
+`App/NativeGameProfile.swift`). A package without it was rewritten when the reference was
+still `bbc3b737`: it stays current only when every module build is one the Mac differential
+run proved byte-identical under both references (`rewriterUnchangedBuilds`: Zelda 1.4.3,
+Odyssey 1.0.0 and 1.4.1, Castlevania 1.0.0), and any other one needs Prepare again. When the reference moves again,
+bump `rewriterRevision` and keep only builds proven unchanged in that list.
 
 ### Clean break of 2026-11-05
 

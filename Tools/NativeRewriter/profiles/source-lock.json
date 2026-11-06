@@ -1,22 +1,23 @@
 {
-  "engine_revision": "bbc3b73784751d2a706932dc69fd67627e3445d4",
+  "engine_revision": "f8a5618d5f505a4c0a0bcac7c413872d3a53c009",
   "sources": {
     "dm/games/010014C011146000/patches.py": "ad88a073c3c874055a324ea750505a0fcc843984ee0aa9e75ef9f4b425fd4e15",
     "dm/games/010029B0118E8000/patches.py": "c6f75e654922ec671d03dc699162e73badbbd57c32d33d79ab73f076280f1f88",
     "dm/games/01002B00111A2000/patches.py": "8b7ac03d94ed6b355daf2aab457722bfad31276ef08d89d761ef4a7f56fa8daf",
-    "dm/games/0100317013770000/patches.py": "bb9ba125838e3de4769ff744f42b8345ddac27bfe2d371d113a551f8d7e7fb7b",
+    "dm/games/0100317013770000/patches.py": "982076b7a92a3c1b5dca75d06467133ffe03511a15723a1c922e8c327f0355ec",
     "dm/games/0100346017304000/patches.py": "ed89edd0181a110d10e21bce4851733091987a7a318e0859186a2b9828b675c7",
     "dm/games/010038B015560000/patches.py": "12555042363a338e7692521290c5d72a4a5f0c0601629e0437d21c666503da53",
     "dm/games/0100429011144000/patches.py": "cc11b2fa195e798ffe7e27dc9c197828aa8bdec8bad0273b00403d13cf21adfe",
+    "dm/games/010049900F546002/patches.py": "5c626e22f5ce93f6a0f6d21325de2ee997edbd2619b1748a1104333294bf5bb2",
     "dm/games/01004AB00A260000/patches.py": "d7074eaa2133d9e3d8e9298adc7cd598a6461f94a7952b51bc303538f65bad58",
     "dm/games/010055D009F78000/patches.py": "6ea8426be481546341bef1b754112d8f73396c2bcb7bc19a3919213744942a81",
     "dm/games/010056B015FE8000/patches.py": "0e1ed397b7d0f78be0ade532ae1c8a6b23bb355752ef6b33ef3167d8512c73d4",
-    "dm/games/010067300059A000/patches.py": "9c9ad8ca745b9abb08421d1c633ad0d883ae2bd30caa44423c12f43ed920cf9f",
     "dm/games/01006A800016E000/patches.py": "7a8adc86999f9c3c3e4330e2d6c7103784220adaca2b802437c98595dc430527",
     "dm/games/01006BB00C6F0000/patches.py": "5e3954a4eba59844e0257028ecee69d13ef526eeec93629f40a06d973bbfae40",
+    "dm/games/01006F8002326000/patches.py": "145508e01be2e995ec70d16c489216520acb747cc144d16ec486188526f45714",
     "dm/games/01007300020FA000/patches.py": "fef81ee08e0697870cde9b0d9d9ccfce47bd225cdb94ec6db6a0140669318f52",
-    "dm/games/010074F013262000/patches.py": "09af59e41c591f46fda2e66c076ef8aa2da5a4cae403d68daf973eab456f1f15",
-    "dm/games/01007EF00011E000/patches.py": "d206c1863a396c19e2f50814b9766b30be2fa8a96a17a2e979ef1ffa13d4d0e5",
+    "dm/games/010074F013262000/patches.py": "28c60d2200c61bd9040697f6c016eee1523366859715dd0ec5c5f65e1d474f64",
+    "dm/games/01007EF00011E000/patches.py": "ebb7349885776fa0c6e0b4ae3a93fd5e6820d5608b2c1e2fc9b700d4cc3e5549",
     "dm/games/0100A6301214E000/patches.py": "976891794820e54bb35a3809bd9f0e4194bb952e6fe2a6922ce932428ec031ea",
     "dm/games/0100ACD0163D0000/patches.py": "ec6eeb83988fdc7b3e8afc0bcbbd0c0807406626b38ba157f514f4c875569119",
     "dm/games/0100B8E016F76000/patches.py": "c95176fafe91dd704789a8e4a9cfc5d5788e6cd29471d812c1565273e2e0745a",
@@ -24,21 +25,23 @@
     "dm/games/0100ECD018EBE000/patches.py": "b6a57a5705402c76b2b46077bc2798c1b3c0d36b8ff1bf265a17dec051993548",
     "dm/games/0100F2C0115B6000/patches.py": "7863dcefc55b2ed870d70c617df2997ca286cf0fc3b91ba92b1a07be9129b96a",
     "dm/tools/check_thread_cuts.py": "cd6de9d75a2a1694493ed744e006d50ab9ed19a218392297fd1a2f42579edef0",
-    "dm/tools/compact_font.py": "3336837b0491c8eb5b4628ea8084aaf5d620266acb22b96c9fd5ea237c2a1b7c",
     "dm/tools/coverage_report.py": "9fe0d2e796e65bc7c6d5875ce0a7618343d63778e3f0587e379ae2762eb40b33",
     "dm/tools/docs_gallery.py": "96bb2e4084ff4fce7359610594823fefe6428296a05cead1749c5d2641f17076",
-    "dm/tools/docs_patches.py": "a0ed541e98532f256765d428d52718ac384f403e96e1cd3532d0d70fc9ca9f4e",
+    "dm/tools/docs_patches.py": "a419c3f360c5561102533164d4f8d5b2a71554d469deb95cee7ea5143022cb0a",
     "dm/tools/docs_symptoms.py": "992b9c84c7778afc40c3d16f5fe0cdf6ebfaa9203e8b52787ff03721ba6989de",
     "dm/tools/env_switches.py": "decd6db36109b1a5574ae20eaa98d409ab924db5c908ea8f8c4171ea9a5c64dd",
+    "dm/tools/fps_target.py": "9ca20da648881beab2f94e4194dfbafcece9fa79655623ce15166704bf012647",
     "dm/tools/gpuprof.py": "5e84c17189b10a20b32942059c115e7f17d6984bbf8ab1ba84d2dc996eba1e94",
     "dm/tools/il2cpp_sym.py": "a74ae4675b6aeae8d14c9e1574defcd415b5806b74cc8b6615027eaeca34fa5c",
     "dm/tools/insn_census.py": "1238c522fac09ff2823869b4242b8ee145bc4cd86c2e496addd9442b6c25a539",
+    "dm/tools/issue_areas.py": "a784959284699990507a909619247ceb4a9b24c84ba415e21076746e25ac6feb",
+    "dm/tools/jit_capture.py": "d97aaa1e73fa003436ffb53ce7567629dd324aaaa4f4adb560a8abd0c4f0dad2",
     "dm/tools/lint_c.py": "5749e0f72c7c58d7dffc3f91d08cc04794488ab45d96808033a684a8fadca0fe",
     "dm/tools/lint_python.py": "ee807290e4c0abd03a7dad4cd145c0b1ef097ad07e25c3adecf376041ea66399",
     "dm/tools/loader_census.py": "1de24790659556b4b7d14fae4ad0347cc02898920fb32db6966e67711501f81f",
-    "dm/tools/make_ext_font.py": "020fbf5f34460ab62eecae1867fcd34b3f6d4408a13461ea3bce6fa71c46cc9e",
+    "dm/tools/make_ext_font.py": "ac7be2ac68eec53ee18b0c39ce83bd407e87367a1df4f0c34cbce81dc7161b66",
     "dm/tools/nacp.py": "2711b72871e70807b7004cf52ce6f461919ba9153a70873ebc76ef97fae3cd8f",
-    "dm/tools/nro_collect.py": "2d70efda3ca7515cc5fd4e6bd9f6fc5c340207fb5d41132c74cf7e27fdf4b64e",
+    "dm/tools/nro_collect.py": "f01b60ed0c836dcf531b3bc6c789438ff83dcc7ca6bd8c0344e1b96559dd31bc",
     "dm/tools/nso.py": "58537c0eb57008f5f856da5502b5fde1290dedee9c09d14ac6b1615c1e77886b",
     "dm/tools/nso2elf.py": "e826978233e4a8f05e7d702e94f4ff79c0bd9b447703740cd1b0aad20a241277",
     "dm/tools/nso_asm.py": "ae1b3d83bec3720fd6c806b2c8caa559a5652ac333ad44c5e3e6ef091deb7d20",
@@ -47,14 +50,18 @@
     "dm/tools/nso_match.py": "e0fe79a5bda7d587f53a4b262b9ca6ec3c0e1df69edcb38e4bfc11af948be829",
     "dm/tools/nso_syms.py": "5d2c5c0437f9578050382a561e93f78738b368d85ba4b04dc3bd2ef1a9c9bcb2",
     "dm/tools/nvn_slots_got.py": "4bad8737550cd6ac847e93c7e9e7f62d8853922ec146341e28e3856c84d5afdd",
-    "dm/tools/patch_nso.py": "c4a8b711d99e7f6944c36bd02ab2a8d1a9e7fb35459ec0382ed17711cdf25b6c",
-    "dm/tools/romfs.py": "1222a5f18eac70994755b47e6b7cf2857e306471a9fca58c86d65017dbd8b559",
-    "dm/tools/romfs_image.py": "ba621c95c9029dc1f36325b78f451705c010f4eff7c7eb227404aba4bcc43e1b",
+    "dm/tools/patch_nso.py": "bf726f66903f0f28e3b71f63b54c56864aacc781d96fc0b20858ad609c76db37",
+    "dm/tools/pr_areas.py": "80d7b2c3b1dbbab24f25289f3cbf4a50854b494cc81de6c106fce410280f5e4e",
+    "dm/tools/romfs.py": "a80856436e34411389f9a4ab779b7e63b0cbbabb9f4eec0f026498ed3d843507",
+    "dm/tools/romfs_image.py": "074d4adb54e9147d969010ffe0b3109a7e90d7542eae661b8eba7e2bf8a33fd3",
     "dm/tools/sdis.py": "b6cb8a6034946293a23c4172abe88f141ad85c966448d5862fb05ebbca3a8208",
-    "dm/tools/sdk_patches.py": "4cd8cde0a0ca3d10cf64962cef4d6a1cf0b2f29cc682e819420a7bae69fe3431",
+    "dm/tools/sdk_patches.py": "1cebce622eb6b41eddab9f24711460775437ed6fec2204e951651ec4965d062d",
+    "dm/tools/snowdrop_pools.py": "3c1cca822fbe3f0b3614489d3a50da23dd5dace6a00c4d639a9a0e4fc2095b0c",
+    "dm/tools/tree_tar.py": "25949ef8ab7c44f10bb83ccd0493deb512f143bf0d0dbca885c8f01a79e2afab",
+    "dm/tools/triage_report.py": "094f0e988fea180f1c441a78410c904d84b9c8047bc299a5a5ed774321306102",
     "dm/tools/ue_cvar.py": "8f6c2129316be791376a84a57595d870cdcf23950213a772a6233c28f57e4220",
     "dm/tools/ue_malloc.py": "9c2d28076b79cff87c0f30295e4e9a8c32ba2194c0c2620522eb4cd60ee66c3c",
-    "dm/tools/ue_region.py": "5e3d4652917fc88c6ea2b8c50fd016c655d40bcb01338579a4d22edb05d41a4c",
+    "dm/tools/ue_region.py": "3b2a12e97839a3505e68614ede5faf3f411f262fe527675f87c8c1a43105b675",
     "dm/tools/usage.py": "f31756bb5b2c0888cfea5880159976696622817abc3e4b69ed6f503d4a4ca93b"
   },
   "executable_profiles": [
@@ -79,6 +86,13 @@
       ]
     },
     {
+      "profile": "01006F8002326000",
+      "functions": [
+        "_bl",
+        "screen_shape"
+      ]
+    },
+    {
       "profile": "01007300020FA000",
       "functions": [
         "signed",
@@ -91,7 +105,12 @@
     {
       "profile": "01007EF00011E000",
       "functions": [
-        "frame_step"
+        "frame_step",
+        "taller",
+        "taller_bit",
+        "fov_stub",
+        "cam_fovy",
+        "vt"
       ]
     },
     {

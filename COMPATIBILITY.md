@@ -27,7 +27,10 @@ needing Prepare instead of offering Play) and will stutter on first play until i
 refill. Castlevania's reviewed profile now follows upstream's checked
 profile where the two overlap (files, memory, depth mode, shader split); its tested phone
 settings (30 FPS cap, handheld mode) are unchanged. See
-[BUILDING.md](BUILDING.md#the-engine-pin).
+[BUILDING.md](BUILDING.md#the-engine-pin). The on-phone rewriter's later move to the same
+upstream revision leaves the rewritten code of Zelda 1.4.3, Odyssey 1.0.0 and 1.4.1 and
+Castlevania 1.0.0 unchanged (checked on the Mac), so they need no further Prepare. Mario
+Kart 8 Deluxe was not checked: a package of it from before that move needs Prepare again.
 
 ## Ratings
 

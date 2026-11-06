@@ -192,6 +192,27 @@ static std::string norm(std::string s) {
         return "v" + s.substr(1);
     return s;
 }
+// patch_nso.py written_w, writes_reg and writes_reg_any (nxnative f8a5618d): the general-purpose
+// registers an instruction writes, as wN names, since a write of wN or xN changes the same register.
+// Capstone names x30 lr and x29 fp, and lists a compare's first operand as written.
+static RS writtenW(const Ins &p) {
+    RS out;
+    for (auto &n : p.writes) {
+        int k = num(n == "lr" ? "x30" : n == "fp" ? "x29" : n);
+        if (k >= 0)
+            out.insert("w" + std::to_string(k));
+    }
+    return out;
+}
+static bool compares(const Ins &p) {
+    return one(p.m, {"cmp", "cmn", "tst"});
+}
+static bool writesReg(const Ins &p, const std::string &reg) {
+    return !compares(p) && writtenW(p).count("w" + reg.substr(1));
+}
+static bool writesRegAny(const Ins &p, const RS &regs) {
+    return !compares(p) && intersects(writtenW(p), regs);
+}
 struct Cut {
     Addr a;
     Bytes old, now;
@@ -483,6 +504,15 @@ class Engine {
     std::vector<Addr> tablecands(const IL &, const std::string &);
     int halfcount(const IL &, int, Addr);
     std::vector<Addr> offsets(const IL &, int, bool);
+    bool tailEnd(const IL &, int);
+    bool tailPadded(const IL &, int);
+    bool tailcall(const IL &, int);
+    std::optional<Addr> fpsPtr;
+    uint64_t pools[3] = {2048, 512, 1280};   // snowdrop_pools.DEFAULT
+    Addr fpsField = 0;
+    std::map<Addr, __int128> gotValues();
+    void fpsTarget();
+    void snowdrop();
     std::map<std::string, std::pair<Addr, Addr>> symbols();
     Ins spinins(Addr a) {
         if (a < 0 || a + 4 > text)
@@ -525,7 +555,18 @@ class Engine {
             cs_close(&md);
     }
     void run(nr_result &out) {
-        require(r.abi_version == NR_ABI_VERSION, "ABI version", 0, NR_INVALID_INPUT);
+        require(r.abi_version == 1 || r.abi_version == NR_ABI_VERSION, "ABI version", 0, NR_INVALID_INPUT);
+        // An ABI 1 request ends at context: its pool sizes are never read.
+        if (r.abi_version >= 2 && (r.snowdrop_pools_mb[0] || r.snowdrop_pools_mb[1] || r.snowdrop_pools_mb[2])) {
+            uint64_t sum = 0;
+            for (auto mb : r.snowdrop_pools_mb) {
+                require(mb > 0, "Snowdrop pool sizes", 0, NR_INVALID_INPUT);
+                sum += mb;
+            }
+            require(sum < 4096, "Snowdrop pool sizes", 0, NR_INVALID_INPUT);
+            for (int j = 0; j < 3; j++)
+                pools[j] = r.snowdrop_pools_mb[j];
+        }
         require(r.max_image_bytes && r.max_patch_bytes && r.max_records && r.max_function_bytes,
                 "explicit limits required", 0, NR_INVALID_INPUT);
         require(r.max_image_bytes <= 0x40000000 && r.max_patch_bytes <= 0x10000000 &&
@@ -666,6 +707,10 @@ class Engine {
                               "Project.FrameRateLimit"})
                 require(!marker(name, 2) && !marker(name, 4),
                         "Unreal console variable analysis not yet ported", ro, NR_UNSUPPORTED);
+        }
+        if (std::string(r.module_name) == "main") {
+            fpsTarget();
+            snowdrop();
         }
         report(0, 0, uint64_t(text));
         boundaries();
@@ -856,7 +901,7 @@ std::optional<Addr> Engine::tablebase(const IL &l, int k, const std::string &rb)
     std::optional<Addr> lo;
     for (int j = k - 1; j >= std::max(0, k - 256); j--) {
         auto &p = l[j];
-        if (!p.writes.count(rb))
+        if (!writesReg(p, rb))
             continue;
         std::smatch m;
         if (!lo && p.m == "add" &&
@@ -877,7 +922,7 @@ std::vector<Addr> Engine::tablecands(const IL &l, const std::string &rb) {
         if (p.m != "adrp" || !begins(p.op, rb + ","))
             continue;
         for (size_t j = k + 1; j < std::min(k + 9, l.size()); j++)
-            if (l[j].writes.count(rb)) {
+            if (writesReg(l[j], rb)) {
                 std::smatch m;
                 if (l[j].m == "add" &&
                     std::regex_match(l[j].op, m, std::regex(rb + ", " + rb + ", #(0x[0-9a-f]+|[0-9]+)")))
@@ -900,6 +945,8 @@ int Engine::halfcount(const IL &l, int k, Addr base) {
         auto &p = l[j];
         if (p.m == "mov" && std::regex_match(p.op, m, std::regex("(w[0-9]+), (w[0-9]+)")) &&
             idx.count(m[1])) {
+            // A copy replaces the index: a check of its old value bounds nothing.
+            idx.erase(m[1].str());
             idx.insert(m[2]);
             continue;
         }
@@ -909,9 +956,8 @@ int Engine::halfcount(const IL &l, int k, Addr base) {
             n = std::stoll(m[2], nullptr, 0) + 1;
             break;
         }
-        for (auto &w : p.writes)
-            if (idx.count("w" + w.substr(1)))
-                return 65536;
+        if (intersects(writtenW(p), idx))
+            return 65536;
     }
     if (kc < 0 || !one(l[kc + 1].m, {"b.hi", "b.hs", "b.cs"}))
         return 65536;
@@ -970,7 +1016,7 @@ std::vector<Addr> Engine::offsets(const IL &l, int j, bool adr) {
             continue;
         if (adr) {
             for (int q = ka - 1; q >= lo; q--)
-                if (l[q].writes.count(rb)) {
+                if (writesReg(l[q], rb)) {
                     wa = q;
                     break;
                 }
@@ -980,29 +1026,75 @@ std::vector<Addr> Engine::offsets(const IL &l, int j, bool adr) {
         RS idx = {"w" + ix};
         int kc = -1;
         Addr n = 0;
+        // jump_offsets (nxnative f8a5618d): an index changed between its check and the load
+        // bounds nothing, and a masked copy may be checked instead of the index itself.
+        bool changed = false;
+        std::optional<std::tuple<std::string, long long, int>> masked;
+        auto wname = [](const std::string &x) { return "w" + x.substr(1); };
+        static const std::regex copyRe("(w[0-9]+), (w[0-9]+)"),
+            andRe("([wx][0-9]+), ([wx][0-9]+), #(0x[0-9a-f]+|[0-9]+)"),
+            cmpW("(w[0-9]+), #(0x[0-9a-f]+|[0-9]+)"), cmpWX("([wx][0-9]+), #(0x[0-9a-f]+|[0-9]+)");
         for (int q = kl - 1; q >= lo; q--) {
             auto &p = l[q];
-            if (p.m == "mov" && std::regex_match(p.op, m, std::regex("(w[0-9]+), (w[0-9]+)")) &&
-                idx.count(m[1])) {
-                if (adr)
-                    idx.erase(m[1]);
+            if (p.m == "mov" && std::regex_match(p.op, m, copyRe) && idx.count(m[1])) {
+                idx.erase(m[1].str());
                 idx.insert(m[2]);
                 continue;
             }
-            if (p.m == "cmp" &&
-                std::regex_match(p.op, m,
-                                 std::regex(adr ? "([wx][0-9]+), #(0x[0-9a-f]+|[0-9]+)"
-                                                : "(w[0-9]+), #(0x[0-9a-f]+|[0-9]+)")) &&
-                idx.count("w" + m[1].str().substr(1))) {
+            if (adr) {
+                if (p.m == "cmp" && std::regex_match(p.op, m, cmpWX) && idx.count(wname(m[1]))) {
+                    kc = q;
+                    n = std::stoll(m[2], nullptr, 0) + 1;
+                    break;
+                }
+                if (intersects(writtenW(p), idx))
+                    return {};
+                continue;
+            }
+            if (p.m == "and" && std::regex_match(p.op, m, andRe) && idx.count(wname(m[1])) && !masked) {
+                masked = std::make_tuple(wname(m[2]), std::stoll(m[3], nullptr, 0), q);
+                continue;
+            }
+            if (!(p.m == "cmp" && std::regex_match(p.op, m, cmpW))) {
+                // Capstone lists only x30 as a call's write, so a call counts for the caller-saved registers.
+                bool call = one(p.m, {"bl", "blr"}) &&
+                            std::any_of(idx.begin(), idx.end(), [](const std::string &x) { return num(x) <= 18; });
+                if (writesRegAny(p, idx) || call)
+                    changed = true;
+                continue;
+            }
+            if (idx.count(wname(m[1]))) {
                 kc = q;
                 n = std::stoll(m[2], nullptr, 0) + 1;
                 break;
             }
-            if (adr)
-                for (auto &w : p.writes)
-                    if (idx.count("w" + w.substr(1)))
-                        return {};
+            if (masked) {
+                // The checked register must be the same source and the same mask, with the source
+                // unchanged up to the index's own and.
+                auto &[source, mask, at] = *masked;
+                std::string checked = wname(m[1]);
+                for (int z = q - 1; z >= lo; z--) {
+                    if (!writtenW(l[z]).count(checked))
+                        continue;
+                    std::smatch mm;
+                    if (l[z].m == "and" && std::regex_match(l[z].op, mm, andRe) && wname(mm[2]) == source &&
+                        std::stoll(mm[3], nullptr, 0) == mask) {
+                        bool clean = true;
+                        for (int y = z + 1; y < at; y++)
+                            clean &= !writtenW(l[y]).count(source);
+                        if (clean) {
+                            kc = q;
+                            n = std::stoll(m[2], nullptr, 0) + 1;
+                        }
+                    }
+                    break;
+                }
+                if (kc >= 0)
+                    break;
+            }
         }
+        if (kc >= 0 && changed)
+            return {};
         if (kc < 0)
             return {};
         records(n);
@@ -1032,6 +1124,567 @@ std::vector<Addr> Engine::offsets(const IL &l, int j, bool adr) {
         return {};
     }
     return {};
+}
+// Pinned nxnative tail_call_at_end (MIT, seedds): a terminal indirect tail call takes its pointer
+// from the last x18 load. Unlike upstream, an intervening w18 write is rejected too (fails closed).
+bool Engine::tailEnd(const IL &l, int j) {
+    static const std::regex load("x18, \\[(x[0-9]+|sp)(, #(0x[0-9a-f]+|[0-9]+))?\\]");
+    for (int q = j - 1; q >= 0; q--) {
+        if (!l[q].writes.count("x18") && !l[q].writes.count("w18"))
+            continue;
+        return l[q].m == "ldr" && std::regex_match(l[q].op, load);
+    }
+    return false;
+}
+static const std::regex &pointerLoad() {
+    static const std::regex re("x18, (x[0-9]+, )?\\[(x[0-9]+|sp)(, #(0x[0-9a-f]+|[0-9]+))?\\]");
+    return re;
+}
+// tail_call_padded (nxnative f8a5618d): an unframed, straight-line pointer thunk ending in br x18
+// and zero trap padding.
+bool Engine::tailPadded(const IL &l, int j) {
+    if (j + 1 >= int(l.size()))
+        return false;
+    for (size_t k = j + 1; k < l.size(); k++)
+        if (l[k].m != "udf" || l[k].op != "#0")
+            return false;
+    for (size_t k = 1; k < l.size(); k++)
+        if (l[k].a != l[k - 1].a + 4)
+            return false;
+    static const RS frame = {"sp", "wsp", "fp", "lr", "x29", "w29", "x30", "w30"};
+    for (int k = 0; k < j; k++)
+        if (!one(l[k].m, {"mov", "ldr", "ldrh", "ldp", "add", "str", "stp"}) || intersects(l[k].writes, frame))
+            return false;
+    for (int k = j - 1; k >= 0; k--) {
+        if (!l[k].writes.count("x18") && !l[k].writes.count("w18"))
+            continue;
+        return one(l[k].m, {"ldr", "ldp"}) && std::regex_match(l[k].op, pointerLoad());
+    }
+    return false;
+}
+// tail_call (nxnative f8a5618d): after terminal or padded unframed tails, a br x18 with other code
+// after it is a tail call only when the frame is provably gone. Two forms: a 16-byte frame thunk
+// with only guards and argument moves and its error blocks after the br, or an ordinary function
+// with sub sp first and add sp right before the br, its pair saved to and restored from one slot.
+// Nothing writes sp, x29 or x30 on the way, no stack store touches the pair, and from the restore
+// to the br every path runs straight. Anything not proven is rejected.
+bool Engine::tailcall(const IL &l, int j) {
+    int count = l.size();
+    if (j + 1 == count)
+        return tailEnd(l, j);
+    if (tailPadded(l, j))
+        return true;
+    if (j < 4)
+        return false;
+    for (int k = 1; k < count; k++)
+        if (l[k].a != l[k - 1].a + 4)
+            return false;
+    int load = -1;
+    for (int k = j - 1; k >= 0 && load < 0; k--)
+        if (l[k].writes.count("x18") || l[k].writes.count("w18"))
+            load = k;
+    if (load < 0 || !one(l[load].m, {"ldr", "ldp"}) || !std::regex_match(l[load].op, pointerLoad()))
+        return false;
+    bool thunk = l[0].m == "stp" && l[0].op == "x29, x30, [sp, #-0x10]!";
+    int restore = -1, start;
+    int64_t disp;
+    bool saved, fpSet;
+    if (thunk) {
+        if (l[1].m != "mov" || l[1].op != "x29, sp")
+            return false;
+        if (l[j - 1].m != "ldp" || l[j - 1].op != "x29, x30, [sp], #0x10")
+            return false;
+        restore = j - 1, start = 2, disp = 0, saved = true, fpSet = true;
+    } else {
+        static const std::regex spImm("sp, sp, #(0x[0-9a-f]+|[0-9]+)"),
+            pairRe("x29, x30, \\[sp(, #(0x[0-9a-f]+|[0-9]+))?\\]");
+        std::smatch sub, add;
+        if (!(l[0].m == "sub" && std::regex_match(l[0].op, sub, spImm)) ||
+            !(l[j - 1].m == "add" && std::regex_match(l[j - 1].op, add, spImm)) ||
+            std::stoll(sub[1], nullptr, 0) != std::stoll(add[1], nullptr, 0))
+            return false;
+        int64_t size = std::stoll(sub[1], nullptr, 0);
+        for (int k = j - 2; k > 0 && restore < 0; k--)
+            if (l[k].m == "ldp" && std::regex_match(l[k].op, pairRe))
+                restore = k;
+        if (restore < 0)
+            return false;
+        disp = l[restore].d.operands[l[restore].d.op_count - 1].mem.disp;
+        if (disp < 0 || disp + 16 > size)
+            return false;
+        start = 1, saved = false, fpSet = false;
+    }
+    int tail = std::min(load, restore);
+    Addr afterBr = l[j].a, setupEnd = l[start].a;
+    std::vector<Addr> targets;
+    bool guarded = false;
+    for (int k = start; k < j - 1; k++) {
+        auto &p = l[k];
+        if (k == restore)
+            continue;
+        if (cond(p) || p.m == "b") {
+            Addr t = p.target();
+            if (!saved || k >= restore || (p.m == "b" && k >= tail))
+                return false;
+            if (t > afterBr)
+                guarded = true;
+            else if (thunk)
+                return false;
+            targets.push_back(t);
+            continue;
+        }
+        if (one(p.m, {"bl", "blr"})) {
+            // A saved x30, and x18 not live across the call.
+            if (thunk || !saved || k >= tail)
+                return false;
+            continue;
+        }
+        if (one(p.m, {"br", "ret", "udf", "brk", "hlt", "svc", "hvc", "smc", "msr", "sys", "dc", "ic"}))
+            return false;
+        if (intersects(p.writes, RS{"sp", "wsp", "lr", "x30", "w30"}))
+            return false;
+        if (intersects(p.writes, RS{"fp", "x29", "w29"})) {
+            bool setsFp = p.m == "mov" ? p.op == "x29, sp" && !disp
+                                       : p.m == "add" && begins(p.op, "x29, sp, #") && p.d.operands[2].imm == disp;
+            if (k > restore || fpSet || !saved || !setsFp)
+                return false;
+            fpSet = true;
+            setupEnd = l[k + 1].a;
+            continue;
+        }
+        if (!saved && p.m == "stp" && p.op == l[restore].op) {
+            saved = true;
+            setupEnd = l[k + 1].a;
+            continue;
+        }
+        if (p.op.find('[') == std::string::npos || begins(p.m, "ldr") || begins(p.m, "ldur") ||
+            begins(p.m, "ldp") || begins(p.m, "ldar") || begins(p.m, "prfm"))
+            continue;
+        // A stack store's bytes are checked against the saved pair; a register offset is unproven.
+        if (k > restore || !one(p.m, {"str", "strb", "strh", "stur", "sturb", "sturh", "stp"}) || p.d.writeback)
+            return false;
+        auto &mem = p.d.operands[p.d.op_count - 1].mem;
+        std::string base = regname(mem.base);
+        if (!one(base, {"sp", "fp", "x29"})) {
+            if (thunk)
+                return false;
+            continue;
+        }
+        if (mem.index || (base != "sp" && !fpSet))
+            return false;
+        int64_t at = mem.disp + (base != "sp" ? disp : 0);
+        int64_t width;
+        char last = p.m.back();
+        if (last == 'b' || last == 'h')
+            width = last == 'b' ? 1 : 2;
+        else {
+            std::string reg = regname(p.d.operands[0].reg);
+            char c = reg.empty() ? 0 : reg[0];
+            width = c == 'x' ? 8 : c == 'w' ? 4 : c == 'q' ? 16 : c == 'd' ? 8 : c == 's' ? 4 : c == 'h' ? 2 : c == 'b' ? 1 : 8;
+        }
+        if (p.m == "stp")
+            width *= 2;
+        if (at < 0 || (at < disp + 16 && at + width > disp))
+            return false;
+    }
+    if (!saved)
+        return false;
+    // What follows the br never comes back to a place whose stack it cannot vouch for.
+    bool leaves = false, returns = false;
+    for (int k = j + 1; k < count; k++) {
+        auto &p = l[k];
+        if (p.m == "bl") {
+            if (l.front().a <= p.target() && p.target() <= l.back().a)
+                return false;
+            leaves = true;
+        } else if ((cond(p) || p.m == "b") && p.target() <= afterBr)
+            return false;
+        returns |= one(p.m, {"ret", "br", "blr"});
+    }
+    if (thunk && (!guarded || !leaves || !one(l.back().m, {"bl", "udf", "b"}) || returns))
+        return false;
+    for (auto t : targets)
+        if (t < setupEnd || (l[restore].a < t && t <= afterBr))
+            return false;
+    return true;
+}
+// loader_census.py got_values (nxnative f8a5618d): {address: the address it holds once relocated}
+// for the image's relative relocations (RELA R_AARCH64_RELATIVE, ABS64 and GLOB_DAT of a symbol the
+// module defines, and RELR, whose addend is in place). Values keep Python's unbounded sums.
+std::map<Addr, __int128> Engine::gotValues() {
+    std::map<Addr, __int128> out;
+    Addr mod0 = rd(4);
+    if (mod0 + 4 > Addr(img.size()) || rd(mod0) != 0x30444f4d)
+        return out;
+    Addr dyn = mod0 + (int32_t)rd(mod0 + 4);
+    std::map<int64_t, uint64_t> tags;
+    for (Addr k = 0; k < 4096; k++) {
+        int64_t t = rd(dyn + k * 16, 8);
+        if (t == 0)
+            break;
+        tags.emplace(t, rd(dyn + k * 16 + 8, 8));
+    }
+    auto tag = [&](int64_t t) -> uint64_t {
+        auto it = tags.find(t);
+        return it == tags.end() ? 0 : it->second;
+    };
+    auto at = [&](int64_t t) {
+        require(tags.count(t), "relocation table without its address", dyn, NR_INVALID_INPUT);
+        return Addr(tags[t]);
+    };
+    for (uint64_t k = 0; k < tag(8) / 24; k++) {
+        Addr e = at(7) + Addr(k * 24);
+        uint64_t off = rd(e, 8), info = rd(e + 8, 8);
+        int64_t add = rd(e + 16, 8);
+        uint32_t type = info & 0xffffffff;
+        if (type == 1027)
+            out[Addr(off)] = add;
+        else if ((type == 257 || type == 1025) && tags.count(6)) {
+            Addr sym = Addr(tags[6]) + Addr((info >> 32) * 24) + 6;
+            if (rd(sym, 2))
+                out[Addr(off)] = __int128(rd(sym + 2, 8)) + add;
+        }
+        poll();
+    }
+    Addr where = 0;
+    for (uint64_t k = 0; k < tag(35) / 8; k++) {
+        uint64_t e = rd(at(36) + Addr(k * 8), 8);
+        if (!(e & 1)) {
+            where = e;
+            out[where] = rd(where, 8);
+            where += 8;
+        } else {
+            for (int b = 0; b < 63; b++)
+                if ((e >> (b + 1)) & 1)
+                    out[where + b * 8] = rd(where + b * 8, 8);
+            where += 63 * 8;
+        }
+        poll();
+    }
+    return out;
+}
+// fps_target.py (nxnative f8a5618d): a target frame rate the game steps by, found in main by the
+// code that reads and sets it. The field is an int32 in an object a global points to; its readers
+// divide 60.0 by it (ldr sN, [xB, #F]; scvtf; fdiv by a 60.0 made by movz and fmov), and the game
+// stores an immediate 30 or 60 there. At least eight readers and a store of 30 make the target;
+// exactly one such field must exist. The host writes the profile's target there (hle_fpslock.c).
+void Engine::fpsTarget() {
+    auto word = [&](Addr a) { return uint32_t(rd(a)); };
+    auto movzW = [](uint32_t w) -> std::optional<std::pair<int, uint32_t>> {
+        if ((w & 0xFF800000) != 0x52800000)
+            return {};
+        return std::make_pair(int(w & 31), ((w >> 5) & 0xFFFF) << (16 * ((w >> 21) & 1)));
+    };
+    auto writes = [](uint32_t u) -> int {   // the general register an instruction writes, roughly; -1 for none
+        if ((u & 0x0A000000) == 0x08000000)
+            return !((u >> 22) & 1) || ((u >> 26) & 1) ? -1 : int(u & 31);
+        if ((u & 0x1C000000) == 0x14000000)
+            return -1;
+        if ((u & 0x1F000000) == 0x1E000000 && ((u >> 29) & 1) == 0 && (u & 0xFFFFFC00) != 0x1E260000 &&
+            (u & 0xFFFFFC00) != 0x9E660000)
+            return -1;
+        return u & 31;
+    };
+    auto isAdrp = [](uint32_t w) { return (w & 0x9F000000) == 0x90000000; };
+    auto adrpPage = [](uint32_t w, Addr pc) {
+        int64_t imm = int64_t((((w >> 5) & 0x7FFFF) << 2) | ((w >> 29) & 3)) << 12;
+        if (imm & (1LL << 32))
+            imm -= 1LL << 33;
+        return (pc & ~Addr(0xFFF)) + imm;
+    };
+    std::optional<std::map<Addr, __int128>> rel;
+    auto pageOf = [&](Addr i, int a) -> std::optional<Addr> {
+        for (Addr k = i - 4; k > std::max<Addr>(0, i - 24); k -= 4) {
+            uint32_t u = word(k);
+            if (isAdrp(u) && int(u & 31) == a)
+                return adrpPage(u, k);
+            if (writes(u) == a)
+                return {};
+        }
+        return {};
+    };
+    auto globalOf = [&](Addr i, int b) -> std::optional<__int128> {
+        for (Addr k = i - 4; k > std::max<Addr>(0, i - 40); k -= 4) {
+            uint32_t u = word(k);
+            if (int(u & 31) == b && (u & 0xFFC00000) == 0xF9400000) {   // ldr xB, [xA, #imm]
+                if ((u >> 10) & 0xFFF)
+                    return {};
+                int a = (u >> 5) & 31;
+                for (Addr k2 = k - 4; k2 > std::max<Addr>(0, k - 32); k2 -= 4) {
+                    uint32_t v = word(k2);
+                    if (int(v & 31) != a)
+                        continue;
+                    if ((v & 0xFFC00000) == 0x91000000 && int((v >> 5) & 31) == a) {   // add xA, xA, #lo
+                        auto page = pageOf(k2, a);
+                        if (!page)
+                            return {};
+                        return __int128(*page + ((v >> 10) & 0xFFF));
+                    }
+                    if ((v & 0xFFC00000) == 0xF9400000 && int((v >> 5) & 31) == a) {   // ldr xA, [xA, #got]
+                        auto page = pageOf(k2, a);
+                        if (!page)
+                            return {};
+                        if (!rel)
+                            rel = gotValues();
+                        auto it = rel->find(*page + ((v >> 10) & 0xFFF) * 8);
+                        if (it == rel->end())
+                            return {};
+                        return it->second;
+                    }
+                    return {};
+                }
+                return {};
+            }
+            if (writes(u) == b)
+                return {};
+        }
+        return {};
+    };
+    std::map<std::pair<__int128, Addr>, size_t> readers;
+    std::set<std::pair<__int128, Addr>> thirty;
+    for (Addr i = 0; i < text; i += 4) {
+        uint32_t u = word(i);
+        if ((u & 0xFFC00000) == 0xBD400000) {   // ldr sT, [xB, #F]
+            uint32_t t = u & 31;
+            int b = (u >> 5) & 31;
+            Addr f = ((u >> 10) & 0xFFF) * 4, conv = -1, div = -1, fm = -1;
+            for (Addr k = i + 4; k < std::min(text, i + 24) && conv < 0; k += 4)
+                if ((word(k) & 0xFFFFFFE0) == (0x5E21D800 | t << 5))   // scvtf sC, sT
+                    conv = k;
+            if (conv < 0)
+                continue;
+            uint32_t c = word(conv) & 31;
+            for (Addr k = conv + 4; k < std::min(text, conv + 20) && div < 0; k += 4)
+                if ((word(k) & 0xFFE0FC00) == 0x1E201800 && ((word(k) >> 16) & 31) == c)   // fdiv sD, sM, sC
+                    div = k;
+            if (div < 0)
+                continue;
+            uint32_t m = (word(div) >> 5) & 31;
+            for (Addr k = div - 4; k > std::max<Addr>(0, div - 48) && fm < 0; k -= 4)
+                if ((word(k) & 0xFFFFFC1F) == (0x1E270000 | m))   // fmov sM, wK
+                    fm = k;
+            if (fm < 0)
+                continue;
+            bool sixty = false;
+            for (Addr k = fm - 4; k > std::max<Addr>(0, fm - 32) && !sixty; k -= 4) {
+                auto z = movzW(word(k));
+                sixty = z && z->first == int((word(fm) >> 5) & 31) && z->second == 0x42700000;
+            }
+            if (!sixty)
+                continue;
+            auto g = globalOf(i, b);
+            if (g && *g >= data)
+                readers[{*g, f}]++;
+        } else if ((u & 0xFFC00000) == 0xB9000000) {   // str wK, [xB, #F]
+            int reg = u & 31, b = (u >> 5) & 31;
+            Addr f = ((u >> 10) & 0xFFF) * 4;
+            std::optional<uint32_t> val;
+            for (Addr k = i - 4; k > std::max<Addr>(0, i - 32) && !val; k -= 4) {
+                auto z = movzW(word(k));
+                if (z && z->first == reg)
+                    val = z->second;
+            }
+            if (!val || (*val != 30 && *val != 60))
+                continue;
+            auto g = globalOf(i, b);
+            if (g && *g >= data && *val == 30)
+                thirty.insert({*g, f});
+        }
+        if ((i & 0xffff) == 0)
+            poll();
+    }
+    std::vector<std::pair<__int128, Addr>> found;
+    for (auto &[key, n] : readers)
+        if (n >= 8 && thirty.count(key))
+            found.push_back(key);
+    if (found.size() != 1)
+        return;
+    require(found[0].first <= std::numeric_limits<int64_t>::max(), "frame rate target pointer out of range", 0,
+            NR_UNSUPPORTED);
+    fpsPtr = Addr(found[0].first);
+    fpsField = found[0].second;
+}
+// snowdrop_pools.py (nxnative f8a5618d): Snowdrop's three-pool page allocator in main, found by its
+// constructor's structure. Its 12 GB reservation becomes the pool sizes in MB (large, 512 KB pages,
+// 64 KB pages) the title's profile decides on, passed in the request, or upstream's default.
+void Engine::snowdrop() {
+    static constexpr uint64_t G4 = 0x100000000ULL, G12 = 0x300000000ULL;
+    static constexpr uint32_t W1_ZERO = 0x2A1F03E1, X2_ZERO = 0xAA1F03E2;
+    static constexpr int WINDOW = 48;
+    const uint64_t *SIZES = pools;
+    const Addr n = text / 4;
+    auto W = [&](Addr j) { return uint32_t(rd(j * 4)); };
+    auto loaded = [](uint32_t w, uint64_t value) {
+        if ((w & 0xFFE00000) == 0xD2C00000)   // movz x, #imm, lsl #32
+            return (uint64_t((w >> 5) & 0xFFFF) << 32) == value;
+        if ((w & 0xFFC003E0) == 0xB24003E0) {   // orr x, xzr, #bitmask with a 64-bit element
+            unsigned immr = (w >> 16) & 63, imms = (w >> 10) & 63;
+            uint64_t v = imms < 63 ? (1ULL << (imms + 1)) - 1 : ~0ULL;
+            uint64_t r = immr ? (v >> immr) | (v << (64 - immr)) : v;
+            return r == value;
+        }
+        return false;
+    };
+    auto isBl = [](uint32_t w) { return (w & 0xFC000000) == 0x94000000; };
+    auto blTarget = [](uint32_t w, Addr pc) {
+        int64_t imm = w & 0x3FFFFFF;
+        return pc + (imm & (1 << 25) ? imm - (1 << 26) : imm) * 4;
+    };
+    auto pairOffset = [](uint32_t w) {
+        int64_t imm = (w >> 15) & 0x7F;
+        return (imm & 0x40 ? imm - 0x80 : imm) * 8;
+    };
+    auto storesPairAt = [&](uint32_t w, int rn, int64_t off) {
+        return (w & 0xFFC00000) == 0xA9000000 && int((w >> 5) & 31) == rn && pairOffset(w) == off;
+    };
+    struct Site {
+        Addr sizes, end, total, pages, w1Meta, x2Meta, w1, x2;
+        int64_t field;
+        int xs;
+    };
+    auto check = [&](Addr a, Addr k) -> std::optional<Site> {
+        std::vector<Addr> calls;
+        for (Addr j = a; j < std::min(k + 8, n); j++)
+            if (isBl(W(j)))
+                calls.push_back(j);
+        if (calls.size() < 4 || !(calls[2] < k && k < calls[3]))
+            return {};
+        Addr b0 = calls[0], b1 = calls[1], b2 = calls[2], b3 = calls[3];
+        int xa = W(a) & 31;
+        std::vector<Addr> g12;
+        for (Addr j = b1; j < b2; j++)
+            if (loaded(W(j), G12))
+                g12.push_back(j);
+        if (g12.size() != 2 || (W(g12[1]) & 31) != 0)
+            return {};
+        int xb = W(g12[0]) & 31;
+        if (xb < 19 || xb > 28)
+            return {};
+        std::vector<int> movs;
+        for (Addr j = std::max<Addr>(0, a - 8); j < b0; j++)
+            if ((W(j) & 0xFFFFFFE0) == 0xAA0003E0 && (W(j) & 31) >= 19 && (W(j) & 31) <= 28)
+                movs.push_back(W(j) & 31);
+        if (movs.size() != 1)
+            return {};
+        int xs = movs[0];
+        std::set<int64_t> fields;
+        for (Addr j = a + 1; j < b0; j++) {
+            uint32_t w = W(j);
+            int base = (w >> 5) & 31;
+            if (base != 0 && base != xs)
+                continue;
+            if ((w & 0xFFC00000) == 0xF9000000 && int(w & 31) == xa)
+                fields.insert(((w >> 10) & 0xFFF) * 8);
+            else if ((w & 0xFFC00000) == 0xA9000000 && int(w & 31) == xa && int((w >> 10) & 31) == xa) {
+                fields.insert(pairOffset(w));
+                fields.insert(pairOffset(w) + 8);
+            }
+        }
+        int64_t f = fields.empty() ? 0 : *fields.begin();
+        if (fields != std::set<int64_t>{f, f + 8, f + 0x10})
+            return {};
+        Addr t1 = blTarget(W(b1), b1 * 4), t2 = blTarget(W(b2), b2 * 4);
+        if (t1 != t2)
+            return {};
+        std::vector<Addr> args;
+        for (auto [lo, hi] : {std::make_pair(b0, b1), std::make_pair(b1, b2)}) {
+            std::vector<Addr> w1, x2;
+            for (Addr j = lo; j < hi; j++) {
+                if (W(j) == W1_ZERO)
+                    w1.push_back(j);
+                if (W(j) == X2_ZERO)
+                    x2.push_back(j);
+            }
+            if (w1.size() != 1 || x2.size() != 1 || w1[0] > x2[0])
+                return {};
+            args.push_back(w1[0]);
+            args.push_back(x2[0]);
+        }
+        bool meta = false, region = false, end = false;
+        for (Addr j = b1; j < b2; j++)
+            meta |= storesPairAt(W(j), xs, f + 0x28);
+        for (Addr j = b2; j < b3; j++) {
+            region |= storesPairAt(W(j), xs, f + 0x18);
+            end |= (W(j) & 0xFFE0FC00) == 0x8B000000 && int((W(j) >> 16) & 31) == xb;
+        }
+        if (!meta || !region || !end)
+            return {};
+        Addr r = t1 / 4;   // t1 is a multiple of 4
+        if (r < 0 || r >= n - 12)
+            return {};
+        Addr call = -1;
+        for (Addr j = r; j < r + 12 && call < 0; j++)
+            if (isBl(W(j)))
+                call = j;
+        if (call < 0)
+            return {};
+        bool overwrites = false;
+        for (Addr j = r; j < call; j++)
+            overwrites |= (W(j) & 0xFFE0FFFF) == 0xAA0003E1;
+        if (!overwrites)
+            return {};
+        return Site{a, g12[0], g12[1], k, args[0], args[1], args[2], args[3], f, xs};
+    };
+    std::vector<std::pair<Addr, Addr>> cands;
+    for (uint32_t pattern : {0x52A00025u, 0x321003E5u})   // mov w5, #0x10000: movz, or orr w5, wzr
+        for (Addr k = 0; k < n; k++) {
+            if (W(k) != pattern)
+                continue;
+            for (Addr a = k - 1; a > std::max<Addr>(-1, k - WINDOW); a--)
+                if (loaded(W(a), G4)) {
+                    int twelve = 0;
+                    for (Addr j = a; j < k; j++)
+                        twelve += loaded(W(j), G12);
+                    if (twelve >= 2)
+                        cands.push_back({a, k});
+                    break;
+                }
+            if ((k & 0x3fff) == 0)
+                poll();
+        }
+    std::vector<Site> good;
+    for (auto [a, k] : cands)
+        if (auto site = check(a, k))
+            good.push_back(*site);
+    if (good.size() != 1)
+        return;
+    auto &s = good[0];
+    uint64_t large = SIZES[0] << 20, p512 = SIZES[1] << 20, p64 = SIZES[2] << 20, total = large + p512 + p64;
+    auto movzX = [](int rd, uint64_t value) {
+        require((value & 0xFFFF) == 0 && value > 0 && value < (1ULL << 32), "Snowdrop pool size encoding");
+        return uint32_t(0xD2A00000 | (value >> 16) << 5 | rd);
+    };
+    auto strX = [](int rt, int rn, int64_t off) {
+        require(off % 8 == 0 && off >= 0 && off < 0x8000, "Snowdrop pool field encoding");
+        return uint32_t(0xF9000000 | (off / 8) << 10 | rn << 5 | rt);
+    };
+    auto mb = [](uint64_t x) { return std::to_string(x); };
+    int xa = W(s.sizes) & 31, xb = W(s.end) & 31;
+    std::vector<std::tuple<Addr, uint32_t, std::string>> next = {
+        {s.sizes * 4, movzX(xa, p512), "each range " + mb(SIZES[1]) + " MB; the two that differ are set below"},
+        {s.end * 4, movzX(xb, total), "combined range end " + mb(total >> 20) + " MB"},
+        {s.w1 * 4, movzX(1, large), "the large range; the reservation discards incoming x1"},
+        {s.total * 4, movzX(0, total), "combined reservation " + mb(total >> 20) + " MB"},
+        {s.x2 * 4, strX(1, s.xs, s.field + 0x10), "the large range field " + mb(SIZES[0]) + " MB; the reservation never reads x2"},
+        {s.pages * 4, uint32_t(0x52800005 | (large >> 16) << 5),
+         "the large allocator's maximum 64 KB page count, matching its " + mb(SIZES[0]) + " MB"}};
+    if (p64 != p512) {
+        next.push_back({s.w1Meta * 4, movzX(1, p64), "the 64 KB range; the reservation discards incoming x1"});
+        next.push_back({s.x2Meta * 4, strX(1, s.xs, s.field),
+                        "the 64 KB range field " + mb(SIZES[2]) + " MB; the reservation never reads x2"});
+    }
+    std::sort(next.begin(), next.end());
+    std::vector<Cut> made;
+    for (auto &[at, w, why] : next) {
+        Bytes now(4);
+        putbuf(now, 0, w);
+        made.push_back({at, Bytes(img.begin() + at, img.begin() + at + 4), now, "Snowdrop allocator: " + why});
+    }
+    for (auto &c : made) {
+        memcpy(img.data() + c.a, c.now.data(), 4);
+        cuts.push_back(c);
+    }
+    records(cuts.size());
 }
 void Engine::analyze() {
     std::set<std::pair<Addr, Addr>> funcs;
@@ -1119,20 +1772,9 @@ void Engine::analyze() {
                     auto ts = offsets(l, j, false);
                     if (ts.empty())
                         ts = offsets(l, j, true);
-                    // Pinned nxnative tail_call_at_end (MIT, seedds): a terminal
-                    // indirect tail call takes its pointer from the last x18 load.
-                    // Keep unknown jumps rejected and reject intervening w18 writes.
-                    if (ts.empty() && j + 1 == int(l.size())) {
-                        for (int q = j - 1; q >= 0; q--) {
-                            if (!l[q].writes.count("x18") && !l[q].writes.count("w18"))
-                                continue;
-                            if (l[q].m == "ldr" && std::regex_match(l[q].op,
-                                    std::regex("x18, \\[(x[0-9]+|sp)(, #(0x[0-9a-f]+|[0-9]+))?\\]")))
-                                tailcalls.insert(l[j].a);
-                            break;
-                        }
-                        if (tailcalls.count(l[j].a))
-                            continue;
+                    if (ts.empty() && tailcall(l, j)) {
+                        tailcalls.insert(l[j].a);
+                        continue;
                     }
                     require(!ts.empty(), "unrecognized x18 jump table (extended recognizers not yet ported)",
                             l[j].a, NR_UNSUPPORTED);
@@ -2164,7 +2806,11 @@ void Engine::output(nr_result &out) {
         fix << "# IMAGE_SIZE\t" << hx(imageSize) << "\n# FILE_IMAGE_LEN\t" << hx(fileLen) << "\n";
     fix << "# KEY_K18_IDX\t0\n# KEY_KTLS_IDX\t1\n# KEY_KTLR_IDX\t2\n# KEY_KGATE_IDX\t3\n";
     if (fs)
-        fix << "# FPS_STATE_OFF\t" << hx(fs) << "\n# RENDER_SCALE\t1\n";
+        fix << "# FPS_STATE_OFF\t" << hx(fs) << "\n";
+    if (fpsPtr)
+        fix << "# FPS_TARGET_PTR\t" << hx(*fpsPtr) << "\n# FPS_TARGET_FIELD\t" << hx(fpsField) << "\n";
+    if (fs)
+        fix << "# RENDER_SCALE\t1\n";
     if (std::string(r.module_name) == "main")
         for (size_t j = 0; j < r.profile.capability_count; j++) {
             auto p = r.profile.capabilities[j];

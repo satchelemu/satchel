@@ -26,13 +26,14 @@ try write(Data("synthetic save".utf8), save)
 /// A complete synthetic phone package: a fictional recipe, the profile it generates and every
 /// file the launch verifier requires. `enginePin` stands in for a package an older engine made.
 @discardableResult
-func makePackage(_ name: String, title: String, enginePin: String? = nil, age: TimeInterval = 0) throws -> URL {
+func makePackage(_ name: String, title: String, enginePin: String? = nil, age: TimeInterval = 0,
+                 rewriter: String? = NativePreparationRecipe.rewriterRevision, build: String = String(repeating: "a", count: 32)) throws -> URL {
     let recipe = NativePreparationRecipe(schema: 1, titleID: title, version: "1.0.0", contentVersion: 0, name: "Synthetic " + title,
-        modules: ["main"], buildIDs: ["main": String(repeating: "a", count: 32)], sdkVersions: [], systemResource: 0,
+        modules: ["main"], buildIDs: ["main": build], sdkVersions: [], systemResource: 0,
         usesHeap: false, largeBSS: 0, usedMemory: 0x4000000, nros: [], reviewedVersion: nil)
     let profile = try recipe.profile(profiles: [])
     var payloads = ["profile.tsv": try recipe.runtime(profiles: []),
-                    "dm/main.fixups.tsv": Data("# BUILD_ID \(String(repeating: "a", count: 32))\n".utf8)]
+                    "dm/main.fixups.tsv": Data("# BUILD_ID \(build)\n".utf8)]
     for file in profile.requiredFiles + ["dm/main.gates.tsv"] where payloads[file] == nil { payloads[file] = Data("synthetic \(file)".utf8) }
     let package = games.appendingPathComponent(name)
     var records: [String: Any] = [:]
@@ -40,10 +41,11 @@ func makePackage(_ name: String, title: String, enginePin: String? = nil, age: T
         try write(data, package.appendingPathComponent(file))
         records[file] = ["bytes": data.count, "sha256": digest(data)]
     }
-    let manifest: [String: Any] = ["format": 2, "signingStatus": "signed", "contentVersion": 0, "titleID": title,
+    var manifest: [String: Any] = ["format": 2, "signingStatus": "signed", "contentVersion": 0, "titleID": title,
         "version": recipe.version, "recipe": try object(recipe), "preparedProfile": try object(profile),
         "enginePin": enginePin ?? profile.enginePin, "shaderChain": profile.shaderChain, "shaderInputs": profile.shaderInputs,
         "modules": profile.modules, "environment": profile.environment, "files": records]
+    if let rewriter { manifest["rewriter"] = rewriter }
     let url = package.appendingPathComponent("manifest.json")
     try write(JSONSerialization.data(withJSONObject: manifest), url)
     try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: url.path)
@@ -126,4 +128,19 @@ check((try? String(contentsOf: save, encoding: .utf8)) == "synthetic save", "Sav
 store.refreshPrepared()
 check(store.state(base) == .ready && store.preparedPackage(for: base)?.folder == "Prepared-new", "The new package is Play's choice")
 rejects("a package outside PreparedGames") { _ = try PreparedPackage.removeReplaced(by: testRoot.appendingPathComponent("Elsewhere"), profiles: []) }
+
+// 3. The rewriter reference. A package written before Prepare recorded it was rewritten by the
+// bbc3b737 reference: current only when every module build is one proven unchanged since.
+let titleC = "010000000000CCC0"
+let unchanged = try makePackage("Prepared-rewriter-unchanged", title: titleC, rewriter: nil, build: "e7caa6ab07f133269a2705ec9340ac58")
+let unchangedManifest = try Data(contentsOf: unchanged.appendingPathComponent("manifest.json"))
+check(PreparedIdentity.isCurrent(unchangedManifest, profiles: []), "An earlier package of a build proven unchanged stays current")
+_ = try PreparedPackage.verify(root: unchanged, profiles: [], forceFull: true)
+let changedBuild = try makePackage("Prepared-rewriter-changed", title: titleC, rewriter: nil)
+let changedManifest = try Data(contentsOf: changedBuild.appendingPathComponent("manifest.json"))
+check(!PreparedIdentity.isCurrent(changedManifest, profiles: []), "An earlier package of any other build needs Prepare again")
+rejects("launch verifier refuses an unproven earlier rewrite") { _ = try PreparedPackage.verify(root: changedBuild, profiles: [], forceFull: true) }
+let otherRewriter = try makePackage("Prepared-rewriter-other", title: titleC, rewriter: "another-rewriter", build: "e7caa6ab07f133269a2705ec9340ac58")
+let otherManifest = try Data(contentsOf: otherRewriter.appendingPathComponent("manifest.json"))
+check(!PreparedIdentity.isCurrent(otherManifest, profiles: []), "Another recorded rewriter is not current, whatever its builds")
 print("PASS: \(checks) stale and replaced package assertions")
