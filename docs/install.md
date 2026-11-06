@@ -128,8 +128,11 @@ Import your own prod.keys, then your base XCI, NSP, XCZ or NSZ from Files or iCl
 Drive. Download cloud files fully before importing when possible; the importer also
 reports iCloud download progress. Add matching updates from the library. Prepare
 selects the newest imported update for the chosen game; if you clear it, Prepare says the
-game will be prepared without it. Keep original dumps outside Satchel; Prepare can clean
-up imported copies after verification.
+game will be prepared without it. A game that is already ready keeps a Prepare again
+button on its page, under Path to play, for example to add an update it was prepared
+without. Keep original dumps outside Satchel; Prepare can clean up imported copies after
+verification, and a game whose original was removed has to be imported again before it
+can be prepared again.
 
 Prepare needs your own Apple Development signing identity as well as console keys.
 The identity must belong to the team that signed the installed app. You must obtain and

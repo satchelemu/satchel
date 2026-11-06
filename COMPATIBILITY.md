@@ -101,8 +101,13 @@ was no higher in the second round. The visits had no controller input, so this c
 starting and stopping, not gameplay, and does not change any compatibility rating.
 That cycle ran on the previous engine. On the f8a5618d engine (2026-11-05), Quit in
 Castlevania aborted the app: the engine and Satchel's session reset both freed the copy of
-an empty `game_env`. A fix with a Mac regression check followed; the phone has not
-repeated the Quit cycle with it yet.
+an empty `game_env`. A fix with a Mac regression check followed (commit bcbef50). On
+2026-11-06 the unattended phone cycle ran on that build, Castlevania then Zelda, 60 seconds
+each, 2 rounds: 4 of 4 runs ended cleanly, stops took 0.07 to 0.15 seconds, the last window
+had no dropped frames and no missing services, and the same app process stayed alive
+through every Quit. The cycle was driven from the Mac: Quit and Library from the pause menu
+by hand have not been repeated on this build, and Super Mario Odyssey was not in the cycle
+(it has to be prepared again with its update).
 
 ## Import and Prepare checks
 

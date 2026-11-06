@@ -31,7 +31,7 @@ final class NavigationJourneyTests: XCTestCase {
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
             "testGamePagePrepareSelectsBase", "testPrepareKeyAndStorageRecoveryMessages",
-            "testStalePackageNeedsPrepareAgain", "testSettingsPreparedGamesDeletesOnlyChosenPackage",
+            "testStalePackageNeedsPrepareAgain", "testReadyGamePrepareAgain", "testSettingsPreparedGamesDeletesOnlyChosenPackage",
             "testRemovePreparedGameRemovesAllContentAndTile", "testRemoveOnlyUpdateKeepsPreparedGameAndDLC",
             "testPrepareDLCRowTracksBaseSelection", "testPrepareUpdatePreselectedAndCaution", "testControllerRumblePersistsPerGame",
             "testDeveloperQuitGateAndMenuStillWorks", "testDeveloperQuitReturnsHome", "testDeveloperCycleTwoRounds", "testDeveloperCycleMissingPackage",
@@ -600,6 +600,39 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Prepared by an older engine")).firstMatch.exists)
         XCTAssertFalse(app.buttons["prepare-game"].exists, "Prepare needs the original")
         XCTAssertFalse(app.buttons["play-game"].exists, "A stale package must not offer Play")
+        try tap("close-game-detail")
+        _ = try button("import-homebrew")
+    }
+
+    /// A ready game keeps Play and a secondary Prepare again that opens Prepare with its base
+    /// and update chosen. With the original removed, the page says to import it again instead.
+    func testReadyGamePrepareAgain() throws {
+        let original = app.launchArguments
+        try launchDLCFixture("included")
+        _ = try button("play-game")
+        XCTAssertFalse(app.buttons["prepare-game"].exists, "A ready game keeps Play as its primary action")
+        let again = try button("detail-prepare-again", scroll: app.scrollViews["detail-scroll"])
+        XCTAssertTrue(again.label.contains("Prepare again"), again.label)
+        try tap("detail-prepare-again", scroll: app.scrollViews["detail-scroll"])
+        _ = try button("close-prepare")
+        XCTAssertEqual(app.buttons["prepare-base"].value as? String, "Lantern Drift [Base]", "Prepare again must preselect the game's base")
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "Lantern Drift [Update]", "Prepare again must preselect the imported update")
+        try tap("close-prepare")
+        absent(app.buttons["close-prepare"])
+        _ = try button("import-homebrew")
+
+        app.terminate()
+        app.launchArguments = original + ["-SatchelPreviewOriginalRemoved", "YES"]
+        app.launch()
+        try focus(where: { self.app.buttons["open-focused"].exists && self.app.buttons["play-focused"].exists },
+                  reason: "ready game whose original was removed")
+        try tap("open-focused")
+        _ = try button("play-game")
+        let status = app.staticTexts["game-original-status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 8))
+        XCTAssertTrue(status.label.contains("import it again from Files or iCloud Drive"), status.label)
+        XCTAssertFalse(app.buttons["detail-prepare-again"].exists, "Prepare again needs the original")
+        XCTAssertFalse(app.buttons["prepare-game"].exists, "Prepare needs the original")
         try tap("close-game-detail")
         _ = try button("import-homebrew")
     }

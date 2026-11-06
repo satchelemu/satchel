@@ -366,6 +366,14 @@ struct GameDetailView: View {
                     SatchelButtonLabel(title: "Try again", systemImage: "arrow.clockwise", kind: .secondary, height: 38)
                 }.buttonStyle(PressableStyle())
             }
+            // A ready package can still be the wrong one (for example prepared without its update),
+            // so a ready game keeps a quiet way back to Prepare. Play stays the primary action.
+            if state == .ready, info?.kind == .application, !originalRemoved, let onPrepare {
+                Button { onPrepare() } label: {
+                    SatchelButtonLabel(title: "Prepare again", systemImage: "hammer", kind: .secondary, height: 38)
+                }.controllerAction("detail-prepare-again") { onPrepare() }.buttonStyle(PressableStyle())
+                .accessibilityIdentifier("detail-prepare-again")
+            }
         }
         .padding(.top, 4)
     }
@@ -375,7 +383,7 @@ struct GameDetailView: View {
             if stale {
                 return "\(AppBrand.name)'s engine changed, so this game has to be prepared again. Its original file was removed from this iPhone after the last Prepare: import the game again from Files or iCloud Drive, then press Prepare. Your saves are kept."
             }
-            return "The original file was removed from this iPhone after the prepared package passed verification. Import it again only to prepare a newer update or when an engine change requires a new package."
+            return "The original file was removed from this iPhone after the prepared package passed verification. To prepare this game again, import it again from Files or iCloud Drive first."
         }
         if case .failed(let reason) = artwork.status[item.id] { return "Couldn't read this game's info. " + reason }
         if info == nil {

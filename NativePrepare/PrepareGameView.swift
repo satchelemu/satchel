@@ -9,6 +9,7 @@ struct PrepareGameView: View {
     /// The app's one job: it keeps running when this screen closes.
     @ObservedObject private var job = PrepareJob.shared
     @ObservedObject private var warmup = WarmupJob.shared
+    @ObservedObject private var addOnJob = AddOnJob.shared
     @State private var showGameReport = false
     @State private var baseID = ""
     @State private var updateID = ""
@@ -131,6 +132,8 @@ struct PrepareGameView: View {
         if job.running { return lockedReason }
         if PrepareJob.gameSessionOpen { return PrepareJob.sessionBlocked }
         if warmup.running { return "Pause shader warm-up before preparing another game." }
+        // PrepareJob.start ignores a tap while Add DLC runs: say why instead.
+        if addOnJob.running { return "Wait for Add DLC to finish, or cancel it before preparing." }
         if !artwork.keysAvailable { return FirstRunHelp.noKeys }
         if bases.isEmpty { return "Import a base game (XCI or NSP) first." }
         if !bases.contains(where: { $0.id == baseID }) { return "Choose a base game to prepare." }
