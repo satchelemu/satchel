@@ -4,11 +4,19 @@ extern int32_t satchel_phone_shader_prepare(const char *, const void *, size_t, 
 extern uint32_t satchel_phone_shader_inputs(const char *) __attribute__((weak_import));
 extern void *satchel_phone_shader_reflection(const char *) __attribute__((weak_import));
 extern void *satchel_phone_shader_library(const char *, int32_t *) __attribute__((weak_import));
+extern void satchel_phone_shader_ahead(const char *, const void *, size_t, const void *, size_t,
+                                       const char *, const void *, size_t, const void *, size_t) __attribute__((weak_import));
+extern int32_t satchel_phone_shader_ahead_ready(const char *) __attribute__((weak_import));
 static uint64_t satchel_phone_epoch;
 static int satchel_phone_enabled(void) {
     static int enabled = -1;
     if (enabled < 0) { const char *v = getenv("DM_PHONE_SHADERS"); enabled = satchel_phone_shader_prepare && v && atoi(v); }
     return enabled;
+}
+// Bounded first use: translation and base libraries start when the game binds a program.
+static int satchel_phone_ahead_on(void) {
+    const char *v = getenv("DM_PSO_AHEAD");   // set by the launch policy before a session starts
+    return v && !strcmp(v, "1") && satchel_phone_enabled() && satchel_phone_shader_ahead && satchel_phone_shader_ahead_ready;
 }
 static NSDictionary *satchel_phone_reflection(NSString *name) {
     if (!satchel_phone_enabled() || !satchel_phone_shader_reflection || name.length < 16) return nil;

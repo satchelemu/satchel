@@ -74,6 +74,23 @@ import Darwin
             precondition(runtime.library(key + "_missing", layer: nil) == nil)
         }
         runtime.resetSession()
-        print("PASS: background translation equals serial, SIGVTALRM unchanged, library reuse, synthetic GPU dispatch, three-game pool, persistent source/mask, startup replay, three runtime resets")
+        // Bounded first use: an ahead job makes the same translation and library the draw makes itself.
+        let ahead = try ShaderWarmupResources.get(directory: root.appendingPathComponent("ahead"), reserve: 0)
+        ahead.useAheadLanes()
+        let progress = ahead.aheadProgress()
+        ahead.ahead(identity: "-/" + key, first: (key, request), vertex: nil)
+        var waited = 0
+        while !ahead.aheadIsReady(key) && waited < 1200 { usleep(50_000); waited += 1 }
+        precondition(ahead.aheadIsReady(key) && ahead.aheadProgress() == progress &+ 1)
+        ahead.ahead(identity: "-/" + key, first: (key, request), vertex: nil)   // the same program again: no second job
+        usleep(200_000); precondition(ahead.aheadProgress() == progress &+ 1)
+        let early = try ahead.prepareNow(request)
+        precondition(early.sources == oracle.sources && early.reflectionJSON == oracle.reflectionJSON)
+        let held = try ahead.compileNow(early, variant: "b")
+        let again = try ahead.compileNow(early, variant: "b")
+        precondition(held.library === again.library && again.liveCacheHit)
+        ahead.endSession()
+        precondition(!ahead.aheadIsReady(key))
+        print("PASS: background translation equals serial, SIGVTALRM unchanged, library reuse, synthetic GPU dispatch, three-game pool, persistent source/mask, startup replay, three runtime resets, ahead job equals the draw's own work")
     }
 }

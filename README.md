@@ -102,7 +102,9 @@ See [the posture test guide](docs/testing.md#duo-postures).
   frame. The optional async pipeline mode uses equivalent ready fallbacks and a
   4 ms optional wait budget. Required first-use work can still exceed that budget.
   Experimental skip mode can omit a final draw while its pipeline builds, with
-  visible artifacts possible. Game settings save the mode per title for the next
+  visible artifacts possible. Experimental bounded mode starts translation and shader
+  libraries when the game binds a program, so fewer frames wait for them; it changes no
+  draw, and pipeline builds still wait. Game settings save the mode per title for the next
   launch; exact stays the default. Optional warm-up now keeps a bounded queue fed,
   reuses identical translated source, and uses extra lanes when foreground or
   charging, subject to thermal and power constraints. Phone speed measurements

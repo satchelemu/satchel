@@ -58,7 +58,7 @@ inputs += [ROOT / 'NativeHost/build.py', ROOT / 'NativeHost/display_overlay.py',
            ROOT / 'NativeGames/runtime-capture.patch', ROOT / 'NativeGames/RuntimeCapture.inc',
            ROOT / 'NativeHost/phone-capture-lifetime.patch', ROOT / 'NativeHost/phone-shaders.patch',
            ROOT / 'NativeHost/PhoneShaderRuntime.inc', ROOT / 'project.yml']
-inputs += [ROOT / 'NativeHost/phone-prefetch.patch', ROOT / 'NativeHost/graphics/shader_builds.py', ROOT / 'NativeHost/graphics/ShaderBuildQueue.inc']
+inputs += [ROOT / 'NativeHost/phone-prefetch.patch', ROOT / 'NativeHost/phone-ahead.patch', ROOT / 'NativeHost/graphics/shader_builds.py', ROOT / 'NativeHost/graphics/ShaderBuildQueue.inc']
 inputs += [ROOT / 'NativeHost/graphics/AsyncPipelines.inc', ROOT / 'NativeHost/graphics/SkipPipelines.inc', ROOT / 'NativeHost/graphics/async_pipelines.py']
 inputs += [ROOT / 'NativeHost/graphics/ShaderMetrics.inc', ROOT / 'NativeHost/graphics/shader_metrics.py']
 inputs += [ROOT / 'NativeHost/graphics' / name for name in ['frame-timing.py', 'FrameTiming.h', 'FrameTiming.inc']]

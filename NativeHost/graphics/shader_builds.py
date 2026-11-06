@@ -21,6 +21,10 @@ def apply(root, source):
     for pattern, replacement, expected in patterns:
         text, count = re.subn(pattern, replacement, text)
         assert count == expected, (pattern, count)
+    # The submitting thread of the current submission (bounded mode orders the lanes by it).
+    needle = 'void mtl_sub_begin(void) {'
+    assert text.count(needle) == 1
+    text = text.replace(needle, needle + ' satchel_submitter = pthread_self();')
     needle = '#include <objc/runtime.h>'
     assert text.count(needle) == 1
     text = text.replace(needle, needle + '\n#include "ShaderBuildQueue.inc"')

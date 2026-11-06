@@ -30,6 +30,8 @@ def apply(root, engine, out, groups):
                    cwd=overlay, check=True)
     subprocess.run(['patch', '-p1', '--fuzz=0', '-i', root / 'NativeHost/phone-prefetch.patch'],
                    cwd=overlay, check=True)
+    subprocess.run(['patch', '-p1', '--fuzz=0', '-i', root / 'NativeHost/phone-ahead.patch'],
+                   cwd=overlay, check=True)
     for row in groups['SatchelNativeHost'] + groups['SatchelNativeGraphics']:
         path = Path(row['path'])
         if path.is_relative_to(engine) and str(path.relative_to(engine)) in paths:

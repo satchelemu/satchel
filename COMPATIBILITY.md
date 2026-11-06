@@ -212,6 +212,9 @@ The opt-in `skip` pipeline mode can omit a terminal draw in the current submissi
 continues. A missing final layer or flicker is possible. Exact remains the default;
 the Game settings panel saves the choice per title for the next launch. This
 experiment adds no phone compatibility or gameplay claim to the table above.
+The opt-in `bounded` mode starts translation and base libraries when a program is bound and
+changes no draw; its Mac measurements are in `NativeHost/ShaderStalls.md`. It adds no phone
+compatibility claim either.
 
 ## Controller acceptance
 

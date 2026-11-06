@@ -3,7 +3,7 @@ import argparse,json,os,re,subprocess,threading,time
 OUT=Path(os.environ['M5_BENCH_OUT']);BUILD=Path.home()/'SatchelBuild';BASE=BUILD/'anygame'
 parser=argparse.ArgumentParser();parser.add_argument('--route',choices=['baseline','candidate'],required=True);parser.add_argument('--game',choices=['Castlevania','Odyssey','TOTK'],required=True)
 parser.add_argument('--cache',choices=['clean','warm'],required=True)
-parser.add_argument('--pipeline-mode',choices=['exact','async','skip'],default='exact')
+parser.add_argument('--pipeline-mode',choices=['exact','async','bounded','skip'],default='exact')
 parser.add_argument('--pipeline-budget-ms',type=float,default=4)
 parser.add_argument('--frame',type=int,default=1800)
 a=parser.parse_args();game=a.game;route=a.route; mode=a.cache
@@ -33,7 +33,7 @@ if game=='TOTK':
 ctl=work/'ctl.txt';ctl.write_text('')
 env={k:v for k,v in os.environ.items() if not k.startswith('DM_')}
 env.update(DM_PSO_SKIP_STATS=str(work/'pipeline-skips.tsv'),DM_SHADER_EVENTS=str(work/'events.tsv'),DM_PSO_ARCHIVE=str(cache/'pipelines'),DM_PSO_USER=str(cache/'pso_user.tsv'),DM_PSO_HYBRID='0',DM_PSO_MTL4='1',DM_PROFILE=str(package/'profile.tsv'),DM_ROMFS=str(package/'romfs.img'),DM_ROOT=str(work),DM_SAVE=str(work/'save'),DM_TEMP=str(work/'temp'),DM_AOC_DIR=str(work/'aoc'),DM_CTL=str(ctl),DM_FPS_TARGET='30' if game=='TOTK' else '0',DM_RENDER_SCALE='1.0',DM_BOOTPROF='1',DM_SLOWFRAME='1',DM_NVN_TSV=str(work/'frames.tsv'),DM_NVN_TSV_CALLS='0',DM_OPMODE='0',DM_PSO_PREBUILD_THREADS='2',DM_PSO_PREPARE_THREADS='2',DM_PSO_MANIFEST='off',DM_PSO_PREBUILD='0',DM_NVN_SHOT=','.join(map(str,sorted({300,1200,a.frame})))+':'+str(work/'shots/frame-%d.png'),DM_NVN_SHOT_OUT='1280x720')
-env.update(DM_PSO_ASYNC='1' if a.pipeline_mode in {'async','skip'} else '0',DM_PSO_SKIP='1' if a.pipeline_mode=='skip' else '0',DM_PSO_BUDGET_MS=str(a.pipeline_budget_ms),DM_PSO_HYBRID='1' if a.pipeline_mode in {'async','skip'} else '0')
+env.update(DM_PSO_ASYNC='1' if a.pipeline_mode in {'async','bounded','skip'} else '0',DM_PSO_SKIP='1' if a.pipeline_mode=='skip' else '0',DM_PSO_BUDGET_MS=str(a.pipeline_budget_ms),DM_PSO_HYBRID='1' if a.pipeline_mode in {'async','bounded','skip'} else '0',DM_PSO_AHEAD='1' if a.pipeline_mode=='bounded' else '0')
 env.update(DM_NVN_SHMAP=str(package/'dm/shader_map.tsv'),DM_MSL_DIR=str(work/'empty-msl'),DM_PHONE_SHADERS='1',DM_PHONE_SHADER_CACHE=str(cache/'sources'))
 if os.environ.get('M5_CAPTURE_REQUESTS'): env['DM_SHADER_REQUEST_CAPTURE']=os.environ['M5_CAPTURE_REQUESTS']
 if os.environ.get('M5_SKIP_CAPTURE'): env['DM_PSO_SKIP_CAPTURE']=str(work/'shots')
@@ -94,7 +94,7 @@ for line in (work/'events.tsv').read_text().splitlines():
     ns,duration,thread,kind=line.split('\t');events.append((int(ns),int(duration),int(thread),kind))
 submit={e[2] for e in events if e[3]=='submit-thread'}
 stats={}
-for kind in sorted({e[3] for e in events}-{'submit-thread'}):
+for kind in sorted({e[3] for e in events}-{'submit-thread','frame'}):
     for lane in ['submit','worker']:
         values=[e[1]/1e6 for e in events if e[3]==kind and (e[2] in submit)==(lane=='submit')]
         stats[kind+'/'+lane]=dict(count=len(values),totalMs=round(sum(values),3),maxMs=round(max(values,default=0),3))
@@ -119,6 +119,10 @@ longest=run=0;previous=-2
 for frame in skipped:
     run=run+1 if frame==previous+1 else 1;longest=max(longest,run);previous=frame
 result['timing']['longestSkipRunFrames']=longest
+# Per-frame stall attribution (stall_attribution.py, shared with phone trial files).
+import sys; sys.path.insert(0,str(Path(__file__).resolve().parent))
+import stall_attribution
+result['timing']['stalls']=stall_attribution.summarize(timings,events,a.frame)
 result['cacheBytes']=sum(p.stat().st_size for p in cache.rglob('*') if p.is_file())
 passed &= len(framesMeasured) == a.frame
 passed &= all((work/'shots'/('frame-'+str(f)+'.png')).is_file() for f in [300,1200,a.frame])

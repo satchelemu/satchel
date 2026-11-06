@@ -23,6 +23,29 @@ def apply(root, source):
         needle = 'satchel_mtl_release_strong();'
         assert text.count(needle) == 1
         text = text.replace(needle, needle + ' satchel_async_reset();')
+    # Bounded mode: a prediction walk leaves out programs whose ahead work is unfinished
+    # (PhoneShaderRuntime.inc). Other modes and builds without phone shaders walk all of them.
+    if '#include "PhoneShaderRuntime.inc"' in text:
+        needle = '            __unsafe_unretained NvProg *pr = S.prog ? prog_get(S.prog) : nil; if (!pr || !pr->sh[0]) continue;'
+        assert text.count(needle) == 1
+        text = text.replace(needle, needle.replace('S.prog ? prog_get(S.prog) : nil', 'S.prog && satchel_phone_predict_ready(S.prog) ? prog_get(S.prog) : nil'))
+        # Bounded mode admits more of the walk's pipelines to the existing lanes, walks again later
+        # in the submission while ahead work completes, and never compiles a pulling library there.
+        needle = '    if (spec && active >= PSO_PEND_ACTIVE) return -1;'
+        assert text.count(needle) == 1
+        text = text.replace(needle, needle.replace('PSO_PEND_ACTIVE', '(satchel_phone_ahead_on() ? SATCHEL_AHEAD_SPECULATIVE : PSO_PEND_ACTIVE)'))
+        needle = '    for (int i = 0; i < na + nb && admitted < PSO_PREDICT_BUDGET; i++) {'
+        assert text.count(needle) == 1
+        text = text.replace(needle, needle.replace('PSO_PREDICT_BUDGET', '(satchel_phone_ahead_on() ? SATCHEL_AHEAD_SPECULATIVE : PSO_PREDICT_BUDGET)'))
+        needle = '        if (hy && !hm_get_id(&g_pso, qk) && hybrid_get(qk, qv, qf) != nil) continue;'
+        assert text.count(needle) == 1
+        text = text.replace(needle, needle.replace('if (hy && ', 'if (hy && !satchel_phone_ahead_on() && '))
+        needle = 'static void pso_predict_rest_(void) {\n    if (!g_exec_next) return;'
+        assert text.count(needle) == 1
+        text = text.replace(needle, needle + ' satchel_phone_predict_skipped = 0;')
+        needle = '    if (predict && g_pp_submit_mark != g_sub_serial) {'
+        assert text.count(needle) == 1
+        text = text.replace(needle, '    if (predict && (g_pp_submit_mark != g_sub_serial || satchel_phone_predict_again(g_sub_serial))) {')
     needle = 'static void draw_(const p_draw *dw, const p_draw_idx *di);'
     assert text.count(needle) == 1
     text = text.replace(needle, '#include "SkipPipelines.inc"\n' + needle)

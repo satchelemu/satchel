@@ -78,6 +78,7 @@ Developer launch arguments override the saved per-title pipeline mode for one la
 - `-SatchelPipelineMode hybrid`: the existing vertex-pulling experiment.
 - `-SatchelPipelineMode async`: timed selection with equivalent ready fallbacks.
 - `-SatchelPipelineMode skip`: the same selection, with omission of a proven terminal draw after timeout.
+- `-SatchelPipelineMode bounded`: async selection plus bounded first use (`DM_PSO_AHEAD=1`), below.
 - `-SatchelPipelineBudgetMS <0..16>`: optional wait budget in milliseconds, default
   4. Invalid values use 4. Mac equivalents are `DM_PSO_ASYNC=1` and
   `DM_PSO_BUDGET_MS=4`. Required correctness waits are outside this budget.
@@ -214,6 +215,35 @@ hashes, reconstructs the exact request identity, and compares every translated
 field. Missing requests fail. Captures and payloads must remain outside the
 checkout and logs. This complements the real-Metal pulling and descriptor pixel
 fixtures; it does not establish whole-game rendering coverage.
+
+## Bounded first use
+
+The `bounded` mode (`DM_PSO_AHEAD=1`, per-title choice "Bounded (experimental)") is async
+selection plus three changes that move shader work off the frame path. It adds no stand-in
+shader and omits no draw, so every draw uses the same translated program and exact pipeline as
+in exact mode; only when the work happens changes.
+
+- `phone-ahead.patch` calls `satchel_phone_ahead` (PhoneShaderRuntime.inc) when the game records
+  BindProgram. A program's pixel (or compute) stage, then its vertex stage padded with that
+  pixel stage's inputs and the key's persisted mask, are translated and their base libraries
+  compiled on two ahead lanes (ShaderWarmupResources.swift). The requests are the identities the
+  draw computes, so a finished job makes the draw's translation a source-store hit and its base
+  library a held result (at most 128 held, 256 queued jobs). Embedded kernels and geometry and
+  tessellation stages are left to the draw. The draw then prepares on its own thread instead of
+  queuing behind background lanes; the source store and compiler join identical in-flight work.
+  The compiler allows three concurrent compilations in this mode; a warm-up that finishes during
+  play restores its usual two.
+- The pipeline prediction walk no longer translates and loads later programs one by one on the
+  frame path: programs whose ahead job has not finished are left out, a later pipeline miss in
+  the same submission walks again (at most 32 times, 10 ms apart, only after more ahead jobs
+  finished), up to 16 predicted pipelines are admitted, and the walk never compiles a pulling
+  library.
+- A pipeline build the submitting thread waits for takes the next free compiler lane before
+  speculative and background builds (ShaderBuildQueue.inc).
+
+Required waits remain: a draw whose translation, library or pipeline is not ready still waits
+for exactly that work, as in exact mode. This is not a strict per-frame bound. The measured
+distribution is in `NativeHost/ShaderStalls.md`.
 
 ## GPU pass cost diagnostics
 

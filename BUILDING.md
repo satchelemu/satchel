@@ -480,8 +480,10 @@ The budget covers timed pipeline waits; descriptor resolution and required
 first-use waits can exceed it. Synthetic checks and Mac comparison controls are documented in
 [graphics validation](NativeHost/graphics/README.md#async-validation).
 
-Game settings on each game page save Exact, Async or experimental Skip for that title's
-next launch. `-SatchelPipelineMode skip` overrides the saved choice for a trial.
+Game settings on each game page save Exact, Async, experimental Bounded or experimental Skip
+for that title's next launch. `-SatchelPipelineMode skip` (or `bounded`) overrides the saved
+choice for a trial. `python3 NativeHost/stall_attribution.py graphics-frames.tsv
+shader-events.tsv` splits a profiled trial's frames over 50 ms into shader stages.
 Skip is restricted to a terminal draw in the current submission; all other timeouts wait. With
 `-SatchelGraphicsProfile YES`, `pipeline-skips.tsv` records frame/count rows beside
 the shader events. The developer overlay shows the last frame's skipped count.

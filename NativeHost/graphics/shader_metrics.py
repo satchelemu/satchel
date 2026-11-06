@@ -35,6 +35,33 @@ def apply(root, source):
         start = text.index(needle)
         end = text.index(';', start)
         text = text[:start] + 'SATCHEL_SHADER_TIME("pipeline-wait", ' + text[start:end] + ')' + text[end:]
+    # Frame boundaries on the event clock, for per-frame stall attribution (bench_shaders.py).
+    needle = 'void mtl_set_frame(uint64_t f) {'
+    assert text.count(needle) == 1
+    text = text.replace(needle, needle + ' satchel_shader_event("frame", satchel_shader_now());')
+    # The draw's own stage preparation, apart from look-ahead walks that resolve later programs.
+    needle = '        satchel_phone_prepare_program(S.bst[1], 0);\n'
+    if needle in text:
+        assert text.count(needle) == 1
+        end = '        for (int stage = 2; stage < 5; stage++) satchel_phone_prepare_program(S.bst[stage], 0);\n'
+        assert text.count(end) == 1
+        text = text.replace(needle, '        satchel_phone_draw_prepare = 1;\n' + needle)
+        text = text.replace(end, end + '        satchel_phone_draw_prepare = 0;\n')
+    # Shader setup (library, functions, reflection) and pipeline descriptors on the frame path.
+    needle = 'uint64_t bt = bp_now(); o = shader_load(pc, stage, 0);'
+    assert text.count(needle) == 1
+    text = text.replace(needle, 'uint64_t bt = bp_now(); o = SATCHEL_SHADER_TIME("shader-load", shader_load(pc, stage, 0));')
+    needle = 'static MTLRenderPipelineDescriptor *pso_desc(const pso_key *k, NvShader *vs, NvShader *fs, id<MTLFunction> fsfn, int merged) {'
+    assert text.count(needle) == 1
+    text = text.replace(needle, needle.replace('pso_desc(', 'pso_desc_(')[:-2] + ';\n' +
+        needle + ' return SATCHEL_SHADER_TIME("pipeline-descriptor", pso_desc_(k, vs, fs, fsfn, merged)); }\n' +
+        needle.replace('pso_desc(', 'pso_desc_('))
+    needle = 'static void pso_predict_rest(void) { uint64_t t0 = bp_now();'
+    assert text.count(needle) == 1
+    text = text.replace(needle, needle + ' uint64_t satchel_walk = satchel_shader_now();')
+    needle = 'g_pt_pred_n++; g_pt_pred_ns += bp_now() - t0; }'
+    assert text.count(needle) == 1
+    text = text.replace(needle, 'g_pt_pred_n++; g_pt_pred_ns += bp_now() - t0; satchel_shader_event("prediction", satchel_walk); }')
     text = '#include "ShaderMetrics.inc"\n' + text
     source.write_text(text)
     shutil.copyfile(root / 'NativeHost/graphics/ShaderMetrics.inc', source.parent / 'ShaderMetrics.inc')

@@ -21,12 +21,19 @@ final class PhoneShaderRuntime: @unchecked Sendable {
     private var entries: [String: Entry] = [:]
     private var sourceBytes = 0
     private var clock: UInt64 = 0
+    // Bounded first use (DM_PSO_AHEAD=1, pipeline mode "bounded"). Recording threads reach the
+    // resources through this separate lock: the submit thread holds `lock` while it waits.
+    // Read at each use: the launch policy (PipelineSettings.m) sets it before a session starts.
+    static var aheadMode: Bool { if let v = getenv("DM_PSO_AHEAD") { return strcmp(v, "1") == 0 }; return false }
+    private let aheadLock = NSLock()
+    private var aheadResources: ShaderWarmupResources?
 
     func resetSession() {
         lock.lock(); defer { lock.unlock() }
         entries.removeAll(keepingCapacity: false)
         resources?.endSession()
         store = nil; compiler = nil; resources = nil; sourceBytes = 0; clock = 0
+        aheadLock.lock(); aheadResources = nil; aheadLock.unlock()
     }
 
     private func configure() throws {
@@ -36,6 +43,10 @@ final class PhoneShaderRuntime: @unchecked Sendable {
         }
         let resources = try ShaderWarmupResources.get(directory: URL(fileURLWithPath: String(cString: raw), isDirectory: true))
         self.resources = resources; store = resources.store; compiler = resources.compiler
+        if Self.aheadMode {
+            resources.useAheadLanes()
+            aheadLock.lock(); aheadResources = resources; aheadLock.unlock()
+        }
         resources.warmKnown()
     }
     func prefetch(key: String, control: Data, code: Data) {
@@ -80,7 +91,9 @@ final class PhoneShaderRuntime: @unchecked Sendable {
                 guard old.record == record else { throw SatchelShaderError.invalidRequest }
                 if old.wanted == mask { return 2 }
             }
-            let translated = try SatchelShaderMetrics.measure("prepare-use") { try resources!.prepare(request) }
+            let translated = try SatchelShaderMetrics.measure("prepare-use") {
+                try Self.aheadMode ? resources!.prepareNow(request) : resources!.prepare(request)
+            }
             if stage == .vertex, mask != resources!.mask(key) { try resources!.mergeWanted([key: mask]) }
             var inputs: UInt32 = 0
             if stage == .fragment, let source = translated.sources["b"] {
@@ -102,6 +115,42 @@ final class PhoneShaderRuntime: @unchecked Sendable {
         catch SatchelShaderError.invalidRequest { return -2 }
         catch is SatchelShaderCacheError { return -5 }
         catch { return -4 }
+    }
+    /// A recording thread's hint: the game bound this program. Never blocks behind a draw.
+    func ahead(vertex: (key: String, control: Data, code: Data)?, fragment: (key: String, control: Data, code: Data)?) {
+        guard Self.aheadMode else { return }
+        aheadLock.lock(); var target = aheadResources; aheadLock.unlock()
+        if target == nil {
+            guard lock.try() else { return }
+            do { try configure(); target = resources } catch { }
+            lock.unlock()
+        }
+        guard let resources = target else { return }
+        do {
+            let first = try fragment.map { f -> (key: String, request: SatchelShaderRequest) in
+                let stage = try SatchelShaderTranslator.stage(control: f.control, code: f.code)
+                return (f.key, try SatchelShaderRequest(control: f.control, code: f.code, stage: stage, expectedKey: f.key))
+            }
+            if let first, first.request.stage == .vertex { return }   // Not a pixel shader: leave it to the draw
+            var make: (key: String, make: (UInt32) throws -> SatchelShaderRequest)?
+            if let v = vertex {
+                guard try SatchelShaderTranslator.stage(control: v.control, code: v.code) == .vertex else { return }
+                make = (v.key, { mask in
+                    try SatchelShaderRequest(control: v.control, code: v.code, stage: .vertex,
+                        wantedPixelLocations: Set((0..<32).filter { mask & (UInt32(1) << $0) != 0 }), expectedKey: v.key)
+                })
+            }
+            resources.ahead(identity: (vertex?.key ?? "-") + "/" + (fragment?.key ?? "-"), first: first, vertex: make)
+        } catch { }
+    }
+    /// Whether the ahead job finished this key's translation and base library (submit thread).
+    func aheadReady(_ key: String) -> Bool {
+        aheadLock.lock(); let target = aheadResources; aheadLock.unlock()
+        return target?.aheadIsReady(key) ?? false
+    }
+    func aheadProgress() -> Int32 {
+        aheadLock.lock(); let target = aheadResources; aheadLock.unlock()
+        return target?.aheadProgress() ?? 0
     }
     func inputMask(_ key: String) -> UInt32 {
         lock.lock(); defer { lock.unlock() }; return entries[key]?.inputs ?? 0
@@ -130,7 +179,9 @@ final class PhoneShaderRuntime: @unchecked Sendable {
         guard let (value, variant) = try? selection(name), let resources else { lock.unlock(); return nil }
         lock.unlock()
         do {
-            let result = try SatchelShaderMetrics.measure("library-use") { try resources.compile(value, variant: variant) }
+            let result = try SatchelShaderMetrics.measure("library-use") {
+                try Self.aheadMode ? resources.compileNow(value, variant: variant) : resources.compile(value, variant: variant)
+            }
             layer?.pointee = result.layerOutput ? 1 : 0
             return result.library as AnyObject
         } catch {
@@ -177,6 +228,33 @@ public func phoneShaderReflection(_ key: UnsafePointer<CChar>?) -> UnsafeMutable
 public func phoneShaderLibrary(_ name: UnsafePointer<CChar>?, _ layer: UnsafeMutablePointer<Int32>?) -> UnsafeMutableRawPointer? {
     guard let name, let object = PhoneShaderRuntime.shared.library(String(cString: name), layer: layer) else { return nil }
     return Unmanaged.passRetained(object).toOpaque()
+}
+
+@_cdecl("satchel_phone_shader_ahead")
+public func phoneShaderAhead(_ vertexKey: UnsafePointer<CChar>?, _ vertexControl: UnsafeRawPointer?, _ vertexControlCount: Int,
+                             _ vertexCode: UnsafeRawPointer?, _ vertexCodeCount: Int,
+                             _ fragmentKey: UnsafePointer<CChar>?, _ fragmentControl: UnsafeRawPointer?, _ fragmentControlCount: Int,
+                             _ fragmentCode: UnsafeRawPointer?, _ fragmentCodeCount: Int) {
+    func stage(_ key: UnsafePointer<CChar>?, _ control: UnsafeRawPointer?, _ controlCount: Int,
+               _ code: UnsafeRawPointer?, _ codeCount: Int) -> (key: String, control: Data, code: Data)? {
+        guard let key, let control, let code, (0x760...0x880).contains(controlCount), (32...16 * 1024 * 1024).contains(codeCount) else { return nil }
+        let name = String(cString: key)
+        guard NativePreparationRecipe.hex(name, count: 16) else { return nil }
+        // Value snapshots: the bridge copies both ranges before it returns.
+        return (name, Data(bytes: control, count: controlCount), Data(bytes: code, count: codeCount))
+    }
+    autoreleasepool {
+        let vertex = stage(vertexKey, vertexControl, vertexControlCount, vertexCode, vertexCodeCount)
+        let fragment = stage(fragmentKey, fragmentControl, fragmentControlCount, fragmentCode, fragmentCodeCount)
+        guard vertex != nil || fragment != nil else { return }
+        PhoneShaderRuntime.shared.ahead(vertex: vertex, fragment: fragment)
+    }
+}
+/// 1 when the key's ahead work is finished; with no key, the number of finished ahead keys (wrapping).
+@_cdecl("satchel_phone_shader_ahead_ready")
+public func phoneShaderAheadReady(_ key: UnsafePointer<CChar>?) -> Int32 {
+    guard let key else { return PhoneShaderRuntime.shared.aheadProgress() }
+    return PhoneShaderRuntime.shared.aheadReady(String(cString: key)) ? 1 : 0
 }
 
 @_cdecl("satchel_phone_shader_session_reset")

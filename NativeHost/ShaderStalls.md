@@ -39,6 +39,65 @@ The trace is diagnostic and includes per-event file I/O overhead. Production tra
 off unless requested. The app's `-SatchelGraphicsProfile YES` writes `shader-events.tsv`
 beside `graphics-frames.tsv` under the selected runtime or graphics trial directory.
 
+Each route result also carries `timing.stalls` from `stall_attribution.py`, which reads the
+same frame TSV and event TSV (a phone trial's `graphics-frames.tsv` and `shader-events.tsv`
+too): frames over 50 and 100 ms, the worst frames, and for every frame over 50 ms its time
+split into library, translation (the draw's own stages), look-ahead translation (a walk
+resolving a later program), descriptor, shader setup, pipeline, prediction walk and other.
+Frame boundaries are the host's own `frame` events; each submit-thread instant goes to one
+category, innermost first. Other is everything without a shader event: guest work, GPU
+waits, pacing and loading.
+
+# Bounded first use (2026-11-06, Mac)
+
+Where cold first use went (exact mode, first run of the table below): Zelda's title frame
+(155 new libraries, 120 pipelines, 6.3 s) spent 1.35 s in the draw's own translation, 0.84 s
+in look-ahead walks translating later programs one by one on the frame path, 1.78 s in
+libraries and 2.10 s in pipelines. Descriptor building stayed under 2 ms per route. Odyssey's slow frames were mostly
+libraries and translation; Castlevania's worst frames had no shader work at all.
+
+The opt-in `bounded` pipeline mode (`NativeHost/graphics/README.md`, Bounded first use) starts
+translation and base libraries when the game binds a program, lets the draw do its own work on
+its thread instead of queuing behind background lanes, keeps prediction walks from translating
+unready programs, and gives the submitting thread the next pipeline lane. It never draws with a
+different program or pipeline. Cold opening routes, render scale 1.0, final build, one run each
+(exact twice), 1,800 frames. "Shader wait" is the shader part of the worst frame; the second
+value is the next worst frame's.
+
+| Route | Frames > 50 / > 100 ms | Worst frame | Shader wait, worst / next | Frames with shader wait > 100 ms |
+|---|---|---|---|---|
+| Castlevania exact (two runs) | 6/3, 5/2 | 207, 214 ms | 120 / 63, 138 / 56 ms | 1, 1 |
+| Castlevania bounded | 5/3 | 233 ms | 117 / 64 ms | 1 |
+| Odyssey exact (two runs) | 3/3, 3/3 | 238, 245 ms | 221 / 112, 229 / 104 ms | 3, 3 |
+| Odyssey bounded | 3/1 | 132 ms | 113 / 57 ms | 1 |
+| Zelda exact (two runs) | 15/11, 13/12 | 6,330, 3,814 ms | 6,112 / 790, 3,592 / 853 ms | 11, 11 |
+| Zelda bounded | 13/10 | 2,407 ms | 2,181 / 531 ms | 8 |
+
+In those Zelda slow frames, translation fell from 3.8 and 3.2 s (exact) to 0.68 s; pipelines
+stayed at 3.2 to 3.5 s and are now most of what remains. The worst Zelda frame is the title
+scene's first frame. After it, Zelda still has frames over 100 ms: bursts of 7 to 23 new
+pipelines in the next frames (119 to 556 ms, pipeline waits 95 to 428 ms) and a vertex shader
+translated again because a new pixel shader pairing widened its padding (frame 875: 48 ms
+translation and 217 ms library). So the
+goal of no shader stall over 100 ms after a scene's first frame is not met on the Mac for
+Zelda, and only Castlevania's and Odyssey's single worst first-use frames come close.
+
+Warm routes are unchanged in kind: exact and bounded have no frame with shader wait over
+100 ms in Castlevania or Odyssey, and one in Zelda (the title frame: 294 ms exact, 258 ms
+bounded). The order of runs matters: exact ran first in every set, so later runs reuse Apple's
+system compiler cache (exact's second Zelda run spent 0.2 s in libraries against 3.0 s in its
+first). Translation is the application's own work and its reduction does not depend on that.
+Mac CPU has more cores than the phone; the lanes are the phone's (two ahead, two pipeline,
+three library compilations), but no phone result follows.
+
+Pixels: no bounded run used a fallback pipeline or skipped a draw (zero `pipeline-fallback`
+events, zero skips), so every draw used the exact pipeline exact mode makes. Captured frames
+300, 1200 and 1800: Odyssey is byte-identical across both exact runs and bounded. Castlevania
+and Zelda differ between the two exact runs as much as between exact and bounded (the opening
+advances with wall time: Castlevania's frame 300 showed the notice screen in one run and the
+middleware logo in another; Zelda's title animates). A detclock run was tried for parity and
+Castlevania reached only 115 frames in 300 s, so it is not used.
+
 # Scheduling and cache behavior
 
 Mapped shader registration copies control and code into bounded background requests.

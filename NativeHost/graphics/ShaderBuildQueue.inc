@@ -1,5 +1,9 @@
 // Exact first use joins a bounded worker. Descriptors and functions remain alive
 // until completion; no stand-in pipeline or omitted draw is introduced here.
+// Bounded mode (DM_PSO_AHEAD=1) only: a build the submitting thread waits for takes the next
+// free lane before speculative and background builds. Other modes keep first-come order.
+static pthread_t satchel_submitter;
+static int satchel_lanes_ahead(void) { const char *e = getenv("DM_PSO_AHEAD"); return e && !strcmp(e, "1"); }
 static void satchel_pipeline_work(dispatch_block_t work) {
     static dispatch_queue_t lanes[2]; static dispatch_once_t once;
     static char key; static unsigned occupied;
@@ -14,8 +18,12 @@ static void satchel_pipeline_work(dispatch_block_t work) {
     if (dispatch_get_specific(&key)) { work(); return; }
     // Reserve a free lane, so a long compile cannot strand work behind itself
     // while the other lane is idle. Nested work already owns its lane.
+    static unsigned urgent_waiting;
+    int ordered = satchel_lanes_ahead(), urgent = ordered && satchel_submitter && pthread_equal(pthread_self(), satchel_submitter);
     pthread_mutex_lock(&mutex);
-    while (occupied == 3) pthread_cond_wait(&available, &mutex);
+    if (urgent) urgent_waiting++;
+    while (occupied == 3 || (ordered && !urgent && urgent_waiting)) pthread_cond_wait(&available, &mutex);
+    if (urgent) urgent_waiting--;
     unsigned lane = (occupied & 1) ? 1 : 0;
     occupied |= 1u << lane;
     pthread_mutex_unlock(&mutex);
@@ -23,7 +31,8 @@ static void satchel_pipeline_work(dispatch_block_t work) {
     dispatch_async(lanes[lane], ^{
         work();
         pthread_mutex_lock(&mutex); occupied &= ~(1u << lane);
-        pthread_cond_signal(&available); pthread_mutex_unlock(&mutex);
+        if (ordered) pthread_cond_broadcast(&available); else pthread_cond_signal(&available);
+        pthread_mutex_unlock(&mutex);
         dispatch_semaphore_signal(done);
     });
     dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);

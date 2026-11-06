@@ -33,7 +33,7 @@ struct GamePlayerSettingsPanel: View {
         Choice(key: "DM_RUMBLE_GAIN", title: "Rumble strength", options: [("0", "0%"), ("0.5", "50%"), ("1.0", "100%"), ("1.5", "150%"), ("2.0", "200%"), ("3.0", "300%")]),
         Choice(key: "DM_RUMBLE_MIN", title: "Rumble cutoff", options: [("0", "Off"), ("0.2", "20%"), ("0.45", "45%"), ("0.6", "60%")]),
         Choice(key: "DM_SCREEN_ASPECT", title: "Picture shape", options: [("0", "16:9 (Switch)"), ("1.43", "iPhone Duo screen (1.43:1)")]),
-        Choice(key: "DM_PIPELINE_MODE", title: "Pipeline mode", options: [("exact", "Exact"), ("async", "Async (experimental)"), ("skip", "Skip (experimental)"), ("hybrid", "Hybrid"), ("legacy", "Legacy")])
+        Choice(key: "DM_PIPELINE_MODE", title: "Pipeline mode", options: [("exact", "Exact"), ("async", "Async (experimental)"), ("bounded", "Bounded (experimental)"), ("skip", "Skip (experimental)"), ("hybrid", "Hybrid"), ("legacy", "Legacy")])
     ]
 
     var body: some View {

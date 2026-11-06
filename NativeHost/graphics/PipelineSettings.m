@@ -15,13 +15,16 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
     NSString *mode = SatchelCurrentPlayerSettings()[@"DM_PIPELINE_MODE"] ?: argument(args, @"-SatchelPipelineMode") ?: @"exact";
     BOOL skipping = [mode isEqualToString:@"skip"];
-    BOOL asynchronous = skipping || [mode isEqualToString:@"async"];
+    // Bounded: async selection, plus translation and base libraries started as programs are bound.
+    BOOL bounded = [mode isEqualToString:@"bounded"];
+    BOOL asynchronous = skipping || bounded || [mode isEqualToString:@"async"];
     BOOL hybrid = asynchronous || [mode isEqualToString:@"hybrid"];
     BOOL modern = ![mode isEqualToString:@"legacy"];
     if (!asynchronous && ![mode isEqualToString:@"hybrid"] && ![mode isEqualToString:@"legacy"] && ![mode isEqualToString:@"exact"])
         fprintf(stderr, "Satchel graphics: unknown pipeline mode, using exact\n");
     setenv("DM_PSO_ASYNC", asynchronous ? "1" : "0", 1);
     setenv("DM_PSO_SKIP", skipping ? "1" : "0", 1);
+    setenv("DM_PSO_AHEAD", bounded ? "1" : "0", 1);
     NSString *budget = argument(args, @"-SatchelPipelineBudgetMS") ?: @"4";
     NSScanner *scanner = [NSScanner scannerWithString:budget]; double milliseconds = 4;
     if (![scanner scanDouble:&milliseconds] || !scanner.isAtEnd || !isfinite(milliseconds) || milliseconds < 0 || milliseconds > 16) {
@@ -87,7 +90,7 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     fprintf(stderr, "Satchel loading: romfs=%s\n", mapped ? "mapped" : "pread");
 
     setenv("DM_PSO_ARCHIVE", SatchelPipelineArchiveDirectory(cacheRoot).fileSystemRepresentation, 1);
-    fprintf(stderr, "Satchel graphics: pipelines=%s workers=2 archive=%s\n", skipping ? "skip" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy", getenv("DM_PSO_ARCHIVE"));
+    fprintf(stderr, "Satchel graphics: pipelines=%s workers=2 archive=%s\n", skipping ? "skip" : bounded ? "bounded" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy", getenv("DM_PSO_ARCHIVE"));
 }
 
 NSString *SatchelPipelineArchiveDirectory(NSString *runtime) {

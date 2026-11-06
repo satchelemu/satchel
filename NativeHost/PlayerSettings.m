@@ -52,7 +52,7 @@ static NSString *validValue(NSString *key, id value) {
     if ([key isEqualToString:@"DM_PRESENT_UPSCALE"])
         return [@[@"off", @"spatial"] containsObject:value] ? value : nil;
     if ([key isEqualToString:@"DM_PIPELINE_MODE"])
-        return [@[@"exact", @"async", @"skip", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
+        return [@[@"exact", @"async", @"bounded", @"skip", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
     return nil;
 }
 static NSDictionary *profiles(void);
