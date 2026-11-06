@@ -7,6 +7,7 @@ extern void *satchel_phone_shader_library(const char *, int32_t *) __attribute__
 extern void satchel_phone_shader_ahead(const char *, const void *, size_t, const void *, size_t,
                                        const char *, const void *, size_t, const void *, size_t) __attribute__((weak_import));
 extern int32_t satchel_phone_shader_ahead_ready(const char *) __attribute__((weak_import));
+extern int32_t satchel_phone_shader_prepare_known(const char *, int32_t *) __attribute__((weak_import));
 static uint64_t satchel_phone_epoch;
 static int satchel_phone_enabled(void) {
     static int enabled = -1;

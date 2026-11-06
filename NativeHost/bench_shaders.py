@@ -2,7 +2,13 @@ from pathlib import Path
 import argparse,json,os,re,subprocess,threading,time
 OUT=Path(os.environ['M5_BENCH_OUT']);BUILD=Path.home()/'SatchelBuild';BASE=BUILD/'anygame'
 parser=argparse.ArgumentParser();parser.add_argument('--route',choices=['baseline','candidate'],required=True);parser.add_argument('--game',choices=['Castlevania','Odyssey','TOTK'],required=True)
-parser.add_argument('--cache',choices=['clean','warm'],required=True)
+parser.add_argument('--cache',choices=['clean','warm','relist'],required=True)
+# relist: a new namespace holding the completed clean route's recorded list, sources and capture but no pipeline
+# archive (an OS update or a cache namespace bump). --capture records first-use shaders as the app does;
+# --prewarm builds recorded pipelines before the first frame (-SatchelPipelinePrewarm YES) and needs it.
+parser.add_argument('--capture',action='store_true')
+parser.add_argument('--prewarm',action='store_true')
+parser.add_argument('--prewarm-ms',type=int,default=3000)
 parser.add_argument('--pipeline-mode',choices=['exact','async','bounded','skip'],default='exact')
 parser.add_argument('--pipeline-budget-ms',type=float,default=4)
 parser.add_argument('--frame',type=int,default=1800)
@@ -23,7 +29,14 @@ assert not any(line and not line.startswith('#') for line in (package/'dm/shader
 assert not list((package/'msl').rglob('*.metallib'))
 work=OUT/'boots'/game/route/mode/str(time.time_ns())
 cache=OUT/'cache'/route/game
+assert not a.prewarm or a.capture, 'The prewarm prepares recorded shaders from the capture'
 if mode=='clean': assert not cache.exists(), 'Clean mode requires a new benchmark namespace'
+elif mode=='relist':
+    import shutil
+    assert cache.exists() and (cache/'pso_user.tsv').exists(), 'Relist mode requires the completed clean route'
+    source,cache=cache,OUT/'cache'/route/(game+'-relist')
+    assert not cache.exists(), 'Relist mode requires a new namespace'
+    shutil.copytree(source,cache,ignore=lambda folder,names:['pipelines'] if Path(folder)==source else [])
 else: assert cache.exists(), 'Warm mode requires the completed clean route'
 cache.mkdir(parents=True,exist_ok=True)
 for folder in ['save','temp','aoc','shots','empty-msl']:(work/folder).mkdir(parents=True,exist_ok=True)
@@ -35,11 +48,16 @@ env={k:v for k,v in os.environ.items() if not k.startswith('DM_')}
 env.update(DM_PSO_SKIP_STATS=str(work/'pipeline-skips.tsv'),DM_SHADER_EVENTS=str(work/'events.tsv'),DM_PSO_ARCHIVE=str(cache/'pipelines'),DM_PSO_USER=str(cache/'pso_user.tsv'),DM_PSO_HYBRID='0',DM_PSO_MTL4='1',DM_PROFILE=str(package/'profile.tsv'),DM_ROMFS=str(package/'romfs.img'),DM_ROOT=str(work),DM_SAVE=str(work/'save'),DM_TEMP=str(work/'temp'),DM_AOC_DIR=str(work/'aoc'),DM_CTL=str(ctl),DM_FPS_TARGET='30' if game=='TOTK' else '0',DM_RENDER_SCALE='1.0',DM_BOOTPROF='1',DM_SLOWFRAME='1',DM_NVN_TSV=str(work/'frames.tsv'),DM_NVN_TSV_CALLS='0',DM_OPMODE='0',DM_PSO_PREBUILD_THREADS='2',DM_PSO_PREPARE_THREADS='2',DM_PSO_MANIFEST='off',DM_PSO_PREBUILD='0',DM_NVN_SHOT=','.join(map(str,sorted({300,1200,a.frame})))+':'+str(work/'shots/frame-%d.png'),DM_NVN_SHOT_OUT='1280x720')
 env.update(DM_PSO_ASYNC='1' if a.pipeline_mode in {'async','bounded','skip'} else '0',DM_PSO_SKIP='1' if a.pipeline_mode=='skip' else '0',DM_PSO_BUDGET_MS=str(a.pipeline_budget_ms),DM_PSO_HYBRID='1' if a.pipeline_mode in {'async','bounded','skip'} else '0',DM_PSO_AHEAD='1' if a.pipeline_mode=='bounded' else '0')
 env.update(DM_NVN_SHMAP=str(package/'dm/shader_map.tsv'),DM_MSL_DIR=str(work/'empty-msl'),DM_PHONE_SHADERS='1',DM_PHONE_SHADER_CACHE=str(cache/'sources'))
+if a.capture:
+    (cache/'shader-capture').mkdir(exist_ok=True); env['DM_NVN_SHDUMP']=str(cache/'shader-capture')
+if a.prewarm:
+    # PipelineSettings.m's -SatchelPipelinePrewarm YES: the engine's blocking prewarm of the seed and recorded lists.
+    del env['DM_PSO_MANIFEST']; env.update(DM_PSO_PREPARE='1',DM_SATCHEL_PREWARM='1',DM_PSO_PREPARE_MS=str(a.prewarm_ms))
 if os.environ.get('M5_CAPTURE_REQUESTS'): env['DM_SHADER_REQUEST_CAPTURE']=os.environ['M5_CAPTURE_REQUESTS']
 if os.environ.get('M5_SKIP_CAPTURE'): env['DM_PSO_SKIP_CAPTURE']=str(work/'shots')
 if os.environ.get('M5_EXTRA_FRAMES'):
     env['DM_NVN_SHOT']=os.environ['M5_EXTRA_FRAMES']+','+env['DM_NVN_SHOT']
-assert 'DM_NVN_SHDUMP' not in env
+assert ('DM_NVN_SHDUMP' in env)==a.capture
 start=time.monotonic();child=subprocess.Popen(['nice','-n','10',str(host),str(BASE/'host-inputs'/game)],cwd=work,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace')
 failures=[];red=[];translated=set();compiled=set();frames=[];counts={'omitted':0};reason=[]
 # A fixed frame route with no input, private saves and a 300-second failure ceiling.
@@ -58,14 +76,15 @@ def watch():
         try:child.wait(5)
         except subprocess.TimeoutExpired:child.kill()
 watcher=threading.Thread(target=watch);watcher.start()
-allowed=['[slowframe]', 'PhoneShader ','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]']
+allowed=['[slowframe]', 'PhoneShader ','pipeline prepare','pipeline prewarm','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]']
 failure=re.compile(r'prepare failed|compile failed|failed to load shader|failed to load: build|failed to create.*pipeline|reflection conversion failed|no library|not in the shader map|no vertex shader|no compute shader|geometry capture entry failed|unexpected argument buffer|offline reference source absent|FATAL|CRASH sig=')
 with (work/'host-safe.log').open('w') as log:
     for line in child.stdout:
         if not line.startswith(('[dm]','[nvn]','[mtl]','[slowframe]')) or not any(x in line for x in allowed) or re.search(r'OutputDebugString|hexdump|instruction bytes|\[guest\]|\*x[0-9]|bytes below sp|stack scan',line):counts['omitted']+=1;continue
         line=re.sub(r'layout bytes [0-9a-f]+','layout bytes [omitted]',line).split(' | x19=')[0].rstrip()
         log.write(line+'\n');log.flush()
-        if failure.search(line):failures.append(line)
+        # The prewarm's summary counts recorded keys it could not prepare ('not in the shader map'); that is not a failure.
+        if failure.search(line) and 'pipeline prewarm done' not in line:failures.append(line)
         if '[RED]' in line:red.append(line)
         m=re.search(r'PhoneShader key=([a-f0-9]{16}) stage=(\d+) translated',line)
         if m:translated.add((m[1],int(m[2])))
@@ -77,7 +96,7 @@ child.wait();watcher.join()
 shots=[str(x) for x in sorted((work/'shots').glob('*.png'))]
 passed=child.returncode in (0,-15,143) and reason==['both frame checkpoints and DM_CTL capture'] and not failures
 passed &= bool(translated)
-result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,pipelineBudgetMs=a.pipeline_budget_ms,game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
+result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,capture=a.capture,prewarm=a.prewarm,pipelineBudgetMs=a.pipeline_budget_ms,game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
 timings={}
 for line in (work/'frames.tsv').read_text().splitlines():
     cells=line.split('\t')

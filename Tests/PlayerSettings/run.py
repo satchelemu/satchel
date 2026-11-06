@@ -46,4 +46,13 @@ pipeline = OUT / (prefix + '-pipeline-check')
 subprocess.run(base + ['-framework', 'Metal', str(ROOT / 'NativeHost/graphics/PipelineSettings.m'),
     str(ROOT / 'Tests/PlayerSettings/pipeline.m'), '-o', str(pipeline)], check=True)
 subprocess.run([pipeline], check=True)
-print('PASS: 25 settings/geometry processes and 6 pipeline launch policies, all synthetic.')
+# Launch prewarm policy, trial list copy and per-launch event files, in a private synthetic runtime folder.
+trial = ['-SatchelPipelineTrial', 'check-b', '-SatchelGraphicsProfile', 'YES']
+for args, expect in [([], ''), (['-SatchelPipelinePrewarm', 'YES'], '3000'),
+                     (['-SatchelPipelinePrewarm', 'YES', '-SatchelPipelinePrewarmMS', '1500', '-SatchelPipelineTrialListFrom', 'check-a'], '1500'),
+                     (['-SatchelPipelinePrewarm', 'YES', '-SatchelPipelinePrewarmMS', '99'], '3000')]:
+    runtime = OUT / 'pipeline-runtime'
+    shutil.rmtree(runtime, ignore_errors=True)
+    subprocess.run([pipeline, *trial, *args], env=dict(os.environ, PIPELINE_RUNTIME=str(runtime), EXPECT_PREWARM_MS=expect), check=True)
+shutil.rmtree(OUT / 'pipeline-runtime', ignore_errors=True)
+print('PASS: 25 settings/geometry processes, 6 pipeline launch policies and 4 launch prewarm or trial file checks, all synthetic.')

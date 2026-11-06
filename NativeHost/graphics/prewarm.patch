@@ -1,0 +1,50 @@
+--- a/nvn_mtl.m
++++ b/nvn_mtl.m
+@@ -7518,4 +7518,9 @@
+     NSString *mk = [key hasSuffix:@"_b"] ? [key substringToIndex:key.length - 2] : key;   // library names are <map key>_b
+     if (g_shmap[mk]) return 0;
++    // Satchel launch prewarm: a phone-translated shader enters the map only when the game hands it over;
++    // a recorded key is prepared from this device's capture instead, on the submit thread (blocking prewarm only)
++#ifdef SATCHEL_PHONE_PREWARM
++    if (prepare_on() && satchel_phone_prewarm_known(mk)) return 0;
++#endif
+     if (![stale containsObject:key]) { [stale addObject:key]; g_warm_skip_stale++; }
+     return 1;
+@@ -7665,4 +7670,8 @@
+     uint64_t t0 = bp_now(), built0 = g_pb_built, arch0 = g_pb_archived, reused0 = g_pb_reused, spec0 = g_pb_spec;
+     __block _Atomic long next = 0;
++    // Satchel: DM_PSO_PREPARE_MS bounds the wait. Past it the waiting thread hands out no further task (a task under way finishes, at most one
++    // per worker), and the lines left are built at first use as without a prewarm. The lists are in first-use order, so what the game draws first is built first
++    const char *budget = getenv("DM_PSO_PREPARE_MS"); long budget_ms = budget ? atol(budget) : 0;
++    uint64_t deadline = budget_ms > 0 ? t0 + (uint64_t)budget_ms * 1000000ull : 0; int cut = 0;
+     dispatch_group_t g = dispatch_group_create();
+     for (int w = 0; w < workers; w++) dispatch_group_async(g, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+@@ -7671,4 +7680,5 @@
+     int shown = 0;
+     while (dispatch_group_wait(g, dispatch_time(DISPATCH_TIME_NOW, 50 * (int64_t)NSEC_PER_MSEC))) {
++        if (deadline && !cut && bp_now() >= deadline) cut = atomic_exchange(&next, n) < n;
+         // the screen shows past 0.5 s, unless the rate so far says the rest takes less than 0.3 s more (no screen that flashes up and goes)
+         uint64_t el = bp_now() - t0; long done = g_warm_done; double rest = done ? (double)el * (double)(lines - done) / (double)done : 1e18;
+@@ -7677,4 +7687,5 @@
+     }
+     if (shown) front_progress(NULL, lines, lines);
++    if (cut) MLOG("pipeline prepare: the %ld ms budget ended it with %ld of %ld lines done; the rest is built at first use", budget_ms, (long)g_warm_done, lines);
+     MLOG("pipeline prepare: %ld lines (%llu shaders, %llu render pipelines, %llu compute pipelines) in %.2f s on %d workers before the first frame, progress screen %s; "
+          "bases %llu compiled, %llu from the archive, %llu reused; %llu specializations",
+@@ -11293,4 +11304,8 @@
+             if (!g_shcache) g_shcache = [NSMutableDictionary dictionary];
+             NvShader *vs = g_shcache[item->vs_key], *fs = item->fs_key.length ? g_shcache[item->fs_key] : nil;
++            // Satchel: a phone-translated key can change revision (wider vertex padding); a pipeline built from another revision is dropped
++#ifdef SATCHEL_PHONE_PREWARM
++            if (satchel_phone_enabled() && ((vs && vs != item->vs) || (fs && fs != item->fs))) continue;
++#endif
+             if (!vs) { vs = item->vs; g_shcache[item->vs_key] = vs; }
+             if (item->fs_key.length && !fs) { fs = item->fs; g_shcache[item->fs_key] = fs; }
+@@ -11299,4 +11314,7 @@
+         } else {
+             NvShader *cs = g_shcache[item->key];
++#ifdef SATCHEL_PHONE_PREWARM
++            if (satchel_phone_enabled() && cs && cs != item->shader) continue;   // Satchel: as above
++#endif
+             if (!cs) { cs = item->shader; if (!g_shcache) g_shcache = [NSMutableDictionary dictionary]; g_shcache[item->key] = cs; }
+             const void *key = (__bridge const void *)cs;

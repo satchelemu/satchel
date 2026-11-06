@@ -85,12 +85,25 @@ Developer launch arguments override the saved per-title pipeline mode for one la
 - `-SatchelPipelineTrial <tag>`: isolate recorded pipelines and archives without
   touching saves or existing caches. Tags use letters, digits, underscore or hyphen,
   at most 48 characters. Reuse a tag for a warm repeat; use a new tag for a cold trial.
+- `-SatchelPipelineTrialListFrom <tag>`: a new trial starts with another trial's recorded
+  list (`pso_user.tsv`) and its own empty archive, the state after an OS update or a cache
+  namespace bump. Copied only when the new trial has no list yet.
+- `-SatchelPipelinePrewarm YES`: launch prewarm of recorded pipelines, below.
+  `-SatchelPipelinePrewarmMS <250..30000>` bounds its loading time, default 3000.
 - `-SatchelGraphicsProfile YES`: enable timing TSV, slow-frame attribution, pipeline
   waits and the engine GPU profile every 300 frames. The log remains `host.log`;
   `graphics-frames.tsv` is under the trial directory, or runtime root without a tag.
+  Each launch starts `shader-events.tsv` (with a `launch` row) and `pipeline-skips.tsv`
+  fresh, as the engine does for `graphics-frames.tsv`. Before 2026-11-06 the two event
+  files were appended, so a warm repeat under its cold run's tag mixed both launches and
+  misaligned `stall_attribution.py`; the script now uses the events after the last
+  `launch` row and refuses events that span more frames than the frame file
+  (`NativeHost/check_stall_attribution.py`).
 
 Cold here means a fresh app archive and user manifest. It does not purge Apple's
-system compiler cache or the package seed manifest. Capture runs are separate:
+system compiler cache or the package seed manifest. A phone-prepared package's seed
+(`dm/pso_manifest.tsv`) holds only a comment, and the translated shader cache and the
+first-use capture are per title, not per trial, so a cold trial knows no pipeline at all. Capture runs are separate:
 Metal cannot capture specialized pipelines, so `DM_GPU_CAPTURE` or
 `MTL_CAPTURE_ENABLED` forces the engine's legacy compiler path. Never report those
 capture timings as hybrid timings.
@@ -244,6 +257,41 @@ in exact mode; only when the work happens changes.
 Required waits remain: a draw whose translation, library or pipeline is not ready still waits
 for exactly that work, as in exact mode. This is not a strict per-frame bound. The measured
 distribution is in `NativeHost/ShaderStalls.md`.
+
+## Launch prewarm of recorded pipelines
+
+Each launch appends the pipelines it builds to `pso_user.tsv` (in first-use order), but the
+launch policy has always turned the engine's prewarm off (`DM_PSO_MANIFEST=off`), so the list
+was never read: a later launch is faster only because the pipeline archive and Apple's compiler
+cache keep what the previous one built. When the archive is empty (an OS update or a namespace
+bump changes its folder, or a trial) every recorded pipeline is built again at its first draw.
+The prewarm could not simply be turned on: it drops every line whose shader key is not in the
+shader map, and a phone-translated shader enters that map only when the game hands its bytes
+over at the first draw, so no recorded descriptor could be rebuilt before then.
+
+`-SatchelPipelinePrewarm YES` (Mac: `DM_SATCHEL_PREWARM=1`, `DM_PSO_PREPARE=1`,
+`DM_PSO_PREPARE_MS`) runs the engine's own blocking prewarm of the seed and `pso_user.tsv` at the
+first submission, before anything of it is encoded, and claims the results before its first
+draw. `prewarm.patch` and `PhoneShaderRuntime.inc` add three things:
+
+- A recorded key missing from the shader map is prepared from this device's first-use capture
+  (`shader-capture/<key>.ctl` and `.code`, kept for every format 2 package) through the same
+  `PhoneShaderRuntime.prepare` a draw calls, with the persisted vertex padding. The capture only
+  holds bytes whose key they reproduce, and the request check repeats that. Keys without a
+  capture stay unknown and are built at first use, as before.
+- A loading budget: past `DM_PSO_PREPARE_MS` no worker takes another line (one already started
+  finishes), and the rest is built at first use. The list is in first-use order, so the opening
+  is built first. The engine's own progress screen shows after 0.5 s.
+- When phone shaders are on, a prewarmed pipeline or shader whose key already holds another
+  shader revision (a vertex shader translated again with wider padding) is dropped at claim time
+  instead of being attached to that revision.
+
+The pipelines are the engine's prewarm pipelines: built from the recorded key with
+`pso_desc` and taken by a draw only when its whole pipeline key (shader objects and every state
+field) is equal. No stand-in, no skipped draw, and the pair-list bulk prebuild stays off. It is
+opt-in because it adds loading time before the first frame and keeps every prewarmed library
+alive for the session; exact without it is unchanged. Measurements are in
+`NativeHost/ShaderStalls.md`. It does nothing on a first launch: nothing is recorded yet.
 
 ## GPU pass cost diagnostics
 

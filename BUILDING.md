@@ -484,6 +484,12 @@ Game settings on each game page save Exact, Async, experimental Bounded or exper
 for that title's next launch. `-SatchelPipelineMode skip` (or `bounded`) overrides the saved
 choice for a trial. `python3 NativeHost/stall_attribution.py graphics-frames.tsv
 shader-events.tsv` splits a profiled trial's frames over 50 ms into shader stages.
+Each profiled launch starts its event files fresh; `python3 -B NativeHost/check_stall_attribution.py`
+checks that the script uses one launch only. `-SatchelPipelinePrewarm YES` (opt-in, with
+`-SatchelPipelinePrewarmMS`) builds the recorded pipelines before the first frame, and
+`-SatchelPipelineTrialListFrom <tag>` gives a new trial another trial's recorded list with an empty
+archive ([launch prewarm](NativeHost/graphics/README.md#launch-prewarm-of-recorded-pipelines)). On the
+Mac host, `NativeHost/bench_shaders.py --capture --prewarm` and `--cache relist` do the same.
 Skip is restricted to a terminal draw in the current submission; all other timeouts wait. With
 `-SatchelGraphicsProfile YES`, `pipeline-skips.tsv` records frame/count rows beside
 the shader events. The developer overlay shows the last frame's skipped count.

@@ -42,11 +42,25 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     // Odyssey's 20,740 on the iPhone (2026-11-02), so it stays off at launch. That bulk work
     // belongs in Prepare's background warm-up; -SatchelPipelinePrebuild YES turns it on for tests.
     BOOL prebuild = modern && [argument(args, @"-SatchelPipelinePrebuild") isEqualToString:@"YES"];
-    // Bulk and recorded warm-up belong to the cancellable app job, never launch.
-    setenv("DM_PSO_PREPARE", prebuild ? "1" : "0", 1);
-    if (prebuild) unsetenv("DM_PSO_MANIFEST"); else setenv("DM_PSO_MANIFEST", "off", 1);
+    // Opt-in launch prewarm (-SatchelPipelinePrewarm YES): the pipelines this device recorded
+    // (pso_user.tsv) and the package seed are built before the game's first submission, with
+    // phone-translated shaders prepared from their own capture, for at most
+    // -SatchelPipelinePrewarmMS (default 3000, 250 to 30000) of loading. Nothing of the
+    // pair-list bulk prebuild runs. Bulk warm-up stays in the cancellable app job.
+    BOOL prewarm = modern && !prebuild && [argument(args, @"-SatchelPipelinePrewarm") isEqualToString:@"YES"];
+    NSString *prewarmBudget = argument(args, @"-SatchelPipelinePrewarmMS") ?: @"3000";
+    NSScanner *prewarmScanner = [NSScanner scannerWithString:prewarmBudget]; NSInteger prewarmMS = 3000;
+    if (![prewarmScanner scanInteger:&prewarmMS] || !prewarmScanner.isAtEnd || prewarmMS < 250 || prewarmMS > 30000) {
+        if (prewarm) fprintf(stderr, "Satchel graphics: invalid prewarm budget, using 3000 ms\n");
+        prewarmMS = 3000;
+    }
+    setenv("DM_PSO_PREPARE", prebuild || prewarm ? "1" : "0", 1);
+    if (prebuild || prewarm) unsetenv("DM_PSO_MANIFEST"); else setenv("DM_PSO_MANIFEST", "off", 1);
     setenv("DM_PSO_PREBUILD", prebuild ? "1" : "0", 1);
     setenv("DM_PSO_PREBUILD_A2C", prebuild ? "1" : "0", 1);
+    setenv("DM_SATCHEL_PREWARM", prewarm ? "1" : "0", 1);
+    if (prewarm) setenv("DM_PSO_PREPARE_MS", [NSString stringWithFormat:@"%ld", (long)prewarmMS].UTF8String, 1);
+    else unsetenv("DM_PSO_PREPARE_MS");
 
     // An explicit benchmark namespace starts cold without deleting the player's cache or saves.
     NSString *trial = argument(args, @"-SatchelPipelineTrial");
@@ -57,7 +71,16 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
         NSError *error = nil;
         if ([NSFileManager.defaultManager createDirectoryAtPath:candidate withIntermediateDirectories:YES attributes:nil error:&error]) {
             cacheRoot = candidate;
-            setenv("DM_PSO_USER", [candidate stringByAppendingPathComponent:@"pso_user.tsv"].fileSystemRepresentation, 1);
+            NSString *list = [candidate stringByAppendingPathComponent:@"pso_user.tsv"];
+            // -SatchelPipelineTrialListFrom <tag>: a new trial starts from another trial's recorded
+            // pipelines with its own fresh archive (the case of an OS update or a cache namespace bump).
+            NSString *from = argument(args, @"-SatchelPipelineTrialListFrom");
+            if (from.length && from.length <= 48 && [from rangeOfCharacterFromSet:tag.invertedSet].location == NSNotFound && ![from isEqualToString:trial]) {
+                NSString *source = [[[runtime stringByAppendingPathComponent:@"GraphicsTrials"] stringByAppendingPathComponent:from] stringByAppendingPathComponent:@"pso_user.tsv"];
+                if (![NSFileManager.defaultManager fileExistsAtPath:list] && ![NSFileManager.defaultManager copyItemAtPath:source toPath:list error:&error])
+                    fprintf(stderr, "Satchel graphics: trial list copy failed: %s\n", error.localizedDescription.UTF8String);
+            } else if (from) fprintf(stderr, "Satchel graphics: invalid trial list source ignored\n");
+            setenv("DM_PSO_USER", list.fileSystemRepresentation, 1);
         } else fprintf(stderr, "Satchel graphics: trial directory failed: %s\n", error.localizedDescription.UTF8String);
     } else if (trial) fprintf(stderr, "Satchel graphics: invalid trial name ignored\n");
     unsetenv("DM_NVN_GPUPROF");
@@ -103,6 +126,7 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
 
     setenv("DM_PSO_ARCHIVE", SatchelPipelineArchiveDirectory(cacheRoot).fileSystemRepresentation, 1);
     fprintf(stderr, "Satchel graphics: pipelines=%s workers=2 archive=%s\n", skipping ? "skip" : bounded ? "bounded" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy", getenv("DM_PSO_ARCHIVE"));
+    if (prewarm) fprintf(stderr, "Satchel graphics: launch prewarm of recorded pipelines, at most %ld ms before the first frame\n", (long)prewarmMS);
 }
 
 NSString *SatchelPipelineArchiveDirectory(NSString *runtime) {

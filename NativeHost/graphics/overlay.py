@@ -31,6 +31,9 @@ def prepare(source, destination):
     runpy.run_path(str(Path(__file__).with_name('shader_builds.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     runpy.run_path(str(Path(__file__).with_name('async_pipelines.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     runpy.run_path(str(Path(__file__).with_name('shader_metrics.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
+    # Opt-in launch prewarm of recorded pipelines with phone-translated shaders (-SatchelPipelinePrewarm YES).
+    subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('prewarm.patch')],
+                   cwd=destination, check=True)
     return destination / 'nvn_mtl.m'
 
 

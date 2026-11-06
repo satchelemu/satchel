@@ -116,6 +116,25 @@ final class PhoneShaderRuntime: @unchecked Sendable {
         catch is SatchelShaderCacheError { return -5 }
         catch { return -4 }
     }
+    /// Launch prewarm (DM_SATCHEL_PREWARM=1): a recorded shader the game has not handed over yet,
+    /// prepared from this device's own first-use capture (DM_NVN_SHDUMP/<key>.ctl and .code) through
+    /// the same `prepare` a draw calls, so its request identity is the one the draw computes. The
+    /// capture keeps only shaders whose key their bytes reproduce; `prepare` checks that again.
+    /// Returns `prepare`'s status and the engine's stage number (0 vertex, 1 pixel, 5 compute).
+    func prepareKnown(key: String, stage: inout Int32) -> Int32 {
+        guard let raw = getenv("DM_NVN_SHDUMP"), raw.pointee != 0 else { return -2 }
+        let base = URL(fileURLWithPath: String(cString: raw), isDirectory: true)
+        func read(_ name: String, _ range: ClosedRange<Int>) -> Data? {
+            let url = base.appendingPathComponent(name)
+            guard let info = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]),
+                  info.isRegularFile == true, info.isSymbolicLink != true, range.contains(info.fileSize ?? -1) else { return nil }
+            return try? Data(contentsOf: url)
+        }
+        guard let control = read(key + ".ctl", 0x760...0x880), let code = read(key + ".code", 32...16 * 1024 * 1024),
+              let kind = try? SatchelShaderTranslator.stage(control: control, code: code) else { return -2 }
+        stage = kind == .vertex ? 0 : kind == .fragment ? 1 : 5
+        return prepare(key: key, control: control, code: code, wanted: 0)
+    }
     /// A recording thread's hint: the game bound this program. Never blocks behind a draw.
     func ahead(vertex: (key: String, control: Data, code: Data)?, fragment: (key: String, control: Data, code: Data)?) {
         guard Self.aheadMode else { return }
@@ -214,6 +233,13 @@ public func phoneShaderPrepare(_ key: UnsafePointer<CChar>?, _ control: UnsafeRa
     guard NativePreparationRecipe.hex(name, count: 16) else { return -2 }
     return autoreleasepool { PhoneShaderRuntime.shared.prepare(key: name, control: Data(bytes: control, count: controlCount),
                                                                code: Data(bytes: code, count: codeCount), wanted: wanted) }
+}
+@_cdecl("satchel_phone_shader_prepare_known")
+public func phoneShaderPrepareKnown(_ key: UnsafePointer<CChar>?, _ stage: UnsafeMutablePointer<Int32>?) -> Int32 {
+    guard let key, let stage else { return -2 }
+    let name = String(cString: key)
+    guard NativePreparationRecipe.hex(name, count: 16) else { return -2 }
+    return autoreleasepool { PhoneShaderRuntime.shared.prepareKnown(key: name, stage: &stage.pointee) }
 }
 @_cdecl("satchel_phone_shader_inputs")
 public func phoneShaderInputs(_ key: UnsafePointer<CChar>?) -> UInt32 {

@@ -98,6 +98,78 @@ advances with wall time: Castlevania's frame 300 showed the notice screen in one
 middleware logo in another; Zelda's title animates). A detclock run was tried for parity and
 Castlevania reached only 115 frames in 300 s, so it is not used.
 
+# Launch prewarm of recorded pipelines (2026-11-06, Mac)
+
+Why Zelda's title frame (frame 144: 159 new libraries, 122 new pipelines, 1.8 to 2.0 s on the phone)
+was built at draw time on every cold trial, in both exact and bounded:
+
+- The package seed is empty. Every format 2 (phone-prepared or runtime-capture) package's
+  `dm/pso_manifest.tsv` holds only a comment, so a trial that keeps the seed keeps nothing.
+- The recorded list was never read. Each launch appends what it builds to `pso_user.tsv`, but the
+  launch policy sets `DM_PSO_MANIFEST=off` (since the first release), so the engine's prewarm never ran
+  in the app; a warm launch is faster only because the pipeline archive and Apple's compiler cache
+  keep the previous launch's work. A cold trial also starts its list fresh.
+- Turning it on alone would not help: the prewarm drops every line whose shader key is not in the
+  shader map, and a phone-translated shader enters the map only when the game hands its bytes over at
+  its first draw. The descriptors could not be rebuilt before the program is bound.
+
+So on a game's first launch nothing is known and the title frame still builds everything at draw
+time. What can move is everything a device has already recorded: the next launch after an OS update
+or a cache namespace bump (an empty archive with the list kept), and the library, translation and
+archive-lookup residue of every warm launch. The opt-in launch prewarm
+(`NativeHost/graphics/README.md`, Launch prewarm of recorded pipelines) builds the recorded list
+before the first frame, preparing shaders from the device's own first-use capture. The alternative,
+building exact pipelines in the after-Prepare warm-up, was not taken: that job runs before anything is
+recorded, and it builds only vertex-pulling bases without a vertex layout, which exact draws never
+use; building exact descriptors there would mean reimplementing the engine's descriptor construction.
+
+Routes: exact, render scale 1.0, 1,800 frames, first-use capture on in every run (as in the app). Clean
+is a fresh namespace (nothing recorded); warm reuses it; relist is a new namespace with the clean run's
+recorded list, translated sources and capture but no archive. Main is c2c4c45's host, prewarm is this
+change with `--prewarm` (budget 3,000 ms). Each was run twice in the order main then prewarm, then
+prewarm then main, because macOS keeps one system Metal compiler cache for every process. Two Odyssey
+routes (one main relist, one prewarm clean) ended with the same guest crash at the same address in
+frames 6 to 11 on both hosts and were repeated as a third pair. Values are the two runs. Split is time
+inside frames over 50 ms; first present is seconds from host start.
+
+| Route | Worst frame, ms | > 50 / > 100 ms | Translation / library / pipeline, ms | First present, s |
+|---|---|---|---|---|
+| Zelda clean, main | 14,363; 13,252 | 19/13; 19/12 | 4,500 / 16,136 / 3,600; 4,811 / 14,865 / 3,594 | 1.08; 0.77 |
+| Zelda clean, prewarm | 14,509; 5,780 | 18/14; 14/12 | 4,917 / 15,760 / 3,654; 4,265 / 2,390 / 3,535 | 0.76; 0.78 |
+| Zelda relist, main | 2,652; 3,031 | 22/10; 15/10 | 258 / 185 / 3,556; 345 / 208 / 4,131 | 0.81; 0.87 |
+| Zelda relist, prewarm | 367; 353 | 6/2; 6/1 | 7 / 0 / 0.2; 7 / 0 / 0.2 | 2.69; 2.86 |
+| Zelda warm, main | 566; 742 | 9/3; 11/4 | 257 / 149 / 61; 347 / 174 / 85 | 0.61; 0.69 |
+| Zelda warm, prewarm | 343; 404 | 5/1; 3/1 | 7 / 0 / 0.2; 8 / 0 / 0.2 | 1.13; 1.19 |
+| Odyssey clean, main | 264; 213 | 3/3; 3/2 | 157 / 254 / 85; 171 / 134 / 81 | 1.16; 0.92 |
+| Odyssey clean, prewarm | 204; 266 | 3/2; 3/3 | 167 / 117 / 84; 145 / 273 / 90 | 0.97; 1.06 |
+| Odyssey relist, main | 71; 69 | 2/0; 2/0 | 8 / 5 / 75; 10 / 5 / 66 | 0.92; 0.90 |
+| Odyssey relist, prewarm | 24; 26 | 0/0; 0/0 | 0 / 0 / 0; 0 / 0 / 0 | 0.95; 0.98 |
+| Odyssey warm, main | 37; 36 | 0/0; 0/0 | none | 0.85; 0.85 |
+| Odyssey warm, prewarm | 31; 30 | 0/0; 0/0 | none | 0.87; 0.91 |
+| Castlevania clean, main | 305; 294 | 5/4; 5/5 | 206 / 249 / 106; 196 / 251 / 100 | 1.86; 1.93 |
+| Castlevania clean, prewarm | 382; 261 | 10/8; 5/3 | 250 / 422 / 116; 116 / 9 / 112 | 1.86; 0.98 |
+| Castlevania relist, main | 282; 216 | 5/3; 5/3 | 18 / 6 / 123; 15 / 8 / 110 | 0.89; 1.00 |
+| Castlevania relist, prewarm | 226; 217 | 2/2; 2/2 | 0 / 0 / 0; 0 / 0 / 0 | 1.09; 0.92 |
+| Castlevania warm, main | 292; 215 | 3/2; 3/2 | 9 / 4 / 1; 8 / 2 / 1 | 0.80; 0.75 |
+| Castlevania warm, prewarm | 236; 214 | 2/2; 2/2 | 0 / 0 / 0; 0 / 0 / 0 | 1.18; 0.78 |
+
+The prewarm's own time before the first frame: Zelda relist 1.84 and 2.02 s for 469 recorded lines
+(264 shaders, 188 render and 17 compute pipelines, 177 bases compiled on two lanes), Zelda warm 0.17 to
+0.20 s (archive hits), Odyssey 0.09 s for 15 lines, Castlevania 0.17 to 0.27 s for 24. Every recorded
+shader and pipeline was claimed before the first draw, and the routes built no pipeline on the submit
+thread afterwards. Clean routes have nothing recorded, so prewarm and main do the same work there; their
+spread (Zelda's library time from 2.4 to 16 s) is Apple's compiler cache and shared load, not the
+change. Zelda's worst relist and warm frames are now its title frame's other work (about 0.3 s:
+guest work, 260 MB of first texture uploads, GPU), not shader waits. No route used a fallback pipeline
+or skipped a draw. Odyssey's captured frames 300, 1200 and 1800 are byte-identical between main and
+prewarm in clean, warm and relist, and between main runs; Castlevania and Zelda differ between two main
+runs as much as between main and prewarm (their openings animate with wall time).
+
+Bounded with prewarm (one Zelda relist) reached the 3,000 ms budget with 190 of 264 shaders: bounded is
+hybrid, so the prewarm also loads every vertex shader's pulling library. Its worst frame was 1,020 ms;
+the prewarm is meant for exact. Nothing here is a phone result: the phone has fewer cores, and its cold
+library compiles after an OS update would make the prewarm slower, up to its budget.
+
 # Scheduling and cache behavior
 
 Mapped shader registration copies control and code into bounded background requests.

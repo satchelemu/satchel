@@ -56,6 +56,35 @@ static void satchel_phone_prepare_program(const prog_t *program, uint32_t wanted
         serial_del(program->serial); epochs[identity] = @(satchel_phone_epoch);
     }
 }
+// Launch prewarm of recorded pipelines (DM_SATCHEL_PREWARM=1, set by -SatchelPipelinePrewarm YES).
+#define SATCHEL_PHONE_PREWARM 1   // graphics/prewarm.patch uses the hooks below only when this file is part of the build
+static int satchel_phone_prewarm_on(void) {
+    const char *v = getenv("DM_SATCHEL_PREWARM");   // set by the launch policy before a session starts
+    return v && !strcmp(v, "1") && satchel_phone_enabled() && satchel_phone_shader_prepare_known;
+}
+// Called only by the blocking prewarm on the submit thread, before the first submission encodes
+// anything (mtl_prepare): a key of the recorded lists that the shader map does not hold yet is
+// prepared from this device's capture of it, through the same preparation a draw makes, so the
+// prewarm builds the libraries and pipelines that draw would build. Keys without a capture (compute
+// programs, other stages) stay unknown and are built at first use, as before.
+static int satchel_phone_prewarm_known(NSString *key) {
+    if (!satchel_phone_prewarm_on() || key.length != 16) return 0;
+    int32_t stage = -1;
+    int result = satchel_phone_shader_prepare_known(key.UTF8String, &stage);
+    if (result <= 0 || (stage != 0 && stage != 1 && stage != 5)) return 0;
+    static NSString *const names[] = {@"vertex", @"pixel", @"geometry", @"hull", @"domain", @"compute"};
+    g_shmap[key] = names[stage];
+    if (result == 1) {
+        if (!satchel_phone_retired) satchel_phone_retired = [NSMutableArray array];
+        for (NSString *name in g_shcache.allKeys) if ([name hasPrefix:key]) {
+            if (satchel_phone_retired.count >= 4096) MDIE("phone shader revision budget exceeded");
+            [satchel_phone_retired addObject:g_shcache[name]]; [g_shcache removeObjectForKey:name];
+        }
+        satchel_phone_epoch++;
+        MLOG("PhoneShader key=%s stage=%d translated (prewarm)", key.UTF8String, stage);
+    }
+    return 1;
+}
 static uint32_t satchel_phone_fragment_inputs(const prog_t *program) {
     if (!program || !satchel_phone_shader_inputs) return 0;
     NSString *key = satchel_capture_key(program, 1, NULL);

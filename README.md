@@ -105,7 +105,9 @@ See [the posture test guide](docs/testing.md#duo-postures).
   visible artifacts possible. Experimental bounded mode starts translation and shader
   libraries when the game binds a program, so fewer frames wait for them; it changes no
   draw, and pipeline builds still wait. Game settings save the mode per title for the next
-  launch; exact stays the default. Optional warm-up now keeps a bounded queue fed,
+  launch; exact stays the default. An opt-in launch prewarm (`-SatchelPipelinePrewarm YES`,
+  measured on the Mac only) builds the pipelines a device recorded before the first frame,
+  for a bounded loading time; it does nothing on a game's first launch. Optional warm-up now keeps a bounded queue fed,
   reuses identical translated source, and uses extra lanes when foreground or
   charging, subject to thermal and power constraints. Phone speed measurements
   remain pending. See [warm-up measurements](NativeShaders/WarmupSpeed.md) and
