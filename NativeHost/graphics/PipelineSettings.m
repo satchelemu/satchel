@@ -4,6 +4,8 @@
 #import <Metal/Metal.h>
 #include <sys/sysctl.h>
 #include <math.h>
+#include <pthread.h>
+#include <time.h>
 
 static NSString *argument(NSArray<NSString *> *args, NSString *name) {
     NSUInteger at = [args indexOfObject:name];
@@ -62,8 +64,18 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     unsetenv("DM_SATCHEL_FRAME_TIMING");
     if ([argument(args, @"-SatchelGraphicsProfile") isEqualToString:@"YES"]) {
         setenv("DM_SATCHEL_FRAME_TIMING", "1", 1);
-        setenv("DM_SHADER_EVENTS", [[cacheRoot stringByAppendingPathComponent:@"shader-events.tsv"] fileSystemRepresentation], 1);
-        setenv("DM_PSO_SKIP_STATS", [[cacheRoot stringByAppendingPathComponent:@"pipeline-skips.tsv"] fileSystemRepresentation], 1);
+        // The engine rewrites graphics-frames.tsv at each launch; the event writers append. Start
+        // both event files fresh too, so a warm repeat under the same trial tag never mixes launches,
+        // and mark the launch (stall_attribution.py uses the events after the last mark).
+        NSString *events = [cacheRoot stringByAppendingPathComponent:@"shader-events.tsv"];
+        NSString *skips = [cacheRoot stringByAppendingPathComponent:@"pipeline-skips.tsv"];
+        [NSFileManager.defaultManager removeItemAtPath:skips error:nil];
+        struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now); uint64_t thread = 0; pthread_threadid_np(NULL, &thread);
+        NSString *mark = [NSString stringWithFormat:@"%llu\t0\t%llu\tlaunch\n", (unsigned long long)now.tv_sec * 1000000000ull + (unsigned long long)now.tv_nsec, (unsigned long long)thread];
+        if (![[mark dataUsingEncoding:NSUTF8StringEncoding] writeToFile:events options:NSDataWritingAtomic error:nil])
+            fprintf(stderr, "Satchel graphics: shader event file could not be reset\n");
+        setenv("DM_SHADER_EVENTS", events.fileSystemRepresentation, 1);
+        setenv("DM_PSO_SKIP_STATS", skips.fileSystemRepresentation, 1);
         setenv("DM_BOOTPROF", "1", 1);
         setenv("DM_SLOWFRAME", "1", 1);
         setenv("DM_PSO_WAITLOG", "1", 1);

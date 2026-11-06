@@ -4,7 +4,11 @@ payload-free shader events (DM_SHADER_EVENTS, shader-events.tsv). Mac routes and
 
 Frame boundaries are the host's own present events ('frame') on the event clock. Each submit-thread
 instant of a stalled frame goes to one category, innermost first, so nested time is never added twice.
-'other' is the rest of the frame: guest work, GPU waits, pacing, loading."""
+'other' is the rest of the frame: guest work, GPU waits, pacing, loading.
+
+One launch only: the app starts its event file with a 'launch' row at each launch (and earlier files
+appended launches), so only events after the last 'launch' row count, and events that still span more
+frames than the frame file holds are refused rather than misaligned."""
 import bisect, json, sys
 
 ORDER = [('library', {'library-use'}), ('translation', {'prepare-draw'}), ('lookahead-translation', {'prepare-lookahead'}),
@@ -27,9 +31,26 @@ def read_events(path):
     events = []
     for line in open(path).read().splitlines():
         ns, duration, thread, kind = line.split('\t'); events.append((int(ns), int(duration), int(thread), kind))
-    return events
+    return last_launch(events)
+
+def last_launch(events):
+    starts = [i for i, e in enumerate(events) if e[3] == 'launch']
+    return events[starts[-1] + 1:] if starts else events
+
+class MixedLaunches(ValueError):
+    pass
+
+def check_one_launch(timings, events):
+    # A frame file is rewritten at each launch; one launch has about one 'frame' event per row (the
+    # first present can precede row 1). Many more marks than rows means appended launches.
+    marks = sum(1 for e in events if e[3] == 'frame')
+    if marks > len(timings) + 16:
+        raise MixedLaunches(f'events hold {marks} frame marks for {len(timings)} frame rows: they span more than one launch '
+                            '(start each launch with a fresh event file, or a launch row)')
 
 def summarize(timings, events, last_frame=None, threshold=50, top=12):
+    events = last_launch(events)
+    check_one_launch(timings, events)
     submit = {e[2] for e in events if e[3] == 'submit-thread'}
     marks = [ns for ns, duration, thread, kind in events if kind == 'frame']
     spans = sorted((ns, ns + duration, RANK[kind]) for ns, duration, thread, kind in events if thread in submit and kind in RANK)
