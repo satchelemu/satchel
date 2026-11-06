@@ -85,11 +85,14 @@ NSDictionary<NSString *, NSNumber *> *SatchelControllerValues(GCExtendedGamepad 
     values[@"rx"] = @(g.rightThumbstick.xAxis.value); values[@"ry"] = @(g.rightThumbstick.yAxis.value);
     return values;
 }
-static NSArray *shortcutInputs(NSDictionary *p, BOOL hasHome) {
+static NSArray *shortcutInputs(NSDictionary *p, BOOL hasHome, BOOL hasOptions) {
     NSString *shortcut = p[@"shortcut"];
     if ([shortcut isEqual:@"off"]) return @[];
     if ([shortcut isEqual:@"home"] && hasHome) return @[GCInputButtonHome];
-    return @[GCInputButtonMenu, GCInputButtonOptions];
+    if (hasOptions) return @[GCInputButtonMenu, GCInputButtonOptions];
+    // A compact pad without Home or Options still opens the menu: hold Menu alone.
+    // Menu keeps reaching the game as Plus; only the 0.75 second hold opens the menu.
+    return @[GCInputButtonMenu];
 }
 static float clean(id value) {
     float f = [value respondsToSelector:@selector(floatValue)] ? [value floatValue] : 0;
@@ -102,8 +105,11 @@ static BOOL pressed(NSDictionary *values, NSString *input) {
     return [flag isKindOfClass:NSNumber.class] ? [flag boolValue] : clean(values[input]) >= 0.5;
 }
 NSDictionary *SatchelMapController(NSDictionary *values, NSDictionary *profile, BOOL hasHome, NSMutableDictionary *state) {
+    return SatchelMapControllerElements(values, profile, hasHome, YES, state);
+}
+NSDictionary *SatchelMapControllerElements(NSDictionary *values, NSDictionary *profile, BOOL hasHome, BOOL hasOptions, NSMutableDictionary *state) {
     if (!valid(profile)) profile = defaults(@"Generic");
-    NSArray *inputs = shortcutInputs(profile, hasHome);
+    NSArray *inputs = shortcutInputs(profile, hasHome, hasOptions);
     BOOL held = inputs.count > 0;
     for (NSString *input in inputs) held &= pressed(values, input);
     BOOL menu = pressed(values, GCInputButtonMenu), options = pressed(values, GCInputButtonOptions);
@@ -112,7 +118,7 @@ NSDictionary *SatchelMapController(NSDictionary *values, NSDictionary *profile, 
     if (!menu && !options) [state removeObjectForKey:@"chordTaken"];
     if (inputs.count == 2 && held) state[@"chordTaken"] = @YES;
     NSMutableArray *reservedInputs = [NSMutableArray array];
-    if (inputs.count == 1) [reservedInputs addObjectsFromArray:inputs];
+    if (inputs.count == 1 && [inputs[0] isEqual:GCInputButtonHome]) [reservedInputs addObjectsFromArray:inputs];
     if ([state[@"chordTaken"] boolValue])
         [reservedInputs addObjectsFromArray:@[GCInputButtonMenu, GCInputButtonOptions]];
 
@@ -153,7 +159,8 @@ static NSMutableDictionary *controllerState(GCExtendedGamepad *pad) {
     return state;
 }
 NSDictionary *SatchelReadController(GCExtendedGamepad *pad) {
-    return SatchelMapController(SatchelControllerValues(pad), SatchelControllerProfile(activeTitle, SatchelControllerCategory(pad.controller)), pad.buttonHome != nil, controllerState(pad));
+    return SatchelMapControllerElements(SatchelControllerValues(pad), SatchelControllerProfile(activeTitle, SatchelControllerCategory(pad.controller)),
+        pad.buttonHome != nil, pad.buttonOptions != nil, controllerState(pad));
 }
 BOOL SatchelControllerHold(NSMutableDictionary *s, BOOL held, NSTimeInterval now) {
     if (!held) { [s removeAllObjects]; return NO; }

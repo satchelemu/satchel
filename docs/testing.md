@@ -424,7 +424,8 @@ preferences domain and no game files. `NativeHost/controllers/check.py` retains 
 synthetic host HID and rumble checks.
 
 The simulator journeys are `testControlsSettingsAndPersistence`,
-`testControlsLibraryDetailAndBack` and `testControlsMenuShortcutAndLayout`. Test-only buttons
+`testControlsSettingsFocusAndDiagnostics`, `testControlsLibraryDetailAndBack` and
+`testControlsMenuShortcutAndLayout`. Test-only buttons
 drive a GameController snapshot and invoke the value-change callback installed by the
 native host. Plus/Minus taps and navigation are short pulses; the stick and full chord
 stay held until the journey explicitly releases them, so slow accessibility queries
@@ -458,11 +459,26 @@ including short taps. This behavior is shown in Settings. Off restores every map
 Navigation uses physical bottom for accept and right for back, independent of game mappings.
 A stick must pass 0.6 to move and return below 0.3 to rearm the same direction. Held inputs
 do not repeat. The highlighted menu slider advances in steps when accepted, wrapping at its
-maximum. The library, game actions and pause menu expose controller focus; system file
-pickers and detailed settings editors still use touch.
+maximum. The library, game actions, Settings sections, Add games and the pause menu expose
+controller focus, and B closes Settings and Add games; system file pickers and detailed
+settings editors still use touch. Navigation reads any controller profile, not only the
+extended gamepad. A pad with neither Home nor Options opens the menu by holding Menu for
+0.75 seconds; Menu still reaches the game as Plus.
+
+Real-hardware diagnosis: Settings > Controllers > "What iOS reports" lists every controller
+GameController enumerates, with its vendor name, product category, the Satchel category it
+maps to, its profile, optional elements, live pressed buttons, sticks and a count of input
+changes, plus any keyboard or mouse iOS reports and this build's Info.plist declaration.
+"No game controller reported" means iOS never handed the pad to Satchel (pairing or pad
+mode), not a mapping problem. The app appends connection events and each pad's first input
+to `Documents/controller-log.txt` (last 200 lines), and the game host log has one
+`controller '<name>' seen: category '<category>', <profile>` line per reported pad.
 
 Orchestrator phone checks, with separate phone authorization:
 
+0. Open Settings > Controllers with the pad connected. "What iOS reports" must list it, and
+   pressing buttons must change "Pressed" and the input count. Copy
+   `Documents/controller-log.txt` and the host log if anything is missing.
 1. Pair Xbox, DualSense and Pro Controller in turn. In Settings > Controllers, choose the
    matching category. Confirm each named button lights in the tester and both stick dots
    track the hardware. Set a dead zone and check drift is suppressed without losing full tilt.

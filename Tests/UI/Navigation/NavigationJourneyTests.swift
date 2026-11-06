@@ -85,6 +85,33 @@ final class NavigationJourneyTests: XCTestCase {
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Controller settings"; shot.lifetime = .keepAlways; add(shot)
     }
 
+    /// Settings was not a controller scope, so a real pad could neither pick a section nor
+    /// reach the diagnostics. Focus must work there by default, with no setting changed.
+    func testControlsSettingsFocusAndDiagnostics() throws {
+        launchControls("settings")
+        try pad("down")
+        let focus = app.staticTexts["controller-focus"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        for _ in 0..<8 {
+            if focus.label == "settings-page-Controllers" { break }
+            try pad("down")
+        }
+        XCTAssertEqual(focus.label, "settings-page-Controllers")
+        try pad("accept")
+        XCTAssertTrue(app.staticTexts["settings-page-Controllers"].waitForExistence(timeout: 5))
+        let device = app.descendants(matching: .any)["controller-diagnostic-0"].firstMatch
+        XCTAssertTrue(device.waitForExistence(timeout: 5), "What iOS reports must list the connected controller")
+        XCTAssertTrue(device.label.contains("Profile: extended gamepad"), device.label)
+        XCTAssertTrue(app.descendants(matching: .any)["controller-diagnostic-plist"].firstMatch.exists)
+        try pad("stick")
+        let pressed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            device.label.contains("Left Thumbstick 0.80, 0.40")
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [pressed], timeout: 3), .completed, device.label)
+        try pad("clear")
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Controller diagnostics"; shot.lifetime = .keepAlways; add(shot)
+    }
+
     func testControlsLibraryDetailAndBack() throws {
         launchControls("home")
         try pad("down")

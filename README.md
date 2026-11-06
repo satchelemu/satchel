@@ -57,7 +57,10 @@ Measured on one iPhone Duo (A20 Pro, iOS 27.1). Dates are in the compatibility l
 - Controller profiles use GameController input names, saved as JSON per product
   category beside each title's player settings, with global defaults. The settings
   page includes live inputs, stick visualization and a radial dead zone. D-pad and
-  stick edges move focus through the library, game actions and pause menu.
+  stick edges move focus through the library, game actions, Settings, Add games and the
+  pause menu. "What iOS reports" in Settings > Controllers shows each connected pad's
+  name, category, profile and live presses, to tell a pad iOS never handed to the app
+  from one Satchel misreads.
 - Xbox, DualSense and Pro Controller support. Touch controls hide when a controller is
   connected.
 

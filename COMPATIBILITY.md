@@ -232,7 +232,9 @@ Controller remapping and navigation do not change the game ratings above. The co
 checks use synthetic GameController snapshots, not gameplay. Plus and Minus remain
 normal game inputs until both are pressed for the menu chord; Home stays reserved.
 Physical Xbox, DualSense and Pro Controller acceptance, audible volume changes and touch layout on the phone
-remain separate checks in [the test guide](docs/testing.md).
+remain separate checks in [the test guide](docs/testing.md). The first physical pad tried
+(an Xbox-style Bluetooth controller, 2026-11-06) did nothing in the app or in Castlevania;
+Settings > Controllers now shows what iOS reports for each pad to diagnose that on the phone.
 
 The unmerged memory-pressure candidate has separate Mac scene-memory evidence
 for Castlevania, Odyssey and TOTK. It does not change these phone ratings or prove

@@ -118,6 +118,8 @@ struct SettingsView: View {
             .background { SatchelBackdrop(glow: page.tint) }
             .satchelMenuStatus()
         }
+        // A controller picks a section and B closes Settings, as on the other screens.
+        .controllerNavigation(enabled: !pickingKeys && !showingInstallGuide && pendingDelete == nil, back: { dismiss() })
         .sheet(isPresented: $pickingKeys) {
             VStack(spacing: 0) {
                 HStack {
@@ -191,6 +193,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.97, haptic: false))
                 .accessibilityIdentifier("settings-" + item.rawValue)
+                .controllerAction("settings-page-" + item.rawValue) { Haptics.tick(); page = item }
             }
             Spacer()
         }

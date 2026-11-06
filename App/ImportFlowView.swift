@@ -37,6 +37,8 @@ struct ImportFlowView: View {
             .background { SatchelBackdrop(glow: SatchelTheme.tide) }
             .satchelMenuStatus()
         }
+        // B closes this screen with a controller; the Files picker itself is system UI.
+        .controllerNavigation(enabled: !picking, back: { dismiss() })
         // The + entry points clear the last result; the home card's Details opens this screen
         // with the result still showing.
         .onChange(of: library.lastOutcome) { _, outcome in
@@ -117,6 +119,7 @@ struct ImportFlowView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("choose-files")
+                .controllerAction("import-choose-files") { picking = true }
                 Text("Big games take a few minutes to copy. The import keeps going in the background if you switch apps.")
                     .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                     .fixedSize(horizontal: false, vertical: true)

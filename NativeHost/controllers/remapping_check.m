@@ -85,6 +85,26 @@ int main(int argc, const char **argv) {
         p[@"shortcut"] = @"off";
         r = SatchelMapController(@{GCInputButtonMenu: @1, GCInputButtonOptions: @1}, p, YES, chord);
         assert([r[@"buttons"] unsignedLongLongValue] == ((1ull << 10) | (1ull << 11)) && ![r[@"menuHeld"] boolValue]);
+        // A compact pad with neither Home nor Options (real third-party hardware): holding Menu
+        // alone opens the menu after 0.75 seconds, and Menu still reaches the game as Plus.
+        p[@"shortcut"] = @"home";
+        [chord removeAllObjects];
+        r = SatchelMapControllerElements(@{GCInputButtonMenu: @1}, p, NO, NO, chord);
+        assert([r[@"buttons"] unsignedLongLongValue] == (1ull << 10) && [r[@"menuHeld"] boolValue]);
+        NSMutableDictionary *menuHold = [NSMutableDictionary dictionary];
+        assert(!SatchelControllerHold(menuHold, [r[@"menuHeld"] boolValue], 0));
+        assert(SatchelControllerHold(menuHold, [r[@"menuHeld"] boolValue], 0.75));
+        r = SatchelMapControllerElements(@{}, p, NO, NO, chord);
+        assert([r[@"buttons"] unsignedLongLongValue] == 0 && ![r[@"menuHeld"] boolValue] && [r[@"shortcutReleased"] boolValue]);
+        // With Options present, Menu alone is an ordinary Plus press and the chord is unchanged.
+        r = SatchelMapControllerElements(@{GCInputButtonMenu: @1}, p, NO, YES, chord);
+        assert([r[@"buttons"] unsignedLongLongValue] == (1ull << 10) && ![r[@"menuHeld"] boolValue]);
+        SatchelMapControllerElements(@{}, p, NO, YES, chord);
+        // Missing optional elements read as released, never as a press or a crash.
+        r = SatchelMapControllerElements(@{GCInputButtonA: @1, GCInputButtonHome: @0, GCInputButtonOptions: @0,
+            GCInputLeftThumbstickButton: @0, GCInputRightThumbstickButton: @0}, p, NO, NO, chord);
+        assert([r[@"buttons"] unsignedLongLongValue] == (1ull << 9) && ![r[@"menuHeld"] boolValue]);
+        p[@"shortcut"] = @"off";
         assert([SatchelControllerProfile(@"fixture-a", @"DualSense")[@"deadZone"] doubleValue] == 0.15);
         SatchelResetControllerProfile(@"fixture-a", @"Xbox");
         assert([SatchelControllerProfile(@"fixture-a", @"Xbox")[@"deadZone"] doubleValue] == 0.2);
@@ -108,6 +128,11 @@ int main(int argc, const char **argv) {
         assert([SatchelControllerEdge(state, 0, 1, YES, NO) isEqual:@""]);
         // GameController's supported synthetic snapshot traverses the same reader as hardware.
         GCController *controller = [GCController controllerWithExtendedGamepad];
+        // A pad with no vendor name and no known product category still gets a full
+        // position-based mapping (Generic), never a name match requirement.
+        NSArray *labelledCategories = @[@"Pro Controller", @"DualSense"];
+        assert(![labelledCategories containsObject:SatchelControllerCategory(controller)]);
+        assert([SatchelControllerProfile(@"", SatchelControllerCategory(controller))[@"mapping"][GCInputButtonA] isEqual:@"B"]);
         [controller.extendedGamepad.buttonA setValue:1];
         assert([SatchelReadController(controller.extendedGamepad)[@"buttons"] unsignedLongLongValue] == (1ull << 1));
         [controller.extendedGamepad.buttonA setValue:0];
@@ -157,6 +182,6 @@ int main(int argc, const char **argv) {
         SatchelControllerSetTitle(@"");
         [d removeObjectForKey:@"SatchelPlayerSettings.HARDWARE-FIXTURE"];
         [d synchronize];
-        puts("PASS: remapping, category defaults, title isolation, validation, radial dead zone, shortcut suppression, hold latch, focus edges, synthetic GameController");
+        puts("PASS: remapping, category defaults, title isolation, validation, radial dead zone, shortcut suppression, hold latch, focus edges, synthetic GameController, compact pads without Home or Options");
     }
 }

@@ -14,6 +14,8 @@ void SatchelControllerSetTitle(NSString *title);
 NSDictionary<NSString *, NSNumber *> *SatchelControllerValues(GCExtendedGamepad *pad);
 // Keep one state dictionary per controller through input callbacks and menu polls.
 NSDictionary *SatchelMapController(NSDictionary<NSString *, NSNumber *> *values, NSDictionary *profile, BOOL hasHome, NSMutableDictionary *state);
+// The same, for a controller that may lack the optional Options button (hasOptions NO).
+NSDictionary *SatchelMapControllerElements(NSDictionary<NSString *, NSNumber *> *values, NSDictionary *profile, BOOL hasHome, BOOL hasOptions, NSMutableDictionary *state);
 NSDictionary *SatchelReadController(GCExtendedGamepad *pad);
 BOOL SatchelControllerMenuHeld(GCExtendedGamepad *pad, NSTimeInterval now);
 // Pure edge/hold state also used by synthetic input checks.

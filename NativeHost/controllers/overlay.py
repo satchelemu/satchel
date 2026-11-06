@@ -118,6 +118,33 @@ def gamepad(text):
 // Refresh the app-owned slot table after a guest session resets its HID state.
 void satchel_gamepad_refresh(void) { [g_view padsChanged:nil]; }
 '''
+    # Name every controller iOS reports, including one the game cannot use, so the host
+    # log shows whether a real pad reached the app and with which profile.
+    text = replace(text, '''static BOOL pads_slotted(GCController *gone) {
+    NSArray<GCController *> *now = GCController.controllers; char nb[16];''', '''static BOOL pads_slotted(GCController *gone) {
+    NSArray<GCController *> *now = GCController.controllers; char nb[16];
+    static NSHashTable<GCController *> *satchel_named;
+    if (!satchel_named) satchel_named = [NSHashTable weakObjectsHashTable];
+    for (GCController *c in now) if (c != gone && ![satchel_named containsObject:c]) {
+        [satchel_named addObject:c];
+        LOG("controller '%s' seen: category '%s', %s", pad_name(c), c.productCategory.UTF8String ?: "?",
+            c.extendedGamepad ? "extended gamepad" : "no extended gamepad profile, not used in game");
+    }''')
+    # A controller that connected or reconnected while Satchel was in the background is
+    # picked up on return, and one that becomes current without a slot is added.
+    text = replace(text, 'void dm_gamepad_active(void) { dispatch_async(dispatch_get_main_queue(), ^{ for (GCController *c in GCController.controllers) dm_motion_rearm(c); }); }',
+        'void dm_gamepad_active(void) { dispatch_async(dispatch_get_main_queue(), ^{ [g_view padsChanged:nil]; for (GCController *c in GCController.controllers) dm_motion_rearm(c); }); }')
+    text = replace(text, '        [nc addObserver:self selector:@selector(padsChanged:) name:GCControllerDidDisconnectNotification object:nil];\n',
+        '''        [nc addObserver:self selector:@selector(padsChanged:) name:GCControllerDidDisconnectNotification object:nil];
+        [nc addObserver:self selector:@selector(padBecameCurrent:) name:GCControllerDidBecomeCurrentNotification object:nil];
+''')
+    text = replace(text, '- (void)padsChanged:(NSNotification *)note {\n    if (!NSThread.isMainThread) {', '''- (void)padBecameCurrent:(NSNotification *)note {
+    GCController *c = note.object;
+    if (!NSThread.isMainThread) { dispatch_async(dispatch_get_main_queue(), ^{ [self padBecameCurrent:note]; }); return; }
+    if (!g_merge && c.extendedGamepad && pad_slot_of(&g_slots, (__bridge const void *)c) < 0) [self padsChanged:nil];
+}
+- (void)padsChanged:(NSNotification *)note {
+    if (!NSThread.isMainThread) {''')
     text = replace(text, 'void dm_gamepad_reset(void) {', 'void dm_gamepad_reset(void) {\n    void satchel_hid_release(void); satchel_hid_release();')
     # Serialize GameController input callbacks with slot mutations and UIKit.
     text = replace(text, 'static void read_pad(GCExtendedGamepad *g) {', '''static void read_pad(GCExtendedGamepad *g) {

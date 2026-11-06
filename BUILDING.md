@@ -528,14 +528,21 @@ GameController SDK. The simulator suite compiles the production controller overl
 against synthetic snapshots, without game data. Use a dedicated simulator through
 `SATCHEL_UI_SIMULATOR`; the `controls` worker uses its own “Satchel controls” iPhone Duo
 on iOS 27.1. `SATCHEL_UI_ONLY_TESTING` can select `testControlsSettingsAndPersistence`,
-`testControlsLibraryDetailAndBack` and `testControlsMenuShortcutAndLayout`.
+`testControlsSettingsFocusAndDiagnostics`, `testControlsLibraryDetailAndBack` and
+`testControlsMenuShortcutAndLayout`.
 
 The small macOS remapping check is `NativeHost/controllers/check_remapping.py`, with
 `SATCHEL_OUT` set to the worker's output directory. Run it through
 `NativePrepare/guard.py` with a worker-owned `ANYGAME_OUT` directory. The existing
 `NativeHost/controllers/check.py` additionally checks HID, rumble and player settings.
 The remapping suite covers short Plus/Minus taps, complete-chord suppression through
-release, the 0.75 second hold and reserved Home input.
+release, the 0.75 second hold, reserved Home input, and the hold-Menu shortcut for a pad
+without Home or Options. `NativeHost/controllers/check_hardware.py` (no build, no
+hardware) checks the paths only a real paired pad takes: discovery at launch and on
+return, the host log line for every reported controller, input independent of vendor
+name and category, focus on every full-screen screen, the diagnostics panel and the
+Info.plist keys. `NativeHost/controllers/verify_build.py` checks the built app's
+Info.plist and diagnostics.
 See [docs/testing.md](docs/testing.md) for hardware acceptance steps. Simulator results
 establish UI behavior and synthetic input routing, not physical controller behavior.
 

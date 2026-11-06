@@ -30,6 +30,7 @@ struct ControllersView: View {
                     .font(.caption.monospaced()).frame(minHeight: 20)
                     .accessibilityIdentifier("controller-live-input")
             }
+            diagnostics
             SatchelPanel(title: "Stick dead zone") {
                 Text("\(Int(deadZone * 100))% (both sticks)").accessibilityIdentifier("controller-dead-zone-value")
                 Slider(value: Binding(get: { deadZone }, set: { deadZone = $0; save() }), in: 0...0.5, step: 0.01).accessibilityLabel("Stick dead zone")
@@ -42,7 +43,7 @@ struct ControllersView: View {
                     Text("Menu + Options").tag("menu-options")
                     Text("Off").tag("off")
                 }.accessibilityIdentifier("controller-shortcut")
-                Text("Home is reserved. Without Home, use Menu + Options. Each button works normally alone. Once both are down, both stay blocked until both are released; hold them together for 0.75 seconds to open the menu. The first button can reach the game before the second is pressed. Off disables the shortcut.")
+                Text("Home is reserved. Without Home, use Menu + Options. Each button works normally alone. Once both are down, both stay blocked until both are released; hold them together for 0.75 seconds to open the menu. The first button can reach the game before the second is pressed. A controller with neither Home nor Options opens the menu by holding Menu alone, which still reaches the game as Plus. Off disables the shortcut.")
                     .font(.caption).foregroundStyle(SatchelTheme.textDim)
             }
             SatchelPanel(title: "Physical input → Switch button") {
@@ -59,8 +60,46 @@ struct ControllersView: View {
             }.accessibilityIdentifier("controller-reset")
             if let error { Text(error).foregroundStyle(.red) }
         }
-        .onAppear { load(); input.start() }
+        .onAppear { load(); input.showDiagnostics(true) }
+        .onDisappear { input.showDiagnostics(false) }
         .onChange(of: category) { _, _ in load() }
+    }
+    /// Exactly what iOS reports, so a pad that does nothing can be told apart from one
+    /// that iOS never handed to the app.
+    private var diagnostics: some View {
+        SatchelPanel(title: "What iOS reports", tint: SatchelTheme.tide) {
+            if input.devices.isEmpty {
+                Text("No game controller reported. Check that Settings > Bluetooth shows it connected and that the controller is in its Xbox or iOS mode, then press a button.")
+                    .accessibilityIdentifier("controller-diagnostic-none")
+            }
+            ForEach(Array(input.devices.enumerated()), id: \.element.id) { index, device in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(device.name + (device.current ? " (current)" : "")).font(.headline)
+                    Text("iOS category: \(device.productCategory). Satchel uses: \(device.satchelCategory). Profile: \(device.profile).")
+                    Text(device.details).foregroundStyle(SatchelTheme.textDim)
+                    Text("Pressed: " + (device.pressed.isEmpty ? "nothing" : device.pressed)).font(.caption.monospaced())
+                    Text(device.axes).font(.caption.monospaced())
+                    Text("Input changes seen: \(device.changes)").font(.caption.monospaced())
+                }
+                .font(.caption)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("controller-diagnostic-\(index)")
+            }
+            if !input.otherInputs.isEmpty { Text(input.otherInputs).font(.caption) }
+            Text(Self.declaration).font(.caption).foregroundStyle(SatchelTheme.textDim)
+                .accessibilityIdentifier("controller-diagnostic-plist")
+            if !input.history.isEmpty {
+                Text(input.history.joined(separator: "\n")).font(.caption2.monospaced()).foregroundStyle(SatchelTheme.textDim)
+                    .accessibilityIdentifier("controller-diagnostic-history")
+            }
+        }
+    }
+    /// The installed build's own Info.plist, so a stale or hand-edited install is visible.
+    static var declaration: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let interaction = (info["GCSupportsControllerUserInteraction"] as? Bool) == true ? "yes" : "missing"
+        let profiles = (info["GCSupportedGameControllers"] as? [[String: Any]])?.compactMap { $0["ProfileName"] as? String } ?? []
+        return "This build declares controller support: \(interaction); profiles: \(profiles.isEmpty ? "missing" : profiles.joined(separator: ", "))."
     }
     private func load() {
         let profile = SatchelControllerProfile(titleID, category)

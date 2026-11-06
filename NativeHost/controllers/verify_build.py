@@ -25,6 +25,11 @@ for name in ['satchel_hid_controllers', 'satchel_hid_suppress_player', 'satchel_
 local_symbols = subprocess.check_output(['nm', binary], text=True).splitlines()
 for name in ['SatchelReadController', 'SatchelSaveControllerProfile', 'SatchelControllerMenuHeld', 'SatchelControllerEdge']:
     assert any(line.split()[-2:] in [['t', '_' + name], ['T', '_' + name]] for line in local_symbols), name
+# Real-hardware diagnostics: the host log names every controller iOS reports, and the app
+# keeps a connection log the Mac can read (App/ControllerNavigation.swift).
+data = binary.read_bytes()
+for marker in [b"controller '%s' seen: category", b'controller-log.txt', b'GCSupportsControllerUserInteraction']:
+    assert marker in data, marker
 linked = subprocess.check_output(['otool', '-L', binary], text=True)
 assert '/GameController.framework/' in linked and '/CoreHaptics.framework/' in linked
 # The complete pinned source, including its MIT notice, remains pristine.
