@@ -5,17 +5,8 @@ private struct PreparedManifest: Decodable {
     struct FileRecord: Decodable { let bytes: UInt64; let sha256: String }
     let addOnContent: [PreparedAddOn]?
     let contentVersion: UInt32?
-    let recipe: NativePreparationRecipe?
-    let preparedProfile: NativeGameProfile?
-    let signingStatus: String?
-    let format: Int
     let titleID: String
-    let version: String
-    let enginePin: String
-    let shaderChain: String
-    let shaderInputs: String
     let modules: [String]
-    let environment: [String: String]
     let files: [String: FileRecord]
 }
 
@@ -54,6 +45,38 @@ enum PreparedPackage {
         guard fm.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else { throw refuse("No package named \(name).") }
         try fm.removeItem(at: root)
         try? fm.removeItem(at: stampURL(for: root))
+    }
+
+    /// After a successful Prepare: checks `root` with the launch verifier again, then removes
+    /// every other package folder of the same title with `delete(named:)`. Folders whose
+    /// manifest cannot be read and those in `keeping` (in use by a running job) are left alone.
+    /// Throws, removing nothing, when `root` does not verify. Returns one line per folder that
+    /// could not be removed.
+    static func removeReplaced(by root: URL, keeping: Set<String> = [], profiles: [NativeGameProfile] = NativeGameProfile.all,
+                               cancelled: () -> Bool = { false }) throws -> [String] {
+        _ = try verify(root: root, profiles: profiles, cancelled: cancelled)
+        let fm = FileManager.default
+        let parent = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("PreparedGames", isDirectory: true)
+        func titleID(_ folder: URL) -> String? {
+            let url = folder.appendingPathComponent("manifest.json")
+            guard let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? NSNumber, size.intValue <= 32 * 1024 * 1024,
+                  let data = try? Data(contentsOf: url),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let id = object["titleID"] as? String, !id.isEmpty else { return nil }
+            return id.uppercased()
+        }
+        guard root.standardizedFileURL.deletingLastPathComponent().path == parent.standardizedFileURL.path,
+              let title = titleID(root) else {
+            throw NSError(domain: "PreparedPackage", code: 2, userInfo: [NSLocalizedDescriptionKey: "Not a package in Documents/PreparedGames."])
+        }
+        var failures: [String] = []
+        let folders = try fm.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+        for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let name = folder.lastPathComponent
+            guard name != root.lastPathComponent, !keeping.contains(name), titleID(folder) == title else { continue }
+            do { try delete(named: name) } catch { failures.append(name + ": " + error.localizedDescription) }
+        }
+        return failures
     }
 }
 
@@ -94,28 +117,12 @@ extension PreparedPackage {
         guard let size = attrs[.size] as? NSNumber, size.intValue <= 32 * 1024 * 1024 else {
             throw invalid("Prepared manifest is too large.")
         }
-        let manifest = try JSONDecoder().decode(PreparedManifest.self, from: Data(contentsOf: manifestURL))
-        guard manifest.signingStatus == nil || manifest.signingStatus == "signed" else {
-            throw invalid("Prepared game needs signature. Sign the container before launching.")
-        }
-        let profile: NativeGameProfile
-        if manifest.format == 2 {
-            guard manifest.signingStatus == "signed", let recipe = manifest.recipe else { throw invalid("Native package requires a signed container and a preparation recipe.") }
-            guard manifest.contentVersion == recipe.contentVersion else { throw invalid("DLC content version differs from the preparation recipe.") }
-            profile = try recipe.profile(profiles: profiles)
-            guard manifest.preparedProfile == profile else { throw invalid("Prepared profile differs from its bounded recipe.") }
-        } else {
-            guard manifest.format == 1, manifest.recipe == nil,
-                  let reviewed = NativeGameProfile.find(titleID: manifest.titleID, version: manifest.version, in: profiles) else {
-                throw invalid(NativeGameProfile.unsupportedMessage)
-            }
-            profile = reviewed
-        }
-        guard manifest.version == profile.version, manifest.titleID == profile.titleID, manifest.enginePin == profile.enginePin,
-              manifest.shaderChain == profile.shaderChain, manifest.shaderInputs == profile.shaderInputs,
-              manifest.modules == profile.modules, manifest.environment == profile.environment,
-              manifest.files["profile.tsv"]?.sha256 == profile.profileSHA256,
-              manifest.files.count < 250_000 else {
+        let manifestData = try Data(contentsOf: manifestURL)
+        let manifest = try JSONDecoder().decode(PreparedManifest.self, from: manifestData)
+        // Signing, recipe and engine identity: the same check the library uses to mark a
+        // package made by another engine as needing Prepare again (PreparedIdentity).
+        let profile = try JSONDecoder().decode(PreparedIdentity.self, from: manifestData).profile(in: profiles)
+        guard manifest.files.count < 250_000 else {
             throw invalid("Prepared package does not match the reviewed profile for \(profile.name) \(profile.version).")
         }
         let nros = profile.nroBuildIDs ?? [:]

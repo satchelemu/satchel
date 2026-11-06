@@ -38,6 +38,64 @@ struct NativeGameProfile: Codable, Sendable, Equatable {
     }
 }
 
+/// The manifest fields that bind a prepared package to this build: signing, the recipe or
+/// reviewed profile, the engine pin, shader chain and inputs, modules, environment and runtime
+/// profile. `PreparedPackage.verify` checks them before reading any package file, and the
+/// library uses the same check to tell a current package from one an older engine made.
+struct PreparedIdentity: Decodable {
+    struct FileRecord: Decodable { let sha256: String }
+    let format: Int
+    let signingStatus: String?
+    let contentVersion: UInt32?
+    let recipe: NativePreparationRecipe?
+    let preparedProfile: NativeGameProfile?
+    let titleID: String
+    let version: String
+    let enginePin: String
+    let shaderChain: String
+    let shaderInputs: String
+    let modules: [String]
+    let environment: [String: String]
+    let files: [String: FileRecord]
+
+    /// The profile this package was made for, or the launch verifier's refusal.
+    func profile(in profiles: [NativeGameProfile] = NativeGameProfile.all) throws -> NativeGameProfile {
+        func invalid(_ message: String) -> NSError {
+            NSError(domain: "PreparedPackage", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        guard signingStatus == nil || signingStatus == "signed" else {
+            throw invalid("Prepared game needs signature. Sign the container before launching.")
+        }
+        let profile: NativeGameProfile
+        if format == 2 {
+            guard signingStatus == "signed", let recipe else { throw invalid("Native package requires a signed container and a preparation recipe.") }
+            guard contentVersion == recipe.contentVersion else { throw invalid("DLC content version differs from the preparation recipe.") }
+            profile = try recipe.profile(profiles: profiles)
+            guard preparedProfile == profile else { throw invalid("Prepared profile differs from its bounded recipe.") }
+        } else {
+            guard format == 1, recipe == nil,
+                  let reviewed = NativeGameProfile.find(titleID: titleID, version: version, in: profiles) else {
+                throw invalid(NativeGameProfile.unsupportedMessage)
+            }
+            profile = reviewed
+        }
+        guard version == profile.version, titleID == profile.titleID, enginePin == profile.enginePin,
+              shaderChain == profile.shaderChain, shaderInputs == profile.shaderInputs,
+              modules == profile.modules, environment == profile.environment,
+              files["profile.tsv"]?.sha256 == profile.profileSHA256 else {
+            throw invalid("Prepared package does not match the reviewed profile for \(profile.name) \(profile.version).")
+        }
+        return profile
+    }
+
+    /// True when a manifest passes `profile(in:)`, so Play can start the package without
+    /// preparing it again. The package's files are checked at launch, not here.
+    static func isCurrent(_ manifest: Data, profiles: [NativeGameProfile] = NativeGameProfile.all) -> Bool {
+        guard let identity = try? JSONDecoder().decode(Self.self, from: manifest) else { return false }
+        return (try? identity.profile(in: profiles)) != nil
+    }
+}
+
 /// Versioned, bounded facts, never arbitrary environment or runtime profile text.
 /// Defaults follow the pinned MIT nxnative game.py and profile_guess.py.
 struct NativePreparationRecipe: Codable, Sendable {

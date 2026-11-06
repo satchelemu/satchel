@@ -21,6 +21,7 @@ final class GameArtworkStore {
     var infos: [String: GameInfo] = [:]
     func info(_ item: HomebrewItem) -> GameInfo? { infos[item.id] }
     func preparedPackage(for item: HomebrewItem) -> ShelfPrepared? { nil }
+    func newestPackage(for item: HomebrewItem) -> ShelfPrepared? { nil }
 """+method+'}\n')
 (out/'NativeGameProfiles.json').write_bytes((root/'App/NativeGameProfiles.json').read_bytes())
 (out/'Bridge.h').write_text(''.join('#include "'+str(root/'Core'/n)+'"\n' for n in ['SwitchCrypto.h','SwitchStorage.h','SwitchCompression.h','NSOLoader.h']))

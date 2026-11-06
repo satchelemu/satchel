@@ -185,6 +185,9 @@ struct PreparedGame: Equatable {
     var date = Date.distantPast
     /// The phone's Prepare records the content version and build IDs; Mac-made packages do not.
     var preparedOnPhone = false
+    /// Passes this build's engine identity check (`PreparedIdentity`). A package an older engine
+    /// made is not current: launch refuses it, so it has to be prepared again.
+    var current = false
 
     static func scan() -> [PreparedGame] {
         struct Manifest: Decodable { let titleID: String; let version: String; let contentVersion: UInt32?; let buildIDs: [String: String]? }
@@ -199,7 +202,8 @@ struct PreparedGame: Equatable {
                   let id = UInt64(manifest.titleID, radix: 16) else { return nil }
             let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
             return PreparedGame(folder: folder.lastPathComponent, applicationID: id, version: manifest.version, date: date,
-                                preparedOnPhone: manifest.contentVersion != nil || manifest.buildIDs != nil)
+                                preparedOnPhone: manifest.contentVersion != nil || manifest.buildIDs != nil,
+                                current: PreparedIdentity.isCurrent(data))
         }
     }
 }
@@ -252,7 +256,7 @@ final class GameArtworkStore: ObservableObject {
     }
     func image(_ item: HomebrewItem) -> UIImage? {
         if let image = images[item.id] { return image }
-        guard let id = item.preparedSource?.titleID ?? preparedPackage(for: item)?.applicationID else { return nil }
+        guard let id = item.preparedSource?.titleID ?? newestPackage(for: item)?.applicationID else { return nil }
         return titleImages[id]
     }
     /// The art saved for a game, by title ID.
@@ -289,12 +293,28 @@ final class GameArtworkStore: ObservableObject {
         id.hasPrefix(preparedPrefix) ? String(id.dropFirst(preparedPrefix.count)) : nil
     }
 
-    /// The package that Play starts for an imported game: the newest one prepared for its title.
+    /// The package that Play starts for an imported game: the newest current one prepared for
+    /// its title. A package made by an older engine is never started; it needs Prepare again.
     func preparedPackage(for item: HomebrewItem) -> PreparedGame? {
-        if let folder = Self.preparedFolder(item.id) { return prepared.first { $0.folder == folder } }
+        packages(for: item).filter(\.current).max { $0.date < $1.date }
+    }
+
+    /// The newest package of the item's title, current or not: for its art, title ID and the
+    /// "prepare again" wording.
+    func newestPackage(for item: HomebrewItem) -> PreparedGame? {
+        packages(for: item).max { $0.date < $1.date }
+    }
+
+    /// The title has prepared packages, but this build can start none of them.
+    func needsPrepareAgain(_ item: HomebrewItem) -> Bool {
+        !isPrepared(item) && newestPackage(for: item) != nil
+    }
+
+    private func packages(for item: HomebrewItem) -> [PreparedGame] {
+        if let folder = Self.preparedFolder(item.id) { return prepared.filter { $0.folder == folder } }
         guard item.preparedSource?.isUpdate != true, info(item)?.kind != .update, info(item)?.kind != .addOnContent,
-              let id = item.preparedSource?.titleID ?? info(item)?.applicationID else { return nil }
-        return prepared.filter { $0.applicationID == id }.max { $0.date < $1.date }
+              let id = item.preparedSource?.titleID ?? info(item)?.applicationID else { return [] }
+        return prepared.filter { $0.applicationID == id }
     }
 
     /// Every prepared game belongs in the library: packages whose game was never imported here
@@ -304,9 +324,12 @@ final class GameArtworkStore: ObservableObject {
             guard item.preparedSource?.isUpdate != true, info(item)?.kind != .update, info(item)?.kind != .addOnContent else { return nil }
             return item.preparedSource?.titleID ?? info(item)?.applicationID
         })
+        // One tile per title: its newest current package, else its newest one (which then
+        // shows as needing Prepare again).
         var newest: [UInt64: PreparedGame] = [:]
         for game in prepared where !imported.contains(game.applicationID) {
-            if (newest[game.applicationID]?.date ?? .distantPast) <= game.date { newest[game.applicationID] = game }
+            guard let kept = newest[game.applicationID] else { newest[game.applicationID] = game; continue }
+            if kept.current == game.current ? kept.date <= game.date : game.current { newest[game.applicationID] = game }
         }
         return newest.values.map { game in
             HomebrewItem(id: Self.preparedPrefix + game.folder, name: name(game.applicationID) ?? game.folder, bytes: 0,

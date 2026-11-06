@@ -384,11 +384,18 @@ struct HomebrewView: View {
     }
 
 #if !SATCHEL_UI_PREVIEW_MINIMAL
+    /// Removes every package of the game's title, packages from an older engine first, and
+    /// stops at the first failure. So it can never delete the current package and leave only
+    /// one that needs Prepare again.
     private func remove(_ game: PreparedGame) {
-        let name = game.folder
+        let names = artwork.prepared.filter { $0.applicationID == game.applicationID }
+            .sorted { !$0.current && $1.current }.map(\.folder)
         Task {
             let failure = await Task.detached(priority: .userInitiated) { () -> String? in
-                do { try PreparedGameCleanup.delete(named: name); return nil } catch { return error.localizedDescription }
+                for name in names {
+                    do { try PreparedGameCleanup.delete(named: name) } catch { return error.localizedDescription }
+                }
+                return nil
             }.value
             artwork.refreshPrepared()
             if let failure { library.error = failure } else { Haptics.click() }
@@ -399,7 +406,14 @@ struct HomebrewView: View {
     /// A game page for imported games; a prepared game with no imported file starts straight away.
     private func openEntry(_ id: String) {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
-        if let folder = GameArtworkStore.preparedFolder(id) { open(.preparedPackage(folder)); return }
+        if let folder = GameArtworkStore.preparedFolder(id) {
+            // A package from an older engine would only fail its launch check.
+            guard artwork.prepared.first(where: { $0.folder == folder })?.current == true else {
+                library.error = "\(AppBrand.name)'s engine changed, so this game has to be prepared again. Import the game from Files or iCloud Drive, then prepare it. Your saves are kept."
+                return
+            }
+            open(.preparedPackage(folder)); return
+        }
 #endif
         open(.detail(id))
     }
@@ -706,7 +720,7 @@ struct HomebrewView: View {
                         Button("Open", systemImage: "arrow.up.right") { openEntry(entry.item.id) }
                             .accessibilityIdentifier("library-context-open")
 #if !SATCHEL_UI_PREVIEW_MINIMAL
-                        if let game = artwork.preparedPackage(for: entry.item) {
+                        if let game = artwork.preparedPackage(for: entry.item) ?? artwork.newestPackage(for: entry.item) {
                             Button("View game report", systemImage: "doc.text.magnifyingglass") { reportPackage = game.folder }
                             Button("Remove prepared game", systemImage: "trash", role: .destructive) { pendingRemoval = game }
                                 .accessibilityIdentifier("library-context-remove-prepared")
@@ -739,7 +753,9 @@ struct HomebrewView: View {
             Button("Cancel", role: .cancel) {}
                 .accessibilityIdentifier("cancel-remove-prepared")
         } message: { game in
-            Text("Deletes \(game.folder) from this iPhone to free its space. Your saves are kept. Prepare the game again to play it.")
+            let count = artwork.prepared.filter { $0.applicationID == game.applicationID }.count
+            Text(count > 1 ? "Deletes all \(count) prepared copies of this game from this iPhone to free their space. Your saves are kept. Prepare the game again to play it."
+                           : "Deletes \(game.folder) from this iPhone to free its space. Your saves are kept. Prepare the game again to play it.")
         }
 #endif
         .scrollTargetBehavior(.viewAligned)

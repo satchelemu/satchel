@@ -139,8 +139,13 @@ measured with the previous engine.
 It is a clean break. After installing a build with this engine:
 
 - Run Prepare again for every game. A package made by an earlier build is refused,
-  because it records the engine it was made for. Your imported game files, keys, saves
-  and per-game settings stay as they are.
+  because it records the engine it was made for. The library shows such a game as
+  "Needs preparing" with a Prepare again button instead of Play; if its original was
+  removed after the last Prepare, import it again first. Your imported game files, keys,
+  saves and per-game settings stay as they are.
+- A Prepare that passes verification removes the game's older prepared copies. Settings,
+  Prepared games lists each copy with its date and a Current or Needs Prepare again tag,
+  and can delete one.
 - Expect first-play stutter again. Translated shaders and pipeline caches are kept per
   engine, so every game refills its caches the first time it is played.
 

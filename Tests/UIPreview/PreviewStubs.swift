@@ -12,6 +12,8 @@ import UIKit
 //                                        open one screen directly (default home); game and
 //                                        the dev screens after it need build-preview.zsh game
 //   -SatchelPreviewPrepared YES           seed fictional prepared-game manifests, one per status
+//   -SatchelPreviewStalePackage YES       Lantern Drift's package was made by an older engine
+//   -SatchelPreviewReplacedPackage YES    Lantern Drift also keeps an older package from an older engine
 //   -SatchelPreviewIdentity YES|expiring|expired   a fictional signing identity for Prepare
 //   -SatchelPreviewFailure "text"         verifying: show this failure instead of progress
 //   -SatchelPreviewPrepareEnd signed|unsigned|failed   how a preview Prepare run ends
@@ -463,11 +465,21 @@ private enum PreviewSeed {
                 }
                 let folder = prepared.appendingPathComponent("LanternDrift-1.2.0", isDirectory: true)
                 try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
-                let manifest: [String: Any] = ["titleID": applicationID.titleIDString, "version": "1.2.0",
-                    "addOnContent": [["titleID": (applicationID + 0x1001).titleIDString, "applicationID": applicationID.titleIDString,
+                var manifest = PreviewManifest.make(titleID: applicationID, version: "1.2.0", name: game.title,
+                                                    stale: defaults.bool(forKey: "SatchelPreviewStalePackage"))
+                manifest["addOnContent"] = [["titleID": (applicationID + 0x1001).titleIDString, "applicationID": applicationID.titleIDString,
                         "version": 1, "requiredApplicationVersion": 0, "index": 1, "path": "aoc/1.img",
-                        "bytes": 1024, "sha256": String(repeating: "0", count: 64)]]]
+                        "bytes": 1024, "sha256": String(repeating: "0", count: 64)]]
                 try? JSONSerialization.data(withJSONObject: manifest).write(to: folder.appendingPathComponent("manifest.json"))
+                if defaults.bool(forKey: "SatchelPreviewReplacedPackage") {
+                    // An earlier Prepare by an older engine, a day before the current package.
+                    let old = prepared.appendingPathComponent("LanternDrift-1.0.0", isDirectory: true)
+                    try? fm.createDirectory(at: old, withIntermediateDirectories: true)
+                    let url = old.appendingPathComponent("manifest.json")
+                    try? JSONSerialization.data(withJSONObject: PreviewManifest.make(titleID: applicationID, version: "1.0.0",
+                        name: game.title, stale: true)).write(to: url)
+                    try? fm.setAttributes([.modificationDate: now.addingTimeInterval(-86400)], ofItemAtPath: url.path)
+                }
             }
         }
         // Navigation fixture: a prepared package with no imported library record and
@@ -477,7 +489,7 @@ private enum PreviewSeed {
             let titleID: UInt64 = 0x0100ABCD12340000
             let folder = prepared.appendingPathComponent("Navigation-Orphan", isDirectory: true)
             try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
-            let manifest = ["titleID": titleID.titleIDString, "version": "1.0.0"]
+            let manifest = PreviewManifest.make(titleID: titleID, version: "1.0.0", name: "Navigation Meadow")
             try? JSONSerialization.data(withJSONObject: manifest).write(to: folder.appendingPathComponent("manifest.json"))
             let info = GameInfo(applicationID: titleID, kind: .application, version: 0,
                                 displayVersion: "1.0.0", title: "Navigation Meadow", publisher: "Fixture",
@@ -556,6 +568,27 @@ private enum PreviewSeed {
                 .paragraphStyle: style, .kern: 1.5])
             text.draw(in: CGRect(x: 10, y: 206, width: 236, height: 40))
         }
+    }
+}
+
+/// Synthetic manifests that pass this build's engine identity check (`PreparedIdentity`): a
+/// fictional recipe and the profile it generates. `stale` gives the engine pin a package from
+/// an older engine has. No game files or game-derived values.
+enum PreviewManifest {
+    static func make(titleID: UInt64, version: String, name: String, stale: Bool = false) -> [String: Any] {
+        let recipe = NativePreparationRecipe(schema: 1, titleID: titleID.titleIDString, version: version, contentVersion: 0,
+            name: name, modules: ["main"], buildIDs: ["main": String(repeating: "1", count: 32)], sdkVersions: [],
+            systemResource: 0, usesHeap: false, largeBSS: 0, usedMemory: 0x4000000, nros: [], reviewedVersion: nil)
+        guard let profile = try? recipe.profile(profiles: []),
+              let recipeObject = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(recipe)),
+              let profileObject = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(profile)) else {
+            preconditionFailure("The synthetic preparation recipe was rejected")
+        }
+        return ["format": 2, "signingStatus": "signed", "contentVersion": 0, "titleID": titleID.titleIDString,
+                "version": version, "recipe": recipeObject, "preparedProfile": profileObject,
+                "enginePin": stale ? "previous-engine" : profile.enginePin, "shaderChain": profile.shaderChain,
+                "shaderInputs": profile.shaderInputs, "modules": profile.modules, "environment": profile.environment,
+                "files": ["profile.tsv": ["bytes": 0, "sha256": profile.profileSHA256]]]
     }
 }
 

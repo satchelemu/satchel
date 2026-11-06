@@ -56,7 +56,8 @@ enum ShelfState: Equatable {
 
 extension GameArtworkStore {
     func state(_ item: HomebrewItem) -> ShelfState {
-        if Self.preparedFolder(item.id) != nil { return .ready }
+        // A prepared-only tile whose package an older engine made needs Prepare again.
+        if Self.preparedFolder(item.id) != nil { return isPrepared(item) ? .ready : .needsPreparing }
         guard item.package != nil else { return .homebrew }
         if item.preparedSource?.isUpdate == true, info(item) == nil { return .update("") }
         if let info = info(item) {
@@ -78,7 +79,7 @@ extension GameArtworkStore {
 
     func glow(_ item: HomebrewItem) -> Color {
         if let color = infos[item.id]?.accentColor { return color }
-        if Self.preparedFolder(item.id) != nil, let id = preparedPackage(for: item)?.applicationID,
+        if Self.preparedFolder(item.id) != nil, let id = newestPackage(for: item)?.applicationID,
            let color = titleInfo(id)?.accentColor { return color }
         return SatchelTheme.accent(for: item.id)
     }
@@ -92,7 +93,7 @@ extension GameArtworkStore {
             // onto the shelf while artwork is being read or keys are still missing.
             if item.package != nil && info(item) == nil && item.preparedSource == nil { continue }
             var entry = ShelfEntry(item: item)
-            if let id = info(item)?.applicationID ?? item.preparedSource?.titleID ?? preparedPackage(for: item)?.applicationID {
+            if let id = info(item)?.applicationID ?? item.preparedSource?.titleID ?? newestPackage(for: item)?.applicationID {
                 entry.updates = updates.filter { (info($0)?.applicationID ?? $0.preparedSource?.titleID) == id }
                     .sorted { (infos[$0.id]?.version ?? 0) > (infos[$1.id]?.version ?? 0) }
             }
@@ -104,8 +105,9 @@ extension GameArtworkStore {
 
     /// "Publisher · v1.2.0 · 14.3 GB" style subtitle.
     func subtitle(_ item: HomebrewItem, updates: [HomebrewItem] = []) -> String {
-        if let game = preparedPackage(for: item), Self.preparedFolder(item.id) != nil || item.preparedSource != nil {
-            return [game.preparedOnPhone ? "Prepared on this iPhone" : "Prepared on a Mac", game.version.isEmpty ? nil : "v" + game.version].compactMap { $0 }.joined(separator: "  ·  ")
+        if let game = preparedPackage(for: item) ?? newestPackage(for: item), Self.preparedFolder(item.id) != nil || item.preparedSource != nil {
+            let origin = !game.current ? "Prepared by an older engine" : game.preparedOnPhone ? "Prepared on this iPhone" : "Prepared on a Mac"
+            return [origin, game.version.isEmpty ? nil : "v" + game.version].compactMap { $0 }.joined(separator: "  ·  ")
         }
         var parts: [String] = []
         let info = infos[item.id]

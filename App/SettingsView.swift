@@ -88,6 +88,9 @@ struct SettingsView: View {
     @State private var freeBytes: Int64?
     @State private var preparedBytes: [String: Int64] = [:]
     @State private var cacheBytes: Int64 = 0
+    @State private var pendingDelete: PreparedGame?
+    @State private var deleting: String?
+    @State private var deleteFailure: String?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -324,7 +327,8 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                ForEach(artwork.prepared, id: \.folder) { game in
+                // Newest first; each row's date and tag tell copies of one game apart.
+                ForEach(artwork.prepared.sorted { $0.date > $1.date }, id: \.folder) { game in
                     let match = library.items.first { artwork.info($0)?.kind == .application && artwork.info($0)?.applicationID == game.applicationID }
                     SatchelPanel {
                         HStack(spacing: 14) {
@@ -336,21 +340,81 @@ struct SettingsView: View {
                                     .frame(width: 56, height: 56).background(SatchelTheme.leaf.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
                             }
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(match.map { artwork.title($0) } ?? game.folder).font(.system(size: 16, weight: .bold, design: .rounded))
+                                Text(preparedName(game)).font(.system(size: 16, weight: .bold, design: .rounded))
                                 Text("Version \(game.version)  ·  \(game.applicationID.titleIDString)")
                                     .font(SatchelTheme.mono(11)).foregroundStyle(SatchelTheme.textDim)
+                                HStack(spacing: 8) {
+                                    SatchelChip(text: game.current ? "Current" : "Needs Prepare again",
+                                               tint: game.current ? SatchelTheme.leaf : SatchelTheme.spark)
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityIdentifier("prepared-tag-" + game.folder)
+                                    Text(preparedDate(game)).font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(SatchelTheme.textDim)
+                                        .accessibilityIdentifier("prepared-date-" + game.folder)
+                                }
                             }
                             Spacer()
                             Text(preparedBytes[game.folder].map(satchelBytes) ?? "…")
                                 .font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+                            Button { Haptics.tick(); pendingDelete = game } label: {
+                                Image(systemName: "trash").font(.system(size: 15, weight: .bold)).foregroundStyle(SatchelTheme.ember)
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(PressableStyle(scale: 0.94))
+                            .disabled(deleting != nil)
+                            .accessibilityLabel("Delete prepared copy")
+                            .accessibilityIdentifier("delete-prepared-" + game.folder)
+#endif
                         }
                     }
+                    .opacity(deleting == game.folder ? 0.5 : 1)
                 }
+            }
+            if let deleteFailure {
+                Label(deleteFailure, systemImage: "exclamationmark.triangle.fill").font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SatchelTheme.ember).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("prepared-delete-failure")
             }
             Button { artwork.refreshPrepared(); Task { await measure() } } label: {
                 SatchelButtonLabel(title: "Check again", systemImage: "arrow.clockwise", kind: .secondary, height: 42)
             }.buttonStyle(PressableStyle())
         }
+        .alert("Delete this prepared copy?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+               presenting: pendingDelete) { game in
+            Button("Delete", role: .destructive) { deletePrepared(game) }
+                .accessibilityIdentifier("confirm-delete-prepared")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("cancel-delete-prepared")
+        } message: { game in
+            Text("Deletes the copy of \(preparedName(game)) prepared \(preparedDate(game)) from this iPhone. Your saves are kept.")
+        }
+    }
+
+    private func preparedName(_ game: PreparedGame) -> String {
+        let match = library.items.first { artwork.info($0)?.kind == .application && artwork.info($0)?.applicationID == game.applicationID }
+        return match.map { artwork.title($0) } ?? artwork.titleInfo(game.applicationID)?.title ?? game.folder
+    }
+
+    private func preparedDate(_ game: PreparedGame) -> String {
+        game.date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    /// Deletes one package folder (never saves) and refreshes this list and the library shelf.
+    private func deletePrepared(_ game: PreparedGame) {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        let name = game.folder
+        deleting = name; deleteFailure = nil
+        Task {
+            let failure = await Task.detached(priority: .userInitiated) { () -> String? in
+                do { try PreparedPackage.delete(named: name); return nil } catch { return error.localizedDescription }
+            }.value
+            deleting = nil
+            artwork.refreshPrepared()
+            if let failure { deleteFailure = failure } else { Haptics.click() }
+            await measure()
+        }
+#endif
     }
 
     // MARK: About

@@ -31,6 +31,7 @@ final class NavigationJourneyTests: XCTestCase {
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
             "testGamePagePrepareSelectsBase", "testPrepareKeyAndStorageRecoveryMessages",
+            "testStalePackageNeedsPrepareAgain", "testSettingsPreparedGamesDeletesOnlyChosenPackage",
             "testRemovePreparedGameRemovesAllContentAndTile", "testRemoveOnlyUpdateKeepsPreparedGameAndDLC",
             "testPrepareDLCRowTracksBaseSelection", "testControllerRumblePersistsPerGame",
             "testDeveloperQuitGateAndMenuStillWorks", "testDeveloperQuitReturnsHome", "testDeveloperCycleTwoRounds", "testDeveloperCycleMissingPackage",
@@ -527,6 +528,85 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("close-prepare")
         absent(app.buttons["close-prepare"])
         _ = try button("import-homebrew")
+    }
+
+    /// A package from an older engine never offers Play: the page offers Prepare again, and
+    /// with the original removed it says to import the game again first.
+    func testStalePackageNeedsPrepareAgain() throws {
+        app.launchArguments += ["-SatchelPreviewStalePackage", "YES", "-SatchelPreviewKeys", "YES"]
+        app.launch()
+        _ = try button("import-homebrew")
+        try findLanternShelf()
+        _ = try button("open-focused")
+        absent(app.buttons["play-focused"])
+        try tap("open-focused")
+        let prepare = try button("prepare-game")
+        XCTAssertTrue(prepare.label.contains("Prepare again"), prepare.label)
+        XCTAssertFalse(app.buttons["play-game"].exists, "A stale package must not offer Play")
+        XCTAssertTrue(app.staticTexts["game-original-status"].label.contains("engine changed"))
+        try tap("close-game-detail")
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewOriginalRemoved", "YES"]
+        app.launch()
+        _ = try button("import-homebrew")
+        try findLanternShelf()
+        absent(app.buttons["play-focused"])
+        try tap("open-focused")
+        let status = app.staticTexts["game-original-status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 8))
+        XCTAssertTrue(status.label.contains("engine changed") && status.label.contains("import the game again"), status.label)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Prepared by an older engine")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["prepare-game"].exists, "Prepare needs the original")
+        XCTAssertFalse(app.buttons["play-game"].exists, "A stale package must not offer Play")
+        try tap("close-game-detail")
+        _ = try button("import-homebrew")
+    }
+
+    /// Two packages of one title get distinct rows in Settings, Prepared games, and a
+    /// confirmed delete removes only the chosen one.
+    func testSettingsPreparedGamesDeletesOnlyChosenPackage() throws {
+        app.launchArguments += ["-SatchelPreviewReplacedPackage", "YES"]
+        app.launch()
+        let current = "LanternDrift-1.2.0", old = "LanternDrift-1.0.0"
+        let tag = { (folder: String) in self.app.descendants(matching: .any)["prepared-tag-" + folder].firstMatch }
+        let date = { (folder: String) in self.app.staticTexts["prepared-date-" + folder] }
+        let page = { self.app.scrollViews.containing(.button, identifier: "delete-prepared-" + current).firstMatch }
+        func openPage() throws {
+            try tap("open-settings")
+            try tap("settings-Prepared games")
+            XCTAssertTrue(tag(current).waitForExistence(timeout: 8))
+        }
+        try openPage()
+        XCTAssertTrue(tag(old).exists)
+        XCTAssertEqual(tag(current).label, "Current")
+        XCTAssertEqual(tag(old).label, "Needs Prepare again")
+        let oldDate = date(old).label
+        XCTAssertNotEqual(date(current).label, oldDate, "Rows of one title must be told apart")
+        // Cancel keeps the package; the confirmation names the game and the date.
+        try tap("delete-prepared-" + old, scroll: page())
+        _ = try button("confirm-delete-prepared")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@",
+            "Deletes the copy of Lantern Drift prepared " + oldDate)).firstMatch.exists)
+        try tap("cancel-delete-prepared")
+        absent(app.buttons["confirm-delete-prepared"])
+        XCTAssertTrue(tag(old).exists)
+        try tap("delete-prepared-" + old, scroll: page())
+        try tap("confirm-delete-prepared")
+        absent(tag(old))
+        XCTAssertEqual(tag(current).label, "Current")
+        XCTAssertTrue(app.buttons["delete-prepared-" + current].exists)
+        try tap("close-settings")
+        try findLanternShelf()
+        _ = try button("play-focused")
+        // Relaunch without reseeding: the deletion is on disk and the current package remains.
+        app.terminate()
+        let demo = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewDemo"))
+        app.launchArguments.removeSubrange(demo...(demo + 1))
+        app.launch()
+        try openPage()
+        XCTAssertFalse(tag(old).exists)
+        XCTAssertEqual(tag(current).label, "Current")
+        try tap("close-settings")
     }
 
     func testPrepareKeyAndStorageRecoveryMessages() throws {

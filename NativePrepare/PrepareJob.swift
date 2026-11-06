@@ -123,6 +123,7 @@ import SwiftUI
 
     /// Prepare is refused while a game session exists, even paused in the background.
     static let sessionBlocked = "Quit the game before preparing another."
+    static let verifiedMessage = "Ready to play. The complete package passed verification."
     static var gameSessionOpen: Bool { SatchelNativeSessionStarted() || PreparedLaunch.current != nil }
 
     /// A note on the Prepare screen when no job runs (for example why auto prepare did not start).
@@ -224,7 +225,26 @@ import SwiftUI
                 if case .success = outcome, let systemProgress { systemProgress.completedUnitCount = systemProgress.totalUnitCount }
                 let plannedCleanup = cleanupPlan, planningNote = cleanupNote, cleanupTitleID = preparedTitleID
                 DispatchQueue.main.async {
+                    // A signed package that passed the full verifier replaces the title's older
+                    // packages (a package from an earlier engine, or an earlier Prepare). Failed
+                    // and cancelled runs never reach this, and a removal failure keeps success.
                     @MainActor func complete(_ result: Result<PrepareSigningState, Error>, note: String? = nil) {
+                        guard case .success(.signed) = result else { proceed(result, note: note); return }
+                        var keeping = Set<String>()
+                        if WarmupJob.shared.running, let package = WarmupJob.shared.journal?.package { keeping.insert(package) }
+                        if AddOnJob.shared.running { keeping.insert(AddOnJob.shared.package) }
+                        DispatchQueue.global(qos: .utility).async {
+                            let kept: String?
+                            do {
+                                let failures = try PreparedPackage.removeReplaced(by: destination, keeping: keeping)
+                                kept = failures.isEmpty ? nil : "Older prepared copies were kept: " + failures.joined(separator: "; ")
+                            } catch { kept = "Older prepared copies were kept: " + error.localizedDescription }
+                            DispatchQueue.main.async {
+                                proceed(result, note: kept.map { (note ?? Self.verifiedMessage) + " " + $0 } ?? note)
+                            }
+                        }
+                    }
+                    @MainActor func proceed(_ result: Result<PrepareSigningState, Error>, note: String? = nil) {
                         @MainActor func finish() {
                             task?.setTaskCompleted(success: { if case .success(.signed) = result { return true } else { return false } }())
                             self.finish(result, note: note)
@@ -311,7 +331,7 @@ import SwiftUI
         let kind: Outcome.Kind
         switch result {
         case .success(.signed):
-            kind = .signed; message = note ?? "Ready to play. The complete package passed verification."
+            kind = .signed; message = note ?? Self.verifiedMessage
         case .success:
             kind = .needsSignature; message = "Prepared game needs signature. The development Mac signing tool must sign it before launch."
         case .failure(let error) where error is CancellationError:

@@ -149,7 +149,7 @@ struct GameDetailView: View {
     }
 
     private var importedAddOns: [SwitchAddOnInfo] {
-        guard let id = info?.applicationID ?? artwork.preparedPackage(for: item)?.applicationID else { return [] }
+        guard let id = info?.applicationID ?? artwork.newestPackage(for: item)?.applicationID else { return [] }
         return GameInfo.addOns(for: id, in: library.items.filter(library.hasOriginal).compactMap { artwork.info($0) })
     }
 
@@ -165,7 +165,7 @@ struct GameDetailView: View {
     @ViewBuilder private var savePanel: some View {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
         if info?.kind != .update, info?.kind != .addOnContent,
-           let id = info?.applicationID ?? artwork.preparedPackage(for: item)?.applicationID {
+           let id = info?.applicationID ?? artwork.newestPackage(for: item)?.applicationID {
             GameSavePanel(titleID: String(format: "%016llX", id), gameName: title)
         }
 #endif
@@ -174,7 +174,7 @@ struct GameDetailView: View {
     @ViewBuilder private var playerSettingsPanel: some View {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
         if info?.kind != .update, info?.kind != .addOnContent,
-           let id = info?.applicationID ?? artwork.preparedPackage(for: item)?.applicationID {
+           let id = info?.applicationID ?? artwork.newestPackage(for: item)?.applicationID {
             GamePlayerSettingsPanel(titleID: String(format: "%016llX", id))
         }
 #endif
@@ -277,7 +277,7 @@ struct GameDetailView: View {
             }.controllerAction("detail-keys") { onOpenSettings() }.buttonStyle(PressableStyle()).accessibilityIdentifier("detail-add-keys")
         } else if !originalRemoved, info?.kind == .application, let onPrepare {
             Button { onPrepare() } label: {
-                SatchelButtonLabel(title: state == .ready ? "Prepare again" : "Prepare", systemImage: "hammer.fill",
+                SatchelButtonLabel(title: stale ? "Prepare again" : "Prepare", systemImage: "hammer.fill",
                                   kind: .accent(SatchelTheme.tide), height: 52, fill: true)
             }.controllerAction("detail-prepare") { onPrepare() }.buttonStyle(PressableStyle()).accessibilityIdentifier("prepare-game")
         } else {
@@ -309,7 +309,7 @@ struct GameDetailView: View {
                 connector(infoStep == .done)
                 step("Game info", "photo.fill", infoStep)
                 connector(prepared)
-                step("Prepared", "hammer.fill", prepared ? .done : (info?.kind == .application ? .active : .waiting))
+                step("Prepared", "hammer.fill", prepared ? .done : stale ? .attention : (info?.kind == .application ? .active : .waiting))
                 connector(prepared)
                 step("Play", "play.fill", prepared ? .active : .waiting)
             }
@@ -318,6 +318,8 @@ struct GameDetailView: View {
     }
 
     private var prepared: Bool { artwork.isPrepared(item) }
+    /// Its only packages were made by an older engine: launch refuses them.
+    private var stale: Bool { artwork.needsPrepareAgain(currentItem) }
 
     private var infoStep: StepState {
         if info != nil { return .done }
@@ -370,6 +372,9 @@ struct GameDetailView: View {
 
     private var nextText: String {
         if originalRemoved {
+            if stale {
+                return "\(AppBrand.name)'s engine changed, so this game has to be prepared again. Its original file was removed from this iPhone after the last Prepare: import the game again from Files or iCloud Drive, then press Prepare. Your saves are kept."
+            }
             return "The original file was removed from this iPhone after the prepared package passed verification. Import it again only to prepare a newer update or when an engine change requires a new package."
         }
         if case .failed(let reason) = artwork.status[item.id] { return "Couldn't read this game's info. " + reason }
@@ -380,6 +385,9 @@ struct GameDetailView: View {
         }
         if info?.kind == .addOnContent { return "Open the matching game page and choose Add DLC if it is already prepared, or Prepare to include it for the first time." }
         if prepared { return "Everything is ready. Press Play to start the game." }
+        if stale {
+            return "\(AppBrand.name)'s engine changed since this game was prepared, so its prepared copy no longer starts. Press Prepare again to build a new one. Your saves are kept."
+        }
         if NativePlay.available {
             return "Next: prepare the game on this iPhone. \(AppBrand.name) rewrites the game's code for iPhone, signs it and builds its shaders. It keeps going in the background if you switch apps."
         }
@@ -500,7 +508,7 @@ struct GameDetailView: View {
         if library.runningID != nil { return "Remove is available once the game stops." }
 #if !SATCHEL_UI_PREVIEW_MINIMAL
         // The engine runs one game per app launch, so its prepared copy stays in use until then.
-        if PrepareJob.gameSessionOpen, artwork.isPrepared(currentItem) {
+        if PrepareJob.gameSessionOpen, artwork.newestPackage(for: currentItem) != nil {
             return "A game was played since \(AppBrand.name) opened. Close and reopen the app, then remove this game."
         }
 #endif
