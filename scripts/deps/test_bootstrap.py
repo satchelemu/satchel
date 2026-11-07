@@ -172,6 +172,21 @@ class InputTests(unittest.TestCase):
             self.assertIn('needs --tools', errors.getvalue())
             self.assertFalse((root / 'out').exists())
 
+    def test_ipa_manifest_comparison_reads_the_packager_format(self):
+        mine = {'ipa': {'sha256': 'a' * 64}, 'files': [
+            {'path': 'Payload/Satchel.app/Satchel', 'sha256': '1' * 64, 'size': 1, 'mode': '0755'},
+            {'path': 'Payload/Satchel.app/Info.plist', 'sha256': '2' * 64, 'size': 1, 'mode': '0644'},
+            {'path': 'Payload/Satchel.app/new.txt', 'sha256': '3' * 64, 'size': 1, 'mode': '0644'}]}
+        reference = {'files': [
+            {'path': 'Payload/Satchel.app/Satchel', 'sha256': '1' * 64, 'size': 1, 'mode': '0755'},
+            {'path': 'Payload/Satchel.app/Info.plist', 'sha256': '4' * 64, 'size': 1, 'mode': '0644'},
+            {'path': 'Payload/Satchel.app/old.txt', 'sha256': '5' * 64, 'size': 1, 'mode': '0644'}]}
+        rows = clean_build.compare_ipa(clean_build.ipa_rows(mine), clean_build.ipa_rows(reference))
+        self.assertEqual(rows, {'Payload/Satchel.app/Satchel': 'identical',
+                                'Payload/Satchel.app/Info.plist': 'different',
+                                'Payload/Satchel.app/new.txt': 'only in clean build',
+                                'Payload/Satchel.app/old.txt': 'only in reference'})
+
     def test_isolation_scan_names_foreign_paths_only(self):
         home = '/Users/someone'
         allowed = ['/Users/someone/clone', '/Users/someone/work']

@@ -106,6 +106,20 @@ def strings(value):
         yield value
 
 
+def ipa_rows(manifest):
+    """scripts/build_ipa.py lists each packaged file as {path, sha256, size, mode}."""
+    return {row['path']: row for row in manifest.get('files', [])}
+
+
+def compare_ipa(mine, reference):
+    rows = {}
+    for name in sorted(set(mine) | set(reference)):
+        ours, theirs = mine.get(name), reference.get(name)
+        rows[name] = ('only in clean build' if theirs is None else 'only in reference' if ours is None else
+                      'identical' if ours['sha256'] == theirs['sha256'] else 'different')
+    return rows
+
+
 def foreign_paths(text, allowed, home):
     """Absolute paths in text that are neither system paths nor inside the allowed roots."""
     found = set()
@@ -176,16 +190,11 @@ def check(paths, reference_manifest=None):
     ipa_manifest = paths['ipa'] / 'Satchel.manifest.json'
     if ipa.is_file() and ipa_manifest.is_file():
         files = json.loads(ipa_manifest.read_text())
-        listed = files.get('files', {})
-        report('ipa', files.get('ipa', {}).get('sha256', sha256(ipa)) == sha256(ipa),
+        listed = ipa_rows(files)
+        report('ipa', files.get('ipa', {}).get('sha256') == sha256(ipa),
                'Satchel.ipa sha256 %s, %d bytes, %d files in manifest' % (sha256(ipa), ipa.stat().st_size, len(listed)))
         if reference_manifest:
-            other = json.loads(Path(reference_manifest).read_text()).get('files', {})
-            rows = {}
-            for name in sorted(set(listed) | set(other)):
-                mine, theirs = listed.get(name), other.get(name)
-                rows[name] = ('only in clean build' if theirs is None else 'only in reference' if mine is None else
-                              'identical' if mine.get('sha256') == theirs.get('sha256') else 'different')
+            rows = compare_ipa(listed, ipa_rows(json.loads(Path(reference_manifest).read_text())))
             (paths['logs'] / 'app-comparison.json').write_text(json.dumps(rows, indent=2) + '\n')
             counts = {}
             for value in rows.values():
