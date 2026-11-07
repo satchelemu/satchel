@@ -193,7 +193,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.97, haptic: false))
                 .accessibilityIdentifier("settings-" + item.rawValue)
-                .controllerAction("settings-page-" + item.rawValue) { Haptics.tick(); page = item }
+                .controllerAction("settings-page-" + item.rawValue, style: .row(.rounded(14))) { Haptics.tick(); page = item }
             }
             Spacer()
         }

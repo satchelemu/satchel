@@ -126,6 +126,29 @@ int main(int argc, const char **argv) {
         assert([SatchelControllerEdge(state, 0, 1, NO, NO) isEqual:@"up"]);
         assert([SatchelControllerEdge(state, 0, 1, YES, NO) isEqual:@"accept"]);
         assert([SatchelControllerEdge(state, 0, 1, YES, NO) isEqual:@""]);
+        // A held direction repeats after the initial delay at a steady rate; a release or a new
+        // direction starts over, and the A and B buttons never repeat.
+        [state removeAllObjects];
+        assert([SatchelControllerEdge(state, 0, -1, NO, NO) isEqual:@"down"]);
+        assert([SatchelControllerRepeat(state, 10) isEqual:@""]);
+        assert([SatchelControllerEdge(state, 0, -1, NO, NO) isEqual:@""]);
+        assert([SatchelControllerRepeat(state, 10.4) isEqual:@""]);
+        assert([SatchelControllerRepeat(state, 10.46) isEqual:@"down"]);
+        assert([SatchelControllerRepeat(state, 10.5) isEqual:@""]);
+        assert([SatchelControllerRepeat(state, 10.58) isEqual:@"down"]);
+        assert([SatchelControllerRepeat(state, 12) isEqual:@"down"]);
+        assert([SatchelControllerRepeat(state, 12.05) isEqual:@""]);
+        assert([SatchelControllerEdge(state, 0.7, 0, NO, NO) isEqual:@"right"]);
+        assert([SatchelControllerRepeat(state, 12.2) isEqual:@""]);
+        assert([SatchelControllerRepeat(state, 12.66) isEqual:@"right"]);
+        assert([SatchelControllerEdge(state, 0, 0, NO, NO) isEqual:@""]);
+        assert([SatchelControllerRepeat(state, 13) isEqual:@""]);
+        assert([SatchelControllerEdge(state, 0, 0, YES, NO) isEqual:@"accept"]);
+        assert([SatchelControllerRepeat(state, 13) isEqual:@""]);
+        assert([SatchelControllerRepeat(state, 14) isEqual:@""]);
+        assert([SatchelControllerEdge(state, 0, 0.7, NO, NO) isEqual:@"up"]);
+        assert([SatchelControllerRepeat(state, 14) isEqual:@""]);
+        assert([SatchelControllerRepeat(state, 14.3) isEqual:@""]);
         // GameController's supported synthetic snapshot traverses the same reader as hardware.
         GCController *controller = [GCController controllerWithExtendedGamepad];
         // A pad with no vendor name and no known product category still gets a full

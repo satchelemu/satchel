@@ -489,7 +489,7 @@ struct HomebrewView: View {
 
     private var settingsButton: some View {
         Button { open(.settings) } label: { Label("Settings", systemImage: "gearshape.fill") }
-            .controllerAction("settings") { open(.settings) }
+            .controllerAction("settings", style: .button(.circle, inset: -8)) { open(.settings) }
             .accessibilityIdentifier("open-settings")
     }
 
@@ -661,13 +661,16 @@ struct HomebrewView: View {
                     }
                     .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                     .accessibilityIdentifier("homebrew-\(entry.item.name)")
-                    .controllerAction("game-" + entry.id) { openEntry(entry.item.id) }
+                    // The grid's own focused tile is the controller focus; the left page follows it.
+                    .controllerAction("game-" + entry.id, style: .own(selected: focused == entry.id, scrolls: true),
+                                      onFocus: { withAnimation(SatchelTheme.snap) { focusedID = entry.id } }) { openEntry(entry.item.id) }
                     .accessibilityLabel("\(artwork.title(entry.item)), \(artwork.state(entry.item).label)")
                 }
                 Button { openImporter() } label: { AddGameTile(side: max(60, side), focused: false) }
                     .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                     .accessibilityLabel("Add games").accessibilityIdentifier("add-games-tile")
-                    .controllerAction("add-games") { openImporter() }
+                    // The dashed tile sits 7 points inside its frame.
+                    .controllerAction("add-games", style: .lift(.rounded(max(60, side) * 0.13), inset: 7)) { openImporter() }
             }
             .padding(.vertical, 6)
         }
@@ -720,7 +723,9 @@ struct HomebrewView: View {
                     .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                     .id(entry.id)
                     .accessibilityIdentifier("homebrew-\(entry.item.name)")
-                    .controllerAction("game-" + entry.id) { openEntry(entry.item.id) }
+                    // The shelf's own lifted tile is the controller focus: moving selects and scrolls the shelf.
+                    .controllerAction("game-" + entry.id, style: .own(selected: focused == entry.id),
+                                      onFocus: { controllerSelect(entry.id) }) { openEntry(entry.item.id) }
                     .accessibilityLabel("\(artwork.title(entry.item)), \(artwork.state(entry.item).label)")
                     .accessibilityHint(focused == entry.id ? "Opens the game page" : "Selects this game")
                     .contextMenu {
@@ -741,7 +746,8 @@ struct HomebrewView: View {
                 .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
                 .id(Self.addTileID)
                 .accessibilityLabel("Add games").accessibilityIdentifier("add-games-tile")
-                    .controllerAction("add-games") { openImporter() }
+                .controllerAction("add-games", style: .own(selected: focused == Self.addTileID),
+                                  onFocus: { controllerSelect(Self.addTileID) }) { openImporter() }
             }
             .scrollTargetLayout()
             .padding(.vertical, 14)
@@ -783,6 +789,13 @@ struct HomebrewView: View {
         }
 #endif
 
+    }
+
+    /// Controller focus on a shelf tile selects it, as a first tap does, without the tap's haptic
+    /// (navigation already ticks on each move).
+    private func controllerSelect(_ id: String) {
+        guard id != (focusedEntry?.id ?? (focusedID == Self.addTileID ? Self.addTileID : nil)) else { return }
+        withAnimation(SatchelTheme.snap) { focusedID = id; scrolledID = id }
     }
 
     private func tapped(_ id: String) {

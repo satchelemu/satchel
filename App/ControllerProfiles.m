@@ -178,7 +178,8 @@ BOOL SatchelControllerMenuHeld(GCExtendedGamepad *pad, NSTimeInterval now) {
     return SatchelControllerHold(hold, [input[@"menuHeld"] boolValue], now);
 }
 NSString *SatchelControllerEdge(NSMutableDictionary *s, float x, float y, BOOL accept, BOOL back) {
-    // Hysteresis avoids drift generating repeated moves. Held inputs never repeat.
+    // Hysteresis avoids drift generating repeated moves. Edges only: SatchelControllerRepeat
+    // adds the hold-to-repeat for a direction that stays held.
     int old = [s[@"direction"] intValue], direction = old;
     if (fmaxf(fabsf(x), fabsf(y)) < 0.3) direction = 0;
     else if (fmaxf(fabsf(x), fabsf(y)) >= 0.6) direction = fabsf(x) > fabsf(y) ? (x > 0 ? 1 : 2) : (y > 0 ? 3 : 4);
@@ -188,4 +189,17 @@ NSString *SatchelControllerEdge(NSMutableDictionary *s, float x, float y, BOOL a
     if (back && ![s[@"back"] boolValue]) event = @"back";
     s[@"direction"] = @(direction); s[@"accept"] = @(accept); s[@"back"] = @(back);
     return event;
+}
+NSString *SatchelControllerRepeat(NSMutableDictionary *s, NSTimeInterval now) {
+    int direction = [s[@"direction"] intValue];
+    if (!direction) { [s removeObjectForKey:@"repeatDirection"]; [s removeObjectForKey:@"repeatAt"]; return @""; }
+    // A new direction (or the first poll that sees one) waits the initial delay.
+    if ([s[@"repeatDirection"] intValue] != direction) {
+        s[@"repeatDirection"] = @(direction); s[@"repeatAt"] = @(now + 0.45);
+        return @"";
+    }
+    if (now < [s[@"repeatAt"] doubleValue]) return @"";
+    // From now, not from the due time, so a late poll never fires a burst.
+    s[@"repeatAt"] = @(now + 0.11);
+    return @[@"", @"right", @"left", @"up", @"down"][direction];
 }

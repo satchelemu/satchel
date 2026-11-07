@@ -153,11 +153,14 @@ final class NavigationJourneyTests: XCTestCase {
         try pad("down")
         XCTAssertTrue(app.staticTexts["controller-focus"].firstMatch.waitForExistence(timeout: 5))
         let focus = app.staticTexts["controller-focus"].firstMatch
+        var cardShot = false
         for _ in 0..<12 {
             if focus.label == "menu-controller-layout" { break }
+            if !cardShot && focus.label.hasPrefix("mode-") { cardShot = true; focusShot("Focus front pause menu card") }
             try pad("down")
         }
         XCTAssertEqual(focus.label, "menu-controller-layout")
+        focusShot("Focus front pause menu row")
         XCTAssertTrue(app.buttons["menu-controller-layout"].isHittable, "Focus must scroll the layout action into view")
         try pad("accept")
         _ = try button("close-controller-layout")
@@ -214,6 +217,89 @@ final class NavigationJourneyTests: XCTestCase {
         _ = try button("menu-resume")
         try pad("back")
         XCTAssertFalse(app.buttons["menu-resume"].waitForExistence(timeout: 2))
+    }
+
+    /// Focus shows only while the controller is in use: a touch hides it, and the next press
+    /// shows it again on the same row without moving. A held D-pad repeats after a delay.
+    func testControlsFocusHidesOnTouchAndHoldRepeats() throws {
+        launchControls("settings")
+        try pad("down")
+        let focus = app.staticTexts["controller-focus"].firstMatch
+        let shown = app.staticTexts["controller-focus-shown"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        XCTAssertEqual(focus.label, "settings-page-Console keys", "The first press only shows focus")
+        XCTAssertEqual(shown.label, "shown")
+        try pad("down")
+        XCTAssertEqual(focus.label, "settings-page-Storage")
+        // A touch on the page (not on a control) hides focus and keeps its place.
+        let title = app.staticTexts.matching(identifier: "settings-page-Console keys").firstMatch
+        title.tap()
+        let hidden = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in shown.label == "hidden" }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 3), .completed, "A touch must hide controller focus")
+        XCTAssertEqual(focus.label, "settings-page-Storage")
+        try pad("down")
+        XCTAssertEqual(shown.label, "shown")
+        XCTAssertEqual(focus.label, "settings-page-Storage", "Focus returns where it was, without moving")
+        try pad("up")
+        XCTAssertEqual(focus.label, "settings-page-Console keys")
+        // One held press walks the whole list; a short press (above) moved one row.
+        try pad("hold")
+        let walked = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in focus.label == "settings-page-About" }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [walked], timeout: 4), .completed, "Held down must repeat: \(focus.label)")
+        try pad("clear")
+        XCTAssertTrue(title.exists, "Moving focus never changes the section")
+    }
+
+    /// Controller focus on each kind of target (game card, game page button, Settings row),
+    /// on the front screen and the emulated open inner screen. Screenshots are kept for review.
+    func testControlsFocusLooksFrontAndOpen() throws {
+        let base = app.launchArguments
+        for fold in ["front", "open"] {
+            app.launchArguments = base + ["-SatchelPreviewFold", fold]
+            launchControls("home")
+            try pad("down")
+            let focus = app.staticTexts["controller-focus"].firstMatch
+            XCTAssertTrue(focus.waitForExistence(timeout: 5))
+            for _ in 0..<6 {
+                if focus.label.hasPrefix("game-") { break }
+                try pad("down")
+            }
+            XCTAssertTrue(focus.label.hasPrefix("game-"), "Library focus: \(focus.label)")
+            try pad("right")
+            focusShot("Focus \(fold) library")
+            // The bar's Settings button, where the bar is part of the window (the open screen).
+            try pad("up")
+            if focus.label == "settings" {
+                focusShot("Focus \(fold) library bar button")
+                try pad("down")
+            }
+            XCTAssertTrue(focus.label.hasPrefix("game-"), "Library focus: \(focus.label)")
+            try pad("accept")
+            _ = try button("close-game-detail")
+            try pad("down")
+            XCTAssertTrue(focus.label.hasPrefix("detail-"), "Game page focus: \(focus.label)")
+            focusShot("Focus \(fold) game page")
+            app.terminate()
+            app.launchArguments = base + ["-SatchelPreviewFold", fold]
+            launchControls("settings")
+            try pad("down")
+            XCTAssertTrue(focus.waitForExistence(timeout: 5))
+            for _ in 0..<8 {
+                if focus.label == "settings-page-Storage" { break }
+                try pad("down")
+            }
+            XCTAssertEqual(focus.label, "settings-page-Storage")
+            focusShot("Focus \(fold) settings")
+            app.terminate()
+        }
+    }
+
+    private func focusShot(_ name: String) {
+        // Let the focus animation and any scroll settle. The whole screen, because the
+        // app's own capture of a landscape scene comes back cropped on this simulator.
+        Thread.sleep(forTimeInterval: 1.2)
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = name; shot.lifetime = .keepAlways; add(shot)
     }
 
     // XCTest on iOS 27.1 can throw while asking for an offscreen element's

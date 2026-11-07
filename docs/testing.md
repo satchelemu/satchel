@@ -424,11 +424,14 @@ preferences domain and no game files. `NativeHost/controllers/check.py` retains 
 synthetic host HID and rumble checks.
 
 The simulator journeys are `testControlsSettingsAndPersistence`,
-`testControlsSettingsFocusAndDiagnostics`, `testControlsLibraryDetailAndBack` and
-`testControlsMenuShortcutAndLayout`. Test-only buttons
+`testControlsSettingsFocusAndDiagnostics`, `testControlsLibraryDetailAndBack`,
+`testControlsMenuShortcutAndLayout`, `testControlsFocusHidesOnTouchAndHoldRepeats` (a touch
+hides focus, the next press restores it in place, a held direction repeats) and
+`testControlsFocusLooksFrontAndOpen` (screenshots of a focused tile, game page button and
+Settings row on the front and open screens). Test-only buttons
 drive a GameController snapshot and invoke the value-change callback installed by the
-native host. Plus/Minus taps and navigation are short pulses; the stick and full chord
-stay held until the journey explicitly releases them, so slow accessibility queries
+native host. Plus/Minus taps and navigation are short pulses; the stick, the full chord
+and the held down direction stay held until the journey explicitly releases them, so slow accessibility queries
 cannot outlast the input. The production readers, profile storage, input overlay,
 menu bridge and focus navigator process those pulses. A native fixture records any game
 button delivery and the menu's volume, opacity and size. The fixture and its controls are
@@ -457,12 +460,20 @@ per-controller snapshot state. The simulator proves short Plus/Minus delivery an
 chord's suppression and menu opening through the native publisher. Home remains reserved,
 including short taps. This behavior is shown in Settings. Off restores every mapped button.
 Navigation uses physical bottom for accept and right for back, independent of game mappings.
-A stick must pass 0.6 to move and return below 0.3 to rearm the same direction. Held inputs
-do not repeat. The highlighted menu slider advances in steps when accepted, wrapping at its
+A stick must pass 0.6 to move and return below 0.3 to rearm the same direction. A held
+direction repeats after 0.45 seconds, every 0.11 seconds; A and B never repeat. The highlighted menu slider advances in steps when accepted, wrapping at its
 maximum. The library, game actions, Settings sections, Add games and the pause menu expose
 controller focus, and B closes Settings and Add games; system file pickers and detailed
 settings editors still use touch. Navigation reads any controller profile, not only the
-extended gamepad. A pad with neither Home nor Options opens the menu by holding Menu for
+extended gamepad. Focus follows each target's own shape, set per call site: the library's
+own lifted tile is the controller focus (moving selects the tile and scrolls the shelf),
+cards such as the pause menu's screen modes lift with a bright edge, rows and Settings
+sections get a filled highlight that slides between them, and buttons brighten and grow
+slightly. Reduce Motion keeps only a crossfade. Each move ticks the selection haptic, the
+focused target scrolls into view with a margin only when it is not fully visible, and a
+corner hint shows the pad's own A and B glyphs. Focus shows only while the controller is
+in use: a touch hides it, and the next press brings it back on the same target without
+moving or acting. A pad with neither Home nor Options opens the menu by holding Menu for
 0.75 seconds; Menu still reaches the game as Plus.
 
 Real-hardware diagnosis: Settings > Controllers > "What iOS reports" lists every controller
@@ -494,7 +505,10 @@ Orchestrator phone checks, with separate phone authorization:
    confirm both mapped buttons reach the game. Repeat using the no-Home fallback.
 4. Use only d-pad or stick edges, bottom face button to accept and right face button to go
    back: library tile, game page, Play, pause, Resume, Library and Quit confirmation. Confirm
-   focus stays in the active screen, scrolls into view and does not repeat while held.
+   focus stays in the active screen and scrolls into view, a held direction repeats after a
+   short delay, a touch hides focus and the next press brings it back where it was. Judge
+   the look and motion on both Duo screens and with Reduce Motion on, and that each move
+   gives a light tick.
 5. Change volume while paused, resume and listen. Change touch opacity and size, disconnect
    the controller and inspect the real controls. Check both landscape orientations and both
    Duo screens. Verify layout diagrams match the selected touch layout and physical mappings.

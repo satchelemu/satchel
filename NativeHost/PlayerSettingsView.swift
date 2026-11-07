@@ -77,7 +77,7 @@ struct PlayerSettingsView: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityIdentifier("player-play")
-        .controllerAction("player-play") { save(); play() }
+        .controllerAction("player-play", style: .button(.capsule)) { save(); play() }
         Label("While playing, tap the pause button or double tap with three fingers to open the menu. Controller: hold Home, or configure the shortcut in Settings, Controllers.",
               systemImage: "hand.tap.fill")
             .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)

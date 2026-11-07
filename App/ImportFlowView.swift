@@ -119,7 +119,7 @@ struct ImportFlowView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("choose-files")
-                .controllerAction("import-choose-files") { picking = true }
+                .controllerAction("import-choose-files", style: .button(.capsule)) { picking = true }
                 Text("Big games take a few minutes to copy. The import keeps going in the background if you switch apps.")
                     .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                     .fixedSize(horizontal: false, vertical: true)

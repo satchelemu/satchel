@@ -21,4 +21,7 @@ BOOL SatchelControllerMenuHeld(GCExtendedGamepad *pad, NSTimeInterval now);
 // Pure edge/hold state also used by synthetic input checks.
 BOOL SatchelControllerHold(NSMutableDictionary *state, BOOL held, NSTimeInterval now);
 NSString *SatchelControllerEdge(NSMutableDictionary *state, float x, float y, BOOL accept, BOOL back);
+// Hold-to-repeat for the direction SatchelControllerEdge last saw held: nothing for the
+// first 0.45 seconds, then the same direction every 0.11 seconds. Buttons never repeat.
+NSString *SatchelControllerRepeat(NSMutableDictionary *state, NSTimeInterval now);
 NS_ASSUME_NONNULL_END

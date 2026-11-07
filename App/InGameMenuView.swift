@@ -247,10 +247,10 @@ struct InGameMenuView: View {
                         Text("Quit \(model.session.gameTitle)?").font(.headline)
                         Text("Progress since your last save is lost. Quitting returns to your library.")
                         Button("Keep playing") { confirmQuit = false }
-                            .controllerAction("quit-cancel") { confirmQuit = false }
+                            .controllerAction("quit-cancel", style: .button(.capsule, inset: -10)) { confirmQuit = false }
                         Button("Quit game", role: .destructive) { model.session.quit() }
                             .accessibilityIdentifier("menu-confirm-quit")
-                            .controllerAction("quit-confirm") { model.session.quit() }
+                            .controllerAction("quit-confirm", style: .button(.capsule, inset: -10)) { model.session.quit() }
                     }.padding(30).frame(maxWidth: 420).background(SatchelTheme.surfaceHigh, in: RoundedRectangle(cornerRadius: 20))
                 }.controllerNavigation(back: { confirmQuit = false })
             }
@@ -297,7 +297,7 @@ struct InGameMenuView: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityIdentifier("menu-resume")
-        .controllerAction("menu-resume") { model.session.resume() }
+        .controllerAction("menu-resume", style: .button(.capsule)) { model.session.resume() }
     }
 
     private func actionButtons(includeResume: Bool) -> some View {
@@ -308,7 +308,7 @@ struct InGameMenuView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("menu-resume")
-                .controllerAction("menu-resume") { model.session.resume() }
+                .controllerAction("menu-resume", style: .button(.capsule)) { model.session.resume() }
             }
             Button { model.session.pauseAndReturnToLibrary() } label: {
                 SatchelButtonLabel(title: "Library", systemImage: "square.grid.2x2.fill", kind: .secondary, height: 44, fill: includeResume)
@@ -316,13 +316,13 @@ struct InGameMenuView: View {
             .buttonStyle(PressableStyle())
             .accessibilityHint("The game stays paused")
             .accessibilityIdentifier("menu-library")
-            .controllerAction("menu-library") { model.session.pauseAndReturnToLibrary() }
+            .controllerAction("menu-library", style: .button(.capsule)) { model.session.pauseAndReturnToLibrary() }
             Button { confirmQuit = true } label: {
                 SatchelButtonLabel(title: "Quit game", systemImage: "xmark", kind: .danger, height: 40, fill: includeResume)
             }
             .buttonStyle(PressableStyle())
             .accessibilityIdentifier("menu-quit")
-            .controllerAction("menu-quit") { confirmQuit = true }
+            .controllerAction("menu-quit", style: .button(.capsule)) { confirmQuit = true }
             Text("Library keeps the game paused. Quit ends it and returns to your library.")
                 .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -364,7 +364,7 @@ struct InGameMenuView: View {
             SatchelPanel(title: "Controller", tint: SatchelTheme.leaf) {
                 Button("Controller layout and remapping") { showControllerLayout = true }
                     .accessibilityIdentifier("menu-controller-layout")
-                    .controllerAction("menu-controller-layout") { showControllerLayout = true }
+                    .controllerAction("menu-controller-layout", style: .row(.rounded(12), inset: -8)) { showControllerLayout = true }
             }
             SatchelPanel(title: "Sound", tint: SatchelTheme.violet) {
                 sliderRow("Volume", value: $model.settings.volume, range: 0...1,
@@ -394,7 +394,7 @@ struct InGameMenuView: View {
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(PressableStyle(scale: 0.96, haptic: false))
-        .controllerAction("mode-" + mode.rawValue) { model.settings.screenMode = mode }
+        .controllerAction("mode-" + mode.rawValue, style: .lift(.rounded(14))) { model.settings.screenMode = mode }
         .accessibilityLabel("\(mode.title): \(mode.detail)")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -436,7 +436,7 @@ struct InGameMenuView: View {
             Text(title).font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.text)
         }
         .tint(SatchelTheme.leaf)
-        .controllerAction("toggle-" + title) { isOn.wrappedValue.toggle() }
+        .controllerAction("toggle-" + title, style: .row(.rounded(12), inset: -8)) { isOn.wrappedValue.toggle() }
         .frame(minHeight: 36)
     }
 
@@ -454,11 +454,12 @@ struct InGameMenuView: View {
                 Slider(value: value, in: range).tint(SatchelTheme.tide)
                     .accessibilityLabel(title)
                     .accessibilityIdentifier("menu-" + title.lowercased())
-                    .controllerAction("slider-" + title) {
-                        value.wrappedValue = value.wrappedValue + 0.1 > range.upperBound + 0.001 ? range.lowerBound : min(range.upperBound, value.wrappedValue + 0.1)
-                    }
                 Image(systemName: high).font(.system(size: 14)).foregroundStyle(SatchelTheme.textDim)
             }
+        }
+        // The whole row (title, value and track) highlights; A steps the value.
+        .controllerAction("slider-" + title, style: .row(.rounded(12), inset: -8)) {
+            value.wrappedValue = value.wrappedValue + 0.1 > range.upperBound + 0.001 ? range.lowerBound : min(range.upperBound, value.wrappedValue + 0.1)
         }
     }
 }
