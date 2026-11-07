@@ -2,10 +2,10 @@
 
 The path below goes from a fresh clone to an unsigned app and IPA with one command, from
 pinned inputs and pinned tools, without Homebrew or anything already in your account.
-It has not yet completed end to end: on 2026-11-07 its tool step and most of its
-dependency step passed from a fresh clone, and the run was stopped by the build's disk
-guard before the last three dependency recipes, the app and the IPA (see "What the route
-proves"). Signing is account-neutral and comes after it, with your own team.
+On 2026-11-07 it ran end to end from a fresh clone on the maintainer's Mac, and the app
+it produced matches a normal maintainer build of the same commit except for build paths,
+build identifiers and timestamps (see "What the route proves"). It has not yet run on a
+second Mac. Signing is account-neutral and comes after it, with your own team.
 
 ## From a fresh clone to an unsigned app
 
@@ -74,7 +74,7 @@ published; nothing is pinned by trusting a first download.
 | Tool | Pin | Form | Hash from |
 |---|---|---|---|
 | CMake | 4.4.4 | Kitware's macOS universal release archive | Kitware's `cmake-4.4.4-SHA-256.txt` (it also lists the source archive hash the lock had) |
-| XcodeGen | 2.45.3 | release `xcodegen.zip` | GitHub's release asset digest |
+| XcodeGen | 2.45.3 | release `xcodegen.zip`, with `tools/share/xcodegen` linked so it finds its setting presets | GitHub's release asset digest |
 | .NET SDK | 10.0.403 (runtime 10.0.14) | Microsoft's `osx-arm64` archive | SHA-512 in Microsoft's `releases.json` |
 | Python | 3.14.4 | built from `Python-3.14.4.tgz` with Xcode's compiler and SDK (no OpenSSL; downloads use `curl`) | python.org release file record |
 | spirv-val | SPIRV-Tools and SPIRV-Headers `vulkan-sdk-1.4.363.0` | built from the two tag archives, only the `spirv-val` target | the earlier formula pins (GitHub tag archives have no publisher checksum); both matched on download |
@@ -82,49 +82,59 @@ published; nothing is pinned by trusting a first download.
 
 ### What the route proves
 
-Run on 2026-11-07 on the maintainer's Mac from a fresh clone of the branch that added
-it, with the isolated `PATH` and `HOME` above (Mac execution only; nothing installed on
-a phone):
+Run on 2026-11-07 on the maintainer's Mac, from a fresh clone of the branch that added it
+(based on main 3ed0a5e), with the isolated `PATH` and `HOME` above. Mac execution only;
+nothing was installed on a phone. All four steps exited 0 and every `--check` line passed:
 
-- `tools`: passed. Every archive downloaded from its pinned URL and matched its pin
-  (both SPIRV tag archives matched the earlier formula pins). Python 3.14.4 and
-  `spirv-val` (SPIRV-Tools v2026.4) built with Xcode 27.2; the tools folder is about 1 GiB.
-- `deps`: all 19 inputs fetched from their official URLs and verified (Git commits by
-  `git archive` hash); the 29 engine patches applied; then, offline under `sandbox-exec`,
-  13 recipe steps exited 0 with the pinned tools: `cpu` (5,837,760 checks), `archives`,
-  `scalar` (853,611 compiler and 20,365,499 admission assertions), `cross`, `archive`,
-  `shader-bridge`, `offline-packages` (NuGet author and repository signatures verified
-  with the pinned SDK), the four framework recipes (696 captured modules passed the
-  pinned `spirv-val`), `capstone-configure` and `capstone-build`. The disk reserve guard
-  stopped the run during `openssl` when the Mac's free space fell to 35 GiB (other work
-  was writing at the same time), so `openssl`, `app-inputs` (the venv from the pinned
-  wheel) and `public-shader-parity` did not run.
-- `app` and `ipa`: not reached.
-- `isolation`: passed on the 96 logs and generated files that existed: no Homebrew,
-  `/usr/local` or other account path.
+- `tools` (145 s): every archive downloaded from its pinned URL and matched its pin (both
+  SPIRV tag archives matched the earlier formula pins); Python 3.14.4 and `spirv-val`
+  (SPIRV-Tools v2026.4) built with Xcode 27.2; XcodeGen's setting presets checked with a
+  probe project. The tools folder is about 1 GiB.
+- `deps` (1,394 s): all 19 inputs fetched from their official URLs and verified, the 29
+  engine patches applied, then all 16 recipe steps exited 0 offline under `sandbox-exec`:
+  the CPU suite (5,837,760 checks), the scalar gates (853,611 compiler and 20,365,499
+  admission assertions), 696 captured modules through the pinned `spirv-val`, NuGet
+  author and repository signatures verified with the pinned SDK, the venv made from the
+  pinned wheel, and public shader parity. 127 output files, none missing; the root is
+  about 4.6 GiB.
+- `app` (148 s) and `ipa` (2 s): `com.dell.satchel` 1.0 (1), unsigned, 124 files.
+- `isolation`: 102 generated projects, logs and the app's link commands name no
+  Homebrew, `/usr/local` or other account path.
 
-Of the 126 declared output files, all but `openssl-ios/lib/libcrypto.a` were produced.
-Compared with the roots the maintainer's current app is built from
-(`engine-pin/deps`, with the current shader products for `m5`): 82 identical, 43
-different, 1 absent there. Every difference is explained:
+Compared with an unsigned build of main 3ed0a5e made the maintainer's usual way (the
+`engine-pin` dependency root, the current shader products, Homebrew tools), 116 of the
+app's 124 files are byte-identical. The others, all explained:
 
-- 36 static archives differ only in the archive's own header and symbol table: every
-  object member is byte-identical.
-- 4 static archives (`libSatchelCPUProbe.a`, `libSatchelShaderBridge.a`,
-  `libSatchelScalarCompiler.a`, `libnative_rewriter.a`) have objects that embed the
-  checkout path in their debug strings (the reference was built from a worktree in
-  another folder); the rewriter source has also moved on since that root was built. The
-  app build compiles its own rewriter, so this copy is not linked.
-- 3 NativeAOT binaries (two `SatchelShaderProbe` copies and `SatchelCapturedFlat`) have
-  the same size and differ in 30 bytes: the per-build module and image identifiers.
-- The one file absent in the reference is the fixture framework's `Notices/nxnative.MIT.txt`, a
-  notice the current recipe adds to the framework.
+- `Satchel`: the same symbols and section sizes except `__cstring`, which holds build
+  paths: VIXL's source file names, OpenSSL's configured install prefix and two signer
+  source paths. Their different lengths move string addresses, so code and data bytes
+  that refer to them differ too.
+- `SatchelShaderTranslator`, `SatchelShaderProbe`, `SatchelCapturedFlat` (NativeAOT):
+  same size, 31 or 32 bytes apart, the per-build module and image identifiers.
+- `Assets.car`: same size, 59 bytes apart, the asset compiler's rendition order.
+- `nintendo_ext.ttf`: only the `head` table differs (creation and modification time).
+- `install.md`: the copy of `docs/install.md`, which that branch changes.
+- `SatchelShaderProbe.framework/Notices/nxnative.MIT.txt`: only in the clean build, a
+  notice the current fixture recipe adds; the maintainer's older root predates it.
 
-This is not bit-for-bit reproducibility, and it is not yet a clean-Mac app build. To
-finish the proof, rerun `--steps deps,app,ipa` with the existing tools folder on a Mac
-with at least 44 GiB free (the dependency root needs about 4.6 GiB and the app about
-1 GiB above the guard's 36 GiB reserve), then compare the IPA manifest with a build from
-an existing environment through `--reference-manifest`.
+Of the dependency root's 127 files, 82 are identical to the maintainer's roots and 44
+differ, all by build metadata: 36 static archives differ only in their archive header and
+symbol table (every object is byte-identical), 5 have objects that embed the checkout or
+install path (CPU probe, shader bridge, scalar compiler, rewriter, and OpenSSL's version
+date and install prefix in 4 of its 1,047 objects) and 3 are NativeAOT identifiers. The
+fixture notice above is the one file absent there.
+
+This is not bit-for-bit reproducibility: build paths and identifiers still reach the
+binaries. Two fixes came out of the runs. XcodeGen started through `tools/bin` found no
+setting presets, so the first clean app lacked the standard Release settings and Xcode
+stripped its embedded frameworks; `setup_tools.py` now links the presets and refuses to
+finish without them, and the check fails an app whose log shows the XcodeGen warning. The
+host build now moves `project.yml`'s `/Users/<name>/SatchelDeps` paths to
+`SATCHEL_DEPS_ROOT` (below). With the maintainer's usual environment, that change leaves
+both the unsigned and the signed default build unchanged: the same 124 library and search
+paths under the configured root, a signed app that passes `codesign --verify --deep --strict`
+and the build's own signature checks, and an unsigned app identical to main's except for
+checkout paths in `Satchel`, the asset catalog's rendition order and `install.md`.
 
 ## Dependency bootstrap details
 

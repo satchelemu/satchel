@@ -97,11 +97,11 @@ See [the posture test guide](docs/testing.md#duo-postures).
 - Only four games have been tried. Any other game may fail at import, Prepare or boot.
   The app records exactly where (missing service, crash address, shader) so a report is
   useful. See [COMPATIBILITY.md](COMPATIBILITY.md).
-- One command is meant to take a fresh clone to an unsigned app and IPA
-  (`scripts/clean_build.py`), with every tool and input pinned by hash and
-  nothing from Homebrew or your account used. Its tool step and most of its dependency
-  step have passed from a fresh clone; an uninterrupted run through the app and a run on
-  a second Mac are still open. This is the first thing we want help with: see [BUILDING.md](BUILDING.md) and [ROADMAP.md](ROADMAP.md). Signing
+- One command takes a fresh clone to an unsigned app and IPA
+  (`scripts/clean_build.py`), with every tool and input pinned by hash and nothing
+  from Homebrew or your account used. It has run end to end on the maintainer's Mac,
+  matching a normal build except for build paths and identifiers; a run on a second
+  Mac is still open. This is the first thing we want help with: see [BUILDING.md](BUILDING.md) and [ROADMAP.md](ROADMAP.md). Signing
   itself is account-neutral: the build reads your team from your Mac and the app reads
   its own team at run time, but only the maintainer's account has been tried.
 - First play of a game stutters while shaders are translated and compiled on the phone.

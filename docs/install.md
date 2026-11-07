@@ -74,8 +74,8 @@ unverified. This project has not hosted or uploaded a source or IPA.
 
 This route needs the project's native build dependencies. The clean-Mac route in
 [BUILDING.md](../BUILDING.md) (`/usr/bin/python3 scripts/clean_build.py --work <folder>`)
-is meant to produce them and an unsigned app from a fresh clone; it has not yet completed
-end to end, so a configured checkout from the build owner is still the proven way.
+produces them and an unsigned app from a fresh clone; it has run end to end on the
+maintainer's Mac only, so report any step that fails on yours.
 Generating project.yml alone does not build the full app.
 
 1. Run NativeApp/build.py with the unsigned option against those dependencies (the clean route does this for you). Open the generated app/Satchel.xcodeproj in that build output.
