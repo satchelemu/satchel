@@ -179,10 +179,15 @@ def check(paths, reference_manifest=None):
     if (app / 'Info.plist').is_file():
         info = plistlib.loads((app / 'Info.plist').read_bytes())
         signed = (app / '_CodeSignature').exists() or (app / 'embedded.mobileprovision').exists()
-        report('app', info.get('CFBundleIdentifier') == 'com.dell.satchel' and not signed,
-               '%s %s (%s), %s, %d files' % (info.get('CFBundleIdentifier'), info.get('CFBundleShortVersionString'),
-                                            info.get('CFBundleVersion'), 'unsigned' if not signed else 'SIGNED',
-                                            sum(1 for p in app.rglob('*') if p.is_file())))
+        # XcodeGen warns like this when it cannot find its setting presets; the project
+        # then lacks the standard Release settings and the app differs from a normal build.
+        log = paths['logs'] / 'app.log'
+        presets = not (log.is_file() and 'settings found' in log.read_text(errors='replace'))
+        report('app', info.get('CFBundleIdentifier') == 'com.dell.satchel' and not signed and presets,
+               '%s %s (%s), %s, %d files%s' % (info.get('CFBundleIdentifier'), info.get('CFBundleShortVersionString'),
+                                              info.get('CFBundleVersion'), 'unsigned' if not signed else 'SIGNED',
+                                              sum(1 for p in app.rglob('*') if p.is_file()),
+                                              '' if presets else ', XcodeGen setting presets missing (see app.log)'))
     else:
         report('app', False, 'no ' + str(app))
 

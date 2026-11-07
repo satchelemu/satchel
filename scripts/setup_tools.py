@@ -151,6 +151,22 @@ def install_xcodegen(tools, archive, env, logs):
     target = fresh(tools / 'xcodegen')
     run(['ditto', '-x', '-k', archive, target], env, log_file=logs / 'xcodegen.log')
     link(tools, target / 'xcodegen/bin/xcodegen', 'xcodegen')
+    # XcodeGen finds its setting presets at <dir of argv[0]>/../share/xcodegen without
+    # resolving the symlink. Without them every generated project silently loses the
+    # standard Debug/Release settings (COPY_PHASE_STRIP, DEBUG_INFORMATION_FORMAT, ...).
+    share = tools / 'share'
+    share.mkdir(exist_ok=True)
+    presets = share / 'xcodegen'
+    if presets.is_symlink() or presets.exists():
+        presets.unlink()
+    presets.symlink_to(os.path.relpath(str(target / 'xcodegen/share/xcodegen'), str(share)))
+    probe = fresh(tools / 'work/xcodegen-presets')
+    (probe / 'project.yml').write_text('name: Probe\ntargets:\n  Probe:\n    type: application\n    platform: iOS\n')
+    run([tools / 'bin/xcodegen', 'generate', '--spec', probe / 'project.yml', '--project', probe], env, log_file=logs / 'xcodegen.log')
+    project = (probe / 'Probe.xcodeproj/project.pbxproj').read_text()
+    if 'COPY_PHASE_STRIP = NO;' not in project or 'DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";' not in project:
+        raise RuntimeError('XcodeGen did not apply its setting presets; see ' + str(logs / 'xcodegen.log'))
+    shutil.rmtree(str(probe))
     return output([tools / 'bin/xcodegen', '--version'], env)
 
 
