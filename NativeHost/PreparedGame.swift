@@ -845,21 +845,6 @@ struct NativeGameReportView: View {
                         Text(report.message)
                         Text("First frame: " + report.firstFrame + "\nGameplay: " + report.gameplay)
                         if let crash = report.crash { Text(crash).font(.system(.body, design: .monospaced)) }
-                        ForEach(report.missingServices + report.missingSVCs + report.shaderFailures, id: \.self) { Text($0) }
-                        if let feedback {
-                            Text("Automatic settings").font(.headline)
-                            ForEach(feedback.summary, id: \.self) { Text($0).accessibilityIdentifier("game-report-feedback") }
-                            if feedback.learnedProfileSHA256 != nil {
-                                Button("Forget learned settings") {
-                                    NativeBootFeedback.reset(package: package)
-                                    self.feedback = nil
-                                    self.report?.bootFeedback = nil
-                                    try? self.report?.save()
-                                    copied = false
-                                }.accessibilityIdentifier("game-report-forget-learned")
-                            }
-                        }
-                        Text(report.lastLogLines.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                         Text("Copy diagnostics puts command names, counts, error codes and revisions on the clipboard, never game data, saves or keys. The copy stays on this device and expires after five minutes.")
                             .font(.caption).foregroundStyle(.secondary)
                         HStack(spacing: 20) {
@@ -880,6 +865,21 @@ struct NativeGameReportView: View {
 #if PREVIEW_GAME
                         GameReportClipboardFixture()
 #endif
+                        if let feedback {
+                            Text("Automatic settings").font(.headline)
+                            ForEach(feedback.summary, id: \.self) { Text($0).accessibilityIdentifier("game-report-feedback") }
+                            if feedback.learnedProfileSHA256 != nil {
+                                Button("Forget learned settings") {
+                                    NativeBootFeedback.reset(package: package)
+                                    self.feedback = nil
+                                    self.report?.bootFeedback = nil
+                                    try? self.report?.save()
+                                    copied = false
+                                }.accessibilityIdentifier("game-report-forget-learned")
+                            }
+                        }
+                        ForEach(report.missingServices + report.missingSVCs + report.shaderFailures, id: \.self) { Text($0) }
+                        Text(report.lastLogLines.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     }
                     if let failure { Text(failure) }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(24)

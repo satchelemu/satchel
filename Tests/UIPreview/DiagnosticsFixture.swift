@@ -86,7 +86,7 @@ struct GameReportClipboardFixture: View {
         if UserDefaults.standard.string(forKey: "SatchelPreviewDiagnostics") == "learned" {
             Button("Inspect synthetic clipboard") { copied = UIPasteboard.general.string ?? "Clipboard is empty" }
                 .accessibilityIdentifier("game-report-inspect-clipboard")
-            Text(copied).font(.system(size: 10)).accessibilityIdentifier("game-report-clipboard")
+            Text(copied).font(.system(size: 10)).lineLimit(1).accessibilityIdentifier("game-report-clipboard")
         }
     }
 }

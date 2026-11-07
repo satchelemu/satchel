@@ -492,6 +492,7 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertFalse(app.debugDescription.contains("RAW_PAYLOAD_SENTINEL"), "Raw JSON and invalid fields must stay private")
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "\"firstSeenFrame\"")).firstMatch.exists)
         XCTAssertEqual(app.state, .runningForeground)
+        revealReportTop(sheet)
         try tap("Done")
         absent(app.navigationBars["Game report"])
         _ = try button("close-prepare")
@@ -503,6 +504,16 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("close-prepare")
         _ = try button("import-homebrew")
         assertHomeContent()
+    }
+
+    /// iOS hides a sheet's toolbar items while its content is scrolled down; scroll back to the
+    /// report's first line so Done is shown again.
+    private func revealReportTop(_ sheet: XCUIElement) {
+        revealControl(app.staticTexts["Stage: synthetic-runtime"], in: sheet)
+        for _ in 0..<4 where !app.buttons["Done"].waitForExistence(timeout: 2) {
+            let start = sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 60)))
+        }
     }
 
     func testPrepareDiagnosticsServiceRows() throws { try checkPrepareDiagnostics("rows", hasRows: true) }
@@ -557,6 +568,7 @@ final class NavigationJourneyTests: XCTestCase {
         forget.tap()
         absent(learned)
         absent(app.buttons["game-report-forget-learned"])
+        revealReportTop(sheet)
         try tap("Done")
         absent(app.navigationBars["Game report"])
         // Reopening reads the same files: the teaching launch is not used again.
