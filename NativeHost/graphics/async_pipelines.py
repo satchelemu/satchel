@@ -46,7 +46,19 @@ def apply(root, source):
         text = text.replace(needle, needle.replace('dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0)', 'satchel_speculative_queue()'))
         needle = '    memcpy(&S, &Ssave, sizeof S); R.sc = sc0; R.has_sc = has_sc0; args_dirty_all();'
         assert text.count(needle) == 1
-        text = text.replace(needle, '    { static int said; if (getenv("DM_SHADER_EVENTS") && said++ < 64) MLOG("parallel precompile walk: %d draws, %d likely and %d alternative keys, %d admitted", draws, na, nb, admitted); }\n' + needle)
+        text = text.replace(needle, '    { static int said; if (getenv("DM_SHADER_EVENTS") && said++ < 64) MLOG("parallel precompile walk: %d draws, %d likely and %d alternative keys, %d admitted, depth %d, stopped %d", draws, na, nb, admitted, g_ret_n, cur.bad); }\n' + needle)
+        # With a speculative budget set (DM_PSO_SPECULATIVE), the walk and the library prefetch follow the
+        # replay's return stack, as the engine's other look-aheads do: when the first pipeline miss of a
+        # submission is inside a called command list, the walk used to end with that list and skip the
+        # rest of its callers (most of Zelda's title frame). They still stop where the engine's cursor
+        # stops (a multi-draw range, nesting over 8). Unset, the walk is unchanged: with the engine's
+        # budget of 2 the longer walk only costs time.
+        for following in ['    for (int guard = 0; guard < 200000; guard++) {\n',
+                          '    // Collect likely attachment keys before alternatives, then admit only a small batch.']:
+            needle = '    fz_cursor cur = {.p = g_exec_next};\n' + following
+            assert text.count(needle) == 1
+            text = text.replace(needle, '    fz_cursor cur = {.p = g_exec_next};\n'
+                '    if (satchel_speculative_setting() && g_ret_n <= 8) { for (int k = 0; k < g_ret_n; k++) cur.ret[cur.ret_n++] = g_ret[k]; }\n' + following)
         needle = 'static void pso_predict_rest_(void) {\n    if (!g_exec_next) return;'
         assert text.count(needle) == 1
         text = text.replace(needle, needle + ' satchel_phone_predict_skipped = 0;')

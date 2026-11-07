@@ -62,6 +62,21 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     if (prewarm) setenv("DM_PSO_PREPARE_MS", [NSString stringWithFormat:@"%ld", (long)prewarmMS].UTF8String, 1);
     else unsetenv("DM_PSO_PREPARE_MS");
 
+    // Developer trials of first-use pipeline scheduling (unset: two compiler lanes and each mode's own
+    // speculative budget). -SatchelPipelineLanes <1..8> sets the compiler lanes; -SatchelPipelineAhead
+    // <1..128> lets the prediction walk start that many of a submission's predicted pipelines at once.
+    // Either changes when a pipeline is built, never which one a draw uses.
+    for (NSArray<NSString *> *knob in @[@[@"-SatchelPipelineLanes", @"DM_PSO_LANES", @8], @[@"-SatchelPipelineAhead", @"DM_PSO_SPECULATIVE", @128]]) {
+        NSString *text = argument(args, knob[0]); NSInteger value = 0;
+        NSScanner *knobScanner = text ? [NSScanner scannerWithString:text] : nil;
+        if (text && [knobScanner scanInteger:&value] && knobScanner.isAtEnd && value >= 1 && value <= [knob[2] integerValue])
+            setenv([knob[1] UTF8String], [NSString stringWithFormat:@"%ld", (long)value].UTF8String, 1);
+        else {
+            if (text) fprintf(stderr, "Satchel graphics: invalid %s ignored\n", [knob[0] UTF8String]);
+            unsetenv([knob[1] UTF8String]);
+        }
+    }
+
     // An explicit benchmark namespace starts cold without deleting the player's cache or saves.
     NSString *trial = argument(args, @"-SatchelPipelineTrial");
     NSCharacterSet *tag = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"];
@@ -125,7 +140,8 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     fprintf(stderr, "Satchel loading: romfs=%s\n", mapped ? "mapped" : "pread");
 
     setenv("DM_PSO_ARCHIVE", SatchelPipelineArchiveDirectory(cacheRoot).fileSystemRepresentation, 1);
-    fprintf(stderr, "Satchel graphics: pipelines=%s workers=2 archive=%s\n", skipping ? "skip" : bounded ? "bounded" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy", getenv("DM_PSO_ARCHIVE"));
+    fprintf(stderr, "Satchel graphics: pipelines=%s workers=%s ahead=%s archive=%s\n", skipping ? "skip" : bounded ? "bounded" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy",
+            getenv("DM_PSO_LANES") ?: "2", getenv("DM_PSO_SPECULATIVE") ?: "default", getenv("DM_PSO_ARCHIVE"));
     if (prewarm) fprintf(stderr, "Satchel graphics: launch prewarm of recorded pipelines, at most %ld ms before the first frame\n", (long)prewarmMS);
 }
 

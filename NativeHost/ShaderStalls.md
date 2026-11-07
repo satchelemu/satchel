@@ -33,7 +33,10 @@ threads. `translation` and `library-create` measure translator and source-librar
 `library-use`, `pipeline-use`, and `pipeline-wait` include required first-use waits.
 `pipeline-own` (an ordinary key) and `pipeline-own-merged` (a merged-pass or specialized-fragment
 key) time the pipelines a draw builds itself; `pipeline-taken` marks a draw taking a speculative
-build. With the trace on, each prediction walk logs its draw and key counts (`parallel precompile walk`).
+build. With the trace on, each prediction walk logs its draw and key counts (`parallel precompile walk`),
+and each ordinary pipeline a draw builds itself adds one `own-*` event naming how its key relates to the
+last walk's keys (`own-predicted`, `own-unseen`, or the first differing part: shaders, formats, vertex
+layout, blend).
 Do not add nested durations. Union their intervals on each submit thread for a total.
 The existing `DM_NVN_TSV` supplies frame intervals, draw counts and worst-frame evidence.
 Events cover the whole process route; frame statistics stop at frame 1800.
@@ -200,16 +203,76 @@ Every run passed with zero shader failures, zero fallback pipelines and zero ski
 predicted pipeline is taken only on an equal pipeline key, so no draw changes. A base compile costs
 21 to 25 ms on this Mac (172 to 176 per route, 3.7 to 5.4 s in all) and a specialization 0.1 ms.
 
-Why more lanes do not help yet: the title frame is one submission with one prediction walk over its
-remaining 1,072 draws, and that walk computes only 40 keys not yet built (29 likely, 11 alternative
-attachment modes). With all 40 admitted, 29 were taken by their draws in the title frame and the
-draws still built 81 pipelines themselves (108 with the engine's budget of 2), none of them a
-merged-pass or specialized-fragment key (zero `pipeline-own-merged` events). So about two thirds of
-the frame's new pipelines are never predicted: the key a draw computes differs from the one the walk
-computed for it. With 4 or 6 lanes, pipeline compilation in the title frame reached 4 to 6 at once but
-averaged 1.3 to 1.5. The next step is to find which key field differs (vertex shader revision,
-attachment formats, vertex layout or blend state) and make the walk compute the draw's key; only then
-can lanes beyond two matter. Nothing here is a phone result; the phone has fewer cores.
+Why more lanes did not help: the title frame is one submission with one prediction walk, and that
+walk computed only 40 keys not yet built (29 likely, 11 alternative attachment modes). With all 40
+admitted the draws still built 81 pipelines themselves (108 with the engine's budget of 2), none a
+merged-pass key. A classifier in the opt-in trace (`own-*` events: each pipeline a draw builds itself
+against the last walk's keys) put 69 of those 81 in `own-unseen`: the walk never reached their draws.
+The first miss of the submission is inside a called command list, and the walk's cursor started
+without the replay's return stack, so it ended with that list and skipped the rest of its callers.
+The engine's other look-aheads already follow that stack.
+
+The fix (applied only when a speculative budget is set, so default modes are unchanged): the walk and
+the library prefetch start with the replay's return stack. The title frame's walk then covers 1,372
+to 1,412 draws and 109 likely plus 66 alternative keys, and 105 of the 108 pipelines the draws built
+at the default budget were among them. Same seed, relist, after the fix:
+
+| Setting | Title frame | Submit pipeline time | Draws building their own pipeline | Compile concurrency |
+|---|---|---|---|---|
+| fix, engine budget 2 | 3,184 ms | 2,581 ms | 108 | 1.08 |
+| fix, lanes 2, ahead 128 | 2,434 ms | 194 ms own builds, 1,560 ms waiting for started ones | 3 | 1.90 |
+| fix, lanes 4, ahead 128 | 1,536 ms | 166 ms own, 703 ms waiting | 3 | 3.71 |
+
+The speculative builds started 272 pipelines on the route against 162 taken; the extra ones are
+alternative attachment modes, and the route compiled the same number of bases (176 against 175), so
+the extra work is mostly specializations (0.1 ms each).
+
+Cold and warm opening routes, exact, 1,800 frames, main 3ed0a5e (A) against this branch with
+`--lanes 4 --speculative 128` (C), run A then C, then C then A, then a third C on the final build.
+Values are the runs in that order. Shader time is the stall split inside frames over 50 ms. The
+branch with nothing set (Zelda, one run) behaved as main: 16/14 frames over 50/100 ms, pipeline
+4,252 ms in slow frames, warm worst 853 ms.
+
+| Route | Worst frame, ms | > 50 / > 100 ms | Translation / library / pipeline / walk, ms |
+|---|---|---|---|
+| Zelda clean, A | 8,749; 6,806 | 16/16; 16/13 | 6,209 / 8,492 / 4,292 / 38; 6,088 / 8,578 / 4,412 / 36 |
+| Zelda clean, C | 7,593; 7,244; 5,363 | 30/15; 37/16; 14/13 | 6,875 / 3,836 / 2,310 / 189; 8,436 / 3,034 / 2,798 / 197; 4,810 / 4,627 / 1,445 / 161 |
+| Zelda warm, A | 682; 678 | 9/4; 6/2 | 312 / 140 / 80 / 43; 240 / 134 / 77 / 36 |
+| Zelda warm, C | 858; 802; 624 | 14/3; 17/7; 7/2 | 359 / 218 / 14 / 176; 388 / 206 / 13 / 164; 284 / 144 / 8 / 155 |
+| Odyssey clean, A | 299; 233 | 3/3; 3/3 | 176 / 318 / 126 / 2; 158 / 164 / 87 / 1 |
+| Odyssey clean, C | 246; 392 (a third ended at frame 11, see below) | 3/3; 3/3 | 187 / 193 / 97 / 1; 248 / 268 / 100 / 1 |
+| Odyssey warm, A and C | 26 to 34 | 0/0 | none |
+| Castlevania clean, A | 325; 355 | 5/5; 5/5 | 208 / 275 / 114 / 4; 240 / 394 / 136 / 4 |
+| Castlevania clean, C | 323; 232 | 5/5; 5/3 | 192 / 272 / 121 / 4; 100 / 9 / 117 / 4 |
+| Castlevania warm, A | 231; 237 | 3/2; 2/2 | 6 / 2 / 1 / 3; none |
+| Castlevania warm, C | 219; 216 | 2/2; 2/2 | none |
+
+What it changes: in Zelda's cold opening the title frame's pipeline time falls from 2.4 to 2.5 s to
+0.6 to 1.1 s, pipeline time in slow frames from 4.3 to 4.4 s to 1.4 to 2.8 s, and library time from
+8.5 s to 3.0 to 4.6 s (the prefetch now loads the whole frame's libraries in parallel); shader time in
+slow frames falls from about 19 s to 11 to 14 s. The worst frame improves less (6.8 to 8.7 s against
+5.4 to 7.6 s), because translation (5 to 8 s on this Mac, done one program at a time by the draws and
+the walk) now dominates it; bounded mode is what moves translation. The extra frames
+over 50 ms in C hold no shader time at all (the 14 to 21 frames of 50 to 100 ms are guest, GPU and pacing
+time; some ran while the Mac's load average was over 100), so they are not shader stalls, but background
+compiles competing with the game for the CPU cannot be ruled out on the Mac and must be checked on the
+phone. In Zelda's warm opening the walk takes 155 to 176 ms against 36 to 43 ms, with almost nothing left to
+build, and the worst frame (624 to 858 ms against 678 to 853 ms for main and the unset branch) moves
+within the run spread; on the phone that longer walk is a cost to watch. Odyssey and
+Castlevania build only a few pipelines and are unchanged within run-to-run spread.
+
+Exactness: every route above passed with zero shader failures, zero fallback pipelines and zero
+skipped draws. Odyssey's captured frames 300, 1,200 and 1,800 are byte-identical between A and both
+passing C runs, clean and warm, and between two A runs; Castlevania and Zelda differ between two A runs as much as between A
+and C (their openings animate with wall time). One Odyssey C clean route ended at frame 11 with exit
+42 before any pipeline was predicted (the walk had 0 draws); earlier rounds saw the same early Odyssey
+exit on both hosts, and the repeat passed.
+
+So the scheduling is offered as a developer launch trial (`-SatchelPipelineLanes 4 -SatchelPipelineAhead
+128`), not as a default: the cold gain is in pipeline and library waits, the warm title frame pays for
+the longer walk, and the phone has two performance and four efficiency cores, so the right lane count
+and the cost to the game's own threads need a phone trial. The final build repeated the relist: title
+frame 1,647 ms, submit pipeline time 880 ms, 3 draws building their own pipeline. Nothing here is a phone result.
 
 Ideas from the same round that were checked and not taken:
 
