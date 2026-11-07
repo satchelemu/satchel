@@ -122,6 +122,12 @@ def prepare(unsigned=False):
         configured_deps = str(Path(os.environ.get('SATCHEL_DEPS_ROOT', default_deps)))
         if s.startswith(default_deps + '/'):
             return configured_deps + s[len(default_deps):]
+        # project.yml spells library paths under the maintainer's home folder. On any other
+        # account (or with HOME isolated) they must still move to the configured root, never
+        # resolve to whatever happens to exist at the tracked spelling.
+        tracked = re.match(r'/Users/[^/]+/SatchelDeps(?=/)', s)
+        if tracked:
+            return configured_deps + s[tracked.end():]
         return s.replace('/tmp/satchel-', str(snapshot / 'satchel-'), 1) if s.startswith('/tmp/satchel-') else s
     for dep in target['dependencies']:
         if 'framework' in dep:

@@ -72,11 +72,13 @@ unverified. This project has not hosted or uploaded a source or IPA.
 
 ## Xcode on a Mac
 
-This route needs the project's existing native build dependencies. A clean Mac is not
-yet a one-command setup. Ask the build owner for a configured checkout and follow
-NativeApp/README.md there. Generating project.yml alone does not build the full app.
+This route needs the project's native build dependencies. The clean-Mac route in
+[BUILDING.md](../BUILDING.md) (`/usr/bin/python3 scripts/clean_build.py --work <folder>`)
+is meant to produce them and an unsigned app from a fresh clone; it has not yet completed
+end to end, so a configured checkout from the build owner is still the proven way.
+Generating project.yml alone does not build the full app.
 
-1. Have the build owner run NativeApp/build.py with the unsigned option. Open the generated app/Satchel.xcodeproj in that build output.
+1. Run NativeApp/build.py with the unsigned option against those dependencies (the clean route does this for you). Open the generated app/Satchel.xcodeproj in that build output.
 2. In Xcode Settings, Accounts, add your account yourself. Select the Satchel target and your own team under Signing & Capabilities. The build resolves the team at signing time; if Xcode rejects a capability or identifier, stop and report the error to the maintainer. Do not remove capabilities just to make signing pass.
 3. Select the connected iPhone and the Satchel scheme. Set the Run action's build configuration to Release. Enable Developer Mode on the phone if prompted, then build and run when signing succeeds.
 4. To renew an Xcode install, build and run again with the same team and bundle identifier before expiry. Keep com.dell.satchel and update the installed app in place.

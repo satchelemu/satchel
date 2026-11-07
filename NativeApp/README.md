@@ -33,8 +33,8 @@ artifacts under `~/SatchelBuild/m5`. Override their locations with
 the local `NativeShaders` sources are used automatically. The source staging manifest
 records input digests. The app embeds/signs the staged `SatchelShaderTranslator.framework` and links
 the pinned SPIRV-Cross bridge and M5's BSD zstd archive for native NCZ and registered-module decoding. The original fixture probe stays separate.
-No new packages were downloaded. These are provisioned build prerequisites; a clean Mac
-needs them before this command can reproduce the app. `project.yml` supplies the base
+These are provisioned build prerequisites; on a clean Mac, `scripts/clean_build.py`
+(see BUILDING.md) installs the pinned tools and builds them before running this command. `project.yml` supplies the base
 library target and dependency list to this generator; generating it alone is no longer the
 complete app build.
 

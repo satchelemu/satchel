@@ -7,8 +7,9 @@ The ad hoc check uses codesign's `-` identity, which is not installable on an iP
 
 ## Build, export and verify
 
-Use the configured dependencies in [BUILDING.md](../../BUILDING.md). A clean runner
-cannot yet reproduce them. Run from the repository root:
+The clean-Mac route in [BUILDING.md](../../BUILDING.md) (`scripts/clean_build.py`) runs
+the build and packaging steps below for you, into its own work folder. To run them by
+hand against configured dependencies, from the repository root:
 
 ```zsh
 export SATCHEL_BUILD_ROOT="$HOME/SatchelBuild"
@@ -128,8 +129,8 @@ as real signing evidence. Run the separate ad hoc check on the actual app too.
 The [refresh journey](../../docs/distribution-validation.md) covers installed-signature
 expiry and installer refresh, including prepared games and preservation of saves.
 The Actions draft `.github/workflows/ipa-draft.yml` has manual dispatch only and its
-job is hard-disabled. It outlines building an existing release tag, has read-only
-permissions, no signing secrets and no upload step. Before enabling it, finish
-clean-runner dependency reproduction, pin the runner/Xcode environment, replace the
-bootstrap preflight with the validated fetch/build invocation, confirm disk capacity
-and review the complete workflow. It cannot currently produce a release on CI.
+job is hard-disabled. It outlines building an existing release tag with the clean-Mac
+route (`scripts/clean_build.py`, see [BUILDING.md](../../BUILDING.md)), has read-only
+permissions, no signing secrets and no upload step. Before enabling it, pin a runner
+image with Xcode 27.2, run the route there once, confirm disk capacity and review the
+complete workflow. It cannot currently produce a release on CI.

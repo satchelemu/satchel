@@ -1,7 +1,7 @@
 name: Unsigned IPA draft (disabled)
 
-# Future release-tag build. Do not add a push/tags trigger until a clean runner
-# can reproduce all dependencies and pass public shader validation.
+# Future release-tag build. It follows the clean-Mac route of BUILDING.md. Keep it
+# disabled until a hosted runner offers Xcode 27.2 and the route has passed there.
 on:
   workflow_dispatch:
     inputs:
@@ -20,27 +20,21 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 120
     env:
-      SATCHEL_BUILD_ROOT: /Users/runner/SatchelBuild
-      SATCHEL_DEPS_ROOT: /Users/runner/SatchelDeps
-      SATCHEL_OUT: /Users/runner/SatchelBuild/distribution/app-build
-      ANYGAME_OUT: /Users/runner/SatchelBuild/distribution/guard
+      SATCHEL_WORK: /Users/runner/SatchelClean
     steps:
       - uses: actions/checkout@v4
         with:
           ref: refs/tags/${{ inputs.release_tag }}
           persist-credentials: false
-      - name: Check dependency readiness (currently fails closed)
-        run: python3 -B scripts/bootstrap_deps.py --root "$SATCHEL_DEPS_ROOT"
-      - name: Build unsigned Release app with two jobs and resource guards
-        run: nice -n 10 python3 -B NativePrepare/guard.py python3 -B NativeApp/build.py --unsigned
-      - name: Package local artifacts and verify ad hoc re-signing
+      - name: Pinned tools, pinned dependencies, unsigned Release app and IPA
+        run: /usr/bin/python3 -B scripts/clean_build.py --work "$SATCHEL_WORK"
+      - name: Verify ad hoc re-signing and the source
         run: |
-          python3 -B scripts/build_ipa.py --build-root "$SATCHEL_OUT" --out "$SATCHEL_BUILD_ROOT/distribution/artifacts"
-          python3 -B scripts/build_ipa.py --verify-resign "$SATCHEL_BUILD_ROOT/distribution/artifacts/Satchel.ipa"
-          python3 -B NativeApp/Distribution/source.py generate "$SATCHEL_BUILD_ROOT/distribution/artifacts/Satchel.ipa" --out "$SATCHEL_BUILD_ROOT/distribution/artifacts"
-          python3 -B NativeApp/Distribution/source.py validate "$SATCHEL_BUILD_ROOT/distribution/artifacts/source.json" "$SATCHEL_BUILD_ROOT/distribution/artifacts/Satchel.ipa"
+          "$SATCHEL_WORK/tools/bin/python3" -B scripts/build_ipa.py --verify-resign "$SATCHEL_WORK/ipa/Satchel.ipa"
+          "$SATCHEL_WORK/tools/bin/python3" -B NativeApp/Distribution/source.py generate "$SATCHEL_WORK/ipa/Satchel.ipa" --out "$SATCHEL_WORK/ipa"
+          "$SATCHEL_WORK/tools/bin/python3" -B NativeApp/Distribution/source.py validate "$SATCHEL_WORK/ipa/source.json" "$SATCHEL_WORK/ipa/Satchel.ipa"
       - name: Distribution contract and hygiene
         run: |
-          python3 -B NativeApp/Distribution/test_source.py
-          python3 -B NativeApp/Distribution/test_ipa.py
+          "$SATCHEL_WORK/tools/bin/python3" -B NativeApp/Distribution/test_source.py
+          "$SATCHEL_WORK/tools/bin/python3" -B NativeApp/Distribution/test_ipa.py
           sh scripts/check_repo_hygiene.sh

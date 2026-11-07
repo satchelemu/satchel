@@ -71,7 +71,7 @@ def main():
  # Full independently encoded source compiler and public ABI/state oracle gates.
  fixtures=host/'fixtures';fixtures.mkdir(exist_ok=True)
  test('raster-compiler',RC/'test.c',args=[fixtures])
- for module in sorted(fixtures.glob('*.spv')):run(['/opt/homebrew/bin/spirv-val','--target-env','vulkan1.1',module])
+ for module in sorted(fixtures.glob('*.spv')):run(['spirv-val','--target-env','vulkan1.1',module])
  test('raster-nvn-abi',GG/'RasterNVNABITest.c',extra=['-I',REF/'dm/gfx/nvn/include'])
  fault=compile(GG/'GuestRasterPrograms.c','raster-program-faults',['-include',GG/'RasterProgramFaults.h','-Dmalloc=raster_test_malloc','-Dcalloc=raster_test_calloc','-Dsatchel_guest_pools_release=raster_test_release','-Dsatchel_guest_pools_lease_binding=raster_test_binding'])
  test('raster-program',GG/'RasterProgramTest.c',{'GuestRasterPrograms':fault})

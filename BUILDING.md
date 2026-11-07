@@ -1,46 +1,176 @@
 # Building Satchel from source
 
-As of 2026-11-04, a clean Mac still cannot reproduce the complete app. The dependency
-bootstrap below reconstructs pinned source inputs and reuses the native recipes in a
-fresh root. Five tool source archives now have exact URLs and SHA-256 pins, but their
-standalone recipes and two remaining distribution pins are not yet reproducible.
-Shader staging now has a public synthetic gate with source and binary receipts.
-The public gate and real iOS shader staging passed against a fresh local bootstrap
-root. The bootstrap fails closed instead of downloading unpinned tools or claiming
-that an incomplete root is usable. Signing is account-neutral.
+The path below goes from a fresh clone to an unsigned app and IPA with one command, from
+pinned inputs and pinned tools, without Homebrew or anything already in your account.
+It has not yet completed end to end: on 2026-11-07 its tool step and most of its
+dependency step passed from a fresh clone, and the run was stopped by the build's disk
+guard before the last three dependency recipes, the app and the IPA (see "What the route
+proves"). Signing is account-neutral and comes after it, with your own team.
 
-Settings > Device check adds no dependency. Its native probe builds with the iOS SDK;
-the running-signature query resolves Security SPI dynamically and reports Unknown if
-unavailable. The simulator harness exercises the probe and synthetic report journeys.
-Signed device readings still require the checks in [docs/testing.md](docs/testing.md).
+## From a fresh clone to an unsigned app
 
-## Dependency bootstrap (incomplete)
+What you install yourself (none of it can be pinned by the repository):
 
-The entry point is:
+- An Apple Silicon Mac with macOS 27.2.
+- Xcode 27.2 (27B52), opened once so its license and components are installed, and
+  selected with `sudo xcode-select -s /Applications/Xcode.app` (or `DEVELOPER_DIR`).
+- Xcode's Metal toolchain: `xcodebuild -downloadComponent MetalToolchain` if
+  `xcrun metal --version` fails.
+- Network access to the official sources in
+  [scripts/deps/inputs.lock.json](scripts/deps/inputs.lock.json) for the first run.
+- Disk: about 8 GiB for the work folder, and the build guard refuses to start below
+  36 GiB free (it protects the Mac it runs on).
+
+Then:
 
 ```sh
-python3 -B scripts/bootstrap_deps.py --root "$HOME/SatchelBuild/deps"
+git clone https://github.com/satchelemu/satchel.git
+cd satchel
+/usr/bin/python3 scripts/clean_build.py --work ~/SatchelClean
 ```
 
-It currently exits 2 with the missing clean-Mac input pins. The tracked inventory is
-[scripts/deps/inputs.lock.json](scripts/deps/inputs.lock.json): source URL, revision or
-version, license, SHA-256 and explicit gaps. File hashes cover the downloaded bytes.
-Git hashes cover `git archive --format=tar COMMIT`, verified after fetching the pinned
-commit and before checking it out. The separate `tool_sources` list records upstream
-source archives pinned from installed package metadata, not downloaded or rebuilt tools.
-Each metadata file has its own provenance hash. Dirty source-cache files and prebuilt libraries are
-never used as Git inputs. The two NX2Apple pins have distinct roles: the current
-engine and patch queue, and the older translator reference required by its source lock.
+`/usr/bin/python3` is the Python that comes with Xcode; nothing else is needed first.
+The work folder must be outside the checkout. The driver runs four steps and then a check:
 
-`--fetch --stage-only` fetches only those inputs that already have hashes, then exits 2
-while the inventory has pin or recipe gaps. This stages the tool source archives too,
-but does not build or install them. This network path has not been exercised in this round.
-No URL or hash is silently learned from a download. Without `--fetch`, outbound IP connections
-are denied for the bootstrap and its build children with macOS `sandbox-exec`; local
-MSBuild IPC remains available.
+| Step | What it does | Output |
+|---|---|---|
+| `tools` | `scripts/setup_tools.py`: checks the Mac, Xcode, the iOS SDK and the Metal toolchain; downloads the pinned tools, verifies each hash, installs CMake and XcodeGen release binaries and the .NET SDK, builds Python and `spirv-val` from pinned sources, keeps the pinned fontTools wheel | `<work>/tools` (`bin/` holds every tool) |
+| `deps` | `scripts/bootstrap_deps.py --tools --fetch`: fetches the 19 pinned inputs from their official URLs (Git commits verified by `git archive` hash, files by SHA-256), applies the 29 engine patches, then builds every native dependency with outbound network denied by `sandbox-exec` | `<work>/deps`, with `bootstrap-manifest.json` and `output-manifest.json` |
+| `app` | `NativeApp/build.py --unsigned` against that root, under the shared build guard | `<work>/out/app/DerivedData/Build/Products/Release-iphoneos/Satchel.app` |
+| `ipa` | `scripts/build_ipa.py` | `<work>/ipa/Satchel.ipa` and `Satchel.manifest.json` (every file's SHA-256) |
 
-The local diagnostic path uses installed tools and an explicit SDK. It does not qualify
-as a clean-Mac build. For the maintainer's read-only caches:
+Every step runs with a minimal environment: `PATH` is `<work>/tools/bin` plus the macOS
+system folders, `HOME` is `<work>/home`, and every `SATCHEL_*` location points inside the
+work folder. Homebrew, `/usr/local`, `~/SatchelDeps`, `~/SatchelBuild` and the rest of
+your account are never on the path. `--steps tools,deps` runs a subset; the `deps` step
+needs a fresh `<work>/deps`. `--cache <folder>` reuses previously downloaded archives,
+each only after its pinned hash matches.
+
+To see which steps pass, at any time:
+
+```sh
+/usr/bin/python3 scripts/clean_build.py --work ~/SatchelClean --check
+```
+
+It prints one PASS or FAIL line per step (`xcode`, `tools`, `deps`, `app`, `ipa`) and an
+`isolation` line: every generated Xcode project, build log and the app's link commands
+are scanned for paths outside the checkout, the work folder and the system (Homebrew,
+`/usr/local`, any other folder of your account). It exits 0 only when every line passes,
+and keeps `check.json` and `isolation.json` in `<work>/logs`. `--reference-manifest
+<other>/Satchel.manifest.json` also writes a per-file comparison with another IPA.
+
+Signed builds for your phone use the same root afterwards: set the variables the driver
+uses (`SATCHEL_DEPS_ROOT=<work>/deps`, `SATCHEL_NATIVE_BUILD_INPUTS=<work>/deps/build-inputs`,
+`SATCHEL_CAPSTONE_SOURCE=<work>/deps/sources/capstone-d2e5739cbb43df93d589a3a726c8f878b95beccb`,
+`SATCHEL_OPENSSL_IOS=<work>/deps/openssl-ios`, `SATCHEL_SHADER_DEPS=<work>/deps/m5`, a
+`SATCHEL_BUILD_ROOT` and a `SATCHEL_OUT`), put `<work>/tools/bin` first on `PATH`, and run
+`NativeApp/build.py` without `--unsigned` (see "Signing with your own team" below).
+
+### The pinned tools
+
+All in the `tools` list of the lock. A hash comes from the publisher where one is
+published; nothing is pinned by trusting a first download.
+
+| Tool | Pin | Form | Hash from |
+|---|---|---|---|
+| CMake | 4.4.4 | Kitware's macOS universal release archive | Kitware's `cmake-4.4.4-SHA-256.txt` (it also lists the source archive hash the lock had) |
+| XcodeGen | 2.45.3 | release `xcodegen.zip` | GitHub's release asset digest |
+| .NET SDK | 10.0.403 (runtime 10.0.14) | Microsoft's `osx-arm64` archive | SHA-512 in Microsoft's `releases.json` |
+| Python | 3.14.4 | built from `Python-3.14.4.tgz` with Xcode's compiler and SDK (no OpenSSL; downloads use `curl`) | python.org release file record |
+| spirv-val | SPIRV-Tools and SPIRV-Headers `vulkan-sdk-1.4.363.0` | built from the two tag archives, only the `spirv-val` target | the earlier formula pins (GitHub tag archives have no publisher checksum); both matched on download |
+| fontTools | 4.68.0 | `py3-none-any` wheel, unpacked into a private environment made from the pinned Python | PyPI release metadata |
+
+### What the route proves
+
+Run on 2026-11-07 on the maintainer's Mac from a fresh clone of the branch that added
+it, with the isolated `PATH` and `HOME` above (Mac execution only; nothing installed on
+a phone):
+
+- `tools`: passed. Every archive downloaded from its pinned URL and matched its pin
+  (both SPIRV tag archives matched the earlier formula pins). Python 3.14.4 and
+  `spirv-val` (SPIRV-Tools v2026.4) built with Xcode 27.2; the tools folder is about 1 GiB.
+- `deps`: all 19 inputs fetched from their official URLs and verified (Git commits by
+  `git archive` hash); the 29 engine patches applied; then, offline under `sandbox-exec`,
+  13 recipe steps exited 0 with the pinned tools: `cpu` (5,837,760 checks), `archives`,
+  `scalar` (853,611 compiler and 20,365,499 admission assertions), `cross`, `archive`,
+  `shader-bridge`, `offline-packages` (NuGet author and repository signatures verified
+  with the pinned SDK), the four framework recipes (696 captured modules passed the
+  pinned `spirv-val`), `capstone-configure` and `capstone-build`. The disk reserve guard
+  stopped the run during `openssl` when the Mac's free space fell to 35 GiB (other work
+  was writing at the same time), so `openssl`, `app-inputs` (the venv from the pinned
+  wheel) and `public-shader-parity` did not run.
+- `app` and `ipa`: not reached.
+- `isolation`: passed on the 96 logs and generated files that existed: no Homebrew,
+  `/usr/local` or other account path.
+
+Of the 126 declared output files, all but `openssl-ios/lib/libcrypto.a` were produced.
+Compared with the roots the maintainer's current app is built from
+(`engine-pin/deps`, with the current shader products for `m5`): 82 identical, 43
+different, 1 absent there. Every difference is explained:
+
+- 36 static archives differ only in the archive's own header and symbol table: every
+  object member is byte-identical.
+- 4 static archives (`libSatchelCPUProbe.a`, `libSatchelShaderBridge.a`,
+  `libSatchelScalarCompiler.a`, `libnative_rewriter.a`) have objects that embed the
+  checkout path in their debug strings (the reference was built from a worktree in
+  another folder); the rewriter source has also moved on since that root was built. The
+  app build compiles its own rewriter, so this copy is not linked.
+- 3 NativeAOT binaries (two `SatchelShaderProbe` copies and `SatchelCapturedFlat`) have
+  the same size and differ in 30 bytes: the per-build module and image identifiers.
+- The one file absent in the reference is the fixture framework's `Notices/nxnative.MIT.txt`, a
+  notice the current recipe adds to the framework.
+
+This is not bit-for-bit reproducibility, and it is not yet a clean-Mac app build. To
+finish the proof, rerun `--steps deps,app,ipa` with the existing tools folder on a Mac
+with at least 44 GiB free (the dependency root needs about 4.6 GiB and the app about
+1 GiB above the guard's 36 GiB reserve), then compare the IPA manifest with a build from
+an existing environment through `--reference-manifest`.
+
+## Dependency bootstrap details
+
+`scripts/bootstrap_deps.py` is what the `deps` step runs. Standalone, with tools from
+`scripts/setup_tools.py`:
+
+```sh
+<tools>/bin/python3 -B scripts/bootstrap_deps.py --root <new empty folder> --tools <tools> --fetch
+```
+
+The tracked inventory is [scripts/deps/inputs.lock.json](scripts/deps/inputs.lock.json):
+for each of the 19 inputs its source URL, revision or version, license and SHA-256; for
+each tool its URL, version, hash and where the hash comes from. File hashes cover the
+downloaded bytes. Git hashes cover `git archive --format=tar COMMIT`, verified after
+fetching the pinned commit and before checking it out. Dirty source-cache files and
+prebuilt libraries are never used as Git inputs. The two NX2Apple pins have distinct
+roles: the current engine and patch queue, and the older translator reference required
+by its source lock. `gaps` and `tool_recipe_gaps` are empty; the bootstrap refuses to
+build while either lists anything.
+
+With `--fetch`, the bootstrap downloads only into a new empty root and only pinned URLs,
+promotes nothing whose hash differs, then hands the staged root to a second run of
+itself under `sandbox-exec` with outbound IP connections denied (local MSBuild IPC stays
+available). That run checks every staged input again (Git HEAD and a clean tree, file
+hashes) before building. Without `--fetch` the whole run is offline and every input
+must come from a `--cache` folder. No URL or hash is learned from a download.
+`--fetch --stage-only` stops after staging. `--tools` is required unless
+`--local-validation` is given.
+
+The root keeps `bootstrap-manifest.json` (inputs, step exit codes, the tool versions and
+`clean_mac_ready`, true only when every input verified, every step exited 0 and no
+declared artifact is missing on the pinned-tool route), `output-manifest.json` (SHA-256
+of every declared artifact, and with `--compare <root>` the comparison with another
+root) and per-step logs, including failures. Exit 0 means complete; exit 2 means
+incomplete, even if individual recipes passed. The heavy-build guard waits for active
+builds, limits each process to less than 9 GiB RSS and protects a 35 GiB disk reserve.
+Recipes use two jobs. The dependency layout retains the historical
+`tmp-snapshot-2026-11-01` subdirectory because the app still references it; its
+libraries are built afresh. `project.yml` spells those libraries under the maintainer's
+`~/SatchelDeps`; the host build moves any `/Users/<name>/SatchelDeps` path to
+`SATCHEL_DEPS_ROOT`, so another account never links whatever exists at that spelling.
+
+### The maintainer's local diagnostic route
+
+The earlier route uses installed tools, an explicit installed SDK and the maintainer's
+read-only caches. It does not qualify as a clean-Mac build and always exits 2:
 
 ```sh
 SATCHEL_BUILD_ROOT="$HOME/SatchelBuild" SATCHEL_DEPS_ROOT="$HOME/SatchelDeps" \
@@ -55,59 +185,28 @@ SATCHEL_BUILD_ROOT="$HOME/SatchelBuild" SATCHEL_DEPS_ROOT="$HOME/SatchelDeps" \
   --compare "$HOME/SatchelDeps" --local-validation
 ```
 
-These paths are explicit cache arguments, not bootstrap defaults. Use a new empty root
-for each attempt. The bootstrap retains `bootstrap-manifest.json`, `output-manifest.json`
-and per-step logs, including failures and missing outputs. Exit 2 means incomplete, even
-if individual recipes pass. The existing heavy-build guard waits for active builds,
-limits each process to less than 9 GiB RSS and protects a 35 GiB disk reserve. Recipes
-use two jobs. The dependency layout retains the historical `tmp-snapshot-2026-11-01`
-subdirectory because the app still references it; its libraries are built afresh.
+These paths are explicit cache arguments, not bootstrap defaults. Its venv (fontTools)
+is copied from the source cache instead of being made from the pinned wheel.
 
-The captured compiler README checkpoint has been reconciled against the exact reviewed
-bytes from the archived history: only the title separator changed during the public
-release. Its lock now includes that punctuation change and the review note. All 249
-source files match their checkpoints; compiler and validation code are unchanged.
-The local fresh-root rebuild produced all 45 declared dependency artifacts, with
-zero missing outputs. The CPU suite passed 5,837,760 checks; scalar gates passed
-853,611 compiler and 20,365,499 admission assertions; captured compilation passed
-its cold, mutation, typed-schema and 696-module SPIR-V gates. These are Mac synthetic
-executions and iOS compilation, not phone execution. The earlier bootstrap comparison
-found 78 identical files, 44 differing files and three archives absent from the
-reference root.
-The observed differences are archive metadata, build paths, managed module identifiers
-and reviewed notice/checkpoint changes. This is not bit-for-bit reproducibility.
+History of that route: the captured compiler README checkpoint was reconciled against
+the exact reviewed bytes from the archived history (only the title separator changed
+during the public release); all 249 source files match their checkpoints. The local
+fresh-root rebuild of 2026-11-04 produced all 45 declared dependency artifacts. The CPU
+suite passed 5,837,760 checks; scalar gates passed 853,611 compiler and 20,365,499
+admission assertions; captured compilation passed its cold, mutation, typed-schema and
+696-module SPIR-V gates. These are Mac synthetic executions and iOS compilation, not
+phone execution. It was repeated on 2026-11-05 for the engine pin move (nxnative
+`f8a5618d`): every step exited 0, all 19 inputs verified, 125 output files with none
+missing, public shader parity passed on its 23 requests, and the engine it materialized
+is byte-identical to the snapshot the Mac checks ran against. A signed Release device
+build and the simulator suite (105 tests, 3 skipped, no failures) were built from that
+root; the host build checked 1,329 copied engine source files against the snapshot
+before applying Satchel's overlays.
 
-The bootstrap was repeated on 2026-11-05 for the engine pin move (nxnative `f8a5618d`,
-see "The engine pin" below), into a fresh root from the same caches plus clones of the
-two engine repositories. Every step exited 0, all 19 inputs verified, 125 output files
-with none missing, the same CPU and scalar gate counts, public shader parity passed on
-its 23 requests against the regenerated lock, and the comparison with the previous
-dependency root again found 78 identical files, 44 differing and three absent there.
-The engine it materialized is byte-identical to the snapshot the Mac checks ran against.
-A signed Release device build and the simulator suite were then built from that root
-with the variables listed below; the host build checked 1,329 copied engine source
-files against the snapshot before applying Satchel's overlays. The simulator suite ran
-105 tests with 3 skipped and no failures. Nothing was installed on a phone.
-
-Remaining closure requirements:
-
-- Obtain matching .NET SDK 10.0.403 and fontTools 4.68.0 distribution hashes. Their
-  installed files are diagnostic inputs, not substitutes for archive pins.
-- Verify the five pinned tool source archives when downloads are authorized and finish
-  their standalone recipes: Python 3.14.4, CMake 4.4.4, XcodeGen 2.45.3 and matching
-  SPIRV-Tools/SPIRV-Headers Vulkan SDK 1.4.363.0 sources. Python's required native
-  dependencies and XcodeGen's Swift package closure also need pins. No Homebrew bottle
-  is a build input. See [the tool pin notes](scripts/deps/README.md).
-- Pin the font environment used to generate app fonts. Local validation generates
-  host metadata and fonts inside the new root, using an explicitly supplied local
-  Python environment. The 29 engine queue patches apply without commits.
-- Complete the unsigned app validation with the fresh root and public proof.
-  Use a new `SATCHEL_OUT` for validation so an existing host-archive cache is not reused.
-  Set
-  `SATCHEL_NATIVE_BUILD_INPUTS=<root>/build-inputs`,
-  `SATCHEL_CAPSTONE_SOURCE=<root>/sources/capstone-d2e5739cbb43df93d589a3a726c8f878b95beccb`,
-  `SATCHEL_OPENSSL_IOS=<root>/openssl-ios` and `SATCHEL_SHADER_DEPS=<root>/m5`,
-  alongside `SATCHEL_DEPS_ROOT=<root>`. No phone readiness is implied.
+Settings > Device check adds no dependency. Its native probe builds with the iOS SDK;
+the running-signature query resolves Security SPI dynamically and reports Unknown if
+unavailable. The simulator harness exercises the probe and synthetic report journeys.
+Signed device readings still require the checks in [docs/testing.md](docs/testing.md).
 
 ## Public shader validation
 
@@ -150,17 +249,25 @@ passing build proof.
 
 ## Tools
 
-- macOS with Xcode 27.2 (iOS 27.2 SDK) and command line tools
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) 2.45 or newer (2.45.3 used locally)
-- CMake 3.24 or newer (4.4.4 used locally) and a Vulkan 1.1 capable `spirv-val`
-- Python 3.12 or newer (no third-party packages)
-- .NET SDK 10.0.403 with the pinned NativeAOT 10.0.14 packages, for the shader translator
-- An Apple developer account, and a device with Developer Mode on
+The clean route installs every tool except Xcode itself (see "The pinned tools" above):
+
+- macOS 27.2 with Xcode 27.2 (iOS 27.2 SDK) and its Metal toolchain: installed by you
+- CMake 4.4.4, XcodeGen 2.45.3, Python 3.14.4, `spirv-val` (Vulkan SDK 1.4.363.0 sources),
+  .NET SDK 10.0.403 with the pinned NativeAOT 10.0.14 packages, fontTools 4.68.0:
+  installed into `<work>/tools` by `scripts/setup_tools.py`
+- `git`, `curl`, `tar`, `ditto`, `make`, `patch`, `ruby` and `sandbox-exec` from macOS
+  and Xcode
+- An Apple developer account, and a device with Developer Mode on, only for signed builds
+
+Builds outside the clean route still find these tools on `PATH` (Homebrew versions
+work for the maintainer's diagnostic routes) but are not reproducibility evidence.
 
 ## Native dependencies the build expects
 
 All paths are the defaults; every one can be overridden with the environment variable
-named next to it. The pins are the ones the maintainer validated against.
+named next to it, and the clean route sets every one inside its work folder (the
+`<root>` paths in "From a fresh clone" above). The pins are the ones the maintainer
+validated against.
 
 | Dependency | Pin | Expected location | Override |
 |---|---|---|---|
@@ -171,7 +278,7 @@ named next to it. The pins are the ones the maintainer validated against.
 | MoltenVK | v1.4.2 | built by `Tools/VulkanBackend` scripts | see that README |
 | SPIRV-Cross, SPIRV-Tools, SPIRV-Headers | pinned in `Tools/ShaderBridge` and `Tools/VulkanBackend` | same | same |
 | Shader translator (the engine's Ryujinx shader parts, NativeAOT) | engine commit above, see [the shader translator pin](#the-shader-translator-pin) | `~/SatchelDeps/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
-| Ryujinx 1.3.3 full source (reference only, not linked) | tag 1.3.3 | `~/SatchelDeps/reference/ryujinx-1.3.3` | none |
+| Ryujinx 1.3.3 full source (reference only, not linked or fetched; the shader parts are the engine's vendored copy above) | tag 1.3.3 | `~/SatchelDeps/reference/ryujinx-1.3.3` | none |
 
 The per-component READMEs under `Tools/` describe how each library was fetched and built
 (`Tools/CPUProbe/README.md`, `Tools/MaxwellShaderCompiler/README.md`,

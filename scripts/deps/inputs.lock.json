@@ -209,136 +209,134 @@
       ]
     }
   ],
-  "gaps": [
-    {
-      "id": "dotnet-sdk",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.403/dotnet-sdk-10.0.403-osx-arm64.tar.gz",
-      "version": "10.0.403",
-      "license": "MIT and bundled third-party notices",
-      "sha256": null,
-      "reason": "SDK archive absent in supplied cache; installed SDK is usable only for local validation."
-    },
-    {
-      "id": "fonttools",
-      "url": "https://pypi.org/project/fonttools/4.68.0/",
-      "version": "4.68.0",
-      "license": "MIT",
-      "sha256": null,
-      "reason": "Installed module only; no wheel or sdist in supplied cache."
-    }
-  ],
+  "gaps": [],
   "notes": [
     "Git hashes cover the deterministic tar stream produced by git archive at the pinned commit, before applying recorded patches. They are not GitHub tarball hashes.",
-    "NuGet and MoltenVK archive hashes come from the previously verified offline inputs. No network was used to create this lock.",
+    "NuGet and MoltenVK archive hashes come from the previously verified offline inputs; no network was used to create those rows.",
     "The nxnative and nx2apple-patches rows moved on 2026-11-05 (engine pin f8a5618d, published queue 8d13135e). Those two commits were cloned from their public GitHub repositories for that move, the only network use; each hash is of git archive --format=tar COMMIT from the clone. Four queue patches are replaced by the tracked ports in scripts/deps/upstream/nxnative-queue.",
     "MoltenVK release archives supply SPIRV-Tools, SPIRV-Headers, Vulkan-Headers and cereal internally; notices and revisions are in Tools/VulkanBackend/Notices/manifest.json.",
     "Missing hashes are explicit blockers, never trust-on-first-use pins.",
     "Ryujinx 1.3.3 is a reference only, not a build input. Since 2026-11-05 the game shader translator builds from the MIT Ryujinx shader sources the nxnative row vendors (223 files pinned in Tools/MaxwellShaderCompiler/game-source-lock.json). The nx2apple-translator row (8227f80f) remains for the original fixture framework and the interpreter-era libraries.",
     "NX2Apple repositories include bundled dependencies with their own retained notices, including libvpx (BSD), dav1d (BSD 2-Clause), stb_vorbis (MIT/public domain), bcdec (MIT), Vulkan headers (Apache-2.0 or MIT) and Ryujinx (MIT). The bootstrap does not fetch separate copies.",
-    "Tool source pins use upstream source URLs, not Homebrew bottles. They are separated from exercised inputs: source archive verification and standalone tool recipes remain unvalidated. The local diagnostic route still uses installed executables."
+    "The tools rows were added on 2026-11-07. Their hashes were read from the publishers (Kitware checksum file, GitHub release asset digest, Microsoft release metadata, python.org release file record, PyPI release metadata) or, for the two SPIRV tag archives, kept from the earlier formula pins; every archive then matched its pin on download. Tools are installed by scripts/setup_tools.py, never staged as inputs."
   ],
-  "tool_sources": [
+  "tools": [
     {
       "id": "cmake",
-      "kind": "file",
-      "url": "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4.tar.gz",
+      "kind": "binary",
+      "url": "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-macos-universal.tar.gz",
       "version": "4.4.4",
       "license": "BSD-3-Clause",
-      "sha256": "bd24c30d80a7744ae84b845ff080cc8453b06c622ef01066564108e9cefc44cf",
-      "cache": "cmake-4.4.4.tar.gz",
-      "destination": "inputs/tool-sources/cmake/cmake-4.4.4.tar.gz",
-      "provenance": {
-        "type": "installed-formula-source-pin",
-        "path": "cmake/4.4.4/.brew/cmake.rb",
-        "metadata_sha256": "8afc6e3054549acfe454224bff2234cf1c523d1ef7826215488bcef8c74706b2"
+      "sha256": "4b7b73704b1db9b374e5c9ab8e17ac6148b817b6396ee75cd94a852cbac9d305",
+      "destination": "downloads/cmake-4.4.4-macos-universal.tar.gz",
+      "hash_source": {
+        "type": "publisher checksum file",
+        "url": "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-SHA-256.txt"
       },
-      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+      "source_reference": {
+        "url": "https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4.tar.gz",
+        "sha256": "bd24c30d80a7744ae84b845ff080cc8453b06c622ef01066564108e9cefc44cf",
+        "note": "Same release; the publisher checksum file lists this source hash too, matching the earlier formula pin."
+      }
     },
     {
       "id": "xcodegen",
-      "kind": "file",
-      "url": "https://github.com/yonaskolb/XcodeGen/archive/refs/tags/2.45.3.tar.gz",
+      "kind": "binary",
+      "url": "https://github.com/yonaskolb/XcodeGen/releases/download/2.45.3/xcodegen.zip",
       "version": "2.45.3",
       "license": "MIT",
-      "sha256": "b8df8b3cffc65621838133fcc168afe4f444dbe9dc74cd32d1445d93380b4389",
-      "cache": "2.45.3.tar.gz",
-      "destination": "inputs/tool-sources/xcodegen/2.45.3.tar.gz",
-      "provenance": {
-        "type": "installed-formula-source-pin",
-        "path": "xcodegen/2.45.3/.brew/xcodegen.rb",
-        "metadata_sha256": "c0a5915c5ecf7130eedc17c7f80f234480151c869134d0d5637cc0f33ba2655c"
+      "sha256": "0c90f4d28ca57335f9fa78cf5bf6dabfe20a232036dabe36de2eef79cb7c0878",
+      "destination": "downloads/xcodegen-2.45.3.zip",
+      "hash_source": {
+        "type": "GitHub release asset digest",
+        "url": "https://api.github.com/repos/yonaskolb/XcodeGen/releases/tags/2.45.3"
       },
-      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+      "source_reference": {
+        "url": "https://github.com/yonaskolb/XcodeGen/archive/refs/tags/2.45.3.tar.gz",
+        "sha256": "b8df8b3cffc65621838133fcc168afe4f444dbe9dc74cd32d1445d93380b4389",
+        "note": "Source archive of the same tag (formula pin); building it needs an unpinned Swift package closure, so the route uses the release binary."
+      }
+    },
+    {
+      "id": "dotnet-sdk",
+      "kind": "binary",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.403/dotnet-sdk-10.0.403-osx-arm64.tar.gz",
+      "version": "10.0.403",
+      "license": "MIT and bundled third-party notices",
+      "sha512": "5893c66b48ea3674c7da18501059d606e96f3672fabe4d5e41762e692c7c83df3ee0b2b9dc5a0786191da2dc413d7335158101c14c935ab217f31ac2529770f3",
+      "destination": "downloads/dotnet-sdk-10.0.403-osx-arm64.tar.gz",
+      "hash_source": {
+        "type": "publisher release metadata (SHA-512)",
+        "url": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json"
+      }
     },
     {
       "id": "python",
-      "kind": "file",
+      "kind": "source",
       "url": "https://www.python.org/ftp/python/3.14.4/Python-3.14.4.tgz",
       "version": "3.14.4",
       "license": "PSF-2.0",
       "sha256": "b4c059d5895f030e7df9663894ce3732bfa1b32cd3ab2883980266a45ce3cb3b",
-      "cache": "Python-3.14.4.tgz",
-      "destination": "inputs/tool-sources/python/Python-3.14.4.tgz",
-      "provenance": {
+      "destination": "downloads/Python-3.14.4.tgz",
+      "hash_source": {
+        "type": "publisher release file record",
+        "url": "https://www.python.org/api/v2/downloads/release_file/?release=1101"
+      },
+      "formula_provenance": {
         "type": "installed-formula-source-pin",
         "path": "python@3.14/3.14.4/.brew/python@3.14.rb",
         "metadata_sha256": "1cbbebf565f36051bd7d712c9665829f91d20545667d1268560377693039632f"
-      },
-      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
-    },
-    {
-      "id": "spirv-tools",
-      "kind": "file",
-      "url": "https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz",
-      "version": "1.4.363.0",
-      "license": "Apache-2.0",
-      "sha256": "e6c83a215538fbfd265ccf398d3877985055df1273dbed73912bd05307664688",
-      "cache": "spirv-tools-vulkan-sdk-1.4.363.0.tar.gz",
-      "destination": "inputs/tool-sources/spirv-tools/vulkan-sdk-1.4.363.0.tar.gz",
-      "provenance": {
-        "type": "installed-formula-source-pin",
-        "path": "spirv-tools/1.4.363.0/.brew/spirv-tools.rb",
-        "metadata_sha256": "cc5bacb855ffc30e0a025db49fb4b7fab755096b829261d23ddcfa906ee2dcde"
-      },
-      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
+      }
     },
     {
       "id": "spirv-headers",
-      "kind": "file",
+      "kind": "source",
       "url": "https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz",
       "version": "1.4.363.0",
       "license": "MIT",
       "sha256": "5b3a0d099f5c7649e29c0938476c462e71d66ad89a0bde42fa1ba3eb476956c9",
-      "cache": "spirv-headers-vulkan-sdk-1.4.363.0.tar.gz",
-      "destination": "inputs/tool-sources/spirv-headers/vulkan-sdk-1.4.363.0.tar.gz",
-      "provenance": {
+      "destination": "downloads/spirv-headers-vulkan-sdk-1.4.363.0.tar.gz",
+      "hash_source": {
+        "type": "formula pin only (GitHub tag archive; no publisher checksum)",
+        "url": "https://github.com/KhronosGroup/SPIRV-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz"
+      },
+      "formula_provenance": {
         "type": "installed-formula-source-pin",
         "path": "spirv-headers/1.4.363.0/.brew/spirv-headers.rb",
         "metadata_sha256": "9013989f82adb40c48ebf0d31b7214aaf78033dd2fcae3317174582ae130d154"
-      },
-      "verification": "Expected source archive hash from local installed formula. Archive bytes unavailable locally; not fetched or built in this round."
-    }
-  ],
-  "tool_recipe_gaps": [
-    {
-      "id": "cmake",
-      "reason": "Build the pinned source with Xcode and bundled libraries, then validate the resulting executable without Homebrew."
-    },
-    {
-      "id": "xcodegen",
-      "reason": "Pin the Swift Package.resolved dependency closure and validate an offline release build from the source archive."
-    },
-    {
-      "id": "python",
-      "reason": "Pin the required standard-library dependency sources and validate an isolated interpreter with TLS, zlib and tar extraction support."
+      }
     },
     {
       "id": "spirv-tools",
-      "reason": "Build the pinned source with the matching pinned headers, tests disabled only for optional upstream test dependencies; run the existing Satchel SPIR-V validation gates."
+      "kind": "source",
+      "url": "https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz",
+      "version": "1.4.363.0",
+      "license": "Apache-2.0",
+      "sha256": "e6c83a215538fbfd265ccf398d3877985055df1273dbed73912bd05307664688",
+      "destination": "downloads/spirv-tools-vulkan-sdk-1.4.363.0.tar.gz",
+      "hash_source": {
+        "type": "formula pin only (GitHub tag archive; no publisher checksum)",
+        "url": "https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz"
+      },
+      "formula_provenance": {
+        "type": "installed-formula-source-pin",
+        "path": "spirv-tools/1.4.363.0/.brew/spirv-tools.rb",
+        "metadata_sha256": "cc5bacb855ffc30e0a025db49fb4b7fab755096b829261d23ddcfa906ee2dcde"
+      }
     },
     {
-      "id": "spirv-headers",
-      "reason": "Stage the matching header source for the standalone SPIRV-Tools build."
+      "id": "fonttools",
+      "kind": "wheel",
+      "url": "https://files.pythonhosted.org/packages/35/74/4ea331ecc65ba05a58b1e4e8ccd604c8a15565f876dfbf93fc2a2ea2e22b/fonttools-4.68.0-py3-none-any.whl",
+      "version": "4.68.0",
+      "license": "MIT",
+      "sha256": "d76f8fdcb6936f5e1045a0c9dd721a4bf11112e60d1e243bfa1d39f06a8b3104",
+      "destination": "wheels/fonttools-4.68.0-py3-none-any.whl",
+      "hash_source": {
+        "type": "PyPI release metadata",
+        "url": "https://pypi.org/pypi/fonttools/4.68.0/json"
+      }
     }
-  ]
+  ],
+  "tool_recipe_gaps": []
 }
