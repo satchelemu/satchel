@@ -86,8 +86,11 @@ SATCHEL_OUT="$HOME/SatchelBuild/anygame/app-build" \
 ```
 
 The report view on a prepared game's shelf context menu exports only diagnostic
-JSON, not game code or shader captures. Preparation reports are also exportable
-from Prepare. Boot markers survive process termination. First frame and gameplay
+JSON, not game code or shader captures, and Copy diagnostics puts a plain-text
+summary without shader keys or guest log text on the clipboard. For a starter profile
+package the report also shows the automatic memory feedback
+([generic profiles](../docs/generic-profiles.md#automatic-feedback-in-the-app)).
+Preparation reports are also exportable from Prepare. Boot markers survive process termination. First frame and gameplay
 remain unverified unless separately observed.
 
 Memory defaults and NRO layout follow NX2Apple/nxnative at the pinned revision.

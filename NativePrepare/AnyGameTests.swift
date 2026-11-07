@@ -18,8 +18,9 @@ import Foundation
         let profile = try recipe.profile(profiles: [])
         try check(profile.shaderInputs == "runtime-capture-v1", "experimental capture identity")
         let runtime = String(decoding: try recipe.runtime(profiles: []), as: UTF8.self)
-        // Baseline main 01eb22d, including the complete legacy runtime text.
-        try check(NativePreparationRecipe.hash(Data(runtime.utf8)) == "08aeb575b28f70d4cfdb042accc7a4989e682953fe4ec191e46e75674c695304", "legacy starter runtime digest")
+        // Baseline main 01eb22d, including the complete legacy runtime text, plus the fps_max key the
+        // f8a5618d engine pin (39476a8) added to every starter profile; nothing else changed.
+        try check(NativePreparationRecipe.hash(Data(runtime.utf8)) == "70b9f7e1197a3636d21691abd4274549f4e543b76fd2a83b1b1e1e5beca1f13d", "legacy starter runtime digest")
         try check(runtime.contains("mem_alias\t0x118000000\n"), "documented virtual alias default")
         try check(runtime.contains("display_version\t" + recipe.buildIDs["main"]! + "\t1.0\n"), "display version keyed by main build")
         try check(runtime.contains("render_cond\t0\n") && runtime.contains("device_api\t0.0\n") && runtime.contains("game_env\t\n"), "no Zelda default leakage")

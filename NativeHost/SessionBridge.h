@@ -2,6 +2,9 @@
 NS_ASSUME_NONNULL_BEGIN
 // Prepare a verified package after the previous session has ended.
 BOOL SatchelPrepareNativeSession(NSString *package, NSError **error);
+// The same with learned settings: `profile` is the starter package's regenerated profile in its
+// private runtime folder (NativeBootFeedback), or nil for the package's own profile.tsv.
+BOOL SatchelPrepareNativeSessionWithProfile(NSString *package, NSString * _Nullable profile, NSError **error);
 UIViewController *SatchelNativeGameController(void);
 void SatchelNativeFocusEvent(int event);
 BOOL SatchelNativeSessionStarted(void);

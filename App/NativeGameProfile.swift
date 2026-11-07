@@ -111,6 +111,11 @@ struct NativePreparationRecipe: Codable, Sendable {
         let heapOpened: Bool
         let aliasMappedHighWater: UInt64
     }
+    /// A graphics fact from a boot with this recipe's starter layout: the game used NVN
+    /// conditional rendering, which the host otherwise draws through.
+    struct GraphicsObservation: Codable, Sendable {
+        let renderConditions: Bool
+    }
     struct NRO: Codable, Sendable {
         let name: String
         let sha256: String
@@ -132,6 +137,7 @@ struct NativePreparationRecipe: Codable, Sendable {
     var nros: [NRO]
     var reviewedVersion: String?
     var memoryObservation: MemoryObservation? = nil
+    var graphicsObservation: GraphicsObservation? = nil
 
     static let enginePin = "f8a5618d5f505a4c0a0bcac7c413872d3a53c009"
     static let shaderChain = "26dc2fa9477c"
@@ -252,7 +258,10 @@ struct NativePreparationRecipe: Codable, Sendable {
             "sys_resource": String(format: "0x%llx", systemResource), "mem_map_limit": "0",
             "present_interval": "0", "core_preempt": "0", "alloc_big_align": "0", "fps_target": "0", "fps_max": "60",
             "fps_hold": "1", "present_snap": "0", "pso_mtl4": "0", "shared_font": "auto", "pad_layout": "0",
-            "op_mode": "1", "perf_mode": "0", "feedback_snap": "", "tex_flush_upload": "0", "render_cond": "0",
+            "op_mode": "1", "perf_mode": "0", "feedback_snap": "", "tex_flush_upload": "0",
+            // Evaluate conditional rendering as the GPU does once the game is seen using it (the
+            // pinned engine's render_cond). Without it a game that skips clears this way draws black.
+            "render_cond": graphicsObservation?.renderConditions == true ? "1" : "0",
             "tex_dirty_upload": "0", "tex_dyn_slots": "0", "gpu_timestamps": "0", "vconv_range": "0",
             "stdalloc_cap": "0", "tex_bc_cpu": "0", "ue_texture_pool": "0", "enc_thread": "0",
             "game_args": "", "game_env": "", "device_api": "0.0", "shader_key_skip": "0x0+0x0"]

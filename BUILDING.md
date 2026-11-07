@@ -378,7 +378,8 @@ The Mac Prepare harness also supports `--generic-profile` and an optional numeri
 `PREPARE_MEMORY_OBSERVATION` JSON file. This exercises unknown-game settings while
 retaining the bundled overrides. It rejects reviewed shader packs in generic mode.
 See [generic profile diagnostics](docs/generic-profiles.md) for the contract and
-commands. An unsigned Mac diagnostic package is not an installable phone build.
+commands. The app's automatic feedback and Copy diagnostics are checked with
+`SATCHEL_OUT=<folder> python3 -B NativePrepare/check_feedback.py`. An unsigned Mac diagnostic package is not an installable phone build.
 
 ## GPU diagnostic host
 

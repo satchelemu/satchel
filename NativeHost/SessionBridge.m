@@ -109,7 +109,7 @@ static BOOL check_image(NSString *path, NSError **error) {
     return p == end ? YES : fail(error, @"Game dylib command count mismatch.");
 }
 
-static BOOL prepare_native_session(NSString *package, NSError **error) {
+static BOOL prepare_native_session(NSString *package, NSString *learnedProfile, NSError **error) {
     if (g_prepared) return fail(error, @"The previous game has not finished stopping.");
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     if (!device || !device.supportsBCTextureCompression) return fail(error, @"This device does not support the required Metal BC textures.");
@@ -140,6 +140,16 @@ static BOOL prepare_native_session(NSString *package, NSError **error) {
         profile = generated;
     }
     if (!profile) return fail(error, @"This package has no valid preparation recipe. Prepare it in Satchel.");
+    NSString *profilePath = [package stringByAppendingPathComponent:@"profile.tsv"];
+    if (learnedProfile) {
+        // Only a starter profile package, and only the learned profile Swift regenerated from its
+        // verified recipe and a bounded boot observation, in this title's private runtime folder.
+        NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+        NSString *expected = [documents stringByAppendingPathComponent:[[@"NativeRuntime" stringByAppendingPathComponent:profile[@"titleID"]] stringByAppendingPathComponent:@"learned-profile.tsv"]];
+        if (![manifest[@"format"] isEqual:@2] || ![learnedProfile.stringByStandardizingPath isEqualToString:expected.stringByStandardizingPath])
+            return fail(error, @"Learned settings do not belong to this package.");
+        profilePath = expected;
+    }
     for (NSString *key in @[@"enginePin", @"shaderChain", @"shaderInputs", @"modules", @"environment"]) {
         if (![manifest[key] isEqual:profile[key]]) return fail(error, @"Prepared package does not match its reviewed profile.");
     }
@@ -196,7 +206,7 @@ static BOOL prepare_native_session(NSString *package, NSError **error) {
         setenv("DM_PHONE_SHADER_CACHE", [runtime stringByAppendingPathComponent:@"shader-cache"].fileSystemRepresentation, 1);
     }
     NSDictionary *paths = @{
-        @"DM_PROFILE": [package stringByAppendingPathComponent:@"profile.tsv"],
+        @"DM_PROFILE": profilePath,
         @"DM_ROMFS": [package stringByAppendingPathComponent:@"romfs.img"],
         @"DM_NVN_SHMAP": [package stringByAppendingPathComponent:@"dm/shader_map.tsv"],
         @"DM_MSL_DIR": [package stringByAppendingPathComponent:@"msl"],
@@ -238,11 +248,15 @@ static BOOL prepare_native_session(NSString *package, NSError **error) {
     return YES;
 }
 
-BOOL SatchelPrepareNativeSession(NSString *package, NSError **error) {
+BOOL SatchelPrepareNativeSessionWithProfile(NSString *package, NSString *profile, NSError **error) {
     [save_lock() lock];
-    BOOL result = prepare_native_session(package, error);
+    BOOL result = prepare_native_session(package, profile, error);
     [save_lock() unlock];
+    if (result && profile) fprintf(stderr, "Satchel learned settings: profile=learned\n");
     return result;
+}
+BOOL SatchelPrepareNativeSession(NSString *package, NSError **error) {
+    return SatchelPrepareNativeSessionWithProfile(package, nil, error);
 }
 
 UIViewController *SatchelNativeGameController(void) {

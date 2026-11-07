@@ -332,10 +332,14 @@ struct PreparedGameView: View {
                 }
                 NativeGameReport.record(package: packageURL.lastPathComponent, titleID: titleID, stage: "verify", result: "running", message: "Verifying all package bindings.")
                 let package = try await Task.detached(priority: .userInitiated) { try PreparedPackage.verify(root: packageURL) }.value
-                NativeGameReport.record(package: packageURL.lastPathComponent, titleID: titleID, stage: "boot", result: "starting", message: "Loading the verified signed native container.")
+                // A starter profile package reads its previous launch's memory signals here, and
+                // uses learned settings once a generic rule changes its profile (NativeBootFeedback).
+                let learned = await Task.detached(priority: .userInitiated) { NativeBootFeedback.prepareLaunch(packageRoot: package) }.value
+                NativeGameReport.record(package: packageURL.lastPathComponent, titleID: titleID, stage: "boot", result: "starting",
+                                        message: learned == nil ? "Loading the verified signed native container." : "Loading the verified signed native container with learned memory settings.")
                 try await Task.detached(priority: .userInitiated) {
                     var error: NSError?
-                    guard SatchelPrepareNativeSession(package.path, &error) else {
+                    guard SatchelPrepareNativeSessionWithProfile(package.path, learned?.path, &error) else {
                         throw error ?? NSError(domain: "SatchelNativeHost", code: 1,
                                                userInfo: [NSLocalizedDescriptionKey: "Native session preparation failed."])
                     }
@@ -828,7 +832,9 @@ struct NativeGameReportView: View {
     let titleID: String
     @Environment(\.dismiss) private var dismiss
     @State private var report: NativeGameReport?
+    @State private var feedback: NativeBootFeedback?
     @State private var failure: String?
+    @State private var copied = false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -840,8 +846,40 @@ struct NativeGameReportView: View {
                         Text("First frame: " + report.firstFrame + "\nGameplay: " + report.gameplay)
                         if let crash = report.crash { Text(crash).font(.system(.body, design: .monospaced)) }
                         ForEach(report.missingServices + report.missingSVCs + report.shaderFailures, id: \.self) { Text($0) }
+                        if let feedback {
+                            Text("Automatic settings").font(.headline)
+                            ForEach(feedback.summary, id: \.self) { Text($0).accessibilityIdentifier("game-report-feedback") }
+                            if feedback.learnedProfileSHA256 != nil {
+                                Button("Forget learned settings") {
+                                    NativeBootFeedback.reset(package: package)
+                                    self.feedback = nil
+                                    self.report?.bootFeedback = nil
+                                    try? self.report?.save()
+                                    copied = false
+                                }.accessibilityIdentifier("game-report-forget-learned")
+                            }
+                        }
                         Text(report.lastLogLines.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                        ShareLink(item: NativeGameReport.url(package: package)) { Label("Export report", systemImage: "square.and.arrow.up") }
+                        Text("Copy diagnostics puts command names, counts, error codes and revisions on the clipboard, never game data, saves or keys. The copy stays on this device and expires after five minutes.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        HStack(spacing: 20) {
+                            Button {
+                                let info = Bundle.main.infoDictionary
+                                let app = "\(info?["CFBundleShortVersionString"] as? String ?? "unknown") (\(info?["CFBundleVersion"] as? String ?? "unknown"))"
+                                var system = utsname(); uname(&system)
+                                let model = withUnsafeBytes(of: &system.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+                                let text = report.diagnosticText(packageRoot: NativeBootFeedback.packageURL(package: package), feedback: feedback,
+                                                                 appVersion: app, device: model + ", iOS " + UIDevice.current.systemVersion)
+                                UIPasteboard.general.setItems([["public.utf8-plain-text": text]],
+                                                              options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(300)])
+                                copied = true
+                            } label: { Label(copied ? "Copied" : "Copy diagnostics", systemImage: "doc.on.doc") }
+                                .accessibilityIdentifier("game-report-copy")
+                            ShareLink(item: NativeGameReport.url(package: package)) { Label("Export report", systemImage: "square.and.arrow.up") }
+                        }
+#if PREVIEW_GAME
+                        GameReportClipboardFixture()
+#endif
                     }
                     if let failure { Text(failure) }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(24)
@@ -850,8 +888,13 @@ struct NativeGameReportView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task {
                 let active = SatchelNativeSessionStarted()
-                let value = await Task.detached(priority: .utility) { NativeGameReport.load(package: package, titleID: titleID, sessionActive: active) }.value
-                do { try value.save(); report = value } catch { failure = error.localizedDescription }
+                let (value, learned) = await Task.detached(priority: .utility) { () -> (NativeGameReport, NativeBootFeedback?) in
+                    var value = NativeGameReport.load(package: package, titleID: titleID, sessionActive: active)
+                    let learned = NativeBootFeedback.packageURL(package: package).flatMap { NativeBootFeedback.collect(packageRoot: $0) }
+                    value.bootFeedback = learned?.summary
+                    return (value, learned)
+                }.value
+                do { try value.save(); report = value; feedback = learned } catch { failure = error.localizedDescription }
             }
         }
     }

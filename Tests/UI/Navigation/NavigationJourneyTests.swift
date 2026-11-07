@@ -510,6 +510,64 @@ final class NavigationJourneyTests: XCTestCase {
     func testPrepareDiagnosticsEmptyArray() throws { try checkPrepareDiagnostics("empty-array") }
     func testPrepareDiagnosticsMalformedFile() throws { try checkPrepareDiagnostics("malformed") }
     func testPrepareDiagnosticsOversizedFile() throws { try checkPrepareDiagnostics("oversized") }
+
+    /// A starter profile package whose last launch failed a heap request: the real feedback reader
+    /// shows the learned settings, Copy diagnostics puts only fixed fields on the clipboard, and
+    /// Forget removes the settings without reading the teaching launch again.
+    func testPrepareDiagnosticsLearnedSettingsAndCopy() throws {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewDiagnostics", "learned"]
+        app.launch()
+        _ = try button("import-homebrew")
+        try workshop("workshop-prepare")
+        let preparation = app.scrollViews.containing(.button, identifier: "prepare-game-diagnostics").firstMatch
+        try tap("prepare-game-diagnostics", scroll: preparation)
+        XCTAssertTrue(app.staticTexts["Stage: synthetic-runtime"].waitForExistence(timeout: 8))
+        let sheet = app.scrollViews.containing(.staticText, identifier: "Stage: synthetic-runtime").firstMatch
+        let learned = app.staticTexts["Learned settings: mem_alias 0x118000000 -> 0x98000000"]
+        revealControl(learned, in: sheet)
+        revealControl(app.staticTexts["They apply on the next launch."], in: sheet)
+        let copy = app.buttons["game-report-copy"]
+        revealControl(copy, in: sheet)
+        copy.tap()
+        expectation(for: NSPredicate(format: "label == %@", "Copied"), evaluatedWith: copy)
+        waitForExpectations(timeout: 4)
+        let inspect = app.buttons["game-report-inspect-clipboard"]
+        revealControl(inspect, in: sheet)
+        inspect.tap()
+        let clipboard = app.staticTexts["game-report-clipboard"]
+        XCTAssertTrue(clipboard.waitForExistence(timeout: 4))
+        let value = clipboard.label
+        XCTAssertTrue(value.hasPrefix("Satchel game diagnostics\nApp: "), value)
+        for line in ["Title: 010000000000D1A8 version 1.0.0", "Package: Synthetic-Diagnostics",
+                     "Settings: starter profile with learned memory settings",
+                     "Missing services (2):",
+                     "  MissingService service=acc:u0 interface=IProfile command=10 method=GetImageSize firstSeenFrame=37 count=4",
+                     "  1 x PhoneShader key=<key> stage=1 prepare failed status=-4: native translation failed",
+                     "Memory: Learned settings: mem_alias 0x118000000 -> 0x98000000"] {
+            XCTAssertTrue(value.contains(line), "Missing diagnostics line: \(line)")
+        }
+        for secret in ["RAW_PAYLOAD_SENTINEL", "0123456789abcdef", "\"firstSeenFrame\""] {
+            XCTAssertFalse(value.contains(secret), "Copied diagnostics must omit \(secret)")
+        }
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Game report learned settings"; shot.lifetime = .keepAlways; add(shot)
+        let forget = app.buttons["game-report-forget-learned"]
+        revealControl(forget, in: sheet)
+        forget.tap()
+        absent(learned)
+        absent(app.buttons["game-report-forget-learned"])
+        try tap("Done")
+        absent(app.navigationBars["Game report"])
+        // Reopening reads the same files: the teaching launch is not used again.
+        try tap("prepare-game-diagnostics", scroll: preparation)
+        XCTAssertTrue(app.staticTexts["Stage: synthetic-runtime"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["Learned settings: mem_alias 0x118000000 -> 0x98000000"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.debugDescription.contains("RAW_PAYLOAD_SENTINEL"))
+        try tap("Done")
+        try tap("close-prepare")
+        _ = try button("import-homebrew")
+    }
 #endif
 
 #if NAVIGATION_PREVIEW && NAVIGATION_NATIVE

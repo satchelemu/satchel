@@ -143,21 +143,23 @@ still need the orchestrator's checks for this change.
 
 ## Homebrew and diagnostics
 
-### Generic runtime profiles on the Mac, 2026-11-04
+### Generic runtime profiles on the Mac, 2026-11-07
 
-These are Mac host checks with existing Mac shader libraries and the existing
-rewriter rules. They do not change the phone ratings above or establish unknown
-shader discovery. Reviewed runtime profiles were removed from the diagnostic
-Prepare resources.
+Mac checks on the f8a5618d engine, not phone results; they do not change the ratings
+above. Each game was prepared fresh on the Mac with `--generic-profile` and the reviewed
+profile resources emptied (RomFS bytes discarded after their digest matched the existing
+image), then run on the Mac pipeline host with the phone shader translator, a private save
+copy and scripted A presses. The learned settings were derived from each run's own log by
+the app's feedback code (`App/NativeBootFeedback.swift`), with no title lookup.
 
-| Game | Starter profile alone | Generic memory observation |
+| Game | Starter profile alone | Learned settings and result |
 |---|---|---|
-| Super Mario Odyssey 1.4.1 | Fresh unsigned Prepare in RomFS discard mode, then Cap Kingdom gameplay and clean shutdown after 7,238 frames | None needed |
-| Castlevania: Belmont's Curse | Exit 139 after mapping 4.25 GiB of a 4.38 GiB alias region | The title-independent alias-pressure rule selects a 1 GiB pool; fresh discard-mode Prepare reaches opening-area gameplay, movement and attack, then stops cleanly after 7,037 frames |
-| Zelda: Tears of the Kingdom 1.4.3 | `SetHeapSize OOM: req 0x84600000 > cap 0x8000000`, zero frames | The observed request selects a 2.125 GiB heap inside the same 5 GiB reservation; the cached-input probe reaches the open world with severe texture artifacts and ends with `stop-failed result=60` |
+| Super Mario Odyssey 1.4.1 | Cap Kingdom gameplay ("Throw Cap" tutorial) at frame 3,600; no missing service, no crash | The game uses conditional rendering, so the next launch evaluates it (`render_cond`); the same Cap Kingdom scene renders with no visible change through frame 3,666 |
+| Castlevania: Belmont's Curse 1.0.0 | Crash (signal 11) after 107 frames, with 4.25 of 4.38 GiB of alias space mapped | `app_pool` 1 GiB, the reviewed value; reaches the opening boat dialogue at frame 3,600 with no crash or missing service |
+| Zelda: Tears of the Kingdom 1.4.3 | `SetHeapSize OOM: req 0x84600000 > cap 0x8000000`, then a crash (signal 10) before the first frame | First: `mem_alias` 0x98000000 (a 2.125 GiB heap, the reviewed value): Great Sky Island gameplay with the HUD, but the 3D scene draws as black silhouettes. That launch shows conditional rendering, so the second adds `render_cond`: Great Sky Island renders (trees, grass, Link) through frame 3,631. Some small plants still draw dark and the grass differs from the reviewed profile, which also sets three texture switches (`tex_flush_upload`, `tex_dirty_upload`, `tex_bc_cpu`); the two upload switches without `render_cond` leave the scene black |
 
-The memory rules are bounded recipe inputs, not automatic phone retries. Reviewed
-profiles remain overrides. Zelda still needs generic graphics work. See
+None of the three games reported a missing service or SVC. The 2026-11-04 checks on the
+previous engine reached the same memory values. Reviewed profiles remain overrides. See
 [the diagnostic contract](docs/generic-profiles.md).
 
 ### Mac service regression, 2026-11-04
@@ -208,8 +210,9 @@ hidden behind Developer controls (Settings, About, tap the Satchel name seven ti
 4. Play. Open the pause menu and turn on the FPS counter. Play for at least ten minutes,
    change scenes, save and reload, quit and relaunch.
 5. Open Prepare, Game diagnostics for the game's report: the stage reached, missing
-   services with their command numbers, the crash address if any, and shader failures.
-   Copy that report into your compatibility issue. The full log is at
+   services with their command numbers, the crash address if any, shader failures and,
+   for a game without reviewed settings, the memory settings learned from its last
+   launch. Tap Copy diagnostics and paste the text into your compatibility issue. The full log is at
    `Documents/NativeRuntime/<title ID>/host.log` and `missing-services.json`, reachable
    through Finder or `xcrun devicectl device copy from`.
 

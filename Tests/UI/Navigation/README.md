@@ -126,6 +126,10 @@ the real picker must appear, dismiss and reopen, including after background/retu
   with command, optional method, first-seen frame and count. Zero-byte, empty-array,
   malformed and oversized JSON must leave the sheet responsive with no service rows
   or raw payload. Each case closes and reopens the real sheet, then returns to the library.
+- Simulator only: a synthetic starter profile package whose last launch failed a heap
+  request shows the learned memory settings in Game diagnostics; Copy diagnostics puts
+  the fixed fields on the clipboard without the raw payload or shader key; Forget learned
+  settings removes them, and reopening does not learn from the same launch again.
 - Settings > About > Install and refresh help opens in both landscape orientations,
   scrolls through the bundled installation and refresh sections, and closes back to
   Settings. First launch lands on the home screen; there is no separate guide.
@@ -199,7 +203,9 @@ it does not claim successful system-picker selection or real key validation. Dis
 throws real error types for recovery tests without filling the disk or reading game content.
 
 `DiagnosticsFixture` seeds a failed Prepare outcome, a safe report, matching session
-metadata and `missing-services.json` in its own synthetic runtime directory. There are
+metadata and `missing-services.json` in its own synthetic runtime directory. Its `learned`
+mode adds a synthetic starter package manifest, a starter launch record and a host log with
+one heap failure, one shader failure and a raw sentinel line. There are
 no host or service log fallbacks. The report's initial stage differs from the session
 stage, so assertions prove the production reader reached the supplied runtime. Valid
 rows include an unknown method, an extra raw payload field and an invalid interface

@@ -79,6 +79,11 @@ void SatchelNativeSetMenuPaused(BOOL value) { paused = value; }
 BOOL SatchelNativeSessionStarted(void) { return started || [[NSUserDefaults.standardUserDefaults stringForKey:@"SatchelPreviewScreen"] isEqualToString:@"game"]; }
 BOOL SatchelNativeSessionAcceptsEvents(void) { return SatchelNativeSessionStarted(); }
 void SatchelNativeFocusEvent(int event) {}
+BOOL SatchelPrepareNativeSession(NSString *package, NSError **error);
+BOOL SatchelPrepareNativeSessionWithProfile(NSString *package, NSString *profile, NSError **error) {
+    if (profile) record(@"learned-profile");
+    return SatchelPrepareNativeSession(package, error);
+}
 BOOL SatchelPrepareNativeSession(NSString *package, NSError **error) {
     dispatch_sync(dispatch_get_main_queue(), ^{
         NSCAssert(!started, @"The previous synthetic session must stop before another starts");

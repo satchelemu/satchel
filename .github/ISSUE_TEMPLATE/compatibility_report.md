@@ -25,7 +25,7 @@ FPS counter reading in a typical scene, and the game's expected rate.
 Stutters, visual defects, crashes, missing features. Steps to reproduce if it is specific.
 
 **Game report**
-Paste the report from Prepare, Game diagnostics (stage, missing services, crash address,
-shader failures). Attach the last 50 lines of `host.log` for a crash.
+In Prepare, Game diagnostics, tap Copy diagnostics and paste the text here (stage,
+missing services, crash address, shader failure kinds, memory feedback; no keys or game data). Attach the last 50 lines of `host.log` for a crash.
 
 Do not attach keys, game files, decrypted code or shader dumps.

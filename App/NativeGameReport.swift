@@ -17,6 +17,8 @@ struct NativeGameReport: Codable {
     var lastLogLines: [String] = []
     var firstFrame = "not verified"
     var gameplay = "not verified"
+    /// Automatic memory feedback for a starter profile package (NativeBootFeedback.summary).
+    var bootFeedback: [String]? = nil
 
     static func url(package: String) -> URL {
         let safe = NativePreparationRecipe.hash(Data(package.utf8))
@@ -136,7 +138,7 @@ struct NativeGameReport: Codable {
                 shaders.insert(value); lines.append(value)
             } else if let value = match(#"(?:failed to load shader [0-9a-fA-F]{16}_[a-z]+|shader [0-9a-fA-F]{16} \([a-z]+\) failed to load|shader [0-9a-fA-F]{16}_[a-z]+ reflection conversion failed)"#, line) {
                 shaders.insert(value); lines.append(value)
-            } else if let value = match(#"PhoneShader key=[0-9a-fA-F]{16} (?:stage=[0-5] (?:translated|prepare failed status=-?[0-9]+)|compile failed code=-?[0-9]+)"#, line) {
+            } else if let value = match(#"PhoneShader key=[0-9a-fA-F]{16} (?:stage=[0-5] (?:translated|prepare failed status=-?[0-9]+)|(?:variant=[a-z0-9]{1,8} )?compile failed code=-?[0-9]+)"#, line) {
                 lines.append(value)
                 if value.contains("failed") {
                     let reasons = ["-2": "invalid shader record or identity", "-3": "unsupported shader stage",

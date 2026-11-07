@@ -374,6 +374,10 @@ Everything a game does is recorded under the app's data container:
   game asked for that the host does not implement, with first-seen frame and count.
 - `Documents/GameReports/<package>.json`: the sanitized report shown in Prepare, Game
   diagnostics (stage reached, services, symbolic crash address, shader failures).
+  Copy diagnostics in that sheet puts a plain-text version on the clipboard.
+- `Documents/NativeRuntime/<title ID>/launch-profile.json` and `learned-profile.tsv`:
+  which profile the last launch used, and the learned memory settings of a starter
+  profile game ([generic profiles](generic-profiles.md#automatic-feedback-in-the-app)).
 - `Documents/prepare-progress.json`: whether a Prepare is running.
 
 Copy them off with Finder (the app's Documents folder is visible) or:
@@ -410,7 +414,7 @@ synthetic Mac and simulator checks.
 
 For a compatibility report: game, version, title ID, phone model and iOS version, the
 Satchel commit, how far it got, the FPS counter reading in a typical scene, how long you
-played, and the game report from Game diagnostics. For a crash, the symbolic crash
+played, and the text from Game diagnostics, Copy diagnostics. For a crash, the symbolic crash
 address and the last 50 lines of `host.log`. Never attach keys, dumps, decrypted code or
 shader dumps.
 
