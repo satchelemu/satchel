@@ -62,22 +62,29 @@ import Foundation
         }
         return b
     }
-    static func pfsSection(_ payload: Data) -> (Data, Data) {
+    static func digest(_ data: Data, sha3: Bool = false) -> Data {
+        guard sha3 else { return Data(SHA256.hash(data: data)) }
+        guard #available(macOS 26.0, *) else { preconditionFailure("SHA3 fixtures need macOS 26") }
+        return Data(SHA3_256.hash(data: data))
+    }
+    static func pfsSection(_ payload: Data, sha3: Bool = false) -> (Data, Data) {
         let count = (payload.count + 511) / 512
         var hashes = Data()
-        for i in 0..<count { hashes.append(Data(SHA256.hash(data: payload[i * 512..<min((i + 1) * 512, payload.count)]))) }
+        for i in 0..<count { hashes.append(digest(Data(payload[i * 512..<min((i + 1) * 512, payload.count)]), sha3: sha3)) }
         let start = (hashes.count + 511) & ~511
         var fs = Data(count: 512), bytes = hashes
         bytes.append(Data(count: start - bytes.count)); bytes.append(payload)
         bytes.append(Data(count: (512 - bytes.count % 512) % 512))
-        put(2, &fs, 0, 2); fs[2] = 1; fs[3] = 2; fs[4] = 3
-        fs.replaceSubrange(8..<40, with: Data(SHA256.hash(data: hashes)))
+        put(2, &fs, 0, 2); fs[2] = 1; fs[3] = sha3 ? 5 : 2; fs[4] = 3
+        fs.replaceSubrange(8..<40, with: digest(hashes, sha3: sha3))
         put(512, &fs, 0x28, 4); put(2, &fs, 0x2c, 4); put(UInt64(hashes.count), &fs, 0x38, 8)
         put(UInt64(start), &fs, 0x40, 8); put(UInt64(payload.count), &fs, 0x48, 8)
         return (fs, bytes)
     }
+    /// relabel changes recorded FS header bytes after the section bytes were
+    /// encoded with the original header, to prove each mode changes the reads.
     static func nca(_ sections: [(Data, Data)], contentType: UInt8 = 0, id: UInt64 = title,
-                    rights: Data? = nil) throws -> Data {
+                    rights: Data? = nil, relabel: [(section: Int, byte: Int, value: UInt8)] = []) throws -> Data {
         var head = Data(count: 0xc00), payload = Data()
         head.replaceSubrange(0x200..<0x204, with: Data("NCA3".utf8)); head[0x204] = 1; head[0x205] = contentType
         put(id, &head, 0x210, 8)
@@ -86,26 +93,35 @@ import Foundation
         head.replaceSubrange(0x300..<0x340, with: try transform(area, ExecutableTests.areaKey, 0, true, Data(count: 16)))
         for (i, pair) in sections.enumerated() {
             let offset = 0xc00 + payload.count, fs = pair.0
+            var recorded = fs
+            for change in relabel where change.section == i { recorded[change.byte] = change.value }
             put(UInt64(offset / 512), &head, 0x240 + i * 16, 4)
             put(UInt64((offset + pair.1.count) / 512), &head, 0x244 + i * 16, 4)
-            head.replaceSubrange(0x400 + i * 512..<0x600 + i * 512, with: fs)
-            head.replaceSubrange(0x280 + i * 32..<0x2a0 + i * 32, with: Data(SHA256.hash(data: fs)))
+            head.replaceSubrange(0x400 + i * 512..<0x600 + i * 512, with: recorded)
+            head.replaceSubrange(0x280 + i * 32..<0x2a0 + i * 32, with: Data(SHA256.hash(data: recorded)))
             if fs[4] == 2 {
                 payload.append(try transform(pair.1, ExecutableTests.headerKey, 1, true, Data(count: 16)))
                 continue
             }
+            // Skip-layer CTR (5) stores everything before the hash target in the
+            // clear: the PFS data region, or the IVFC data level (offset 144 for
+            // seven layers).
+            let counterEx = fs[4] == 4 || fs[4] == 6
+            let clearEnd = fs[4] == 5 ? Int([2, 5].contains(fs[3]) ? fs.cp64(0x40) : fs.cp64(24 + (Int(fs.cp32(20)) - 2) * 24)) : 0
+            let counterEntries = Int(fs.cp64(0x120)) + 0x4000 + 16
             var encrypted = Data(), position = 0
             while position < pair.1.count {
                 let end: Int, generation: UInt64
-                if fs[4] == 4 && position < Int(fs.cp64(0x100)) {
+                if counterEx && position < Int(fs.cp64(0x100)) {
                     end = position < 512 ? 512 : Int(fs.cp64(0x100)); generation = position < 512 ? 7 : 9
-                } else { end = pair.1.count; generation = UInt64(fs.cp32(0x140)) }
+                } else if position < clearEnd { end = clearEnd; generation = 0 }
+                else { end = pair.1.count; generation = UInt64(fs.cp32(0x140)) }
                 var upper = fs.subdata(in: 0x140..<0x148); upper.cpPut(generation, at: 0, count: 4)
                 var counter = Data(upper.reversed()) + Data(count: 8)
                 let value = UInt64(offset + position) / 16
                 for k in 0..<8 { counter[8 + k] = UInt8(truncatingIfNeeded: value >> ((7 - k) * 8)) }
-                let clear = fs[4] == 1 || (fs[4] == 4 && position >= 512 && position < Int(fs.cp64(0x100)) &&
-                    pair.1[Int(fs.cp64(0x120)) + 0x4000 + 40] == 1)
+                let clear = fs[4] == 1 || position < clearEnd || (counterEx && position < Int(fs.cp64(0x100)) &&
+                    pair.1[counterEntries + (position < 512 ? 0 : 16) + 8] == 1)
                 let bytes = pair.1.subdata(in: position..<end)
                 encrypted.append(clear ? bytes : try transform(bytes, ExecutableTests.contentKey, 2, true, counter))
                 position = end
@@ -115,7 +131,10 @@ import Foundation
         put(UInt64(head.count + payload.count), &head, 0x208, 8)
         return try transform(head, ExecutableTests.headerKey, 1, true, Data(count: 16)) + payload
     }
-    static func patch(_ base: (Data, Data), _ target: (Data, Data), clearRegion: Bool = false, counterMetadata: Bool = false) -> (Data, Data) {
+    /// skipLayer records AesCtrExSkipLayerHash (6) with the first counter
+    /// entry, which holds the start of the hash layers, marked NotEncrypted.
+    static func patch(_ base: (Data, Data), _ target: (Data, Data), clearRegion: Bool = false, counterMetadata: Bool = false,
+                      skipLayer: Bool = false) -> (Data, Data) {
         var fs = target.0, payload = target.1
         var records: [Data] = []
         for i in stride(from: 0, to: payload.count, by: 512) {
@@ -126,6 +145,7 @@ import Foundation
         payload.append(indirect.1)
         var c0 = Data(count: 16), c1 = Data(count: 16)
         put(7, &c0, 12, 4); put(512, &c1, 0, 8); put(9, &c1, 12, 4); c1[8] = clearRegion ? 1 : 0
+        c0[8] = skipLayer ? 1 : 0
         let counters = tree([c0, c1], end: UInt64(counterMetadata ? payload.count : start)), ctrStart = payload.count
         payload.append(counters.1)
         let descriptorOffset = payload.count, descriptor = Data(repeating: 0x36, count: 512)
@@ -133,7 +153,7 @@ import Foundation
         fs[5] = 1
         put(UInt64(descriptorOffset), &fs, 0x1a0, 8); put(512, &fs, 0x1a8, 8)
         fs.replaceSubrange(0x1b0..<0x1d0, with: Data(SHA256.hash(data: descriptor)))
-        fs[4] = 4
+        fs[4] = skipLayer ? 6 : 4
         put(UInt64(start), &fs, 0x100, 8); put(UInt64(indirect.1.count), &fs, 0x108, 8)
         fs.replaceSubrange(0x110..<0x120, with: indirect.0)
         put(UInt64(ctrStart), &fs, 0x120, 8); put(UInt64(counters.1.count), &fs, 0x128, 8)
@@ -154,26 +174,34 @@ import Foundation
         if let rights { entries.append(("fixture.tik", try ticket(rights: rights))) }
         return ExecutableTests.pfs(entries)
     }
-    static func verified(_ raw: Data, blockSize: Int = 512, observe: @escaping (UInt64, UInt64) -> Void = { _, _ in }, corruptBatch: Bool = false) throws -> SwitchIntegrityStorage {
+    /// RomFS FS header and section bytes with layers - 1 IVFC levels. The
+    /// header records hash type 3 or 6 and ordinary AES-CTR.
+    static func ivfcSection(_ raw: Data, blockSize: Int = 512, sha3: Bool = false, layers: Int = 7) -> (Data, Data) {
         func hashes(_ data: Data) -> Data {
             var out = Data()
             for p in stride(from: 0, to: data.count, by: blockSize) {
                 var block = data.subdata(in: p..<min(p + blockSize, data.count))
-                block.append(Data(count: blockSize - block.count)); out.append(Data(SHA256.hash(data: block)))
+                block.append(Data(count: blockSize - block.count)); out.append(digest(block, sha3: sha3))
             }
             return out
         }
         var levels = [raw]
-        for _ in 0..<5 { levels.insert(hashes(levels[0]), at: 0) }
+        for _ in 0..<(layers - 2) { levels.insert(hashes(levels[0]), at: 0) }
         var header = Data(count: 512), bytes = Data()
+        put(2, &header, 0, 2); header[3] = sha3 ? 6 : 3; header[4] = 3
         header.replaceSubrange(8..<12, with: Data("IVFC".utf8))
-        put(0x20000, &header, 12, 4); put(32, &header, 16, 4); put(7, &header, 20, 4)
+        put(0x20000, &header, 12, 4); put(32, &header, 16, 4); put(UInt64(layers), &header, 20, 4)
         for (i, level) in levels.enumerated() {
             put(UInt64(bytes.count), &header, 24 + i * 24, 8); put(UInt64(level.count), &header, 32 + i * 24, 8)
             put(UInt64(blockSize.trailingZeroBitCount), &header, 40 + i * 24, 4); bytes.append(level)
             bytes.append(Data(count: (blockSize - bytes.count % blockSize) % blockSize))
         }
         header.replaceSubrange(0xc8..<0xe8, with: hashes(levels[0]))
+        return (header, bytes)
+    }
+    static func verified(_ raw: Data, blockSize: Int = 512, sha3: Bool = false, layers: Int = 7,
+                         observe: @escaping (UInt64, UInt64) -> Void = { _, _ in }, corruptBatch: Bool = false) throws -> SwitchIntegrityStorage {
+        let (header, bytes) = ivfcSection(raw, blockSize: blockSize, sha3: sha3, layers: layers)
         return try SwitchIntegrityStorage(header: header, sectionSize: UInt64(bytes.count)) { offset, count in
             observe(offset, count)
             var part = bytes.subdata(in: Int(offset)..<Int(offset + count))
@@ -351,7 +379,7 @@ import Foundation
         try fails { _ = try SwitchContentStorage.compressed(header: header, verified: SwitchContentStorage(size: UInt64(payload.count)) { o, n in payload.subdata(in: Int(o)..<Int(o+n)) }, cancelled: { true }) }
     }
 
-    static func compressedPFS(_ payload: Data) -> (Data, Data) {
+    static func compressedPFS(_ payload: Data, sha3: Bool = false) -> (Data, Data) {
         // Independent LZ4 literal frame. Split the PFS header across raw and
         // compressed entries so reads must cross the compression boundary.
         let rawCount = 8, literal = Data(payload.dropFirst(rawCount))
@@ -364,7 +392,7 @@ import Foundation
         first[16] = 0
         let routing = tree([first, second], end: UInt64(payload.count))
         let stored = Data(payload.prefix(rawCount)) + encoded
-        var section = pfsSection(stored + routing.1)
+        var section = pfsSection(stored + routing.1, sha3: sha3)
         put(UInt64(stored.count), &section.0, 0x178, 8)
         put(UInt64(routing.1.count), &section.0, 0x180, 8)
         section.0.replaceSubrange(0x188..<0x198, with: routing.0)
@@ -476,6 +504,128 @@ import Foundation
         return try transform(header, ExecutableTests.headerKey, 1, true, Data(count: 16)) + original.dropFirst(0xc00) + encrypted
     }
 
+    /// Skip-layer encryption, SHA3 hash layers, IVFC layer counts and the
+    /// patch and sparse combinations around them. Original synthetic bytes.
+    static func formatVariantTests(_ scratch: URL) throws {
+        // FIPS 202 SHA3-256("abc"), so the SHA3 path is not Keccak padding.
+        try check(try SwitchSectionHash.sha3.digest(Data("abc".utf8)).cpHex ==
+                  "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532")
+        let romTemplate = RomFSTests.fixture()
+        let romRaw = romTemplate.1.subdata(in: Int(romTemplate.0.cp64(144))..<Int(romTemplate.0.cp64(144) + romTemplate.0.cp64(152)))
+        let hello = Data((0..<600).map { UInt8(truncatingIfNeeded: $0) })
+        let payload = ExecutableTests.pfs([("main", ExecutableTests.module(0x51)), ("rtld", ExecutableTests.module(0x42))])
+        let newPayload = ExecutableTests.pfs([("main", ExecutableTests.module(0x61)), ("rtld", ExecutableTests.module(0x42))])
+        var newRomRaw = romRaw; newRomRaw[700] ^= 1
+        let url = scratch.appendingPathComponent("variant.nsp"), updateURL = scratch.appendingPathComponent("variant-update.nsp")
+        func opens(_ archive: Data, marker: UInt8 = 0x51, update: Data? = nil, keys: [String: Data] = ExecutableTests.keys) throws {
+            try package(archive, type: 0x80, version: 0).write(to: url)
+            let rights = Data(repeating: 1, count: 16)
+            if let update { try package(update, type: 0x81, version: 2, rights: rights).write(to: updateURL) }
+            try SwitchContentPipeline.withContent(base: url, update: update == nil ? nil : updateURL, keys: keys, applicationID: title) { content in
+                try check(content.program.modules[1].data == ExecutableTests.module(marker))
+                let file = try content.romFS.open("/hello")!
+                var expected = hello
+                if update != nil { expected[540] ^= 1 }
+                try check(try content.romFS.read(file, offset: 0, count: file.size) == expected)
+            }
+        }
+        func rejects(_ archive: Data, update: Data? = nil, keys: [String: Data] = ExecutableTests.keys) throws {
+            try fails { try opens(archive, update: update, keys: keys) }
+        }
+        func withEncryption(_ section: (Data, Data), _ mode: UInt8) -> (Data, Data) { var copy = section; copy.0[4] = mode; return copy }
+
+        // Hash target offsets: PFS data region and IVFC level 6.
+        let plainCode = pfsSection(payload), plainRom = ivfcSection(romRaw)
+        try check(try SwitchSectionHash.targetOffset(plainCode.0) == plainCode.0.cp64(0x40))
+        try check(try SwitchSectionHash.targetOffset(plainRom.0) == plainRom.0.cp64(144))
+        var autoHash = plainRom.0; autoHash[3] = 4
+        try fails { _ = try SwitchSectionHash.targetOffset(autoHash) }
+        try fails { _ = try SwitchSectionHash(hashType: 0) }
+
+        // SHA3-256 hierarchical PFS (5) and IVFC (6), plain and compressed.
+        print("Checking SHA3 hash layers")
+        let sha3Code = pfsSection(payload, sha3: true), sha3Rom = ivfcSection(romRaw, sha3: true)
+        try opens(nca([sha3Code, sha3Rom]))
+        try opens(nca([compressedPFS(payload, sha3: true), sha3Rom]))
+        // The same trees labelled SHA-256 must fail: the algorithm is not ignored.
+        try rejects(nca([sha3Code, sha3Rom], relabel: [(0, 3, 2)]))
+        try rejects(nca([sha3Code, sha3Rom], relabel: [(1, 3, 3)]))
+        try rejects(nca([plainCode, plainRom], relabel: [(0, 3, 5)]))
+        try rejects(nca([plainCode, plainRom], relabel: [(1, 3, 6)]))
+        try rejects(nca([sha3Code, sha3Rom], relabel: [(1, 3, 4)]))
+        var damaged = sha3Rom; damaged.1[Int(damaged.0.cp64(144)) + 700] ^= 1
+        try rejects(nca([sha3Code, damaged]))
+
+        // IVFC with fewer layers, as LibHac accepts 3 to 7.
+        for layers in [3, 4, 6] {
+            for sha3 in [false, true] {
+                let storage = try verified(romRaw, sha3: sha3, layers: layers)
+                try check(try SwitchRomFS(storage: storage).verifySample() == 600)
+            }
+        }
+        try opens(nca([plainCode, ivfcSection(romRaw, layers: 4)]))
+        for layers in [2, 8] {
+            var header = plainRom.0; put(UInt64(layers), &header, 20, 4)
+            try fails { _ = try SwitchIntegrityStorage(header: header, sectionSize: UInt64(plainRom.1.count)) { o, n in plainRom.1.subdata(in: Int(o)..<Int(o + n)) } }
+        }
+
+        // AesCtrSkipLayerHash (5): clear hash layers, AES-CTR data layer.
+        print("Checking skip-layer encryption")
+        let skipCode = withEncryption(plainCode, 5), skipRom = withEncryption(plainRom, 5)
+        let skipped = try nca([skipCode, skipRom])
+        try opens(skipped)
+        try opens(nca([withEncryption(compressedPFS(payload, sha3: true), 5), withEncryption(sha3Rom, 5)]))
+        try opens(nca([withEncryption(plainCode, 5), withEncryption(ivfcSection(romRaw, layers: 4), 5)]))
+        // Encoded as one mode, recorded as the other: both directions fail.
+        try rejects(nca([skipCode, skipRom], relabel: [(0, 4, 3)]))
+        try rejects(nca([skipCode, skipRom], relabel: [(1, 4, 3)]))
+        try rejects(nca([plainCode, plainRom], relabel: [(0, 4, 5)]))
+        try rejects(nca([plainCode, plainRom], relabel: [(1, 4, 5)]))
+        // Skip-layer data must not carry a counter table, nor name an Auto hash.
+        var stray = skipRom; put(0x4000, &stray.0, 0x128, 8)
+        try rejects(nca([skipCode, stray]))
+        var autoSkip = skipRom; autoSkip.0[3] = 0
+        try rejects(nca([skipCode, autoSkip]))
+        // Sparse layer over a skip-layer RomFS (payload IV keeps virtual offsets).
+        try package(sparseNCA(skipped), type: 0x80, version: 0).write(to: url)
+        try SwitchContentPipeline.withContent(base: url, keys: ExecutableTests.keys, applicationID: title) { content in
+            let file = try content.romFS.open("/hello")!
+            try check(try content.romFS.read(file, offset: 0, count: file.size) == hello)
+        }
+
+        // Updates: indirect over a skip-layer base, AesCtrExSkipLayerHash (6),
+        // and a compressed patch PFS whose indirect table reads a compressed base.
+        print("Checking patch combinations")
+        var keys = ExecutableTests.keys; keys["titlekek_00"] = ExecutableTests.areaKey
+        let rights = Data(repeating: 1, count: 16)
+        let newCode = pfsSection(newPayload), newRom = ivfcSection(newRomRaw)
+        let ordinaryUpdate = try nca([patch(plainCode, newCode), patch(plainRom, newRom)], rights: rights)
+        try opens(skipped, marker: 0x61, update: ordinaryUpdate, keys: keys)
+        let skipUpdate = try nca([patch(plainCode, newCode, skipLayer: true), patch(plainRom, newRom, skipLayer: true)], rights: rights)
+        try opens(nca([plainCode, plainRom]), marker: 0x61, update: skipUpdate, keys: keys)
+        try opens(skipped, marker: 0x61, update: skipUpdate, keys: keys)
+        // The NotEncrypted entry is honoured: splice in the counter table of an
+        // otherwise identical update whose first entry is Encrypted, so the clear
+        // hash bytes are decrypted and rejected.
+        let marked = patch(plainCode, newCode, skipLayer: true), encryptedEntry = patch(plainCode, newCode)
+        var spliced = try nca([marked, patch(plainRom, newRom, skipLayer: true)], rights: rights)
+        let other = try nca([encryptedEntry, patch(plainRom, newRom, skipLayer: true)], rights: rights)
+        let table = 0xc00 + Int(marked.0.cp64(0x120)), tableEnd = table + Int(marked.0.cp64(0x128))
+        try check(other[table..<tableEnd] != spliced[table..<tableEnd])
+        spliced.replaceSubrange(table..<tableEnd, with: other[table..<tableEnd])
+        try rejects(nca([plainCode, plainRom]), update: spliced, keys: keys)
+        try rejects(nca([plainCode, plainRom]), update: try nca([patch(plainCode, newCode), withEncryption(newRom, 6)], rights: rights), keys: keys)
+        let sha3Update = try nca([patch(sha3Code, pfsSection(newPayload, sha3: true), skipLayer: true),
+                                  patch(sha3Rom, ivfcSection(newRomRaw, sha3: true), skipLayer: true)], rights: rights)
+        try opens(nca([sha3Code, sha3Rom]), marker: 0x61, update: sha3Update, keys: keys)
+        let compressedBase = compressedPFS(payload), compressedTarget = compressedPFS(newPayload)
+        let compressedUpdate = try nca([patch(compressedBase, compressedTarget), patch(plainRom, newRom)], rights: rights)
+        try opens(nca([compressedBase, plainRom]), marker: 0x61, update: compressedUpdate, keys: keys)
+        // A compressed patch over an uncompressed base, too.
+        try opens(nca([plainCode, plainRom]), marker: 0x61,
+                  update: try nca([patch(plainCode, compressedTarget), patch(plainRom, newRom)], rights: rights), keys: keys)
+    }
+
     static func run(_ scratch: URL) throws {
         print("Checking NCZ stream and block transports")
         try nczTests(scratch)
@@ -484,6 +634,7 @@ import Foundation
         try partitionTests(scratch)
         try batchedIntegrityTests()
         try largeBucketTests()
+        try formatVariantTests(scratch)
         let rights = Data(repeating: 1, count: 16)
         for signature: UInt64 in 0x10000...0x10005 {
             let parsed = try SwitchExecutableReader.ContentPackage.ticket(ticket(signature: signature, rights: rights))

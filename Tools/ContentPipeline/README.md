@@ -73,13 +73,16 @@ The legacy single-package reader remains available for its existing callers.
 
 ## Explicit unsupported cases
 
-Personalized RSA tickets; NCA0/1/2; skip-layer-hash encryption and SHA3 integrity
-modes; sparse or rights-managed AES-XTS sections; compacted or non-Nx CNMT layouts;
-empty generic BKTR tables or more than two million BKTR records. NSO limits
-remain 128 MiB stored and 512 MiB decoded including BSS. Prepare discovers loose,
-embedded and zstd-framed NROs; other archive codecs can still prevent discovery. Native sparse storage, raw/zero/LZ4 compressed PartitionFS and
-RomFS, and key-area AES-XTS sections are supported. Generic add-on preparation is
-documented in `NativePrepare/README.md`.
+Personalized RSA tickets; NCA0/1/2; sparse or rights-managed AES-XTS sections;
+NCZ sections recorded as XTS or skip-layer; compacted or non-Nx CNMT layouts and
+DataPatch (DLC update) metadata; empty generic BKTR tables or more than two million
+BKTR records. NSO limits remain 128 MiB stored and 512 MiB decoded including BSS.
+Prepare discovers loose, embedded and zstd-framed NROs; other archive codecs can
+still prevent discovery. Native sparse storage, raw/zero/LZ4 compressed PartitionFS
+and RomFS, key-area AES-XTS sections, skip-layer AES-CTR and AES-CTR-EX, SHA3-256
+hash layers (iOS 26 or later) and IVFC trees of 3 to 7 layers are supported. The
+full variant table is in [the importer validation guide](../../docs/importer-validation.md#format-coverage).
+Generic add-on preparation is documented in `NativePrepare/README.md`.
 
 The second bucket-tree index level has a 64 MiB serialized-table bound. The native
 content tests generate large routing tables, compressed containers and synthetic

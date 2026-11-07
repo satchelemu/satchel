@@ -44,7 +44,7 @@ enum SwitchAddOnContent {
               let nca = package.archives.first(where: { $0.contentID == refs[0].id }),
               [4, 5].contains(nca.header[0x205]), nca.header.cp64(0x210) == meta.titleID,
               nca.sections.count == 1, let section = nca.sections.first,
-              section.index == 0, section.fs[2] == 0, section.fs[3] == 3,
+              section.index == 0, section.fs[2] == 0, SwitchSectionHash.isIntegrity(section.fs[3]),
               section.fs[0x100..<0x140].allSatisfy({ $0 == 0 }) else { throw SwitchExecutableError.unsupported }
         for ref in meta.contents {
             guard let archive = package.archives.first(where: { $0.contentID == ref.id }) else { throw SwitchExecutableError.invalid }

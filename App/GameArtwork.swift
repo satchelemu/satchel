@@ -131,7 +131,7 @@ enum GameInfoReader {
         guard control.entry.size <= 64 * 1024 * 1024 else { throw SwitchExecutableError.limit }
         try package.verify(control, in: meta)
         guard let section = control.sections.first(where: { $0.index == 0 }),
-              section.fs[2] == 0, section.fs[3] == 3 else { throw SwitchExecutableError.unsupported }
+              section.fs[2] == 0, SwitchSectionHash.isIntegrity(section.fs[3]) else { throw SwitchExecutableError.unsupported }
         let raw = try package.storage(control, section: section)
         let verified = try SwitchIntegrityStorage(header: section.fs, sectionSize: raw.size,
                                                   cancelled: cancelled, read: raw.bytes)

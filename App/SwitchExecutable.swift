@@ -44,6 +44,53 @@ enum SwitchExecutableError: Error, LocalizedError {
     }
 }
 
+/// Hash algorithm and layer layout named by an NCA FS header hash type
+/// (byte 3). Values follow LibHac 0.19.0 NcaFsHeader.HashType (MIT): 2 and 5
+/// are hierarchical SHA-256 and SHA3-256, 3 and 6 are IVFC integrity trees with
+/// SHA-256 and SHA3-256. The SHA3 variants keep the same layouts and only change
+/// the block digest (LibHac IHash256GeneratorFactory selection). The Auto
+/// values 0 and 4 are authoring placeholders, never valid stored layouts.
+enum SwitchSectionHash: Sendable {
+    case sha256, sha3
+
+    init(hashType: UInt8) throws {
+        switch hashType {
+        case 2, 3: self = .sha256
+        case 5, 6: self = .sha3
+        default: throw SwitchExecutableError.unsupportedFeature("Unsupported NCA section hash type \(hashType).")
+        }
+    }
+
+    static func isPartition(_ hashType: UInt8) -> Bool { hashType == 2 || hashType == 5 }
+    static func isIntegrity(_ hashType: UInt8) -> Bool { hashType == 3 || hashType == 6 }
+
+    func digest(_ data: Data) throws -> Data {
+        switch self {
+        case .sha256: return Data(SHA256.hash(data: data))
+        case .sha3:
+            if #available(iOS 26.0, macOS 26.0, *) { return Data(SHA3_256.hash(data: data)) }
+            throw SwitchExecutableError.unsupportedFeature("This game uses SHA3 integrity layers, which need iOS 26 or later.")
+        }
+    }
+
+    /// First byte of the hashed data layer: LibHac 0.19.0
+    /// NcaFsHeader.GetHashTargetOffset. IVFC uses Layers[MaxLayers - 2];
+    /// hierarchical hashes use the last of LayerCount regions. Skip-layer
+    /// encryption leaves the bytes before this offset unencrypted.
+    static func targetOffset(_ fs: Data) throws -> UInt64 {
+        guard fs.count == 512 else { throw SwitchExecutableError.invalid }
+        if isIntegrity(fs[3]) {
+            let layers = Int(fs.le32(20))
+            guard (3...7).contains(layers) else { throw SwitchExecutableError.invalid }
+            return fs.le64(24 + (layers - 2) * 24)
+        }
+        guard isPartition(fs[3]) else { throw SwitchExecutableError.invalid }
+        let count = Int(fs.le32(0x2c))
+        guard (1...5).contains(count) else { throw SwitchExecutableError.invalid }
+        return fs.le64(0x30 + (count - 1) * 16)
+    }
+}
+
 /// Read-only NCA3 -> verified ExeFS -> compressed NSO bytes, not game execution.
 /// Layout references (independent implementation):
 /// https://github.com/SciresM/hactool/blob/master/nca.h (ISC, SciresM)
@@ -481,6 +528,7 @@ enum SwitchExecutableReader {
         var blockCount: UInt64 { (storedSize + blockSize - 1) / blockSize }
         private var verified = Set<UInt64>()
         private var cachedBlock: (UInt64, Data)?
+        private var hash = SwitchSectionHash.sha256
         var table = Data()
         var progress: SwitchByteProgress = { _, _ in }
         var extractionProgress: SwitchByteProgress = { _, _ in }
@@ -507,8 +555,10 @@ enum SwitchExecutableReader {
             let offset = section.fs.le64(0x30), size = section.fs.le64(0x38)
             guard size == blockCount * 32, size <= maximumMetadata, offset <= section.size, size <= section.size - offset,
                   offset + size <= pfsOffset || pfsOffset + storedSize <= offset else { throw SwitchExecutableError.invalid }
+            // Hash type 5 is the SHA3-256 form of the same two-region layout.
+            hash = section.fs[3] == 5 ? .sha3 : .sha256
             table = try decrypted(offset, size: size, cancelled: cancelled)
-            guard Data(SHA256.hash(data: table)) == section.fs.subdata(in: 8..<40) else { throw SwitchExecutableError.integrity }
+            guard try hash.digest(table) == section.fs.subdata(in: 8..<40) else { throw SwitchExecutableError.integrity }
             // LibHac Nca.OpenStorage verifies the stored hash layer before
             // applying CompressionInfo, for PartitionFS as well as RomFS.
             let raw = SwitchContentStorage(size: storedSize) { [unowned self] offset, count in
@@ -526,7 +576,7 @@ enum SwitchExecutableReader {
             let offset = index * blockSize
             guard index < blockCount else { throw SwitchExecutableError.invalid }
             let bytes = try decrypted(pfsOffset + offset, size: min(blockSize, storedSize - offset), cancelled: cancelled)
-            guard Data(SHA256.hash(data: bytes)) == table.subdata(in: Int(index * 32)..<Int(index * 32 + 32)) else {
+            guard try hash.digest(bytes) == table.subdata(in: Int(index * 32)..<Int(index * 32 + 32)) else {
                 throw SwitchExecutableError.integrity
             }
             verified.insert(index)

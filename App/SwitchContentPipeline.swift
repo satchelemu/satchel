@@ -95,7 +95,7 @@ enum SwitchContentPipeline {
                                                   size: composed.size, fs: selected.fs), composed)
         }
         let (code, codeStorage) = try section(0)
-        guard code.fs[2] == 1, code.fs[3] == 2, code.fs.cp32(0x2c) == 2 else {
+        guard code.fs[2] == 1, SwitchSectionHash.isPartition(code.fs[3]), code.fs.cp32(0x2c) == 2 else {
             throw SwitchExecutableError.unsupportedFeature("Unsupported ExeFS layout: filesystem \(code.fs[2]), hash type \(code.fs[3]), hash layers \(code.fs.cp32(0x2c)).")
         }
         let reader = SwitchExecutableReader.VerifiedCode(section: code) { offset, count, check in
@@ -109,7 +109,7 @@ enum SwitchContentPipeline {
             try SwitchExecutableReader.loadCode(reader, titleID: String(format: "%016llx", applicationID), cancelled: cancelled)
         }
         let (rom, romStorage) = try section(1)
-        guard rom.fs[2] == 0, rom.fs[3] == 3 else {
+        guard rom.fs[2] == 0, SwitchSectionHash.isIntegrity(rom.fs[3]) else {
             throw SwitchExecutableError.unsupportedFeature("Unsupported RomFS layout: filesystem \(rom.fs[2]), hash type \(rom.fs[3]).")
         }
         let verified = try SwitchIntegrityStorage(header: rom.fs, sectionSize: romStorage.size,
@@ -153,7 +153,7 @@ extension SwitchExecutableReader {
                 for meta in archives where meta.header[0x205] == 1 {
                     guard meta.entry.size <= 16 * 1024 * 1024, meta.sections.count == 1,
                           let section = meta.sections.first, section.index == 0, section.fs[2] == 1,
-                          section.fs[3] == 2, section.fs.cp32(0x2c) == 2,
+                          SwitchSectionHash.isPartition(section.fs[3]), section.fs.cp32(0x2c) == 2,
                           section.fs[0x100..<0x140].allSatisfy({ $0 == 0 }) else { throw SwitchExecutableError.unsupported }
                     _ = try verifyArchiveHash(source, nca: meta, expected: nil, cancelled: cancelled, progress: progress)
                     authenticated.insert(meta.contentID)
@@ -260,7 +260,7 @@ extension SwitchExecutableReader {
 
         func storage(_ nca: Nca, section: Section, progress: SwitchByteProgress = { _, _ in }) throws -> SwitchContentStorage {
             guard authenticated.contains(nca.contentID) else { throw SwitchExecutableError.integrity }
-            guard [1, 2, 3, 4].contains(section.fs[4]), section.fs[5] <= 1 else {
+            guard (1...6).contains(section.fs[4]), section.fs[5] <= 1 else {
                 throw SwitchExecutableError.unsupportedFeature("Unsupported section \(section.index) encryption \(section.fs[4]) or metadata hash type \(section.fs[5]).")
             }
             guard section.fs[0x1d0..<0x200].allSatisfy({ $0 == 0 }) else {
@@ -293,7 +293,29 @@ extension SwitchExecutableReader {
                 let plain = try crypt(encrypted.bytes(aligned, size + skip), key: material, mode: .ctr(counter))
                 return plain.subdata(in: Int(skip)..<plain.count)
             }
+            // Section metadata (patch descriptors, CTR-EX and indirect tables) uses
+            // the ordinary counter. Data reads go through the skip-layer switch.
             let ordinary = SwitchContentStorage(size: section.size) { offset, size in try decrypt(offset, size) }
+            let counterEx = [4, 6].contains(section.fs[4]), tables = section.fs.cp64(0x128) != 0
+            guard counterEx == tables else {
+                throw SwitchExecutableError.unsupportedFeature("Section \(section.index) encryption \(section.fs[4]) does not match its counter table.")
+            }
+            let data: SwitchContentStorage
+            if section.fs[4] == 5 {
+                // AesCtrSkipLayerHash: LibHac 0.19.0 NcaFileSystemDriver.CreateRegionSwitchStorage
+                // with RegionSwitchStorage. Bytes before the hash target are
+                // stored without encryption; the data layer stays AES-CTR. Every
+                // byte is still checked by the hash layers and the CNMT digest.
+                let clearEnd = try SwitchSectionHash.targetOffset(section.fs)
+                guard clearEnd <= section.size else { throw SwitchExecutableError.invalid }
+                data = SwitchContentStorage(size: section.size) { offset, size in
+                    guard offset < clearEnd else { return try decrypt(offset, size) }
+                    let clear = min(size, clearEnd - offset)
+                    var result = try encrypted.bytes(offset, clear)
+                    if clear < size { result.append(try decrypt(offset + clear, size - clear)) }
+                    return result
+                }
+            } else { data = ordinary }
             if section.fs[5] == 1 {
                 // MetadataHashDataInfo is additional to the full CNMT-bound NCA
                 // hash above. Verify its descriptor bytes, too. BKTR data is
@@ -306,7 +328,10 @@ extension SwitchExecutableReader {
             } else {
                 guard section.fs[0x1a0..<0x1d0].allSatisfy({ $0 == 0 }) else { throw SwitchExecutableError.invalid }
             }
-            guard section.fs[4] == 4 else { return ordinary }
+            // AesCtrExSkipLayerHash (6) reads as CTR-EX: its unencrypted hash
+            // layers are NotEncrypted counter entries, as in LibHac 0.19.0
+            // AesCtrCounterExtendedStorage.Read.
+            guard counterEx else { return data }
             let indirectOffset = section.fs.cp64(0x100), indirectSize = section.fs.cp64(0x108)
             let counterOffset = section.fs.cp64(0x120), counterSize = section.fs.cp64(0x128)
             guard indirectOffset > 0, indirectOffset % 16 == 0, indirectSize > 0,

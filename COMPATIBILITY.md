@@ -133,10 +133,12 @@ Mac: Quit and Library from the pause menu by hand have not been repeated on the 
 ## Import and Prepare checks
 
 The native importer changes documented in [the validation guide](docs/importer-validation.md)
-cover compressed PartitionFS, key-area AES-XTS and a second bucket-tree index level.
-Synthetic format checks and Mac package comparisons do not change the phone ratings
-above. Skip-layer encryption and SHA3 remain explicit format gaps. Phone progress,
-signing and loading still need the orchestrator's checks for this change.
+cover compressed PartitionFS, key-area AES-XTS, a second bucket-tree index level,
+skip-layer encryption (types 5 and 6), SHA3 hash layers (iOS 26 or later) and IVFC
+trees of 3 to 7 layers. Synthetic format checks and Mac package comparisons do not
+change the phone ratings above; no tested game uses the newest layouts. The guide's
+format table lists the remaining explicit gaps. Phone progress, signing and loading
+still need the orchestrator's checks for this change.
 
 ## Homebrew and diagnostics
 

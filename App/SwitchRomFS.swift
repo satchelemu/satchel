@@ -15,16 +15,23 @@ final class SwitchIntegrityStorage {
     private var active = true
     private(set) var verifiedBlocks = 0
     private var expanded: SwitchContentStorage?
+    private let hash: SwitchSectionHash
     var size: UInt64 { expanded?.size ?? levels.last!.size }
     static let maximumRead: UInt64 = 1024 * 1024
 
     init(header: Data, sectionSize: UInt64, cancelled: @escaping () -> Bool = { false },
          read: @escaping (UInt64, UInt64) throws -> Data) throws {
+        // MaxLayers counts the master hash: 7 in every observed NCA RomFS. LibHac
+        // 0.19.0 HierarchicalIntegrityVerificationStorage needs at least one hash
+        // level before the data level, so 3 to 7 are accepted.
         guard header.count == 512, header[8..<12] == Data("IVFC".utf8),
               header.rfs32(12) == 0x20000, header.rfs32(16) == 32,
-              header.rfs32(20) == 7 else { throw SwitchExecutableError.unsupported }
+              (3...7).contains(header.rfs32(20)) else { throw SwitchExecutableError.unsupported }
+        // Hash type 6 is the SHA3-256 form of the same tree. Callers gate the
+        // hash type; synthetic headers that leave it zero use SHA-256.
+        hash = header[3] == 6 ? .sha3 : .sha256
         var parsed: [Level] = []
-        for i in 0..<6 {
+        for i in 0..<Int(header.rfs32(20) - 1) {
             let p = 24 + i * 24
             let offset = header.rfs64(p), size = header.rfs64(p + 8), exponent = header.rfs32(p + 16)
             guard (9...20).contains(exponent), header.rfs32(p + 20) == 0,
@@ -114,7 +121,7 @@ final class SwitchIntegrityStorage {
         // IVFC hashes zero padding to the block boundary, including the last block.
         bytes.append(Data(count: Int(entry.block - count)))
         let expected = level == 0 ? master : try readLevel(level - 1, offset: index * 32, count: 32)
-        guard Data(SHA256.hash(data: bytes)) == expected else { throw SwitchExecutableError.integrity }
+        guard try hash.digest(bytes) == expected else { throw SwitchExecutableError.integrity }
         verifiedBlocks += 1
         // Bound retained data independently of the archive size. Verified bytes,
         // not just verdicts, are cached so mutable backing files cannot bypass checks.
