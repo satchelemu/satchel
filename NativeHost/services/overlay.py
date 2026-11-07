@@ -50,6 +50,12 @@ def prepare(source, destination):
     if 'int satchel_sf_session_reset(void)' in text:
         text = replace(text, 'memset(g_sf, 0, sizeof g_sf);', 'satchel_sessions_reset();')
     text += '\n' + (HERE / 'SdkRecording.inc').read_text()
+    families = (HERE / 'SdkFamilies.inc').read_text()
+    # A takeover the engine already registers would be shadowed by the engine's entry: refuse it.
+    engine_hooks = ''.join(p.read_text(errors='replace') for p in sorted(source.parents[1].rglob('hle*')) if p.suffix in ('.c', '.m'))
+    taken = [name for name in re.findall(r'"(_ZN[^"]+)"', families) if '"' + name + '"' in engine_hooks + text]
+    if taken: raise RuntimeError('SdkFamilies.inc repeats an engine takeover: ' + ', '.join(taken))
+    text += '\n' + families
     text += '''
 // svcSendSyncRequest and svcSendSyncRequestWithUserBuffer without the SDK wrapper
 // (KernelSVC.inc) reach the same host sessions as the nn::sf::hipc hooks.
@@ -60,7 +66,7 @@ int satchel_sf_svc_session(uint32_t handle) {
 uint32_t satchel_sf_svc_send(uint32_t handle, void *message, size_t size, void *caller) { return satchel_session_send(handle, message, size, caller); }
 '''
     target = destination / 'hle_sf.c'; target.write_text(text)
-    for name in ['ServiceIPC.inc', 'EngineAdapter.inc', 'SessionIPC.inc', 'MissingServices.inc', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc']:
+    for name in ['ServiceIPC.inc', 'EngineAdapter.inc', 'SessionIPC.inc', 'MissingServices.inc', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc', 'Round11IPC.inc']:
         shutil.copyfile(HERE / name, destination / name)
     shutil.copyfile(HERE / 'coverage/MissingServiceNames.inc', destination / 'MissingServiceNames.inc')
     return target

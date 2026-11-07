@@ -3,7 +3,7 @@
   "ryujinx": "Ryubing 1.3.3, local read-only reference",
   "sdk_hooks": 1127,
   "service_registrations": 238,
-  "command_rows": 1662,
+  "command_rows": 1674,
   "source_hashes": {
     "dm/gfx/gl/hle_gl.m": "973176d227026ec5511f29d180a15e9f5a88c810508c3de11aa42ef528b677fe",
     "dm/gfx/hle_nv.c": "4d1e77e980c102da48a31b0bdddb3fa8abfa23289aa1dcb8df852c4ef64076c4",
@@ -40,7 +40,7 @@
     "dm/host/hle_offline.c": "2fabeeefbeb912acf4d9641c77e46632df52fbca9ad815eeb12100fb4e8c7749",
     "dm/host/hle_oodle.c": "c4fc13a76f95c641c8ecd6e6f298ea30c4ef626b7782ac4d05e7dd9e6ddaff4d",
     "dm/host/hle_os.c": "5555721f8518df9bedf7dbac50a8fa45c940bf2507b467abb7fc6b17be9923d6",
-    "dm/host/hle_profile.c": "b6f3e3bae863a4c89a7ba60ecb701a9479d27cc243d27ab839838f932788d3c6",
+    "dm/host/hle_profile.c": "eb9369bcdc8afa9334e0ab944b3f2f2d0efe9cf2572ef2ece0f6a8ddd38fa0bf",
     "dm/host/hle_ro.c": "34981d50b07ee6ca2ac23069f3ecddd360e4d42a28138367104e8e643ea57f7a",
     "dm/host/hle_sdk16.c": "a26033a37902c43f968543b4c4a09f28d9aaa3c983d0a6826b673d8d2004a7e7",
     "dm/host/hle_sdkinit.c": "0831daee533dc23a322c61a3ad9b2a9f3f97442bf63013c79ad01da332357779",

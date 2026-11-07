@@ -628,3 +628,83 @@ command, so this round ports none. The Mac has no shader libraries for the new c
 (`b-26dc2fa9477c`), so these runs draw without translated shaders: Castlevania's strict
 gate fails on that alone, in both hosts, and the checks establish boot progress, not the
 picture or gameplay.
+
+## Round 11 service table, application services and SDK families
+
+`coverage/service-table.tsv` lists every service port Ryujinx 1.3.3 registers (237), in the
+style of `svc-table.tsv`, against what a Satchel game reaches. `inventory.py` generates it from
+the same sources as the other tables, plus `SessionIPC.inc` (the ports with a host session) and
+the SDK takeovers (the engine's, `SdkRecording.inc` and `SdkFamilies.inc`). Columns: the
+reference root interface, the status, the root interface's command count and how many of them
+the host session answers (child objects are in `ryujinx-commands.tsv`), the SDK functions taken
+over for the port's client family, where, and a reason for anything not reached.
+
+| Status | Ports | Meaning |
+| --- | --- | --- |
+| Satchel host session | 13 | The host serves the port (`SessionIPC.inc`); `olsc:u` and `caps:*` are the pinned engine's zeroed-success sessions |
+| Satchel host session and SDK takeover | 17 | Both: SDKs that open the session reach the host contracts, the rest go through the takeovers |
+| SDK takeover | 18 | The engine (or Satchel) replaces the SDK client, so no session is opened (hid sensors, audio, sockets, ssl, nfp, irs, mii, ldn, pl, bcat and others) |
+| open | 8 | An application may use the port and nothing answers it: `audrec:u`, `grc:c`, `hidbus`, `lp2p:app`, `mnpp:app`, `notif:a`, `npns:u`, `ntc`, each with its reason |
+| system only | 181 | Not in an application's service access list (system modules, applets, privileged clients) |
+
+The application list is the public one (switchbrew), not read from any game; the family map
+from port to SDK namespace is reviewed by hand in `inventory.py`. Before this round `apm`,
+`psm`, `mm:u` and `fatal:u` were open or reached only through one takeover; `csrng` had the
+engine's `GenerateCryptographicallyRandomBytes` takeover only.
+
+### Host sessions added
+
+29 contracts in `round11.json`, 32 inventory rows (the `apm:am` port and Ryujinx's
+`SessionServer` repeat `apm` and `ISession`), bringing ported rows to 286 of 1,674. The
+inventory now resolves a base class by namespace when several share its name (Ryujinx has
+several `IManager` and `IService` classes), which adds the 12 inherited rows of `apm`,
+`apm:am`, `apm:sys` and `SessionServer` that the previous inventory missed.
+
+| Port | Commands | Behavior |
+| --- | --- | --- |
+| `apm`, `apm:am` | 0, 1, 6; `ISession` 0, 1, 2 | Performance mode from the same source as the `nn::oe::GetPerformanceMode` takeover (profile boost, otherwise `DM_OPMODE`); configurations per mode with the reference defaults (0x00020003, 0x00020004) and its InvalidParameters past Boost; overclock flag. Recorded only: the host does not scale clocks |
+| `psm` | 0, 1, 7; `IPsmSession` 0 to 4 | The reference stubs: 100 percent, charger or dock; one never-signaled state event per session, unbind releases it, the three enable switches |
+| `csrng` | 0 | Random bytes for the whole receive buffer from the engine's entropy source (a fixed-seed stream under `DM_DETCLOCK`), written in bounded chunks |
+| `mm:u` | 0 to 7 | Ryujinx MmNv: request registration (old by module, new by ID), clock min and max recorded, Get answers the minimum or 0, first match in registration order. At most 64 live requests, then a resource error |
+| `fatal:u` | 0, 1, 2 | The reference logs an error report and answers success. The host keeps only `ServiceIPC service=fatal:u ... status=fatal-2xxx-yyyy-policyN` in `services.log` (at most eight per session), never the CPU context buffer |
+
+State is for one game session and resets with the session tables. `DM_SF_TRACE=1` prints
+`Round11 service=... command=... result=0x...`, which `run_mac.py` keeps.
+
+### SDK takeovers for families with a no-op Initialize
+
+The engine turns `nn::oe::Initialize`, `nn::pctl::Initialize`, `nn::aoc::Initialize`,
+`nn::bcat::Initialize` and `nn::album::Initialize` into no-ops, so an SDK function of those
+families that the engine does not take over reads a null service object, as
+`EnableGamePlayRecording` did in Odyssey 1.0.0 (round 10). A host session cannot help those
+calls. `SdkFamilies.inc` (appended to `hle_sf.c` after `SdkRecording.inc`) takes over the
+application-facing functions of these families that the SDKs of the three tested games export
+without a takeover, 34 in all. `overlay.py` refuses the build if one of them is already an
+engine takeover, which would shadow it.
+
+| Family | Functions | Answer |
+| --- | --- | --- |
+| oe | ReportUserIsActive, SetWirelessPriorityMode, Begin/EndMediaPlaybackSection, IsGamePlayRecordingSupported, Enable/DisableCrashReport, GetHdcpAuthenticationState, Begin/EndBlockingHomeButtonShortPressed | Ryujinx ISelfController 65 and 80, ICommonStateGetter 62 and IApplicationFunctions 30, 31, 60, 65 and 90: success, false or 0 |
+| pctl | IsRestrictionEnabled, IsStereoVisionPermitted, ConfirmStereoVisionPermission, ResetConfirmedStereoVisionPermission | Restriction off (the reference default); 3D not permitted and StereoVisionDenied, as the engine's CheckStereoVisionPermission (no VR display). The host session keeps the reference's permitted answer |
+| aoc | GetAddOnContentBaseId, PrepareAddOnContent, CheckAddOnContentMountStatus | The `aoc:u` session's answers: program ID plus 0x1000, the reference no-op success |
+| bcat | RequestSyncDeliveryCache (4 overloads), CancelSyncDeliveryCacheRequest, EnumerateDeliveryCacheDirectory | Offline: InternetRequestDenied, and TargetNotMounted with a zero count, because the engine fails MountDeliveryCacheStorage. Ryujinx's Done progress needs the SDK's own progress object, which the host cannot fill |
+| album | SaveScreenshot (users), SaveScreenshotWithUserData, six SaveAndShareScreenshot overloads, SaveAndShareScreenshotWithUserData, ShowAllAlbumFiles | The engine's album policy for the overloads it already takes over: no album, fails |
+
+Each is a once-logged line at most; no argument, buffer or guest data is logged.
+
+### Checks
+
+`check.py` builds `test_round11.inc` into the sanitizer suite: every round 11 contract in
+both transports, mode and argument errors, shared and reset state, event copies and release,
+registration order and capacity, the bounded fatal diagnostics. `test_adapter.c` links the
+overlaid `hle_sf.c` and calls each new takeover through its registered entry, and reaches
+`apm` through the real `ConnectToHipcService` and `SendSyncRequest` hooks.
+
+Not done: `ntc` (EnsureNetworkClockAvailability), `pl:u` raw IPC (it needs shared memory the
+host does not hand out), `bcat:u` raw IPC, `hidbus`, push notifications, and the open SVCs
+(ExitProcess has no path to the app's own end of a game). Sources: `Apm/IManager.cs`,
+`Apm/ISession.cs`, `Apm/ManagerServer.cs`, `Apm/SessionServer.cs`, `Apm/PerformanceState.cs`,
+`Apm/ResultCode.cs`, `Ptm/Psm/IPsmServer.cs`, `Ptm/Psm/IPsmSession.cs`,
+`Spl/IRandomInterface.cs` and `Fatal/IService.cs` under `src/Ryujinx.HLE/HOS/Services`, and
+`src/Ryujinx.Horizon/MmNv/Ipc/Request.cs` with `Sdk/MmNv/Session.cs`, of Ryujinx 1.3.3 (MIT,
+`RYUJINX-LICENSE.txt`).

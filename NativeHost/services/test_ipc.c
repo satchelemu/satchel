@@ -65,6 +65,9 @@ static unsigned test_event_count(void) {
 static int test_event_signaled(uint32_t h) { assert(h < 128 && test_handles[h].object); return test_events[test_handles[h].object].signaled; }
 static int test_event_same(uint32_t a, uint32_t b) { return test_handles[a].object == test_handles[b].object; }
 static uint64_t satchel_program_id(void) { return 0x0100123400000000ull; }
+static unsigned test_perf_mode = 1;
+static unsigned satchel_perf_mode(void) { return test_perf_mode; }
+static void satchel_random(void *bytes, size_t size) { static uint8_t next = 1; for (size_t i = 0; i < size; i++) ((uint8_t *)bytes)[i] = next++ | 1; }
 static unsigned satchel_aoc_list(uint32_t *out, unsigned start, unsigned count) {
     const uint32_t indices[] = {1, 7, 2000};
     if (!out) return 3;
@@ -86,8 +89,9 @@ static int satchel_ipc_write(uint64_t address, const void *bytes, size_t size) {
     if (address < 0x12340000 || address - 0x12340000 > sizeof buffer || size > sizeof buffer - (address - 0x12340000)) return 0;
     memcpy(buffer + (address - 0x12340000), bytes, size); return 1;
 }
+static char last_emit[96];
 static void satchel_ipc_emit(const char *service, uint32_t cmd, const char *kind, void *caller) {
-    (void)service; (void)cmd; (void)kind; (void)caller; logs++;
+    (void)service; (void)cmd; (void)caller; logs++; snprintf(last_emit, sizeof last_emit, "%s", kind);
 }
 static _Alignas(16) uint8_t message[256];
 static size_t make(uint32_t cmd, int domain, unsigned descriptor, const void *args, size_t n) {
@@ -115,6 +119,7 @@ static void *race(void *arg) { for (unsigned i = 0; i < 1000; i++) satchel_ipc_o
 #include "test_broad.inc"
 #include "test_system.inc"
 #include "test_round8.inc"
+#include "test_round11.inc"
 int main(int argc, char **argv) {
     assert(argc == 2); satchel_test_fs_setup(argv[1]); satchel_test_fs_queries();
     test_ports();
@@ -122,6 +127,7 @@ int main(int argc, char **argv) {
     test_broad();
     test_system();
     test_round8();
+    test_round11();
     for (int dom = 0; dom < 2; dom++) {
         uint8_t *out = message + (dom ? 48 : 32);
         unsetenv("DM_LANG"); make(0, dom, 0, NULL, 0); assert(!send("set", dom)); assert(!memcmp(out, "en-US\0\0\0", 8));

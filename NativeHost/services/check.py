@@ -32,6 +32,8 @@ contracts = json.loads((HERE / 'round7.json').read_text())
 roots = {'IApplicationProxyService':'appletOE', 'IAllSystemAppletProxiesService':'appletAE', 'IApplicationRootService':'vi:u', 'AudioRendererManager':'audren:u', 'IParentalControlServiceFactory':'pctl', 'IStaticServiceForGlue':'time:u'}
 expected = [(roots.get(kind, kind), command) for kind, commands in contracts.items() for command in commands]
 (OUT / 'round7-contracts.inc').write_text('static struct { const char *kind; unsigned command, hits[2]; } system_contracts[] = {\n' + ''.join('    {"%s", %du, {0,0}},\n' % entry for entry in expected) + '};\n')
+contracts11 = json.loads((HERE / 'round11.json').read_text())
+(OUT / 'round11-contracts.inc').write_text('static struct { const char *kind; unsigned command, hits[2]; } round11_contracts[] = {\n' + ''.join('    {"%s", %du, {0,0}},\n' % (kind, command) for kind, commands in contracts11.items() for command in commands) + '};\n')
 contracts8 = json.loads((HERE / 'round8.json').read_text())
 (OUT / 'round8-contracts.inc').write_text('static struct { const char *kind; unsigned command, hits[2]; } round8_contracts[] = {\n' + ''.join('    {"%s", %du, {0,0}},\n' % (kind, command) for kind, commands in contracts8.items() for command in commands) + '};\n')
 run(['nice', '-n', '10', 'xcrun', 'clang', '-g', '-O1', '-Wall', '-Wextra', '-Werror', '-I' + str(OUT), '-fsanitize=address,undefined', '-fno-sanitize-recover=all',

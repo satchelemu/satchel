@@ -16,7 +16,7 @@ static const char *satchel_interface_name(const char *kind) {
         {"acc:profile", "IProfile"}, {"time:local", "ISystemClock"}, {"time:adminuser", "ISystemClock"}, {"time:adminlocal", "ISystemClock"}, {"time:systemnetwork", "ISystemClock"}, {"time:repairsteady", "ISteadyClock"},
         {"time:network", "ISystemClock"}, {"time:steady", "ISteadyClock"},
         {"nifm:general", "IGeneralService"}, {"nifm:request", "IRequest"},
-        {"friend:service", "FriendService"}, {"friend:notify", "NotificationService"}
+        {"friend:service", "FriendService"}, {"friend:notify", "NotificationService"}, {"apm:session", "ISession"}
     };
     for (unsigned i = 0; i < sizeof aliases / sizeof *aliases; i++)
         if (!strcmp(kind, aliases[i][0])) return aliases[i][1];

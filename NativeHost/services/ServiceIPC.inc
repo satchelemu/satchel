@@ -41,6 +41,7 @@ static unsigned satchel_aoc_list(uint32_t *out, unsigned start, unsigned count);
 static uint64_t satchel_program_id(void);
 static void satchel_missing_record(const char *service, const char *interface, uint32_t command);
 static void satchel_missing_reset(void);
+static void satchel_round11_reset(void);
 typedef struct { unsigned refs; size_t size; uint8_t bytes[]; } SatchelIPCStorage;
 typedef struct {
     const char *kind;
@@ -79,6 +80,7 @@ static void satchel_ipc_reset(void) {
     memset(satchel_seen, 0, sizeof satchel_seen); satchel_seen_count = 0;
     satchel_missing_reset();
     satchel_time_control(0, NULL, NULL);
+    satchel_round11_reset();
     pthread_mutex_unlock(&satchel_seen_mu);
 }
 
@@ -184,10 +186,15 @@ static uint32_t satchel_event_reply(SatchelIPCRequest *r, unsigned count, int si
 #include "SystemIPC.inc"
 #include "Round8IPC.inc"
 #include "Round8Trace.inc"
+#include "Round11IPC.inc"
 static uint32_t satchel_ipc_dispatch(const char *service, SatchelIPCRequest *r, uint8_t *out, size_t *n, void *caller) {
     uint32_t cmd = r->command; *n = 0;
-    uint32_t system_result = satchel_round8_dispatch(service, r, out, n, caller);
-    if (system_result != SATCHEL_IPC_UNKNOWN) satchel_round8_trace(service, cmd, system_result);
+    uint32_t system_result = satchel_round11_dispatch(service, r, out, n, caller);
+    if (system_result != SATCHEL_IPC_UNKNOWN) satchel_service_trace(11, service, cmd, system_result);
+    else {
+        system_result = satchel_round8_dispatch(service, r, out, n, caller);
+        if (system_result != SATCHEL_IPC_UNKNOWN) satchel_round8_trace(service, cmd, system_result);
+    }
     if (system_result == SATCHEL_IPC_UNKNOWN) system_result = satchel_system_dispatch(service, r, out, n, caller);
     if (system_result != SATCHEL_IPC_UNKNOWN) {
         if (system_result == ((513u << 9) | 153u) || system_result == ((999u << 9) | 128u)) {

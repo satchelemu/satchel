@@ -5,6 +5,9 @@
 #include "hle_sf.c"
 #include "hle_time.c"
 int dm_guest_as_contains(uintptr_t p) { (void)p; return 0; }
+// apm and csrng sources (hle_oe.c and hle_os.c in the engine), synthetic here.
+int dm_opmode(void) { return 1; }
+uint64_t dm_entropy64(void) { return 0x0123456789abcdefull; }
 static Result send_hook(uint32_t h, uint32_t *m, uint64_t size) {
     return ((Result (*)(uint32_t, uint32_t *, uint64_t))hle_force_h_sf_Send.fn)(h, m, size);
 }
@@ -205,5 +208,24 @@ int main(int argc, char **argv) {
     assert(satchel_u32(msg + 24) == SATCHEL_IPC_UNKNOWN); h_sf_Close(handle);
     satchel_sessions_reset(); assert(satchel_missing_count == 0);
     puts("PASS: teardown retains summary bytes; the next launch starts fresh counts and first frame");
+    // Round 11 raw IPC through the real hooks: apm answers the engine's performance mode.
+    assert(!h_sf_Connect(&handle, "apm")); request(1, 0); assert(!send_hook(handle, (uint32_t *)msg, sizeof msg));
+    assert(satchel_u32(msg + 24) == 0 && satchel_u32(msg + 32) == (dm_profile()->perf_boost ? 1u : 1u)); h_sf_Close(handle);
+    // Round 11 SDK takeovers (SdkFamilies.inc), registered under their SDK names.
+    assert(!strcmp(hle_force_h_oe_SatchelRecordingSupported.name, "_ZN2nn2oe28IsGamePlayRecordingSupportedEv"));
+    h_oe_SatchelUserActive(); h_oe_SatchelWireless(1); h_oe_SatchelMediaBegin(); h_oe_SatchelMediaEnd();
+    h_oe_SatchelCrashOn(); h_oe_SatchelCrashOff(); h_oe_SatchelBlockShortSpan(1000); h_oe_SatchelBlockShort(); h_oe_SatchelUnblockShort();
+    assert(!h_oe_SatchelRecordingSupported() && !h_oe_SatchelHdcp());
+    assert(!h_pctl_SatchelRestricted() && !h_pctl_SatchelStereoPermitted());
+    assert(h_pctl_SatchelStereoConfirm() == ((104u << 9) | 142u)); h_pctl_SatchelStereoReset();
+    assert(h_aoc_SatchelBaseId() == satchel_host_program_id() + 0x1000);
+    assert(h_aoc_SatchelPrepare(3) == RES_OK && h_aoc_SatchelMountStatus() == RES_OK);
+    assert(h_bcat_SatchelSync(NULL) == ((8u << 9) | 122u) && h_bcat_SatchelSyncApp(NULL, 1, 2) == ((8u << 9) | 122u));
+    assert(h_bcat_SatchelSyncAppDir(NULL, 1, 2, "d") == ((8u << 9) | 122u) && h_bcat_SatchelSyncDir(NULL, "d") == ((8u << 9) | 122u));
+    int dirs = 7; h_bcat_SatchelCancel(); assert(h_bcat_SatchelEnumerate(&dirs, NULL, 4) == ((5u << 9) | 122u) && dirs == 0);
+    assert(h_album_SatchelSaveData(msg, 16, 0, 0, 0, NULL, 0) == RES_FAIL && h_album_SatchelShareData(msg, 16, 0, 0, 0, NULL, "", NULL, 0) == RES_FAIL);
+    assert(h_album_SatchelSaveUsers(msg, 16, 0, 0, 0, NULL, 0) == RES_FAIL && h_album_SatchelShowAll() == RES_FAIL);
+    assert(h_album_SatchelShare(msg, 16, 0, 0, NULL) == RES_FAIL && h_album_SatchelShareId(NULL, msg, 16, 0, 0, NULL) == RES_FAIL);
+    puts("PASS: round 11 SDK takeovers for oe, pctl, aoc, bcat and album answer their reference or engine policy");
     puts("PASS: real engine hooks, duplicate and domain sessions, missing connect, close, native buffer writes, read-only rejection, once-only sidecar");
 }

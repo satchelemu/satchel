@@ -38,6 +38,13 @@ static uint32_t satchel_event_copy(uint32_t handle) { return satchel_host_event_
 static void satchel_event_close(uint32_t handle) { satchel_host_event_close(handle); }
 static unsigned satchel_aoc_list(uint32_t *out, unsigned start, unsigned count) { return satchel_host_aoc_list(out, start, count); }
 static uint64_t satchel_program_id(void) { return satchel_host_program_id(); }
+// apm answers the mode of the nn::oe::GetPerformanceMode takeover (hle_oe.c), csrng the engine's entropy
+// source (hle_os.c), which is a fixed-seed stream under DM_DETCLOCK.
+extern uint64_t dm_entropy64(void);
+static unsigned satchel_perf_mode(void) { return dm_profile()->perf_boost ? 1u : (unsigned)dm_opmode(); }
+static void satchel_random(void *bytes, size_t size) {
+    for (size_t i = 0; i < size; i += 8) { uint64_t v = dm_entropy64(); memcpy((uint8_t *)bytes + i, &v, size - i < 8 ? size - i : 8); }
+}
 static int satchel_ipc_write(uint64_t address, const void *bytes, size_t size) {
     _Static_assert(sizeof(vm_address_t) == sizeof(address), "IPC buffers require a 64-bit host");
     return vm_write(mach_task_self(), (vm_address_t)address, (vm_offset_t)bytes, (mach_msg_type_number_t)size) == KERN_SUCCESS;

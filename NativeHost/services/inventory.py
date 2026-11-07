@@ -138,6 +138,8 @@ for service, interface, namespaces, source in routes:
 def inherited(c, seen=()):
     if c['source'] in seen: return []
     parents = [x for x in classes if x['name'] == c['base'] and x['family'] == c['family']]
+    if len(parents) > 1:   # Several services name their base IManager or IService: take the one beside it.
+        parents = [x for x in parents if x['namespace'] == c['namespace']]
     own = list(c['commands']); ids = {x['command'] for x in own}
     if len(parents) == 1:
         own += [x for x in inherited(parents[0], seen + (c['source'],)) if x['command'] not in ids]
@@ -183,6 +185,9 @@ def rank_command(category, service, interface, command):
 round7 = json.loads((HERE / 'round7.json').read_text())
 round8 = json.loads((HERE / 'round8.json').read_text())
 round8_sdk = json.loads((HERE / 'round8-sdk.json').read_text())
+round11 = json.loads((HERE / 'round11.json').read_text())
+# Round 11 children, by reference interface: the transport kind each one is served as.
+round11_children = {('ISession', 'Apm/ISession.cs'): 'apm:session', ('SessionServer', 'Apm/ISession.cs'): 'apm:session', ('IPsmSession', 'Ptm/Psm/IPsmSession.cs'): 'IPsmSession'}
 rows = []
 for c in classes:
     # Keep child interfaces even when they have no named port. They are command surfaces too.
@@ -237,6 +242,9 @@ for c in classes:
                     state = 'ported via time:u/a/r, missing firmware and reference permissions'
                 elif matches and state == 'unchanged':
                     state = 'skipped round 8, reviewed SDK takeover; raw IPC unchanged'
+            kind11 = service if service != '(object)' else next((k for (n, s), k in round11_children.items() if c['name'] == n and x['source'].endswith('/' + s)), None)
+            if kind11 and x['command'] in round11.get(kind11, []):
+                state = 'ported round 11, reference contracts; see README'
             if category == 'Fs' and c['name'] == 'IFile' and x['command'] == 2:
                 state = 'round 9 SDK FlushFile delegates backing flush; raw IPC unchanged'
             rows.append(dict(rank=rank_command(category, service, c['name'], x['command']), service=service, interface=c['name'], command=x['command'], method=x['method'],
@@ -284,6 +292,66 @@ assert len(svc_rows) == 72 and not overlay_svcs & set(engine_svcs), (len(svc_row
 assert not set(UNIMPLEMENTED) & (overlay_svcs | set(engine_svcs))
 svc_rows.sort(key=lambda x: int(x['number'], 16))
 write('svc-table.tsv', svc_rows)
+# Every service Ryujinx 1.3.3 registers, against what a Satchel game reaches: a host session
+# (SessionIPC.inc), the engine's or Satchel's takeover of the SDK client, or neither.
+served = re.search(r'served\[\] = \{([^}]*)\}', (HERE / 'SessionIPC.inc').read_text())[1]
+served = set(re.findall(r'"([^"]+)"', served))
+satchel_sdk = []
+for name in ['SdkRecording.inc', 'SdkFamilies.inc']:
+    text = (HERE / name).read_text()
+    satchel_sdk += [dict(symbol=s, source='NativeHost/services/' + name) for s in re.findall(r'"(_ZN2nn[^"]+)"', text)]
+names = subprocess.run(['c++filt', '-n'], input='\n'.join(s['symbol'] for s in satchel_sdk) + '\n', capture_output=True, text=True, check=True).stdout.splitlines()
+for s, demangled in zip(satchel_sdk, names): s['sdk_command'] = demangled
+# The client families an application reaches each port through. Reviewed by hand against the
+# SDK namespaces the engine hooks (engine-sdk.tsv); a port without a family has no SDK takeover.
+FAMILIES = {
+    'acc:u0': ['account'], 'aoc:u': ['aoc'], 'apm': ['oe::GetPerformance', 'oe::SetPerformanceConfiguration'], 'appletOE': ['oe', 'applet', 'swkbd', 'err', 'web'],
+    'audin:u': ['audio::OpenAudioIn', 'audio::OpenDefaultAudioIn', 'audio::OpenInputStream'], 'audout:u': ['audio'], 'audren:u': ['audio'], 'audrec:u': [],
+    'bcat:u': ['bcat'], 'bsd:u': ['socket', 'nnsocket'], 'caps:su': ['album'], 'caps:u': ['album'], 'csrng': ['crypto::GenerateCryptographicallyRandomBytes'],
+    'ectx:aw': ['err::InitializeContextWriterApi'], 'fatal:u': [], 'friend:u': ['friends'], 'fsp-srv': ['fs'], 'grc:c': [], 'hid': ['hid'], 'hidbus': [],
+    'hwopus': ['codec'], 'irs': ['irsensor'], 'ldn:u': ['ldn'], 'lm': ['nndiagStartup'], 'lp2p:app': [], 'mii:e': ['mii'], 'mm:u': [], 'mnpp:app': [],
+    'nfc:user': ['nfc'], 'nfp:user': ['nfp'], 'ngc:u': ['ngc'], 'nifm:u': ['nifm'], 'notif:a': [], 'npns:u': [], 'nsd:u': ['nsd'], 'ntc': [],
+    'nvdrv': ['NvOsDrv'], 'olsc:u': [], 'pctl': ['pctl'], 'pl:u': ['pl'], 'prepo:u': ['prepo'], 'psm': [], 'set': ['settings'],
+    'sfdnsres': ['nnsocketGetAddrInfo', 'nnsocketGetHostByName', 'nsd::Resolve'], 'ssl': ['ssl', 'nnssl'], 'time:u': ['time'], 'vi:u': ['vi'],
+}
+OPEN = {
+    'audrec:u': 'Final output recorder; no SDK takeover and no host session. Not reached by the tested games',
+    'grc:c': 'Game movie recording service; the SDK records through am (EnableGamePlayRecording takeover). No host session',
+    'hidbus': 'Joy-Con rail devices (Ring-Con); Ryujinx answers only GetBusHandle. No host session, no SDK takeover',
+    'lp2p:app': 'Local peer-to-peer (newer SDKs); Ryujinx registers it without commands. No host session',
+    'mnpp:app': 'Mainland China application rules; Ryujinx answers stubs. Not needed outside that region',
+    'notif:a': 'Application alarms (newer SDKs). No host session, no SDK takeover',
+    'npns:u': 'Push notifications; Ryujinx registers it without commands. A game that connects gets the missing-service report',
+    'ntc': 'Network clock correction (nn::time::EnsureNetworkClockAvailability); offline host, no host session yet',
+}
+# An application's service access list (its NPDM) names only these; the rest serve system
+# modules, applets and privileged clients. This is the public application list (switchbrew), not
+# read from any game.
+APPLICATION = set(FAMILIES)
+service_rows = []
+for reg in sorted({r['service']: r for r in registrations}.values(), key=lambda r: r['service']):
+    port = reg['service']; root = [x for x in rows if x['service'] == port]
+    answered = sum(1 for x in root if x['overlay_ipc'].startswith('ported'))
+    prefixes = FAMILIES.get(port, [])
+    def family(symbol, demangled):
+        return any(demangled.startswith('nn::' + f + ('' if '::' in f else '::')) or symbol.startswith(f) for f in prefixes)
+    engine_hooks = [e for e in engine if family(e['symbol'], e['sdk_command'])]
+    own = [s for s in satchel_sdk if family(s['symbol'], s['sdk_command'])]
+    where = sorted({e['source'] for e in engine_hooks} | {s['source'] for s in own})
+    if port in served:
+        status = 'Satchel host session' + (' and SDK takeover' if engine_hooks or own else '')
+        where = ['NativeHost/services/SessionIPC.inc'] + where
+        reason = 'Zeroed-success compatibility session (the pinned engine policy), not reference contracts' if port == 'olsc:u' or port.startswith('caps:') else ''
+    elif engine_hooks or own:
+        status = 'SDK takeover'; reason = 'The client is taken over at the SDK (' + str(len(engine_hooks)) + ' engine and ' + str(len(own)) + ' Satchel functions); no host session'
+    elif port in APPLICATION:
+        status = 'open'; reason = OPEN.get(port, 'Application service without a host session or SDK takeover')
+    else:
+        status = 'system only'; reason = 'Not in an application service access list: system modules, applets and privileged clients'
+    service_rows.append(dict(service=port, ryujinx=reg['source'] + (' (' + reg['interface'] + ')' if reg['interface'] else ''), status=status,
+                             commands=len(root), answered=answered, sdk_functions=len(engine_hooks) + len(own),
+                             implementation='; '.join(where[:6]) + ('; ...' if len(where) > 6 else ''), reason=reason))
+write('service-table.tsv', service_rows)
 summary = dict(engine_pin=PIN, ryujinx='Ryubing 1.3.3, local read-only reference', sdk_hooks=len(engine),
                service_registrations=len(registrations), command_rows=len(rows), source_hashes=hashes)
 (a.output / 'sources.json').write_text(json.dumps(summary, indent=2)+'\n')

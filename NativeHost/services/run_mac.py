@@ -59,7 +59,7 @@ if args.keys is not None: routes[args.title[0]] = args.keys
 def save_hashes(root):
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
             for p in root.rglob('*') if p.is_file()}
-patterns[:0] = [r'Round[89] service=[A-Za-z0-9_:.-]+ command=[0-9]+ result=0x[0-9a-f]+',
+patterns[:0] = [r'Round(?:8|9|11) service=[A-Za-z0-9_:.-]+ command=[0-9]+ result=0x[0-9a-f]+',
                r'game called nn::diag abort: Result [0-9]+, call site [A-Za-z0-9_]+\+0x[0-9a-f]+',
                r'save commit #[0-9]+', r'DM_KEYS: [A-Za-z0-9_ .,:~+\-]+']
 results = {}
