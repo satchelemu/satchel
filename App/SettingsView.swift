@@ -108,7 +108,7 @@ struct SettingsView: View {
                         }
                     } else {
                         HStack(alignment: .top, spacing: compact ? 16 : 24) {
-                            sidebar.frame(width: compact ? 172 : 210)
+                            sidebar.frame(width: compact ? 188 : 210)
                             pageScroll(compact: compact, reserve: reserve)
                         }
                         .cutoutPadding(cut, leading: compact ? 16 : 24, trailing: compact ? 16 : 24)
@@ -141,25 +141,34 @@ struct SettingsView: View {
     }
 
     private func pageScroll(compact: Bool, reserve: CGFloat) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(page.rawValue).font(SatchelTheme.display(compact ? 26 : 30)).padding(.trailing, reserve)
-                    .accessibilityIdentifier("settings-page-" + page.rawValue)
-                switch page {
-                case .keys: keysPage
-                case .storage: storagePage
-                case .prepared: preparedPage
-                case .device: DeviceCheckView()
-                case .controllers: ControllersView()
-                case .about: aboutPage
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Color.clear.frame(height: 0).id(Self.pageTop)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(page.rawValue).font(SatchelTheme.display(compact ? 26 : 30)).padding(.trailing, reserve)
+                            .accessibilityIdentifier("settings-page-" + page.rawValue)
+                        switch page {
+                        case .keys: keysPage
+                        case .storage: storagePage
+                        case .prepared: preparedPage
+                        case .device: DeviceCheckView()
+                        case .controllers: ControllersView()
+                        case .about: aboutPage
+                        }
+                    }
+                    .padding(.vertical, 18).padding(.trailing, 4)
+                    .animation(SatchelTheme.glide, value: page)
                 }
             }
-            .padding(.vertical, 18).padding(.trailing, 4)
-            .animation(SatchelTheme.glide, value: page)
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled() // scrolls through the outer margin to the screen edge
+            // Another section opens at its top, not where the last one was scrolled to.
+            .onChange(of: page) { _, _ in proxy.scrollTo(Self.pageTop, anchor: .top) }
         }
-        .scrollIndicators(.hidden)
-        .scrollClipDisabled() // scrolls through the outer margin to the screen edge
     }
+
+    private static let pageTop = "settings-page-top"
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -344,16 +353,21 @@ struct SettingsView: View {
                             }
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(preparedName(game)).font(.system(size: 16, weight: .bold, design: .rounded))
-                                Text("Version \(game.version)  ·  \(game.applicationID.titleIDString)")
-                                    .font(SatchelTheme.mono(11)).foregroundStyle(SatchelTheme.textDim)
-                                HStack(spacing: 8) {
-                                    SatchelChip(text: game.current ? "Current" : "Needs Prepare again",
-                                               tint: game.current ? SatchelTheme.leaf : SatchelTheme.spark)
-                                        .accessibilityElement(children: .combine)
-                                        .accessibilityIdentifier("prepared-tag-" + game.folder)
-                                    Text(preparedDate(game)).font(.system(size: 12, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(SatchelTheme.textDim)
-                                        .accessibilityIdentifier("prepared-date-" + game.folder)
+                                // One line where it fits; otherwise the title ID gets its own line
+                                // rather than breaking in the middle.
+                                ViewThatFits(in: .horizontal) {
+                                    Text("Version \(game.version)  ·  \(game.applicationID.titleIDString)").lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text("Version \(game.version)")
+                                        Text(game.applicationID.titleIDString).lineLimit(1).minimumScaleFactor(0.8)
+                                    }
+                                }
+                                .font(SatchelTheme.mono(11)).foregroundStyle(SatchelTheme.textDim)
+                                // The tag and date share a line where they fit; on the front
+                                // screen the date goes below so the tag is never cut short.
+                                ViewThatFits(in: .horizontal) {
+                                    HStack(spacing: 8) { preparedTag(game); preparedDateText(game).fixedSize() }
+                                    VStack(alignment: .leading, spacing: 4) { preparedTag(game); preparedDateText(game) }
                                 }
                             }
                             Spacer()
@@ -392,6 +406,21 @@ struct SettingsView: View {
         } message: { game in
             Text("Deletes the copy of \(preparedName(game)) prepared \(preparedDate(game)) from this iPhone. Your saves are kept.")
         }
+    }
+
+    private func preparedTag(_ game: PreparedGame) -> some View {
+        SatchelChip(text: game.current ? "Current" : "Needs Prepare again",
+                   tint: game.current ? SatchelTheme.leaf : SatchelTheme.spark)
+            .fixedSize()
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("prepared-tag-" + game.folder)
+    }
+
+    private func preparedDateText(_ game: PreparedGame) -> some View {
+        Text(preparedDate(game)).font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(SatchelTheme.textDim)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("prepared-date-" + game.folder)
     }
 
     private func preparedName(_ game: PreparedGame) -> String {

@@ -16,9 +16,11 @@ struct ControllersView: View {
                 .font(.headline).accessibilityIdentifier("controller-profile-scope")
             Text("Profiles use GameController input names. Unchanged games inherit the global profile for their controller category.")
                 .font(.caption).foregroundStyle(SatchelTheme.textDim)
-            Picker("Controller category", selection: $category) {
-                ForEach(SatchelControllerCategories(), id: \.self) { Text($0).tag($0) }
-            }.accessibilityIdentifier("controller-category")
+            pickerRow("Controller category") {
+                Picker("Controller category", selection: $category) {
+                    ForEach(SatchelControllerCategories(), id: \.self) { Text($0).tag($0) }
+                }.labelsHidden().accessibilityIdentifier("controller-category")
+            }
             SatchelPanel(title: "Live input", tint: SatchelTheme.tide) {
                 Text(input.connected ? "Connected: \(input.category)" : "Connect a controller to test inputs")
                     .accessibilityIdentifier("controller-connected")
@@ -38,19 +40,23 @@ struct ControllersView: View {
                 Text("Small movements inside the circle are ignored. Movement beyond it scales smoothly to full tilt.").font(.caption)
             }
             SatchelPanel(title: "Pause menu shortcut") {
-                Picker("Hold for 0.75 seconds", selection: Binding(get: { shortcut }, set: { shortcut = $0; save() })) {
-                    Text("Home button").tag("home")
-                    Text("Menu + Options").tag("menu-options")
-                    Text("Off").tag("off")
-                }.accessibilityIdentifier("controller-shortcut")
+                pickerRow("Hold for 0.75 seconds") {
+                    Picker("Hold for 0.75 seconds", selection: Binding(get: { shortcut }, set: { shortcut = $0; save() })) {
+                        Text("Home button").tag("home")
+                        Text("Menu + Options").tag("menu-options")
+                        Text("Off").tag("off")
+                    }.labelsHidden().accessibilityIdentifier("controller-shortcut")
+                }
                 Text("Home is reserved. Without Home, use Menu + Options. Each button works normally alone. Once both are down, both stay blocked until both are released; hold them together for 0.75 seconds to open the menu. The first button can reach the game before the second is pressed. A controller with neither Home nor Options opens the menu by holding Menu alone, which still reaches the game as Plus. Off disables the shortcut.")
                     .font(.caption).foregroundStyle(SatchelTheme.textDim)
             }
             SatchelPanel(title: "Physical input → Switch button") {
                 ForEach(SatchelControllerInputs(), id: \.self) { name in
-                    Picker(name, selection: Binding(get: { mapping[name] ?? "Unmapped" }, set: { mapping[name] = $0; save() })) {
-                        ForEach(SatchelControllerOutputs(), id: \.self) { Text($0).tag($0) }
-                    }.accessibilityIdentifier("controller-map-" + name)
+                    pickerRow(name) {
+                        Picker(name, selection: Binding(get: { mapping[name] ?? "Unmapped" }, set: { mapping[name] = $0; save() })) {
+                            ForEach(SatchelControllerOutputs(), id: \.self) { Text($0).tag($0) }
+                        }.labelsHidden().accessibilityIdentifier("controller-map-" + name)
+                    }
                 }
                 Text("D-pad entries are the Direction Pad element's four buttons. Sticks keep their left and right axes. A shortcut takes priority over its mapping.")
                     .font(.caption).foregroundStyle(SatchelTheme.textDim)
@@ -112,6 +118,16 @@ struct ControllersView: View {
         error = SatchelSaveControllerProfile(titleID, category, ["version": 1, "mapping": mapping,
             "deadZone": deadZone, "shortcut": shortcut]) ? nil : "The controller profile could not be saved."
     }
+    /// A menu picker shows only its value outside a form, so the title goes beside it.
+    private func pickerRow<Content: View>(_ title: String, @ViewBuilder picker: () -> Content) -> some View {
+        HStack(spacing: 12) {
+            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(SatchelTheme.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            picker().fixedSize()
+        }
+    }
+
     private func stick(_ title: String, x: String, y: String) -> some View {
         let dx = input.values[x]?.doubleValue ?? 0, dy = input.values[y]?.doubleValue ?? 0
         return VStack {
@@ -139,11 +155,19 @@ struct ControllerLayoutView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Controller layout").font(SatchelTheme.display(26))
                     Text("Switch positions: X above, B below, Y left, A right. L / ZL and R / ZR are the shoulders and triggers. L3 and R3 press the sticks.")
-                    HStack(spacing: 28) {
-                        VStack { Text("L / ZL"); Text("Left stick + L3"); Text("D-pad") }
-                        VStack { Text("Minus       Plus"); Text("X"); Text("Y       A"); Text("B") }
-                        VStack { Text("R / ZR"); Text("Right stick + R3") }
-                    }.font(.headline.monospaced()).padding()
+                    // Each label keeps its line, so the diagram holds its shape on the front screen.
+                    HStack(alignment: .center, spacing: 24) {
+                        VStack(spacing: 6) { Text("L / ZL"); Text("Left stick + L3"); Text("D-pad") }
+                        VStack(spacing: 4) {
+                            HStack(spacing: 28) { Text("Minus"); Text("Plus") }
+                            Text("X")
+                            HStack(spacing: 28) { Text("Y"); Text("A") }
+                            Text("B")
+                        }
+                        VStack(spacing: 6) { Text("R / ZR"); Text("Right stick + R3") }
+                    }
+                    .font(.subheadline.monospaced().weight(.semibold)).lineLimit(1).fixedSize()
+                    .padding(.vertical, 8)
                     Text("Touch: 2D shows the left stick and face buttons. 3D adds the D-pad, stick clicks and a right stick where you touch the right third. The layout button at the top of the game cycles layouts.")
                     ControllersView(titleID: titleID)
                 }.padding(24)

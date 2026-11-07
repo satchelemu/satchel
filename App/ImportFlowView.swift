@@ -21,14 +21,15 @@ struct ImportFlowView: View {
                         FoldSplit(fold: fold, cut: cut) {
                             illustration.frame(maxWidth: .infinity, maxHeight: .infinity)
                         } second: {
-                            flowScroll(minHeight: fold.pages(in: geometry.size).second.height - 22, reserve: fold.isVertical ? reserve : 0)
+                            let page = fold.pages(in: geometry.size).second.height
+                            flowScroll(minHeight: page - 22, reserve: fold.isVertical ? reserve : 0, compact: page < Self.compactHeight)
                         }
                     } else {
                         HStack(alignment: .center, spacing: geometry.size.width < 760 ? 16 : 36) {
                             illustration
                                 .scaleEffect(min(1, geometry.size.width / 950))
                                 .frame(width: min(250, geometry.size.width * 0.28))
-                            flowScroll(minHeight: geometry.size.height, reserve: reserve)
+                            flowScroll(minHeight: geometry.size.height, reserve: reserve, compact: geometry.size.height < Self.compactHeight)
                         }
                         .cutoutPadding(cut, leading: 28, trailing: 28)
                     }
@@ -56,10 +57,14 @@ struct ImportFlowView: View {
         }
     }
 
-    private func flowScroll(minHeight: CGFloat, reserve: CGFloat) -> some View {
+    /// Below this height (the closed Duo's front screen) Choose from Files comes straight
+    /// after the heading, so it is on screen without scrolling.
+    static let compactHeight: CGFloat = 560
+
+    private func flowScroll(minHeight: CGFloat, reserve: CGFloat, compact: Bool) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                content
+                content(compact: compact)
             }
             .padding(.vertical, 24).padding(.trailing, reserve)
             .frame(minHeight: minHeight, alignment: .center)
@@ -68,19 +73,19 @@ struct ImportFlowView: View {
         .scrollClipDisabled() // scrolls through the outer margin to the screen edge
     }
 
-    @ViewBuilder private var content: some View {
+    @ViewBuilder private func content(compact: Bool) -> some View {
         if library.importing {
             progressCard
         } else if let outcome = library.lastOutcome {
             outcomeCard(outcome)
         } else {
-            intro
+            intro(compact: compact)
         }
     }
 
     // MARK: Idle
 
-    private var intro: some View {
+    private func intro(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 SatchelEyebrow(text: "Add games", tint: SatchelTheme.tide)
@@ -89,6 +94,7 @@ struct ImportFlowView: View {
                     .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if compact { chooseFiles }
             VStack(spacing: 0) {
                 kind("Base game", "XCI, NSP, XCZ or NSZ", "gamecontroller.fill", SatchelTheme.ember)
                 Divider().overlay(SatchelTheme.line).padding(.leading, 62)
@@ -112,18 +118,22 @@ struct ImportFlowView: View {
                     .background(SatchelTheme.spark.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }.buttonStyle(PressableStyle(scale: 0.98)).accessibilityIdentifier("import-open-settings")
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Button { picking = true } label: {
-                    SatchelButtonLabel(title: "Choose from Files", systemImage: "folder.fill", kind: .accent(SatchelTheme.ember), height: 52)
-                        .fixedSize()
-                }
-                .buttonStyle(PressableStyle())
-                .accessibilityIdentifier("choose-files")
-                .controllerAction("import-choose-files", style: .button(.capsule)) { picking = true }
-                Text("Big games take a few minutes to copy. The import keeps going in the background if you switch apps.")
-                    .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
+            if !compact { chooseFiles }
+        }
+    }
+
+    private var chooseFiles: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { picking = true } label: {
+                SatchelButtonLabel(title: "Choose from Files", systemImage: "folder.fill", kind: .accent(SatchelTheme.ember), height: 52)
+                    .fixedSize()
             }
+            .buttonStyle(PressableStyle())
+            .accessibilityIdentifier("choose-files")
+            .controllerAction("import-choose-files", style: .button(.capsule)) { picking = true }
+            Text("Big games take a few minutes to copy. The import keeps going in the background if you switch apps.")
+                .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
+                .fixedSize(horizontal: false, vertical: true)
             if let pickerError {
                 Text(pickerError).font(.footnote).foregroundStyle(SatchelTheme.ember)
             }
@@ -214,7 +224,7 @@ struct ImportFlowView: View {
             if let item = library.items.first(where: { $0.id == id }) {
                 addedCard(item, duplicate: duplicate)
             } else {
-                intro
+                intro(compact: false)
             }
         case .failed(let name, let message):
             problemCard(title: "Couldn't add \(name)", message: message, tint: SatchelTheme.ember,

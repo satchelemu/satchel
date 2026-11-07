@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testPosture", "testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
+        let fixtureFamilies = ["testPosture", "testLayoutSweep", "testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -162,9 +162,12 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertEqual(focus.label, "menu-controller-layout")
         focusShot("Focus front pause menu row")
         XCTAssertTrue(app.buttons["menu-controller-layout"].isHittable, "Focus must scroll the layout action into view")
+        assertMenuSettingsFit(in: app.scrollViews.containing(.button, identifier: "menu-controller-layout").firstMatch, "front, controller focus")
         try pad("accept")
         _ = try button("close-controller-layout")
         XCTAssertTrue(app.staticTexts["controller-profile-scope"].exists)
+        try sweepColumn(app.scrollViews.containing(.staticText, identifier: "controller-profile-scope").firstMatch,
+                        "Sweep front controller layout")
         try pad("back")
         _ = try button("menu-resume")
         // These are real menu controls connected to the native bridge.
@@ -2881,6 +2884,24 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertTrue(control.isHittable, "Posture menu control must be hittable: \(control.identifier)")
     }
 
+    /// Every settings row of the pause menu lies inside its scrolling column, side to side:
+    /// on the closed Duo the column was narrower than its rows and cut off their left edge.
+    private func assertMenuSettingsFit(in column: XCUIElement, _ label: String) {
+        let bounds = column.frame.intersection(app.windows.firstMatch.frame).insetBy(dx: -1, dy: 0)
+        XCTAssertGreaterThan(bounds.width, 0, "The menu settings column must be on screen (\(label))")
+        var controls: [XCUIElement] = [app.buttons["menu-controller-layout"], app.sliders["Volume"]]
+        controls += ["0%", "300%", "Off", "60%"].map { app.buttons[$0].firstMatch }
+        controls += ["Fit: 16:9, whole picture", "Stretch: Fills the screen"].map { app.buttons[$0].firstMatch }
+        controls += ["Rumble strength", "Rumble cutoff", "CONTROLLER"].map { app.staticTexts[$0].firstMatch }
+        for control in controls {
+            XCTAssertTrue(control.exists, "Missing menu control \(control) (\(label))")
+            guard control.exists else { continue }
+            let frame = control.frame
+            XCTAssertGreaterThanOrEqual(frame.minX, bounds.minX, "Clipped on the left: \(control) (\(label))")
+            XCTAssertLessThanOrEqual(frame.maxX, bounds.maxX, "Clipped on the right: \(control) (\(label))")
+        }
+    }
+
     private func assertPosturePictureVisible(_ fold: String) throws {
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             guard let state = try? self.postureSnapshot() else { return false }
@@ -2943,6 +2964,8 @@ final class NavigationJourneyTests: XCTestCase {
         revealPostureMenuControl(volume, in: settings)
         XCTAssertTrue(volume.isEnabled)
         XCTAssertTrue(volume.isHittable, "The bottom menu setting must remain reachable")
+        assertMenuSettingsFit(in: settings, fold)
+        postureShot("Posture \(fold) menu bottom")
         if ["book", "tall"].contains(fold) { revealPostureMenuControl(app.buttons["menu-resume"], in: menu) }
         try tap("menu-resume")
         try assertPostureGeometry(fold)
@@ -2962,6 +2985,95 @@ final class NavigationJourneyTests: XCTestCase {
         _ = try button("menu.resume")
         try tap("menu.resume")
         try assertPostureGeometry("open")
+    }
+
+    /// Every app screen on the closed Duo's front screen and the open inner screen: nothing
+    /// in a scrolling column runs past that column's sides (the pause menu's settings column
+    /// once cut off the left of its rows on the front screen). Screenshots for review.
+    func testLayoutSweepFrontAndInner() throws {
+        // Report every clipped screen in one run, not only the first.
+        continueAfterFailure = true
+        let base = app.launchArguments
+        for fold in ["front", "open"] {
+            for screen in ["home", "detail", "import", "settings"] {
+                app.terminate()
+                app.launchArguments = base + ["-SatchelPreviewFold", fold, "-SatchelPreviewDeviceCheck", "present"]
+                let index = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelPreviewScreen"))
+                app.launchArguments[index + 1] = screen
+                app.launch()
+                switch screen {
+                case "home":
+                    _ = try button("import-homebrew")
+                    sweepShot("Sweep \(fold) home")
+                case "detail":
+                    XCTAssertTrue(app.staticTexts["detail-game-title"].waitForExistence(timeout: 8))
+                    try sweepColumn(app.scrollViews["detail-scroll"], "Sweep \(fold) detail")
+                case "import":
+                    Thread.sleep(forTimeInterval: 1)
+                    sweepShot("Sweep \(fold) import")
+                    try assertNothingClipped("\(fold) import")
+                default:
+                    for page in ["Console keys", "Storage", "Prepared games", "Device check", "Controllers", "About"] {
+                        try tap("settings-" + page)
+                        XCTAssertTrue(app.staticTexts["settings-page-" + page].waitForExistence(timeout: 5))
+                        let column = app.scrollViews.containing(.staticText, identifier: "settings-page-" + page).firstMatch
+                        try sweepColumn(column, "Sweep \(fold) settings \(page)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Screenshots of a scrolling column from top to bottom, checking each view of it.
+    private func sweepColumn(_ column: XCUIElement, _ name: String) throws {
+        XCTAssertTrue(column.waitForExistence(timeout: 8), "Missing column for \(name)")
+        Thread.sleep(forTimeInterval: 0.8)
+        var last = Data()
+        for step in 0..<10 {
+            // Stop once a drag no longer moves anything.
+            let screen = XCUIScreen.screens[0].screenshot()
+            if screen.pngRepresentation == last { break }
+            last = screen.pngRepresentation
+            let shot = XCTAttachment(screenshot: screen)
+            shot.name = "\(name) \(step)"; shot.lifetime = .keepAlways; add(shot)
+            try assertNothingClipped("\(name) \(step)")
+            let start = column.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.8))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -column.frame.height * 0.55)))
+            Thread.sleep(forTimeInterval: 0.6)
+        }
+    }
+
+    private func sweepShot(_ name: String) {
+        for (index, screen) in XCUIScreen.screens.enumerated() where index == 0 {
+            let shot = XCTAttachment(screenshot: screen.screenshot())
+            shot.name = name; shot.lifetime = .keepAlways; add(shot)
+        }
+    }
+
+    /// No text or control that is on screen vertically is cut by the side of the scrolling
+    /// column that holds it (the library shelf scrolls sideways by design and is left out).
+    private func assertNothingClipped(_ label: String) throws {
+        let window = app.windows.firstMatch.frame
+        var problems: [String] = []
+        func walk(_ node: XCUIElementSnapshot, _ column: CGRect?) {
+            var column = column
+            if node.elementType == .scrollView {
+                // The game page's column scrolls through its outer margin (clipping disabled),
+                // so its content may pass the column's own frame up to the window's edge.
+                column = node.identifier == "collection-panel" ? nil
+                    : node.identifier == "detail-scroll" ? window : node.frame.intersection(window)
+            }
+            if let column, [.staticText, .button, .slider, .switch, .toggle].contains(node.elementType) {
+                let frame = node.frame
+                let visible = frame.width > 0 && frame.height > 0 && frame.maxY > column.minY + 2 && frame.minY < column.maxY - 2
+                if visible && (frame.minX < column.minX - 1 || frame.maxX > column.maxX + 1) {
+                    problems.append("\(node.elementType.rawValue) '\(node.identifier.isEmpty ? node.label : node.identifier)' \(frame) outside \(column)")
+                }
+            }
+            node.children.forEach { walk($0, column) }
+        }
+        walk(try app.snapshot(), nil)
+        XCTAssertTrue(problems.isEmpty, "Clipped in \(label): " + problems.prefix(6).joined(separator: "; "))
     }
 
     func testPostureClosedJourney() throws { try postureJourney("front") }

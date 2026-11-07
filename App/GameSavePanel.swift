@@ -33,6 +33,20 @@ struct GameSavePanel: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var running: Bool { SatchelNativeSaveTitle()?.caseInsensitiveCompare(titleID) == .orderedSame }
+
+    @ViewBuilder private func saveActions(_ summary: SaveStore.Summary) -> some View {
+        Button { exportSave() } label: {
+            Label("Export save", systemImage: "square.and.arrow.up").lineLimit(1)
+        }.disabled(busy || running || summary.lastSaved == nil).accessibilityIdentifier("export-save")
+        Button { picker = SavePickerRequest(export: nil) } label: {
+            Label("Import save", systemImage: "square.and.arrow.down").lineLimit(1)
+        }.disabled(busy || running).accessibilityIdentifier("import-save")
+        if !summary.backups.isEmpty {
+            Button("Backups (\(summary.backups.count))") { showBackups.toggle() }
+                .lineLimit(1)
+                .disabled(busy || running).accessibilityIdentifier("restore-save-backup")
+        }
+    }
     var body: some View {
         SatchelPanel(title: "Save data") {
             if let summary {
@@ -40,17 +54,11 @@ struct GameSavePanel: View {
                     Text("Last saved \(date.formatted(date: .abbreviated, time: .shortened)) · \(satchelBytes(summary.bytes))")
                         .accessibilityIdentifier("save-summary")
                 } else { Text("No save yet. Save in the game before quitting.") }
-                HStack(spacing: 12) {
-                    Button { exportSave() } label: {
-                        Label("Export save", systemImage: "square.and.arrow.up")
-                    }.disabled(busy || running || summary.lastSaved == nil).accessibilityIdentifier("export-save")
-                    Button { picker = SavePickerRequest(export: nil) } label: {
-                        Label("Import save", systemImage: "square.and.arrow.down")
-                    }.disabled(busy || running).accessibilityIdentifier("import-save")
-                    if !summary.backups.isEmpty {
-                        Button("Backups (\(summary.backups.count))") { showBackups.toggle() }
-                            .disabled(busy || running).accessibilityIdentifier("restore-save-backup")
-                    }
+                // One row where the actions fit; stacked on a narrow column (the front screen)
+                // rather than each label wrapping onto two lines.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { saveActions(summary) }
+                    VStack(alignment: .leading, spacing: 10) { saveActions(summary) }
                 }
                 if showBackups {
                     ForEach(Array(summary.backups.enumerated()), id: \.element.id) { index, backup in

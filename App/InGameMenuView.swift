@@ -173,15 +173,23 @@ struct InGameMenuView: View {
     @State private var confirmQuit = false
     @State private var showControllerLayout = false
 
-    /// Room on the trailing side for a close button over the content (44 points plus spacing).
-    private func closeStrip(_ cut: ScreenTraits) -> CGFloat {
-        barClose && cut.bar != .top ? 0 : 58
+    /// The narrowest settings column that holds every panel: the widest control (the six
+    /// rumble strengths, about 295 points) plus the panel's padding on both sides.
+    static let settingsColumnMinimum: CGFloat = 334
+
+    /// Room above the settings for a close button drawn over the content's top trailing
+    /// corner (44 points plus spacing). Only the top is kept clear, not a strip down the whole
+    /// side: on the closed Duo that strip cost the settings column the width its rows need.
+    private func closeClearance(_ cut: ScreenTraits) -> CGFloat {
+        barClose && cut.bar != .top ? 0 : 50
     }
 
     var body: some View {
         // The native bridge already sizes this view to the interactive bounds.
         ScreenReader(margin: false) { cut, geometry in
-            if cut.isBook {
+            // An upright window means a half-folded game the host turned a quarter
+            // (NativeHost/DisplayControls.h), even before the hinge posture arrives.
+            if cut.isBook || geometry.size.height > geometry.size.width {
                 // Match the native game region: picture above, menu below.
                 let fold = FoldLine.horizontal(geometry.size.height / 2)
                 FoldSplit(fold: fold, cut: cut, secondFill: SatchelTheme.shell) {
@@ -198,21 +206,59 @@ struct InGameMenuView: View {
                     .scrollIndicators(.hidden)
                 }
             } else {
-                let leftWidth = min(240, geometry.size.width * 0.34)
-                let rightWidth = max(200, geometry.size.width - cut.leading - cut.trailing - 44 - 22 - leftWidth - closeStrip(cut))
-                HStack(alignment: .top, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        titleBlock
-                        Spacer(minLength: 4)
-                        actionButtons(includeResume: true)
+                // Everything between the side margins and the cutout or vertical bar. The
+                // columns share exactly this width, so nothing is pushed past an edge.
+                let available = max(0, geometry.size.width - cut.leading - cut.trailing - 44)
+                // The actions column gives up width first (down to 170 points), so the
+                // settings column keeps room for its widest control and Resume stays in view.
+                let preferred = min(240, max(170, available * 0.36))
+                let leftWidth = available - 22 - preferred >= Self.settingsColumnMinimum
+                    ? preferred : max(170, available - 22 - Self.settingsColumnMinimum)
+                let rightWidth = available - 22 - leftWidth
+                Group {
+                    if rightWidth >= Self.settingsColumnMinimum {
+                        HStack(alignment: .top, spacing: 22) {
+                            // The actions column scrolls only when it is taller than the
+                            // screen (a long title on the front screen).
+                            ViewThatFits(in: .vertical) {
+                                VStack(alignment: .leading, spacing: 14) {
+                                    titleBlock
+                                    Spacer(minLength: 4)
+                                    actionButtons(includeResume: true)
+                                }
+                                .padding(.vertical, 18)
+                                ScrollView {
+                                    VStack(alignment: .leading, spacing: 14) {
+                                        titleBlock
+                                        actionButtons(includeResume: true)
+                                    }
+                                    .padding(.vertical, 18)
+                                }
+                                .scrollIndicators(.hidden)
+                            }
+                            .frame(width: leftWidth)
+                            ScrollView {
+                                settingsPanels.padding(.vertical, 18).padding(.top, closeClearance(cut)).frame(width: rightWidth)
+                            }
+                            .scrollIndicators(.hidden)
+                            .frame(width: rightWidth)
+                        }
+                    } else {
+                        // Too narrow for two columns (a small screen with the cutout beside
+                        // it): one scrolling column, actions first.
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 14) {
+                                titleBlock
+                                actionButtons(includeResume: true)
+                                settingsPanels
+                            }
+                            .padding(.vertical, 18)
+                            .padding(.top, closeClearance(cut))
+                            .frame(width: available)
+                        }
+                        .scrollIndicators(.hidden)
+                        .frame(width: available)
                     }
-                    .frame(width: leftWidth)
-                    .padding(.vertical, 18)
-                    ScrollView {
-                        settingsPanels.padding(.vertical, 18).frame(width: rightWidth)
-                    }
-                    .scrollIndicators(.hidden)
-                    .frame(width: rightWidth)
                 }
                 .cutoutPadding(cut, leading: 22, trailing: 22)
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
@@ -268,7 +314,8 @@ struct InGameMenuView: View {
         VStack(alignment: .leading, spacing: 8) {
             pausedChip
             Text(model.session.gameTitle).font(SatchelTheme.display(24)).foregroundStyle(SatchelTheme.text)
-                .lineLimit(2).minimumScaleFactor(0.75)
+                .lineLimit(3).minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
             Text(fpsText).font(SatchelTheme.mono(12)).foregroundStyle(SatchelTheme.textDim)
             if let cap = model.thermalFrameCap { thermalBanner(cap) }
         }
@@ -399,12 +446,23 @@ struct InGameMenuView: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    /// A title with its control beside it, or above it when the column is too narrow for
+    /// both on one line (the closed Duo's front screen), so the control never runs past the
+    /// panel's edges.
     private func row<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 12) {
-            Text(title).font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.text)
-                .lineLimit(1).minimumScaleFactor(0.8)
-            Spacer(minLength: 6)
-            content()
+        let label = Text(title).font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.text)
+            .lineLimit(1)
+        let control = content()
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                label.fixedSize()
+                Spacer(minLength: 6)
+                control
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                label.minimumScaleFactor(0.8)
+                control
+            }
         }
     }
 

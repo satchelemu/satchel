@@ -173,9 +173,11 @@ struct WarmupHomeCard: View {
                         Text("Warm up " + journal.title).font(.system(size: 13, weight: .bold))
                         Text(job.running ? "\(journal.progress.stage) · \(journal.progress.completed)/\(journal.progress.total)"
                              : playable ? journal.progress.stage : "Needs Prepare again before it can be played.")
-                            .font(.system(size: 11)).lineLimit(1)
+                            .font(.system(size: 11)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         if job.running {
-                            Text(WarmupWords.card).font(.system(size: 10)).foregroundStyle(SatchelTheme.textDim).lineLimit(1)
+                            // Two lines on a narrow screen rather than a cut-off sentence.
+                            Text(WarmupWords.card).font(.system(size: 10)).foregroundStyle(SatchelTheme.textDim)
+                                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }.accessibilityIdentifier("warmup-home-card")

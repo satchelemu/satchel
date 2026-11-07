@@ -15,7 +15,9 @@ one-app scheme.
 The four `testPosture*Journey` cases cover front, open, book and tall preview layouts.
 Eight directed transition cases plus two held-button cases check a stable synthetic
 session, Fit geometry and real pad input through viewport changes, including an open
-menu. The plain fallback has its own half-fold layout journey. See [Duo posture details and hardware steps](../../../docs/testing.md#duo-postures).
+menu. The plain fallback has its own half-fold layout journey. The posture journeys also
+require the pause menu's settings rows to fit their column, and `testLayoutSweepFrontAndInner`
+scrolls every app screen on the front and inner screens and fails on a row cut by its column. See [Duo posture details and hardware steps](../../../docs/testing.md#duo-postures).
 The Console keys picker cancellation uses the app-owned `cancel-keys-import` action;
 the real picker must appear, dismiss and reopen, including after background/return.
 

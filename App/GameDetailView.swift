@@ -442,7 +442,8 @@ struct GameDetailView: View {
                         Text("Version " + (artwork.info(update)?.displayVersion ?? "?"))
                             .font(.system(size: 15, weight: .bold, design: .rounded)).foregroundStyle(SatchelTheme.text)
                         Text((library.originalRemoved(update) ? "Original removed" : satchelBytes(Int64(update.bytes))) + "  ·  " + update.name)
-                            .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim).lineLimit(1)
+                            .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
+                            .lineLimit(2).truncationMode(.middle).fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer()
                     Menu {

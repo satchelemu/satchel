@@ -171,6 +171,19 @@ posture and viewport size. A preview wrapper scales the menu to that same logica
 viewport while retaining the production full-screen modal presenter. Ordinary
 navigation journeys use the menu without that wrapper scaling.
 
+In every posture the pause menu's settings rows (Fit and Stretch, the rumble choices, the
+controller layout row and Volume) must lie inside their scrolling column, side to side;
+`testControlsMenuShortcutAndLayout` repeats the check on the front screen with controller
+focus on the controller layout row. On the closed screen (678 by 466 points, with
+84 points kept clear on one side) the settings column was narrower than its rows and cut off their
+left edge. The menu now gives the settings column the width of its widest row first and
+narrows the actions column, a title with its choices wraps onto two lines when the column is
+narrow, and a screen too narrow for both columns gets one scrolling column.
+`testLayoutSweepFrontAndInner` visits the library, game page, Add games and every Settings
+section on the front screen and the emulated inner screen, scrolls each column to its end,
+attaches a screenshot of each step and fails when any text or control on screen crosses the
+side of the scrolling column that holds it.
+
 `testPostureClosedToOpen`, `testPostureOpenToClosed`,
 `testPostureClosedToHalfFolded`, `testPostureHalfFoldedToClosed`,
 `testPostureOpenToHalfFolded` and `testPostureHalfFoldedToOpen` cover all six directed
