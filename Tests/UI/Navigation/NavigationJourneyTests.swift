@@ -540,14 +540,21 @@ final class NavigationJourneyTests: XCTestCase {
         revealControl(app.staticTexts["They apply on the next launch."], in: sheet)
         let copy = app.buttons["game-report-copy"]
         revealControl(copy, in: sheet)
-        copy.tap()
-        expectation(for: NSPredicate(format: "label == %@", "Copied"), evaluatedWith: copy)
-        waitForExpectations(timeout: 4)
+        // A tap that lands while the reveal scroll is still settling only stops the scroll.
+        let copiedLabel = NSPredicate(format: "label == %@", "Copied")
+        for _ in 0..<3 where !copiedLabel.evaluate(with: copy) {
+            copy.tap()
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: copiedLabel, object: copy)], timeout: 2)
+        }
+        XCTAssertEqual(copy.label, "Copied")
         let inspect = app.buttons["game-report-inspect-clipboard"]
         revealControl(inspect, in: sheet)
-        inspect.tap()
         let clipboard = app.staticTexts["game-report-clipboard"]
-        XCTAssertTrue(clipboard.waitForExistence(timeout: 4))
+        let inspected = NSPredicate(format: "label BEGINSWITH %@", "Satchel game diagnostics")
+        for _ in 0..<3 where !(clipboard.exists && inspected.evaluate(with: clipboard)) {
+            inspect.tap()
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: inspected, object: clipboard)], timeout: 2)
+        }
         let value = clipboard.label
         XCTAssertTrue(value.hasPrefix("Satchel game diagnostics\nApp: "), value)
         for line in ["Title: 010000000000D1A8 version 1.0.0", "Package: Synthetic-Diagnostics",
@@ -565,7 +572,7 @@ final class NavigationJourneyTests: XCTestCase {
         shot.name = "Game report learned settings"; shot.lifetime = .keepAlways; add(shot)
         let forget = app.buttons["game-report-forget-learned"]
         revealControl(forget, in: sheet)
-        forget.tap()
+        for _ in 0..<3 where forget.exists { forget.tap(); _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: forget)], timeout: 2) }
         absent(learned)
         absent(app.buttons["game-report-forget-learned"])
         revealReportTop(sheet)
