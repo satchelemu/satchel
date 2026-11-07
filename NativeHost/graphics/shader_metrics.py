@@ -62,6 +62,14 @@ def apply(root, source):
     needle = 'g_pt_pred_n++; g_pt_pred_ns += bp_now() - t0; }'
     assert text.count(needle) == 1
     text = text.replace(needle, 'g_pt_pred_n++; g_pt_pred_ns += bp_now() - t0; satchel_shader_event("prediction", satchel_walk); }')
+    # Which pipelines a draw built itself: merged-pass or specialized-fragment keys, which the
+    # prediction walk cannot compute, apart from ordinary keys it did not admit or predict.
+    needle = '        MTLRenderPipelineDescriptor *d = pso_desc(&k, vs, fs, ms_fn ? ms_fn : g_pso_fsfn, g_pso_lmap != NULL);\n        ps = pso_build(d, &e);\n'
+    assert text.count(needle) == 1
+    text = text.replace(needle, needle.replace('ps = pso_build(d, &e);', 'ps = SATCHEL_SHADER_TIME(g_pso_lmap || ms_fn ? "pipeline-own-merged" : "pipeline-own", pso_build(d, &e));'))
+    needle = '    if (ps) g_pp_taken++;\n'
+    assert text.count(needle) == 1
+    text = text.replace(needle, '    if (ps) { g_pp_taken++; satchel_shader_event("pipeline-taken", satchel_shader_now()); }\n')
     text = '#include "ShaderMetrics.inc"\n' + text
     source.write_text(text)
     shutil.copyfile(root / 'NativeHost/graphics/ShaderMetrics.inc', source.parent / 'ShaderMetrics.inc')

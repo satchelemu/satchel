@@ -90,6 +90,12 @@ Developer launch arguments override the saved per-title pipeline mode for one la
   namespace bump. Copied only when the new trial has no list yet.
 - `-SatchelPipelinePrewarm YES`: launch prewarm of recorded pipelines, below.
   `-SatchelPipelinePrewarmMS <250..30000>` bounds its loading time, default 3000.
+- Host environment only (the app sets neither), `DM_PSO_LANES` (1 to 8, default 2) and `DM_PSO_SPECULATIVE` (1 to 128; unset keeps 2, or 16
+  in bounded): compiler lanes and the prediction walk's speculative budget, for measurement
+  (`bench_shaders.py --lanes --speculative`). With a budget set, speculative builds wait on serial
+  feeders in admission order, so a draw can still take its queued build and make it at once, and the
+  submitting thread takes the next free lane first. They change when a pipeline is built, never which.
+  Measured in `NativeHost/ShaderStalls.md` (Prediction coverage).
 - `-SatchelGraphicsProfile YES`: enable timing TSV, slow-frame attribution, pipeline
   waits and the engine GPU profile every 300 frames. The log remains `host.log`;
   `graphics-frames.tsv` is under the trial directory, or runtime root without a tag.

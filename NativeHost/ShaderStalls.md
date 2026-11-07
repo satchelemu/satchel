@@ -31,6 +31,9 @@ threads. `translation` and `library-create` measure translator and source-librar
 `pipeline-create` measures Metal render/compute creation and specialization;
 `pipeline-archive` measures archive lookups, including misses. `prepare-use`,
 `library-use`, `pipeline-use`, and `pipeline-wait` include required first-use waits.
+`pipeline-own` (an ordinary key) and `pipeline-own-merged` (a merged-pass or specialized-fragment
+key) time the pipelines a draw builds itself; `pipeline-taken` marks a draw taking a speculative
+build. With the trace on, each prediction walk logs its draw and key counts (`parallel precompile walk`).
 Do not add nested durations. Union their intervals on each submit thread for a total.
 The existing `DM_NVN_TSV` supplies frame intervals, draw counts and worst-frame evidence.
 Events cover the whole process route; frame statistics stop at frame 1800.
@@ -169,6 +172,55 @@ Bounded with prewarm (one Zelda relist) reached the 3,000 ms budget with 190 of 
 hybrid, so the prewarm also loads every vertex shader's pulling library. Its worst frame was 1,020 ms;
 the prewarm is meant for exact. Nothing here is a phone result: the phone has fewer cores, and its cold
 library compiles after an OS update would make the prewarm slower, up to its budget.
+
+# Prediction coverage and compiler lanes (2026-11-07, Mac)
+
+Question: does building more of a frame's new pipelines at once (more compiler lanes, a larger
+speculative budget for the prediction walk) shorten Zelda's title frame (120 new pipelines)? Exact
+mode, relist routes (one clean seed run on main d6443ff's host; each relist copies its recorded list,
+translated sources and capture into a new namespace with no archive), 1,800 frames, render scale 1.0.
+`bench_shaders.py --lanes N --speculative N` sets the two measurement knobs (`DM_PSO_LANES`,
+`DM_PSO_SPECULATIVE`; unset, nothing changes). Five other workers shared the Mac (load average 8 to
+150) and Apple's system Metal compiler cache: library time in the title frame ranged from 0.15 to
+36 s across runs of the same host, so frame totals are not compared. The value below is the submit
+thread's pipeline time inside the title frame (merged spans of `pipeline-use`), one run each unless
+noted.
+
+| Host and setting | Submit pipeline time, title frame | Pipeline waits on the submit thread |
+|---|---|---|
+| main, lanes 2, engine budget 2 (three runs) | 3,179; 4,205; 4,456 ms | 119 |
+| this branch, unset (same as main) | 2,760 ms | 119 |
+| lanes 2, speculative 64 | 1,915 ms | 90 |
+| lanes 4, speculative 16 | 2,241 ms | 106 |
+| lanes 4, speculative 64 | 2,127 ms | 92 |
+| lanes 6, speculative 64 | 2,348 ms | 92 |
+| lanes 4, speculative 128 | 2,216 ms | 92 |
+
+Every run passed with zero shader failures, zero fallback pipelines and zero skipped draws; a
+predicted pipeline is taken only on an equal pipeline key, so no draw changes. A base compile costs
+21 to 25 ms on this Mac (172 to 176 per route, 3.7 to 5.4 s in all) and a specialization 0.1 ms.
+
+Why more lanes do not help yet: the title frame is one submission with one prediction walk over its
+remaining 1,072 draws, and that walk computes only 40 keys not yet built (29 likely, 11 alternative
+attachment modes). With all 40 admitted, 29 were taken by their draws in the title frame and the
+draws still built 81 pipelines themselves (108 with the engine's budget of 2), none of them a
+merged-pass or specialized-fragment key (zero `pipeline-own-merged` events). So about two thirds of
+the frame's new pipelines are never predicted: the key a draw computes differs from the one the walk
+computed for it. With 4 or 6 lanes, pipeline compilation in the title frame reached 4 to 6 at once but
+averaged 1.3 to 1.5. The next step is to find which key field differs (vertex shader revision,
+attachment formats, vertex layout or blend state) and make the walk compute the draw's key; only then
+can lanes beyond two matter. Nothing here is a phone result; the phone has fewer cores.
+
+Ideas from the same round that were checked and not taken:
+
+- Seeding a phone-prepared package's pipeline list at Prepare time. There is nothing to seed from:
+  in every format 2 package `dm/shader_map.tsv`, `shader_pairs.tsv`, `pso_pairs.tsv` and
+  `pso_manifest.tsv` hold one comment line, and a pipeline key needs the draw's attachment formats,
+  blend and vertex layout, which only a run of the game produces. Prepare can find shaders in the
+  RomFS (the opt-in warm-up's inventory), not pipelines.
+- Metal binary archives for a first launch: the archive already keeps every base a launch builds
+  for later launches; a first launch has none, and Apple's API gives no way to build one before the
+  pipelines are known.
 
 # Scheduling and cache behavior
 

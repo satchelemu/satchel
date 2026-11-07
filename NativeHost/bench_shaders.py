@@ -12,6 +12,9 @@ parser.add_argument('--prewarm-ms',type=int,default=3000)
 parser.add_argument('--pipeline-mode',choices=['exact','async','bounded','skip'],default='exact')
 parser.add_argument('--pipeline-budget-ms',type=float,default=4)
 parser.add_argument('--frame',type=int,default=1800)
+# Pipeline compiler lanes and the prediction walk's speculative limit (DM_PSO_LANES, DM_PSO_SPECULATIVE); unset keeps the host's defaults.
+parser.add_argument('--lanes',type=int,choices=range(1,9))
+parser.add_argument('--speculative',type=int,choices=range(0,129))
 a=parser.parse_args();game=a.game;route=a.route; mode=a.cache
 assert a.frame>=1200
 assert 0 <= a.pipeline_budget_ms <= 16
@@ -48,6 +51,8 @@ env={k:v for k,v in os.environ.items() if not k.startswith('DM_')}
 env.update(DM_PSO_SKIP_STATS=str(work/'pipeline-skips.tsv'),DM_SHADER_EVENTS=str(work/'events.tsv'),DM_PSO_ARCHIVE=str(cache/'pipelines'),DM_PSO_USER=str(cache/'pso_user.tsv'),DM_PSO_HYBRID='0',DM_PSO_MTL4='1',DM_PROFILE=str(package/'profile.tsv'),DM_ROMFS=str(package/'romfs.img'),DM_ROOT=str(work),DM_SAVE=str(work/'save'),DM_TEMP=str(work/'temp'),DM_AOC_DIR=str(work/'aoc'),DM_CTL=str(ctl),DM_FPS_TARGET='30' if game=='TOTK' else '0',DM_RENDER_SCALE='1.0',DM_BOOTPROF='1',DM_SLOWFRAME='1',DM_NVN_TSV=str(work/'frames.tsv'),DM_NVN_TSV_CALLS='0',DM_OPMODE='0',DM_PSO_PREBUILD_THREADS='2',DM_PSO_PREPARE_THREADS='2',DM_PSO_MANIFEST='off',DM_PSO_PREBUILD='0',DM_NVN_SHOT=','.join(map(str,sorted({300,1200,a.frame})))+':'+str(work/'shots/frame-%d.png'),DM_NVN_SHOT_OUT='1280x720')
 env.update(DM_PSO_ASYNC='1' if a.pipeline_mode in {'async','bounded','skip'} else '0',DM_PSO_SKIP='1' if a.pipeline_mode=='skip' else '0',DM_PSO_BUDGET_MS=str(a.pipeline_budget_ms),DM_PSO_HYBRID='1' if a.pipeline_mode in {'async','bounded','skip'} else '0',DM_PSO_AHEAD='1' if a.pipeline_mode=='bounded' else '0')
 env.update(DM_NVN_SHMAP=str(package/'dm/shader_map.tsv'),DM_MSL_DIR=str(work/'empty-msl'),DM_PHONE_SHADERS='1',DM_PHONE_SHADER_CACHE=str(cache/'sources'))
+if a.lanes: env['DM_PSO_LANES']=str(a.lanes)
+if a.speculative is not None: env['DM_PSO_SPECULATIVE']=str(a.speculative)
 if a.capture:
     (cache/'shader-capture').mkdir(exist_ok=True); env['DM_NVN_SHDUMP']=str(cache/'shader-capture')
 if a.prewarm:
@@ -76,7 +81,7 @@ def watch():
         try:child.wait(5)
         except subprocess.TimeoutExpired:child.kill()
 watcher=threading.Thread(target=watch);watcher.start()
-allowed=['[slowframe]', 'PhoneShader ','pipeline prepare','pipeline prewarm','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]']
+allowed=['[slowframe]', 'PhoneShader ', 'parallel precompile','pipeline prepare','pipeline prewarm','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]']
 failure=re.compile(r'prepare failed|compile failed|failed to load shader|failed to load: build|failed to create.*pipeline|reflection conversion failed|no library|not in the shader map|no vertex shader|no compute shader|geometry capture entry failed|unexpected argument buffer|offline reference source absent|FATAL|CRASH sig=')
 with (work/'host-safe.log').open('w') as log:
     for line in child.stdout:
@@ -96,7 +101,7 @@ child.wait();watcher.join()
 shots=[str(x) for x in sorted((work/'shots').glob('*.png'))]
 passed=child.returncode in (0,-15,143) and reason==['both frame checkpoints and DM_CTL capture'] and not failures
 passed &= bool(translated)
-result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,capture=a.capture,prewarm=a.prewarm,pipelineBudgetMs=a.pipeline_budget_ms,game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
+result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,lanes=a.lanes,speculative=a.speculative,capture=a.capture,prewarm=a.prewarm,pipelineBudgetMs=a.pipeline_budget_ms,game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
 timings={}
 for line in (work/'frames.tsv').read_text().splitlines():
     cells=line.split('\t')

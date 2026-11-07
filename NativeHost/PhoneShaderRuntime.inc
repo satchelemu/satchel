@@ -129,7 +129,7 @@ void satchel_phone_ahead(const prog_t *program) {
 // Submit thread, prediction walks only: in bounded mode a program whose ahead work has not finished is
 // left out of the walk instead of being translated and loaded there, one by one, on the frame path.
 // Its own draw still prepares it exactly. Exact and async modes walk every program, as before.
-enum { SATCHEL_AHEAD_SPECULATIVE = 16, SATCHEL_AHEAD_WALKS = 32 };
+enum { SATCHEL_AHEAD_WALKS = 32 };   // the speculative limit (16 in this mode) is in graphics/async_pipelines.py
 static int satchel_phone_predict_skipped;   // the last walk left out a program still being prepared
 static int satchel_phone_predict_ready(const prog_t *program) {
     if (!satchel_phone_ahead_on() || !program) return 1;

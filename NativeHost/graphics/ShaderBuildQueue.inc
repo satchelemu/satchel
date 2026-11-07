@@ -4,27 +4,49 @@
 // free lane before speculative and background builds. Other modes keep first-come order.
 static pthread_t satchel_submitter;
 static int satchel_lanes_ahead(void) { const char *e = getenv("DM_PSO_AHEAD"); return e && !strcmp(e, "1"); }
+// Measurement knobs (DM_PSO_LANES 1 to 8, default 2; DM_PSO_SPECULATIVE 0 to 128, 0 keeps each mode's
+// default). Unset, every mode schedules exactly as before. They change when a pipeline is built, never which.
+static int satchel_env_int(const char *name, int fallback, int low, int high) {
+    const char *e = getenv(name); if (!e || !*e) return fallback;
+    char *end; long v = strtol(e, &end, 10); return *end || v < low || v > high ? fallback : (int)v;
+}
+static int satchel_pipeline_lanes(void) { static int n; if (!n) n = satchel_env_int("DM_PSO_LANES", 2, 1, 8); return n; }
+__attribute__((unused)) static int satchel_speculative_setting(void) { static int n = -1; if (n < 0) n = satchel_env_int("DM_PSO_SPECULATIVE", 0, 0, 128); return n; }
+// With a raised limit the submitting thread takes the next free lane before speculation.
+static int satchel_lanes_ordered(void) { return satchel_lanes_ahead() || satchel_speculative_setting(); }
+// Speculative builds wait in admission order on serial feeders instead of the global queue: a queued
+// build stays queued until a lane is near, so its draw can take it and build it at once (pso_pend_take).
+__attribute__((unused)) static dispatch_queue_t satchel_speculative_queue(void) {
+    if (!satchel_speculative_setting()) return dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
+    static dispatch_queue_t feeders[8]; static dispatch_once_t once; static _Atomic unsigned next;
+    dispatch_once(&once, ^{
+        for (int i = 0; i < satchel_pipeline_lanes(); i++)
+            feeders[i] = dispatch_queue_create("Satchel.pipeline-ahead", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
+    });
+    return feeders[atomic_fetch_add(&next, 1) % (unsigned)satchel_pipeline_lanes()];
+}
 static void satchel_pipeline_work(dispatch_block_t work) {
-    static dispatch_queue_t lanes[2]; static dispatch_once_t once;
-    static char key; static unsigned occupied;
+    static dispatch_queue_t lanes[8]; static dispatch_once_t once;
+    static char key; static unsigned occupied, full;
     static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     static pthread_cond_t available = PTHREAD_COND_INITIALIZER;
     dispatch_once(&once, ^{
-        for (int i = 0; i < 2; i++) {
+        int count = satchel_pipeline_lanes(); full = (1u << count) - 1;
+        for (int i = 0; i < count; i++) {
             lanes[i] = dispatch_queue_create("Satchel.pipeline", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
             dispatch_queue_set_specific(lanes[i], &key, &key, NULL);
         }
     });
     if (dispatch_get_specific(&key)) { work(); return; }
     // Reserve a free lane, so a long compile cannot strand work behind itself
-    // while the other lane is idle. Nested work already owns its lane.
+    // while another lane is idle. Nested work already owns its lane.
     static unsigned urgent_waiting;
-    int ordered = satchel_lanes_ahead(), urgent = ordered && satchel_submitter && pthread_equal(pthread_self(), satchel_submitter);
+    int ordered = satchel_lanes_ordered(), urgent = ordered && satchel_submitter && pthread_equal(pthread_self(), satchel_submitter);
     pthread_mutex_lock(&mutex);
     if (urgent) urgent_waiting++;
-    while (occupied == 3 || (ordered && !urgent && urgent_waiting)) pthread_cond_wait(&available, &mutex);
+    while (occupied == full || (ordered && !urgent && urgent_waiting)) pthread_cond_wait(&available, &mutex);
     if (urgent) urgent_waiting--;
-    unsigned lane = (occupied & 1) ? 1 : 0;
+    unsigned lane = (unsigned)__builtin_ctz(~occupied);
     occupied |= 1u << lane;
     pthread_mutex_unlock(&mutex);
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
