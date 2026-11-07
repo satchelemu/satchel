@@ -2,7 +2,7 @@
 // Same interface as the pinned engine's present pass: a full-screen triangle and a crop record
 // (rect: the valid source rectangle, normalized; edge: the clamp of sample positions to the
 // valid texel centres). The source holds the scan-out's gamma bytes, as the present samples them.
-// present_graphics.py embeds this file in the generated renderer; quality/present-quality.swift
+// present_filter.py embeds this file in the generated renderer; quality/present-quality.swift
 // compiles the same file on the Mac, so measured quality and cost come from this code.
 #include <metal_stdlib>
 using namespace metal;
