@@ -50,7 +50,7 @@ static NSString *validValue(NSString *key, id value) {
         return [@[@"fit", @"stretch"] containsObject:value] ? value : nil;
     if ([key isEqualToString:@"DM_RENDER_SCALE"]) return decimalValue(value, 0.5, 1.0);
     if ([key isEqualToString:@"DM_PRESENT_UPSCALE"])
-        return [@[@"off", @"spatial"] containsObject:value] ? value : nil;
+        return [@[@"off", @"spatial", @"edge", @"edge-spatial"] containsObject:value] ? value : nil;
     if ([key isEqualToString:@"DM_PIPELINE_MODE"])
         return [@[@"exact", @"async", @"bounded", @"skip", @"hybrid", @"legacy"] containsObject:value] ? value : nil;
     return nil;

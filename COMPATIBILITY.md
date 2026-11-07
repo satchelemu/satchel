@@ -83,7 +83,8 @@ Zelda and Odyssey have Mac gameplay attribution, but optimization acceptance sti
 requires complete target counters, paired comparisons and matched image checks.
 No rendering optimization is enabled by these diagnostics. The optional per-title
 MetalFX spatial presentation setting defaults to off and does not change these
-phone ratings. It still needs matched phone captures and GPU-cost acceptance.
+phone ratings. It still needs matched phone captures and GPU-cost acceptance. The same
+holds for the optional edge smoothing present (`edge`), which is also off by default.
 Opt-in frame GPU timing uses command-buffer feedback rather than the OS power
 counter. Its CPU/GPU limit labels are diagnostic inferences, pending phone checks.
 

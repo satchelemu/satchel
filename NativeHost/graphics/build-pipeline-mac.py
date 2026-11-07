@@ -70,6 +70,9 @@ text = text.replace(needle, r'''    const char *capture_dir = getenv("DM_PSO_SKI
         mtl_finish_gpu(); shot(src, capture_path, 1, crop); capture_count++;
     }
 ''' + needle)
+# Optional render-scale switch for picture quality comparisons (quality-diagnostics.py).
+if os.environ.get('SATCHEL_QUALITY_DIAGNOSTICS') == '1':
+    text = runpy.run_path(str(ROOT / 'NativeHost/graphics/quality-diagnostics.py'))['apply'](text)
 metal.write_text(text)
 shutil.copyfile(metal, engine / 'dm/gfx/nvn/nvn_mtl.m')
 for source in metal.parent.glob('*.inc'): shutil.copyfile(source, engine / 'dm/gfx/nvn' / source.name)

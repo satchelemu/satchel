@@ -34,6 +34,9 @@ def prepare(source, destination):
     # Opt-in launch prewarm of recorded pipelines with phone-translated shaders (-SatchelPipelinePrewarm YES).
     subprocess.run(['patch', '-p1', '--fuzz=0', '-i', Path(__file__).with_name('prewarm.patch')],
                    cwd=destination, check=True)
+    # Opt-in edge smoothing in the present (DM_PRESENT_UPSCALE edge and edge-spatial). Last, so the
+    # shader build and metrics instrumentation above count only the engine's own pipeline sites.
+    runpy.run_path(str(Path(__file__).with_name('present_filter.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     return destination / 'nvn_mtl.m'
 
 

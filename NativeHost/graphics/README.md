@@ -412,6 +412,97 @@ These three controls exist only in the explicitly instrumented Mac host, not the
 normal app build. Use a settled Mac shader cache and record shared load. No Mac
 measurement establishes phone cost, thermal behavior or motion quality.
 
+## Present edge smoothing (opt-in)
+
+`DM_PRESENT_UPSCALE` also takes `edge` and `edge-spatial` (developer argument
+`-SatchelUpscaler edge`, saved per title like `spatial`, next launch). `present_filter.py`
+runs last in the overlay chain. It embeds `PresentFilter.metal`, compiles it once on a
+background queue and, until it is ready, keeps the plain present. The filter smooths the
+valid crop at the scan-out's own texel centres into a crop-sized texture: it finds a local
+luma edge, its orientation and side, walks along it to both ends and moves the sample
+across the edge by the distance to the nearer end, with a bounded blend for isolated
+detail. Flat and low-contrast areas return the plain sample, so a flat picture is
+byte-identical. The existing present then shows that texture bilinearly (`edge`) or
+through the spatial scaler under its existing rules (`edge-spatial`). Raw RGBA8 and BGRA8
+single-sample scan-outs only; anything else keeps the plain present. `off` and `spatial`
+encode exactly the commands they did before; the only change on those paths is a larger
+present constant buffer (20 floats instead of 8, the last 12 unused).
+
+`upscale-check.py` adds real Metal checks through the offscreen present: the filter
+compiles, a flat picture is unchanged, a shallow staircase gains intermediate values only
+near its edge, and `edge-spatial` keeps the spatial scaler's scale rule.
+
+### Picture quality comparison on the Mac
+
+A reduced render scale cannot be compared with 1.0 from two runs: wind, idle animation
+and Zelda's slowly panning title camera make two 1.0 captures one second apart differ more
+(SSIM 0.78 to 0.80) than 0.65 differs from 1.0. The comparison therefore uses one session:
+
+1. Build the pipeline Mac host with `SATCHEL_QUALITY_DIAGNOSTICS=1`
+   (`quality-diagnostics.py`; never in the app). Writing `SCALE DIRECTORY` to the file
+   named by `DM_QUALITY_SCALE_FILE` saves the next twelve presents as raw scan-out PNGs
+   while Zelda's render-scale state is SCALE for presents 3 to 5 only. The reduced size
+   reaches the picture three presents later: frames 6 to 8 are reduced.
+2. `present-quality --sharpness DIR/f*.png` confirms which frames are reduced.
+3. `present-quality PresentFilter.metal 2853x1604 DIR/f005.png DIR/f007.png --floor DIR/f003.png --crop ...`
+   presents the 1.0 frame bilinearly as the reference (what the phone shows at 1.0) and the
+   reduced frame through `off`, `edge`, `edge1` (single pass at display size), `spatial`
+   (MetalFX) and `edge-spatial`, at the phone's inner-screen viewport. It prints SSIM
+   (11x11 Gaussian), SSIM over the reference's edge pixels, PSNR per region and the GPU time
+   of each pass. `--floor` is a second 1.0 frame two presents earlier; its distance is the
+   noise floor. Use a scene that holds still: Zelda's Room of Awakening save gives a floor
+   SSIM of 0.999. `--save DIR` writes the presented pictures and region crops; keep them
+   outside the repository. `--stride S` lengthens the smoothing step for experiments.
+
+Mac results, 2026-11-07 (M4, Zelda's Room of Awakening save, docked operation mode as the
+app runs it, so the 3D view's base is 1600x896 of a 1920x1080 scan-out, presented at
+2853x1604). Whole frame, SSIM / PSNR against the 1.0 picture; the floor is SSIM 0.9987 to
+0.9988 (PSNR 54 dB):
+
+| Scale | off | edge | spatial | edge-spatial |
+|---|---|---|---|---|
+| 0.50 | 0.9585 / 38.28 dB | 0.9597 / 38.45 | 0.9414 / 36.99 | 0.9434 / 37.29 |
+| 0.65 | 0.9710 / 40.60 dB | 0.9723 / 40.87 | 0.9486 / 38.29 | 0.9523 / 38.96 |
+| 0.75 | 0.9765 / 41.62 dB | 0.9779 / 41.95 | 0.9511 / 38.66 | 0.9563 / 39.60 |
+| 0.85 | 0.9809 / 43.29 dB | 0.9822 / 43.68 | 0.9523 / 39.23 | 0.9593 / 40.55 |
+
+PSNR on a 3D region (the stone ring and Link) and on the HUD icons, which the game draws at
+full size at every scale:
+
+| Scale | 3D off / edge / spatial | HUD off / edge / spatial |
+|---|---|---|
+| 0.50 | 36.24 / 36.50 / 34.87 dB | 42.64 / 38.15 / 34.66 dB |
+| 0.65 | 38.31 / 38.74 / 35.97 dB | 44.26 / 38.58 / 34.82 dB |
+| 0.75 | 39.52 / 40.06 / 36.42 dB | 45.45 / 38.81 / 34.98 dB |
+| 0.85 | 40.88 / 41.44 / 36.92 dB | 46.92 / 39.27 / 35.02 dB |
+
+Render scale itself dominates: each step from 0.5 to 0.85 gains more than any filter.
+Edge smoothing moves every reduced frame slightly closer to the 1.0 picture (SSIM +0.0012
+to +0.0014, 3D regions +0.26 to +0.56 dB) and visibly straightens the stair-stepped bright
+outlines along silhouettes, but softens the HUD icons by 4.5 to 7.7 dB. The MetalFX spatial
+scaler moves every frame further away (SSIM -0.017 to -0.029): it sharpens the reduced
+view's stairs and rings the HUD. Edge before spatial recovers part of that loss but stays
+below off. A longer smoothing step (`--stride` 1.25 or 1.5) adds at most 0.2 dB on 3D
+regions and costs the HUD another 2 to 4 dB; at 0.5 and step 2 the icon outlines break
+visibly. The present therefore keeps a one-texel step. The same route in handheld mode
+(base 1280x720) shows the same order with smaller edge gains (whole-frame SSIM unchanged
+to four places, 3D +0.02 to +0.07 dB). On Castlevania's menu text the filter keeps SSIM
+0.998 against the plain present. A filter after scan-out cannot separate the game's 3D
+view, upscaled by the game before the HUD is drawn, from the HUD; the place to fix the
+reduced view's roughness without touching the HUD is the game's own upscale draw, as the
+engine's `DM_UPSCALER` does for one game's upscaler shader.
+
+Mac GPU time per pass at 2853x1604 (medians of 20 command buffers, shared Mac): plain
+present 0.28 to 0.54 ms; edge pass at 1920x1080 0.15 to 0.44 ms; single-pass edge at
+display size 0.45 to 0.88 ms (so the two-pass form is used); MetalFX spatial 1.05 to 1.8 ms.
+The phone measured the spatial present at 3.3 to 6.5 ms, about three to four times these
+Mac figures, which puts the edge pass near 0.5 to 1.8 ms on the phone, unmeasured. Both filters stay
+opt-in per title; their look in motion and their phone cost need phone checks.
+
+Pixel identity of the default path: the overlay leaves `off` and `spatial` command
+encoding unchanged; `upscale-check.py`'s unchanged upstream crop, colour, orientation,
+resize and readback assertions cover that path with real Metal.
+
 ## Phone frame GPU timing
 
 `-SatchelGraphicsProfile YES` enables `[frame-gpu]` summaries in `host.log`, next to

@@ -397,6 +397,10 @@ framework dependency. `upscale-check.py` checks profile persistence and syntheti
 Metal presentation after a diagnostic Mac build. `SATCHEL_UPSCALE_DIAGNOSTICS=1`
 adds private Mac paired-timing and matched-image controls; it does not instrument
 the iOS app. See [spatial presentation upscaling](NativeHost/graphics/README.md#spatial-presentation-upscaling).
+The edge smoothing present compiles `NativeHost/graphics/PresentFilter.metal` at run time;
+`SATCHEL_QUALITY_DIAGNOSTICS=1` on the pipeline Mac host build adds the render-scale burst
+captures, and `xcrun swiftc -O NativeHost/graphics/quality/present-quality.swift` builds the
+Mac comparison tool (see [present edge smoothing](NativeHost/graphics/README.md#present-edge-smoothing-opt-in)).
 
 `python3 -B NativeHost/graphics/frame-timing-check.py` uses `SATCHEL_OUT` and the
 shared build wait to test timing accounting and real Metal callbacks on synthetic
