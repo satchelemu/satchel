@@ -15,6 +15,8 @@ for name, source in [('upscale-settings', 'graphics/upscale-settings-check.m'), 
     exe = checks / name
     subprocess.run(['nice', '-n', '10', 'xcrun', 'clang', '-fobjc-arc', '-fmodules', '-framework', 'Foundation',
                     '-framework', 'CoreGraphics', '-I', ROOT / 'NativeHost', ROOT / 'NativeHost/PlayerSettings.m',
+                    # PlayerSettings.m tells the controller profiles the title (as controllers/check.py links it).
+                    ROOT / 'App/ControllerProfiles.m', '-framework', 'GameController',
                     ROOT / 'NativeHost' / source, '-o', exe], check=True)
     subprocess.run([exe, 'setup'], check=True)
     if name == 'upscale-settings':

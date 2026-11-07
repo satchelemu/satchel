@@ -499,9 +499,15 @@ The phone measured the spatial present at 3.3 to 6.5 ms, about three to four tim
 Mac figures, which puts the edge pass near 0.5 to 1.8 ms on the phone, unmeasured. Both filters stay
 opt-in per title; their look in motion and their phone cost need phone checks.
 
-Pixel identity of the default path: the overlay leaves `off` and `spatial` command
-encoding unchanged; `upscale-check.py`'s unchanged upstream crop, colour, orientation,
-resize and readback assertions cover that path with real Metal.
+Pixel identity: the overlay leaves `off` and `spatial` command encoding unchanged, and
+`upscale-check.py`'s unchanged upstream crop, colour, orientation, resize and readback
+assertions cover that path with real Metal. `present-quality --check` compares the engine's
+own presented picture (`DM_NVN_SHOT_OUT=2853x1604`, `DM_QUALITY_PAIR=1`) with the tool's
+rendering of the same raw frame. On 2026-11-07 (Zelda title screen, docked), three frames
+of an `off` session matched the tool's `off` with 0 of 13,728,636 bytes different, and
+three frames of an `edge` session matched the tool's `edge` with 0 bytes different (and
+about 2.0 million bytes from `off`), so the engine runs exactly this filter and the plain
+present is unchanged.
 
 ## Phone frame GPU timing
 
