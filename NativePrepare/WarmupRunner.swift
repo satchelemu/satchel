@@ -18,16 +18,26 @@ struct WarmupProgress: Codable, Sendable {
     var phase = 0
     // Optional for compatibility with progress written by earlier releases.
     var phaseOne: WarmupPhaseOneTiming? = nil
-    var systemFraction: Double {
-        let value = min(1, max(0, fraction ?? 0))
-        switch phase {
-        case 0: return value * 0.1
-        case 1: return 0.1 + value * 0.6
-        case 2: return 0.7 + value * 0.3
-        default: return 1
-        }
-    }
+    /// The run's finished work in whole units, for iOS's progress: one per scanned file
+    /// while discovering, then one per shader, then one per pipeline variant. Within a run
+    /// `unitsDone` never goes back; `unitsTotal` grows only when discovery has found the
+    /// shaders. Absent in progress written by earlier releases.
+    var unitsDone: Int? = nil
+    var unitsTotal: Int? = nil
     var fraction: Double? { total > 0 ? Double(completed) / Double(total) : nil }
+    /// iOS's progress: `unitsDone` of `unitsTotal`, never more done than total, never an empty
+    /// total. A finished run is whole even when it had nothing to build.
+    var systemUnits: (done: Int64, total: Int64) {
+        let total = Int64(max(1, unitsTotal ?? 0, unitsDone ?? 0))
+        return (phase >= 3 ? total : Int64(max(0, unitsDone ?? 0)), total)
+    }
+}
+
+/// The words a stopped run leaves, the same in progress.json and the saved job.
+enum WarmupStopWords {
+    static let paused = "Paused. Play is ready; resume to reuse cached work."
+    static let stoppedByIOS = "Stopped by iOS in the background. It resumes when you return."
+    static let stopped = "Warm-up stopped. Play remains ready; cached work is kept."
 }
 
 struct WarmupPhaseOneTiming: Codable, Sendable {
@@ -42,7 +52,8 @@ struct WarmupPhaseOneTiming: Codable, Sendable {
 
 enum WarmupRunner {
     static func run(package: URL, runtime: URL, reserve: UInt64 = 1536 * 1024 * 1024,
-                    cancelled: @escaping () -> Bool, captureDirectory: URL? = nil, execution: () -> SatchelWarmupPolicy = { .conservative }, progress: (WarmupProgress) -> Void) throws -> WarmupProgress {
+                    cancelled: @escaping () -> Bool, captureDirectory: URL? = nil, execution: () -> SatchelWarmupPolicy = { .conservative },
+                    expired: () -> Bool = { false }, progress: @escaping (WarmupProgress) -> Void) throws -> WarmupProgress {
         let fm = FileManager.default, started = ProcessInfo.processInfo.systemUptime
         let manifestData = try bounded(package.appendingPathComponent("manifest.json"), maximum: 32 * 1024 * 1024)
         guard manifestData.count <= 32 * 1024 * 1024,
@@ -56,9 +67,13 @@ enum WarmupRunner {
         var state = WarmupProgress(), lastStage = ""
         var lastReport = -Double.infinity
         var phaseOneStarted: Double?
+        // Units finished in earlier phases, and units the later phases already know about.
+        var unitBase = 0, unitTail = 0
         func emit() throws {
             state.seconds = ProcessInfo.processInfo.systemUptime - started
             if state.phase == 1, let phaseOneStarted { state.phaseOne?.seconds = ProcessInfo.processInfo.systemUptime - phaseOneStarted }
+            state.unitsDone = unitBase + state.completed
+            state.unitsTotal = unitBase + max(state.total, state.completed) + unitTail
             guard state.seconds - lastReport >= 0.2 || state.stage != lastStage || state.state != "running" || state.completed == state.total else { return }
             lastReport = state.seconds; lastStage = state.stage
             try JSONEncoder().encode(state).write(to: directory.appendingPathComponent("progress.json"), options: .atomic)
@@ -86,9 +101,15 @@ enum WarmupRunner {
             let capture = captureDirectory ?? runtime.appendingPathComponent("shader-capture")
             var known = Set(inventory.records.map(\.key))
             let captures: [URL] = reviewed ? [] : ((try? fm.contentsOfDirectory(at: capture, includingPropertiesForKeys: nil)) ?? [])
+            // The capture holds every shader stage and vertex/fragment pair the game drew in
+            // play on this phone. Those are built first, so a partial run helps where the player
+            // has been. Order only: every record and pair is still built, and resume still
+            // reuses the cached work of each.
+            var played = Set<String>(), playedPairs = Set<String>()
             for file in captures where file.pathExtension == "ctl" {
                 try check()
                 let key = file.deletingPathExtension().lastPathComponent
+                if NativePreparationRecipe.hex(key, count: 16), played.count < 100_000 { played.insert(key) }
                 guard NativePreparationRecipe.hex(key, count: 16), !known.contains(key), known.count < 100_000 else { continue }
                 let ctl = try bounded(file, maximum: 0x880), code = try bounded(capture.appendingPathComponent(key + ".code"), maximum: 16 * 1024 * 1024)
                 let stage = try SatchelShaderTranslator.stage(control: ctl, code: code)
@@ -100,20 +121,26 @@ enum WarmupRunner {
             var pairSet = Set(inventory.pairs.filter { $0.count == 2 }.map { $0.joined(separator: "\t") })
             var pairFiles = [package.appendingPathComponent("dm/shader_pairs.tsv"), package.appendingPathComponent("dm/pso_pairs.tsv")]
             if !reviewed { pairFiles.append(capture.appendingPathComponent("draw-pairs.tsv")) }
+            let drawn = capture.appendingPathComponent("draw-pairs.tsv")
             for path in pairFiles {
                 if let data = try? bounded(path, maximum: 32 * 1024 * 1024) {
                     for row in String(decoding: data, as: UTF8.self).split(separator: "\n") where !row.hasPrefix("#") {
                         let c = row.split(separator: "\t").map(String.init)
-                        if c.count >= 2, c.prefix(2).allSatisfy({ NativePreparationRecipe.hex($0, count: 16) }) { pairSet.insert(c.prefix(2).joined(separator: "\t")) }
+                        if c.count >= 2, c.prefix(2).allSatisfy({ NativePreparationRecipe.hex($0, count: 16) }) {
+                            pairSet.insert(c.prefix(2).joined(separator: "\t"))
+                            if path == drawn, playedPairs.count < 100_000 { playedPairs.insert(c.prefix(2).joined(separator: "\t")) }
+                        }
                     }
                 }
             }
             guard pairSet.count <= 100_000 else { throw SatchelShaderError.invalidRequest }
-            inventory.pairs = pairSet.sorted().map { $0.components(separatedBy: "\t") }
+            inventory.pairs = playedFirst(pairSet.sorted(), played: playedPairs) { $0 }.map { $0.components(separatedBy: "\t") }
             let warmer = try SatchelShaderWarmup(store: resources.store, compiler: resources.compiler,
                 maximumConcurrentRecords: 4, workingMemoryBudgetBytes: 1024 * 1024 * 1024, maximumBufferedRecords: 16)
             defer { resources.compiler.setMaximumConcurrentCompilations(2) }
             var requests: [String: String] = [:], masks: [String: UInt32] = [:]
+            // Discovery's files stay counted; the pipeline variants are known from here on.
+            unitBase = state.completed; unitTail = inventory.pairs.count * 4
             if reviewed {
                 // These bound libraries are already translated and compiled. The format 1
                 // renderer uses them directly, so translating their records again is wasted work.
@@ -136,8 +163,33 @@ enum WarmupRunner {
             } else {
                 phaseOneStarted = ProcessInfo.processInfo.systemUptime; state.phaseOne = WarmupPhaseOneTiming()
                 state.phase = 1; state.stage = "Translating and compiling shaders"; state.completed = 0; state.total = inventory.records.count; try emit()
+                // Each shader counts as it finishes, not when its 16-record batch ends: in the
+                // background one batch took over a minute, and iOS ends a task whose progress
+                // stands still that long. A record stopped by cancellation is not counted.
+                var successes = 0
+                warmer.recordFinished = { result in
+                    switch result {
+                    case .success(let record):
+                        requests[record.key] = record.requestSHA256; state.shaders += 1; state.libraries += record.compileSeconds.count; successes += 1
+                        if record.sourceCacheHit { state.sourceHits += 1 }
+                        masks[record.key] = record.fragmentInputMask
+                        state.phaseOne?.lookupSeconds += record.lookupSeconds
+                        state.phaseOne?.translationSeconds += record.translationSeconds
+                        state.phaseOne?.persistenceSeconds += record.persistenceSeconds
+                        state.phaseOne?.compilationSeconds += record.compileSeconds.values.reduce(0, +)
+                        state.phaseOne?.reusedLibraries += record.liveLibraryHits + record.warmupLibraryHits
+                        state.completed += 1
+                    case .failure:
+                        // Counted as failed with its batch below, as before.
+                        if !cancelled() { state.completed += 1 }
+                    }
+                    // The batch's own emit below reports a write failure.
+                    try? emit()
+                }
+                defer { warmer.recordFinished = nil }
                 // Fragment inputs determine the exact vertex padding shared with first use.
-                for rows in [inventory.records.filter { $0.stage == .fragment }, inventory.records.filter { $0.stage != .fragment }] {
+                for group in [inventory.records.filter { $0.stage == .fragment }, inventory.records.filter { $0.stage != .fragment }] {
+                    let rows = playedFirst(group, played: played) { $0.key }
                     if rows.first?.stage != .fragment {
                         var wanted: [String: UInt32] = [:]
                         for pair in inventory.pairs { wanted[pair[0], default: 0] |= masks[pair[1]] ?? 0 }
@@ -147,34 +199,27 @@ enum WarmupRunner {
                         try check()
                         let policy = execution(); warmer.configure(policy); state.phaseOne?.lanes = warmer.concurrentRecords
                         let batch = Array(rows[start..<min(start + 16, rows.count)])
+                        let before = state.completed
                         var work: [SatchelShaderRequest] = []
                         for row in batch {
                             do {
                                 let mask = row.stage == .vertex ? resources.mask(row.key) : 0
                                 work.append(try inventory.request(row, directory: directory, wanted: Set((0..<32).filter { mask & (UInt32(1) << $0) != 0 })))
-                            } catch { failed(error) }
+                            } catch { failed(error); state.completed += 1 }
                         }
-                        var sent = 0, successes = 0
+                        var sent = 0
+                        successes = 0
                         do {
                             _ = try warmer.run(totalRecords: work.count, next: {
                                 guard sent < work.count else { return nil }; defer { sent += 1 }; return work[sent]
-                            }, cancelled: cancelled) { _, records in
-                                for record in records {
-                                    requests[record.key] = record.requestSHA256; state.shaders += 1; state.libraries += record.compileSeconds.count; successes += 1
-                                    if record.sourceCacheHit { state.sourceHits += 1 }
-                                    masks[record.key] = record.fragmentInputMask
-                                    state.phaseOne?.lookupSeconds += record.lookupSeconds
-                                    state.phaseOne?.translationSeconds += record.translationSeconds
-                                    state.phaseOne?.persistenceSeconds += record.persistenceSeconds
-                                    state.phaseOne?.compilationSeconds += record.compileSeconds.values.reduce(0, +)
-                                    state.phaseOne?.reusedLibraries += record.liveLibraryHits + record.warmupLibraryHits
-                                }
-                            }
+                            }, cancelled: cancelled)
                         } catch { try check(); failed(error, count: work.count - successes) }
-                        state.completed += batch.count; try emit()
+                        // A batch that was not cancelled is complete: the same count as before.
+                        state.completed = before + batch.count; try emit()
                     }
                 }
             }
+            unitBase += state.total; unitTail = 0
             state.phase = 2; state.stage = "Building device pipelines"; state.completed = 0; state.total = inventory.pairs.count * 4; try emit()
             let archive = try SatchelWarmupPipelines(directory: URL(fileURLWithPath: SatchelPipelineArchiveDirectory(runtime.path)), reserveBytes: reserve)
             // Flush successful batches even on cancellation. No partially written archive is published.
@@ -211,7 +256,8 @@ enum WarmupRunner {
                                 else if result == 2 { state.pipelines += 1 }
                                 else { state.deferred += 1 }
                             } catch { try check(); failed(error) }
-                            state.completed += 1
+                            // Each variant counts as it is built, not only after its pair's four.
+                            state.completed += 1; try emit()
                         } }
                     } catch { try check(); state.deferred += 4; state.completed += 4 }
                 }
@@ -229,10 +275,16 @@ enum WarmupRunner {
             if state.failed == 0 && state.deferred == 0 && state.shaders == 0 && state.pipelines + state.archiveHits == 0 { state.stage = "No known shaders yet. Play to discover them, then warm up again." }
             try emit(); return state
         } catch {
+            // The same words the saved job shows for this stop (WarmupJob.finish).
             state.state = cancelled() ? "paused" : "failed"
-            state.stage = cancelled() ? "Warm-up paused. Play is ready; resume to reuse cached work." : "Warm-up stopped. Play remains ready; cached work is kept."
+            state.stage = !cancelled() ? WarmupStopWords.stopped : expired() ? WarmupStopWords.stoppedByIOS : WarmupStopWords.paused
             try? emit(); throw error
         }
+    }
+    /// The rows the game used in play first, each part in its original order. A reorder only.
+    static func playedFirst<Row>(_ rows: [Row], played: Set<String>, key: (Row) -> String) -> [Row] {
+        guard !played.isEmpty else { return rows }
+        return rows.filter { played.contains(key($0)) } + rows.filter { !played.contains(key($0)) }
     }
     // Compiler diagnostics can contain MSL. Persist only a typed error or code.
     static func diagnostic(_ error: Error) -> String {

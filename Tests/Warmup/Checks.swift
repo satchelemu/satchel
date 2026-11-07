@@ -91,12 +91,26 @@ import Metal
         let romfs = Data("DMROMFS1".utf8) + u64(UInt64(32 + archiveBytes.count)) + u64(UInt64(indexData.count)) + u64(2) + archiveBytes + indexData
         try romfs.write(to: fullPackage.appendingPathComponent("romfs.img"))
         let fullRuntime = root.appendingPathComponent("full-runtime")
-        var systemValues: [Double] = []
-        let firstPass = try WarmupRunner.run(package: fullPackage, runtime: fullRuntime, reserve: 35 * 1024 * 1024 * 1024, cancelled: { false }) { systemValues.append($0.systemFraction) }
-        check(zip(systemValues, systemValues.dropFirst()).allSatisfy { pair in pair.0 <= pair.1 })
-        check(firstPass.state == "complete" && firstPass.shaders == 1 && firstPass.failed == 0 && firstPass.systemFraction == 1)
-        let resumed = try WarmupRunner.run(package: fullPackage, runtime: fullRuntime, reserve: 35 * 1024 * 1024 * 1024, cancelled: { false }) { _ in }
+        // iOS sees whole units of finished work: done never goes back and never passes the total.
+        var systemValues: [(done: Int64, total: Int64)] = []
+        let firstPass = try WarmupRunner.run(package: fullPackage, runtime: fullRuntime, reserve: 35 * 1024 * 1024 * 1024, cancelled: { false }) { systemValues.append($0.systemUnits) }
+        check(zip(systemValues, systemValues.dropFirst()).allSatisfy { pair in pair.0.done <= pair.1.done && pair.0.total <= pair.1.total })
+        check(systemValues.allSatisfy { $0.done <= $0.total })
+        check(firstPass.state == "complete" && firstPass.shaders == 1 && firstPass.failed == 0)
+        check(firstPass.unitsDone == firstPass.unitsTotal && firstPass.systemUnits.done == firstPass.systemUnits.total)
+        let resumedUnits = ProgressLog()
+        let resumed = try WarmupRunner.run(package: fullPackage, runtime: fullRuntime, reserve: 35 * 1024 * 1024 * 1024, cancelled: { false }) { resumedUnits.add($0) }
         check(resumed.shaders == 1 && resumed.sourceHits == 1 && resumed.failed == 0)
+        // The cached inventory skips discovery: one unit for the one shader, none for pairs.
+        check(resumed.unitsTotal == 1 && resumed.unitsDone == 1)
+        check(resumedUnits.values.contains { $0.phase == 1 && $0.unitsTotal == 1 })
+        // Shaders the game drew in play (its capture) are built first, pairs as well. Order
+        // only: nothing is dropped or repeated.
+        let rows = ["03", "01", "04", "02"].map { WarmupInventory.Record(key: String(repeating: "0", count: 14) + $0, stage: .fragment, digest: "") }
+        let ordered = WarmupRunner.playedFirst(rows, played: [rows[2].key, rows[3].key]) { $0.key }
+        check(ordered.map(\.key) == [rows[2].key, rows[3].key, rows[0].key, rows[1].key])
+        check(WarmupRunner.playedFirst(["b", "a", "c"], played: ["c"]) { $0 } == ["c", "b", "a"])
+        check(WarmupRunner.playedFirst(["b", "a"], played: []) { $0 } == ["b", "a"])
         // Isolated timing trials still read normal first-use capture. They do
         // not move or modify the capture while writing their own warm-up cache.
         let captured = root.appendingPathComponent("normal-capture")
@@ -195,10 +209,23 @@ import Metal
         let package = root.appendingPathComponent("package")
         try FileManager.default.createDirectory(at: package, withIntermediateDirectories: true)
         try Data("{\"format\":2}".utf8).write(to: package.appendingPathComponent("manifest.json"))
-        var paused = false
-        rejects { _ = try WarmupRunner.run(package: package, runtime: root.appendingPathComponent("runtime"), reserve: 35 * 1024 * 1024 * 1024, cancelled: { true }) { paused = $0.state == "paused" } }
-        check(paused)
+        var paused = false, pausedStage = ""
+        rejects { _ = try WarmupRunner.run(package: package, runtime: root.appendingPathComponent("runtime"), reserve: 35 * 1024 * 1024 * 1024, cancelled: { true }) {
+            paused = $0.state == "paused"; pausedStage = $0.stage } }
+        check(paused && pausedStage == WarmupStopWords.paused)
+        // An iOS stop writes the same words to progress.json as the saved job shows.
+        var stopped = WarmupProgress()
+        rejects { _ = try WarmupRunner.run(package: package, runtime: root.appendingPathComponent("runtime"), reserve: 35 * 1024 * 1024 * 1024,
+            cancelled: { true }, expired: { true }) { stopped = $0 } }
+        check(stopped.state == "paused" && stopped.stage == WarmupStopWords.stoppedByIOS)
+        let written = try JSONDecoder().decode(WarmupProgress.self, from: Data(contentsOf: root.appendingPathComponent("runtime/warmup")
+            .appendingPathComponent(SatchelShaderTranslator.sha256(Data("{\"format\":2}".utf8))).appendingPathComponent("progress.json")))
+        check(written.stage == WarmupStopWords.stoppedByIOS)
         print("PASS: \(checks) integration assertions and M5 bounded warm-up, cancellation, resume and failure controls")
+    }
+    private final class ProgressLog {
+        var values: [WarmupProgress] = []
+        func add(_ value: WarmupProgress) { values.append(value) }
     }
     private static func archiveReuse(root: URL, device: MTLDevice) throws {
         let compiler = SatchelShaderCompiler(device: device)

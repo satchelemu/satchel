@@ -216,8 +216,9 @@ enum WarmupResume {
             var state = journal?.progress ?? WarmupProgress()
             state.state = value.token.cancelled ? "paused" : "failed"
             if verified {
-                state.stage = byIOS ? "Stopped by iOS while \(AppBrand.name) was in the background. It resumes when you return."
-                    : value.token.cancelled ? "Paused. Play is ready; resume to reuse cached work." : "Warm-up stopped. Play is still ready. " + error.localizedDescription
+                // The same words the runner wrote to progress.json for this stop.
+                state.stage = byIOS ? WarmupStopWords.stoppedByIOS
+                    : value.token.cancelled ? WarmupStopWords.paused : "Warm-up stopped. Play is still ready. " + error.localizedDescription
             } else {
                 state.stage = byIOS ? "Package check stopped by iOS in the background. It resumes when you return."
                     : value.token.cancelled ? "Package check paused. Resume to check it before warm-up." : "Package check failed. Prepare this game again."
@@ -245,7 +246,8 @@ enum WarmupResume {
             if !verified { _ = try PreparedPackage.verify(root: context.package, cancelled: { context.token.cancelled }); checked = true }
             let trial = SatchelWarmupTrial(arguments: ProcessInfo.processInfo.arguments)
             _ = try WarmupRunner.run(package: context.package, runtime: context.runtime,
-                cancelled: { context.token.cancelled }, captureDirectory: context.capture, execution: { context.scheduling.get() }) { progress in
+                cancelled: { context.token.cancelled }, captureDirectory: context.capture, execution: { context.scheduling.get() },
+                expired: { context.expiry.cancelled }) { progress in
                     if let limit = trial.records, progress.phase == 1, progress.completed >= limit { context.token.cancel() }
                     system?(progress)
                     DispatchQueue.main.async { shared.receive(progress, for: context) }
@@ -262,10 +264,14 @@ enum WarmupResume {
         let work: (BGTask?) -> Void = { task in
             if task != nil { DispatchQueue.main.async { self.endBackgroundTask() } }
             task?.expirationHandler = { self.expire(value) }
-            if let continued = task as? BGContinuedProcessingTask { continued.progress.totalUnitCount = 1_000_000 }
+            if let continued = task as? BGContinuedProcessingTask { continued.progress.totalUnitCount = 1 }
             let success = Self.perform(value, verified: false) { progress in
                 if let continued = task as? BGContinuedProcessingTask {
-                    continued.progress.completedUnitCount = Int64(progress.systemFraction * 1_000_000)
+                    // One unit per finished shader (and per scanned file, then per pipeline
+                    // variant), reported as each finishes: iOS ends a task whose progress stands still.
+                    let units = progress.systemUnits
+                    continued.progress.totalUnitCount = units.total
+                    continued.progress.completedUnitCount = units.done
                     continued.updateTitle("Warming up " + value.title, subtitle: progress.stage + " · \(progress.completed) of \(progress.total)")
                 }
             }

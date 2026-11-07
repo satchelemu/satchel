@@ -10,13 +10,15 @@ func decode(_ json: String) -> WarmupJournal {
 func progress(_ state: String, _ stage: String = "Synthetic shader work") -> WarmupProgress {
     var value = WarmupProgress(stage: stage, completed: 3, total: 9); value.state = state; return value
 }
-let stoppedStage = "Stopped by iOS while Satchel was in the background. It resumes when you return."
+// Earlier releases wrote this stop reason; a new run writes WarmupStopWords.stoppedByIOS.
+let legacyStoppedStage = "Stopped by iOS while Satchel was in the background. It resumes when you return."
+let stoppedStage = WarmupStopWords.stoppedByIOS
 
 // A journal written before the field existed, by a warm-up Prepare started and iOS stopped:
 // it stays paused, keeps its counts, and its words no longer promise an automatic resume.
 let legacy = WarmupResume.restored(decode("""
 {"package":"Synthetic-1","title":"Synthetic game","interrupted":true,
- "progress":{"stage":"\(stoppedStage)","completed":3,"total":9,"shaders":2,"libraries":0,"sourceHits":0,
+ "progress":{"stage":"\(legacyStoppedStage)","completed":3,"total":9,"shaders":2,"libraries":0,"sourceHits":0,
   "pipelines":0,"archiveHits":0,"deferred":0,"failed":0,"seconds":12,"state":"paused","phase":1}}
 """))
 check(legacy.startedByUser == nil, "A legacy journal has no starter")
@@ -62,5 +64,29 @@ let reread = try JSONDecoder().decode(WarmupJournal.self, from: saved)
 check(WarmupResume.resumesByItself(reread), "A saved user-started run still resumes")
 let legacySaved = try JSONEncoder().encode(legacy)
 check(!String(decoding: legacySaved, as: UTF8.self).contains("startedByUser"), "A legacy journal gains no starter when saved again")
+
+// A stop leaves one set of words: the paused and iOS stop reasons are distinct, and the iOS
+// one promises the return the journal acts on.
+check(WarmupStopWords.paused != WarmupStopWords.stoppedByIOS, "Pause and an iOS stop read differently")
+check(WarmupStopWords.stoppedByIOS.contains("resumes when you return"), "An iOS stop says it resumes on return")
+check(!WarmupStopWords.paused.contains("resumes when you"), "A pause does not promise to resume by itself")
+
+// iOS's progress is whole units of finished work, never an empty total.
+var units = WarmupProgress()
+check(units.systemUnits.done == 0 && units.systemUnits.total == 1, "No units yet is nothing done of one")
+units.unitsDone = 736; units.unitsTotal = 25_428 + 4 * 1_000
+check(units.systemUnits.done == 736 && units.systemUnits.total == 29_428, "One unit per finished shader")
+units.unitsDone = 12; units.unitsTotal = 10
+check(units.systemUnits.done == 12 && units.systemUnits.total == 12, "Done never exceeds the total")
+units.phase = 3; units.unitsDone = 0; units.unitsTotal = 0
+check(units.systemUnits.done == 1 && units.systemUnits.total == 1, "A finished run with nothing to build is whole")
+// Progress written by an earlier release has no units and still decodes.
+let oldProgress = try JSONDecoder().decode(WarmupProgress.self, from: Data("""
+{"stage":"paused","completed":2,"total":3,"shaders":2,"libraries":2,"sourceHits":0,"pipelines":0,
+ "archiveHits":0,"deferred":0,"failed":0,"seconds":1,"state":"paused","phase":1}
+""".utf8))
+check(oldProgress.unitsDone == nil && oldProgress.unitsTotal == nil && oldProgress.systemUnits.total == 1, "Old progress decodes without units")
+let savedUnits = try JSONDecoder().decode(WarmupProgress.self, from: JSONEncoder().encode(WarmupProgress(unitsDone: 5, unitsTotal: 9)))
+check(savedUnits.unitsDone == 5 && savedUnits.unitsTotal == 9, "Units survive the save")
 
 print("Warm-up resume checks passed: \(checks)")

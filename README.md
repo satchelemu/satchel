@@ -116,8 +116,11 @@ See [the posture test guide](docs/testing.md#duo-postures).
   opt-in: Prepare does not start it, only the game page's Warm up does, and a game plays
   without it. It can take hours for a large game. It now keeps a bounded queue fed,
   reuses identical translated source, and uses extra lanes when foreground or
-  charging, subject to thermal and power constraints. Phone speed measurements
-  remain pending. See [warm-up measurements](NativeShaders/WarmupSpeed.md) and
+  charging, subject to thermal and power constraints. iOS sees progress after every
+  finished shader, and shaders the game already used in play are built first. A large
+  game only gets far with Satchel open, the screen on and the phone charging: in the
+  background iOS may stop it, and it resumes when the player returns. Phone speed
+  measurements remain pending. See [warm-up measurements](NativeShaders/WarmupSpeed.md) and
   [graphics notes](NativeHost/graphics/README.md).
 - No cheats, no multiplayer, no App Store release (and none planned).
 - The phone's hardware matters. The app requests the increased memory limit and extended

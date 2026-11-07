@@ -39,6 +39,9 @@ public final class SatchelShaderWarmup {
     private let queue: OperationQueue
     private let warmedLock = NSLock()
     private var warmed: Set<String> = []
+    /// Called on the thread running `run` as each record of a batch finishes, success or
+    /// failure, before the batch's `progress`. A slow batch still shows its finished work.
+    public var recordFinished: ((Result<SatchelShaderWarmupRecord, Error>) -> Void)?
 
     public init(store: SatchelShaderStore, compiler: SatchelShaderCompiler, maximumConcurrentRecords: Int = 2,
                 workingMemoryBudgetBytes: Int = 512 * 1024 * 1024, estimatedBytesPerWorker: Int = 256 * 1024 * 1024,
@@ -116,13 +119,21 @@ public final class SatchelShaderWarmup {
             }
             if let totalRecords, batch.count > totalRecords - state.completedRecords { throw SatchelShaderError.invalidRequest }
             let results = WarmupBatch(count: batch.count)
+            let finished = DispatchSemaphore(value: 0)
             let operations = batch.enumerated().map { index, request in
                 BlockOperation {
                     let result = Result { try self.one(request, cancelled: cancelled) }
                     results.set(result, at: index)
+                    finished.signal()
                 }
             }
-            queue.addOperations(operations, waitUntilFinished: true)
+            queue.addOperations(operations, waitUntilFinished: false)
+            // Every operation signals once, so the batch is still drained before the next.
+            for _ in operations {
+                finished.wait()
+                for result in results.takeFinished() { recordFinished?(result) }
+            }
+            queue.waitUntilAllOperationsAreFinished()
             var completed: [SatchelShaderWarmupRecord] = [], failure: Error?
             for result in results.values {
                 switch result! {
@@ -147,9 +158,17 @@ public final class SatchelShaderWarmup {
 private final class WarmupBatch: @unchecked Sendable {
     let lock = NSLock()
     var values: [Result<SatchelShaderWarmupRecord, Error>?]
+    private var order: [Int] = [], taken = 0
     init(count: Int) { values = Array(repeating: nil, count: count) }
     func set(_ result: Result<SatchelShaderWarmupRecord, Error>, at index: Int) {
-        lock.lock(); values[index] = result; lock.unlock()
+        lock.lock(); values[index] = result; order.append(index); lock.unlock()
+    }
+    /// Results finished since the last call, in the order they finished.
+    func takeFinished() -> [Result<SatchelShaderWarmupRecord, Error>] {
+        lock.lock(); defer { lock.unlock() }
+        let fresh = order[taken...].map { values[$0]! }
+        taken = order.count
+        return fresh
     }
 }
 

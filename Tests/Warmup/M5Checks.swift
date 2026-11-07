@@ -24,12 +24,23 @@ enum WarmupChecks {
         try require(buffered.concurrentRecords == 4)
         for policy in [SatchelWarmupPolicy.select(foreground: true, charging: false, constrained: false), .conservative] {
             buffered.configure(policy)
-            var read = 0, acknowledged = 0, peak = 0
+            var read = 0, acknowledged = 0, peak = 0, finished = 0, early = 0, behind = false
+            // Each record is reported as it finishes, before its batch's progress, so a slow
+            // batch still moves the job's progress.
+            buffered.recordFinished = { result in
+                if case .success = result { finished += 1 }
+                if finished > acknowledged { early += 1 }
+            }
             let state = try buffered.run(totalRecords: 33, next: {
                 guard read < 33 else { return nil }
                 read += 1; peak = max(peak, read - acknowledged); return request
-            }, progress: { state, _ in acknowledged = state.completedRecords })
+            }, progress: { state, _ in
+                if finished != state.completedRecords { behind = true }
+                acknowledged = state.completedRecords
+            })
+            buffered.recordFinished = nil
             try require(state.concurrentRecords == policy.lanes && state.completedRecords == 33 && peak == 16)
+            try require(finished == 33 && early == 33 && !behind)
             try require(state.sourceCacheHits == 33 && state.compiledLibraries == 0 && state.liveLibraryHits + state.warmupLibraryHits == 33)
         }
         try require(buffered.concurrentRecords == 2)

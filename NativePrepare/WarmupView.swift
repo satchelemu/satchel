@@ -49,6 +49,7 @@ struct WarmupPanel: View {
             switch phase {
             case .notStarted:
                 line("Optional. Builds this game's known shaders ahead of time, which can take hours for a large game. The game plays without it; new areas may stutter the first time.")
+                hint(WarmupWords.keepOpen)
             case .running:
                 if let progress {
                     line(progress.stage)
@@ -56,10 +57,14 @@ struct WarmupPanel: View {
                     Text("\(progress.completed) of \(progress.total) · \(warmupDuration(progress.seconds))")
                         .font(SatchelTheme.mono(11)).monospacedDigit().accessibilityIdentifier("warmup-progress")
                 }
+                hint(WarmupWords.keepOpen)
             case .paused:
-                line(status?.interrupted == true
-                     ? "Stopped by iOS while \(AppBrand.name) was in the background. It resumes when you come back."
-                     : "Paused. Resume reuses the work already cached.")
+                if status?.interrupted == true {
+                    line(WarmupStopWords.stoppedByIOS)
+                    hint(WarmupWords.furthest)
+                } else {
+                    line("Paused. Resume reuses the work already cached.")
+                }
                 if let progress, progress.total > 0 {
                     Text("\(progress.completed) of \(progress.total) done").font(SatchelTheme.mono(11)).foregroundStyle(SatchelTheme.textDim)
                 }
@@ -125,6 +130,11 @@ struct WarmupPanel: View {
             .foregroundStyle(SatchelTheme.text).fixedSize(horizontal: false, vertical: true)
     }
 
+    private func hint(_ text: String) -> some View {
+        Text(text).font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundStyle(SatchelTheme.textDim).fixedSize(horizontal: false, vertical: true)
+    }
+
     private func counts(_ progress: WarmupProgress) -> some View {
         var parts = ["\(progress.shaders) shaders", "\(progress.pipelines + progress.archiveHits) pipelines"]
         if progress.deferred > 0 { parts.append("\(progress.deferred) left to gameplay") }
@@ -132,6 +142,14 @@ struct WarmupPanel: View {
         parts.append(warmupDuration(progress.seconds))
         return Text(parts.joined(separator: " · ")).font(SatchelTheme.mono(10)).foregroundStyle(SatchelTheme.textDim)
     }
+}
+
+/// What a long warm-up needs, said plainly: iOS gives a background task little time and
+/// may stop it, so a large game only gets far in the foreground on power.
+enum WarmupWords {
+    static let keepOpen = "A large game only gets far with \(AppBrand.name) open, the screen on and the phone charging. In the background iOS may stop it; it resumes when you return."
+    static let furthest = "It gets furthest with \(AppBrand.name) open, the screen on and the phone charging."
+    static let card = "Keep \(AppBrand.name) open and the phone charging"
 }
 
 private func warmupDuration(_ seconds: Double) -> String {
@@ -156,6 +174,9 @@ struct WarmupHomeCard: View {
                         Text(job.running ? "\(journal.progress.stage) · \(journal.progress.completed)/\(journal.progress.total)"
                              : playable ? journal.progress.stage : "Needs Prepare again before it can be played.")
                             .font(.system(size: 11)).lineLimit(1)
+                        if job.running {
+                            Text(WarmupWords.card).font(.system(size: 10)).foregroundStyle(SatchelTheme.textDim).lineLimit(1)
+                        }
                     }
                 }.accessibilityIdentifier("warmup-home-card")
                 Spacer()

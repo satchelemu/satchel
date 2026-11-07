@@ -41,9 +41,11 @@ warm-up and first-use have the same request identity.
 The default admits one or two records at once, with an autorelease pool per
 record. Optional app warm-up buffers at most 16 records and selects two or four
 active workers using foreground, charging and thermal state. The producer cannot
-run ahead of that bounded batch. Progress runs serially on
-the calling thread after each batch, including successful records in a batch where
-another record failed. An error throws after that progress update. The caller must
+run ahead of that bounded batch. `recordFinished`, when set, runs on the calling thread
+as each record of a batch finishes (success or failure), before that batch's progress,
+so a caller can report every finished shader even when a batch is slow. Progress runs
+serially on the calling thread after each batch, including successful records in a batch
+where another record failed. An error throws after that progress update. The caller must
 mark the inventory incomplete on errors and cancellation. A non-nil total is an
 exact count; an early end or excess inventory is rejected. Pass nil for unknown
 coverage and show a count rather than a fabricated percentage.

@@ -1757,7 +1757,9 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertFalse(app.buttons["warmup-home-card"].exists)
         try tap("fixture-warmup-start")
         fixtureText("fixture-warmup-state", equals: "running:running")
-        _ = try button("warmup-home-card")
+        let card = try button("warmup-home-card")
+        // A running card says plainly what the warm-up needs to get far.
+        XCTAssertTrue(card.label.contains("Keep Satchel open and the phone charging"), card.label)
         XCTAssertFalse(app.buttons["warmup-home-dismiss"].exists)
     }
 
@@ -1773,11 +1775,16 @@ final class NavigationJourneyTests: XCTestCase {
         revealControl(status, in: app.scrollViews["detail-scroll"])
         XCTAssertTrue(status.label.contains("Optional. Builds this game's known shaders ahead of time"), status.label)
         XCTAssertTrue(status.label.contains("The game plays without it"), status.label)
+        // Honest about the background: a large game needs the app open, the screen on and power.
+        XCTAssertTrue(status.label.contains("A large game only gets far with Satchel open, the screen on and the phone charging"), status.label)
+        XCTAssertTrue(status.label.contains("In the background iOS may stop it; it resumes when you return"), status.label)
         let start = try button("warmup-start", scroll: app.scrollViews["detail-scroll"])
         XCTAssertEqual(start.label, "Warm up")
         XCTAssertFalse(app.buttons["warmup-play"].exists, "The game page already has its own Play action")
         start.tap()
         _ = try button("warmup-pause", scroll: app.scrollViews["detail-scroll"])
+        let running = app.descendants(matching: .any)["warmup-status"]
+        XCTAssertTrue(running.label.contains("the phone charging"), running.label)
         try tap("warmup-pause", scroll: app.scrollViews["detail-scroll"])
         fixtureText("fixture-warmup-state", equals: "idle:paused")
         backgroundAndReturn(app.buttons["close-game-detail"].firstMatch)

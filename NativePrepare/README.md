@@ -108,7 +108,17 @@ first time their shaders build.
 The player starts it with **Warm up** on the game page (the game's settings show the
 same panel). It asks iOS for its own continued-processing task and runs the same
 verifier before reading the package's content. The game page and the home card show
-the current discovery, shader or pipeline count. Pause, background-task expiration,
+the current discovery, shader or pipeline count, and say that a large game only gets
+far with Satchel open, the screen on and the phone charging (in the background iOS may
+stop it; it resumes when the player returns). The continued-processing task's progress
+counts whole units of finished work: one per scanned file, then one per shader, then one
+per pipeline variant (`unitsDone` and `unitsTotal` in `progress.json`). Each shader
+counts as it finishes, not when its 16-record batch ends: in the background one batch
+took over a minute on the phone, and iOS expired the task as stalled. The done count
+never goes back within a run; the total grows once, when discovery has found the
+shaders. Nothing moves during a single Metal compile, so no heartbeat is reported then.
+A stop leaves the same words in `progress.json` and the saved job (`WarmupStopWords`).
+Pause, background-task expiration,
 memory pressure or starting a game cancels further warm-up work. A currently
 admitted Metal compile can finish, but Play does not join the job. Warm-up failure
 never marks a verified package unplayable.
@@ -120,7 +130,11 @@ saved job records `startedByUser` for this. A saved run from a release that star
 warm-up after every Prepare has no such field: it stays paused with its Resume
 control and cached work, and never resumes by itself (`WarmupResume` in
 `WarmupJob.swift`, checked by `Tests/WarmupResume/run.py`). Saved progress does not
-authorize skipping verification or library acquisition. iOS must accept the
+authorize skipping verification or library acquisition. Shaders and vertex/fragment
+pairs in the private first-use capture (what the game drew in play on this phone) are
+built first, then the rest in their usual order; a partial run then covers the areas
+the player has been. This only orders the work: every record and pair is still built,
+and resume reuses each one's cached work as before. iOS must accept the
 continued-processing request for extended background time; the foreground fallback
 pauses when its limited background time expires.
 

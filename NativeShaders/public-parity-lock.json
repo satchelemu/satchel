@@ -28,7 +28,7 @@
     "NativeShaders/ShaderRecord.swift": "d8d459c13bd874f47629c178c12c8c12316fa24b04d985eb1130bde8b17b8ca5",
     "NativeShaders/ShaderRuntimeBridge.swift": "6a21efd4cc897167745c8b1d653f4457fd5ab0179e1e2154854988ae63068b0b",
     "NativeShaders/ShaderStore.swift": "27555e027a1fac43b70095216db8afff48cf5ef4f65a6f7e2cbc5d760b0a6639",
-    "NativeShaders/ShaderWarmup.swift": "2b243cc463d4a93bc56a3d2c118161a03eab9c6a3df7e0f7a14a8e72a54fbdea",
+    "NativeShaders/ShaderWarmup.swift": "47dfb27fef828b5887ab33ed1ed23a69304bb6371fed41f39cc9e5b0074a2ad5",
     "NativeShaders/SideHarness.swift": "5a79d15caa89afea8494d0e24759716413da7746e894e7f11319eb78aa3f859d",
     "NativeShaders/SourceHarness.swift": "fb897786f2ac873ad2e0276fa9edaa2e595bab8c76d162aa010172c0cc385a47",
     "NativeShaders/SourcePipeline.swift": "7e2227ae8c703600eaaff8ba33996610fa1a4938c2e555d0193e59d060dc38e1",

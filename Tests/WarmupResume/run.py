@@ -51,6 +51,17 @@ for name in expected:
 assert callers == expected, 'Unexpected warm-up start sites: %r' % callers
 print('Warm-up start sites: only the page button and the job itself (%d app sources scanned)' % checked)
 
+# A stop leaves the same words in progress.json (the runner) and the saved job (finish).
+stop_runner = between(runner, '        } catch {\n            // The same words the saved job shows', '            try? emit(); throw error')
+for word in ['WarmupStopWords.paused', 'WarmupStopWords.stoppedByIOS', 'expired()']:
+    assert word in stop_runner, 'The runner must write the shared stop words: ' + word
+stop_job = between(job, '    private func finish(', '    private func endBackgroundTask()')
+for word in ['WarmupStopWords.paused', 'WarmupStopWords.stoppedByIOS']:
+    assert word in stop_job, 'The saved job must use the shared stop words: ' + word
+assert 'Warm-up paused.' not in runner and 'was in the background' not in job, 'An old stop wording is left'
+assert 'expired: { context.expiry.cancelled }' in job, 'The runner must learn when iOS stopped the run'
+print('Stop words: the runner and the saved job share them')
+
 (out / 'main.swift').write_text('import Foundation\n' + progress + '\n' + journal + '\n' + (root / 'Tests/WarmupResume/Tests.swift').read_text())
 runpy.run_path(str(root / 'NativeApp/build_support.py'))['wait']()
 subprocess.run(['nice', '-n', '10', 'xcrun', 'swiftc', '-num-threads', '2', str(out / 'main.swift'), '-o', str(out / 'warmup-resume-tests')], check=True)

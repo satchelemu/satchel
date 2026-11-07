@@ -129,8 +129,8 @@ imports and saves. An unsigned validation build cannot be installed directly.
    application-cache-cold trial. Apple compiler caches remain uncontrolled.
 3. Launch with `-SatchelWarmupTrial odyssey-first1024-1
    -SatchelWarmupRecords 1024`. Start Odyssey warm-up. It pauses at the first
-   published phase 1 progress at or above 1,024 attempted records. Batches and
-   progress throttling can overshoot the threshold, so record the actual count.
+   published phase 1 progress at or above 1,024 attempted records. Records already
+   running and progress throttling can overshoot the threshold, so record the actual count.
    Remove the limit and reuse the trial name to test resume: completed sources
    must produce source hits, with no translation work for those hits.
 4. Repeat Odyssey with new trial names while charging in the background, and on
