@@ -28,6 +28,67 @@ def graphics(stage, location, rotate):
     return bytes(code)
 
 
+RZ = 255
+PT = 7 << 16
+# Opcode patterns from the pinned translator's Decoders/InstTable.cs (ALD, AST, MOV32I, S2R,
+# FADD and FFMA register forms, EXIT); fields from Decoders/InstDecoders.cs.
+ALD, AST, MOV32I, S2R = 0x1DFB << 51, 0x1DFE << 51, 0x010 << 52, 0x1E19 << 51
+FADD, FFMA, EXIT = 0xB8B << 51, 0xB3 << 55, 0xE30 << 52
+
+
+def ald(dest, attribute, vertex=RZ, size=0, patch=False):
+    return ALD | PT | dest | RZ << 8 | attribute << 20 | patch << 31 | vertex << 39 | size << 47
+
+
+def ast(source, attribute, size=0, patch=False):
+    return AST | PT | source | RZ << 8 | attribute << 20 | patch << 31 | RZ << 39 | size << 47
+
+
+def mov32i(dest, value):
+    return MOV32I | PT | dest | 15 << 12 | value << 20
+
+
+def f32(value):
+    return struct.unpack('<I', struct.pack('<f', value))[0]
+
+
+def program(stage_type, threads, ops):
+    """A VTG shader: SPH (SphType 1, version 3, the stage, SASS 3), then groups of a zero
+    scheduling word and three instructions."""
+    header = bytearray(0x50)
+    struct.pack_into('<5I', header, 0, 1 | 3 << 5 | stage_type << 10 | 3 << 17, 0, threads << 24, 0, 0xff000)
+    words = []
+    for i in range(0, len(ops), 3):
+        words += [0] + ops[i:i + 3]
+    words += [0] * (-len(words) % 4)
+    return bytes(header) + struct.pack('<%dQ' % len(words), *words)
+
+
+def hull(points, outer, inner):
+    """Each invocation passes its control point's position and location 0 through, then
+    writes the levels and per-patch location 0 (0.25, 0.5, 0.75, 1)."""
+    levels = [mov32i(16 + i, f32(v)) for i, v in enumerate(outer)] + [mov32i(20 + i, f32(v)) for i, v in enumerate(inner)]
+    return program(2, points, [S2R | PT | 4 | 17 << 20, ald(0, 0x70, 4, 3), ast(0, 0x70, 3), ald(8, 0x80, 4, 3), ast(8, 0x80, 3)]
+                   + levels + [mov32i(24 + i, f32(v)) for i, v in enumerate((0.25, 0.5, 0.75, 1.0))]
+                   + [ast(16, 0x000, 3, True), ast(20, 0x010, 1, True), ast(24, 0x018, 3, True), EXIT | PT | 15])
+
+
+def domain(base, along_u, along_v):
+    """Position = P[base] + u (P[along_u] - P[base]) + v (P[along_v] - P[base]); outputs
+    control point 1's location 0, per-patch location 0, the outer levels, then the inner
+    levels and primitive ID."""
+    ops = [ald(0, 0x2f0, size=1), mov32i(20, along_u), mov32i(21, along_v), mov32i(22, base), mov32i(23, 1),
+           ald(4, 0x70, 20, 3), ald(8, 0x70, 21, 3), ald(12, 0x70, 22, 3)]
+    for c in range(4):
+        ops += [FADD | PT | (24 + c) | (4 + c) << 8 | (12 + c) << 20 | 1 << 45,
+                FADD | PT | (28 + c) | (8 + c) << 8 | (12 + c) << 20 | 1 << 45,
+                FFMA | PT | (16 + c) | 0 << 8 | (24 + c) << 20 | (12 + c) << 39,
+                FFMA | PT | (16 + c) | 1 << 8 | (28 + c) << 20 | (16 + c) << 39]
+    return program(3, 0, ops + [ast(16, 0x70, 3), ald(4, 0x80, 23, 3), ast(4, 0x80, 3), ald(8, 0x018, size=3, patch=True), ast(8, 0x90, 3),
+                                ald(8, 0x000, size=3, patch=True), ast(8, 0xa0, 3), ald(8, 0x010, size=1, patch=True), ald(10, 0x060),
+                                mov32i(11, 0), ast(8, 0xb0, 3), EXIT | PT | 15])
+
+
 def corpus():
     rows = []
     def add(name, code, stage, options=None, **facts):
@@ -49,4 +110,12 @@ def corpus():
     for local, shared in [([1, 1, 1], 0), ([8, 4, 1], 256), ([32, 1, 2], 4096)]:
         add('compute-' + str(local[0]), struct.pack('<4Q', 0, 0xe30000000007000f, 0, 0),
             'cs', local=local, shared=shared)
+    # Tessellation control and evaluation (2026-11-07). The mode facts are the 3D engine's
+    # tessellation state the request supplies; check-tessellation.py draws these on the GPU.
+    add('hull-tri', hull(3, (3, 5, 2, 1), (4, 1)), 'hs')
+    add('hull-quad', hull(4, (3, 5, 2, 7), (3, 5)), 'hs')
+    add('domain-tri', domain(2, 0, 1), 'ds')
+    add('domain-tri-even', domain(2, 0, 1), 'ds', tess_spacing='fractional_even')
+    add('domain-quad-odd-cw', domain(0, 1, 3), 'ds', tess_domain='quads', tess_spacing='fractional_odd', tess_cw=True)
+    add('domain-isolines', domain(0, 1, 3), 'ds', tess_domain='isolines')
     return rows

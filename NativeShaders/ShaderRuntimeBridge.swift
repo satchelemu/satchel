@@ -73,7 +73,7 @@ public func satchelShaderRuntimePrepareSnapshot(_ control: UnsafeRawPointer?, _ 
             if let snapshot {
                 snapshot.pointee = Unmanaged.passRetained(RuntimeShaderSnapshot(service, publication)).toOpaque()
             }
-            return stage == .vertex ? 0 : stage == .fragment ? 1 : stage == .geometry ? 2 : 5
+            return stage == .vertex ? 0 : stage == .fragment ? 1 : stage == .geometry ? 2 : stage == .hull ? 3 : stage == .domain ? 4 : 5
         } catch SatchelShaderError.unsupportedStage { return -3 }
         catch { return -4 }
     }

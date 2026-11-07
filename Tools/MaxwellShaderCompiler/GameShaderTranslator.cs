@@ -151,10 +151,24 @@ internal static class GameShaderTranslator
             if (_job["attr"] is JsonObject a) foreach (var kv in a) attr[int.Parse(kv.Key)] = Attr((string)kv.Value);
             if (_job["fout"] is JsonObject f) foreach (var kv in f) fout[int.Parse(kv.Key)] = Attr((string)kv.Value);
             bool earlyZ = _job["early_fragment_tests"] is JsonNode ez && (bool)ez;
-            return new GpuGraphicsState(earlyZ, _job["geometry_topology"] is JsonNode gt ? (InputTopology)(int)gt : InputTopology.Triangles, false, TessPatchType.Triangles, TessSpacing.EqualSpacing,
+            return new GpuGraphicsState(earlyZ, _job["geometry_topology"] is JsonNode gt ? (InputTopology)(int)gt : InputTopology.Triangles, TessCw(), TessDomain(), TessSpace(),
                 false, false, false, false , false, 1f, AlphaTestOp.Always, 0f, attr, false, fout, false,
                 false , true , false);
         }
+        // Tessellation mode of a domain shader: the 3D engine's TessMode state, which NVN sets from the program and
+        // the record does not carry in a decoded field yet. Request facts answer it; absent, the pinned defaults
+        // (triangles, equal spacing, counter-clockwise) stay, so no other stage's translation changes.
+        TessPatchType TessDomain() => _job["tess_domain"] is JsonNode d ? (string)d switch
+        {
+            "isolines" => TessPatchType.Isolines, "triangles" => TessPatchType.Triangles, "quads" => TessPatchType.Quads,
+            _ => throw new InvalidOperationException("unknown tessellation domain")
+        } : TessPatchType.Triangles;
+        TessSpacing TessSpace() => _job["tess_spacing"] is JsonNode s ? (string)s switch
+        {
+            "equal" => TessSpacing.EqualSpacing, "fractional_even" => TessSpacing.FractionalEventSpacing, "fractional_odd" => TessSpacing.FractionalOddSpacing,
+            _ => throw new InvalidOperationException("unknown tessellation spacing")
+        } : TessSpacing.EqualSpacing;
+        bool TessCw() => _job["tess_cw"] is JsonNode cw && (bool)cw;
         public bool QueryHostSupportsTextureShadowLod() => true;
         public bool QueryHostSupportsDepthClipControl() => false;
 

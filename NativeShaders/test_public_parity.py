@@ -52,7 +52,7 @@ class PublicGateTests(unittest.TestCase):
         (self.work / 'public-parity/result.json').write_text(json.dumps(self.proof))
 
     def test_valid_bound_proof(self):
-        self.assertEqual(gate.validate_proof(self.work, self.root)['cases'], 23)
+        self.assertEqual(gate.validate_proof(self.work, self.root)['cases'], 29)
 
     def test_changed_swift_source(self):
         (self.root / 'NativeShaders/Translation.swift').write_text('changed')

@@ -103,8 +103,8 @@ the free-space reserve intact. Publications are not evicted while they may have
 live renderer snapshots. The app can remove an inactive session's private cache
 between sessions. These paths never own the user's imported game files.
 
-Hull/domain preparation is explicitly unsupported. No stage may be silently
-omitted, and observed runtime capture coverage is not whole-game coverage.
+Hull/domain preparation follows the tessellation handoff below. No stage may be
+silently omitted, and observed runtime capture coverage is not whole-game coverage.
 
 ## Geometry and warm-up handoff
 
@@ -132,11 +132,91 @@ Add `Geometry.swift` and `ShaderWarmup.swift` to a hard-coded source list, or co
 
 The optional lean passthrough and slice-fold optimizations are not required by the
 three observed non-passthrough line emitters and are not ported. The full compute
-route remains the geometry implementation. Hull/domain tessellation has no fixture
-in either complete available inventory and remains explicitly unsupported.
+route remains the geometry implementation. Hull/domain tessellation has no record
+in either complete available inventory; it is prepared as described below.
 
 Call `SatchelShaderWarmup.run` during the existing Prepare background task, sharing
 the source store and compiler with the runtime. It has bounded lazy input, progress,
 cancellation and per-record timing. The app owns source inventory, query facts,
 progress persistence and real PSO descriptor warm-up. Full API usage, cache limits
 and measured Mac timing are in `PrepareWarmup.md`.
+
+## Tessellation handoff
+
+Since 2026-11-07, hull (NVN stage 3) and domain (stage 4) shaders translate. The
+upstream engine never drew them (`primitive type 14 not implemented`, its
+`Tessellation stages are not drawn` entry): Metal 4's render encoder and pipelines
+have no tessellation, no `drawPatches` and no factor buffer. Ryujinx 1.3.3 has no
+Metal backend, and MoltenVK relies on Metal's hardware tessellator, which Metal 4
+lacks, so neither had code to port for this. The route is Satchel's own, using the
+pinned SPIRV-Cross output (a hull kernel and a `[[patch]]` vertex function) and
+changing only their plumbing (`Tessellation.swift`), plus a compute tessellator
+(`Tessellator.swift`) written from the OpenGL 4.6 rules for primitive generation.
+The host's draw integration is not done; patch draws are still skipped, so no game
+result follows from this.
+
+The host contract, per patch draw with `P` patches of `N` input control points:
+
+1. Run the vertex shader's `main0_gs` capture entry (the geometry route's ABI,
+   `dm_geometry_capture` at buffer 13), with a slot table that keeps the words the
+   hull's reflection lists in `tessellation.capture_words`.
+2. Dispatch the hull `b` kernel: `P` threadgroups of `max(N, output_vertices)` threads,
+   threadgroup memory 0 of `input_bytes_per_vertex * N` bytes, buffer 13 the same
+   capture constant, 14 a `dm_tess_input` (`index`, an optional list of capture
+   records per control point, null for sequential, and `first`, added to each),
+   26 the patch records, 28 the control point records, 29 `{N, P}`.
+3. Run `SatchelShaderTessellator.source`'s `dm_tess_count` (`P` threads),
+   `dm_tess_scan` (one threadgroup of up to 1,024 threads) and `dm_tess_emit` (`P`
+   threads) with the domain shader's reflected `tessellation.domain`, `spacing`,
+   `winding` and `point_mode`. Patches that would overflow the point or index buffer
+   are dropped whole and counted (`dropped`), never cut.
+4. Draw the domain `b` library's `main0` or `main0_z` (the same depth convention
+   choice as a vertex shader) as triangles, lines for isolines or points, indexed by
+   the emitted uint32 list, through the indirect arguments in the totals buffer
+   (`indexedArgumentsOffset`, `pointArgumentsOffset`). Buffers 16 to 19: points,
+   patch records, control point records and the hull's output vertex count.
+
+Records are the route's own ABI, so any hull pairs with any domain shader: a control
+point is 576 bytes in the geometry capture's 144-word map (position, point size,
+clip distances, layer, viewport, user locations 0 to 31), a patch is 528 bytes
+(four outer and two inner levels, kept as floats rather than Metal's half factors,
+then per-patch user locations 0 to 30). Both shaders assert these sizes when they
+compile. The tessellation mode (domain, spacing, winding) is the 3D engine's state
+that NVN sets from the program; the record carries no decoded field for it yet, so
+requests supply facts `tess_domain`, `tess_spacing` and `tess_cw`, defaulting to
+triangles, equal spacing and counter-clockwise. Finding that field in a real
+tessellated title's control section is open. Counter-clockwise means a positive
+signed area in the (u, v) plane. Isolines are handed to SPIRV-Cross as quads (it
+refuses isolines); reflection keeps isolines. Domain shaders also get the vertex
+shaders' one-lane subgroup rewrite: the engine's notes record two of Bayonetta 3's
+domain shaders failing in SPIRV-Cross on subgroup builtins when that rewrite covered
+vertex shaders only. No such domain shader is in the corpus, so that is untested.
+
+Explicit failures: control point interfaces other than position and user `float4`,
+`int4` or `uint4` locations (a domain shader reading clip distances or point size
+from its control points is refused), `gl_in.size()`, and instance or vertex IDs in
+a domain shader. Storage buffers in hull and domain shaders are reported without a
+slot, as in the engine, which never measured those stages' `c0` table bases.
+SPIRV-Cross's triangle-domain input carries outer levels 0 to 2 and inner level 0
+only, so a triangle domain shader reading outer level 3 or inner level 1 reads 0.
+Integer spacing places vertices exactly as the specification does. Fractional
+spacing follows its rules (levels rounded up to even or odd, `n - 2` equal segments
+and two shorter ones next to the edge's centre, mirrored about it) but does not
+reproduce the Switch tessellator's exact fractional positions; the triangulation
+between rings is the specification's implementation-dependent part. Outer edge
+positions are 16.16 fixed point and mirror exactly, so patches sharing an edge at
+one level produce the same points. Each patch is emitted by one thread, so a draw
+of a few very finely tessellated patches is serial work; the host should bound
+buffer sizes, as the geometry route caps its scratch.
+
+`NativeShaders/check-tessellation.py --products <m5 root> --output <folder>` runs
+it all on the Mac's GPU from the public corpus: 791 patches in 20 dispatches over
+every domain, spacing, winding and point mode on a grid of levels (bounds,
+orientation, total area, a closed edge manifold whose open edges lie on the domain
+boundary, outer edge subdivision, discards, NaN levels, a shared edge between two
+patches and capacity drops), then the translated public hull and domain rows
+drawn through capture, hull, tessellator and domain with back faces culled, for
+triangles (equal and fractional even), quads (fractional odd, clockwise) and
+isolines: coverage identical to a reference draw of the same patches and the
+control point, patch and level values exact at every covered pixel. It also checks
+six refusals of unknown interface shapes.

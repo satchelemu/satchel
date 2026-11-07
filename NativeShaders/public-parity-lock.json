@@ -19,14 +19,14 @@
     "NativeShaders/RecordHarness.swift": "532f486e494d15f284e1443d4560cad77693c4d47225422cce1f0c31896aada5",
     "NativeShaders/Reflection.swift": "e4e60f0511a61f9c1adb433f35a226aae6dd43a70dca8021df0100e974863f9c",
     "NativeShaders/ReflectionJSON.swift": "188d4a614a1223f7a7066b94a9eedf9fd89c699eae6db7a6c128d7eb49e8509e",
-    "NativeShaders/ShaderAPI.swift": "476192c1be8dd90762a82ffede5f1d08d5c0c5dfe0e17743b9ad9ffba2fad716",
+    "NativeShaders/ShaderAPI.swift": "0bf4d5e9c30ad6a5421d07c1c9b2107fe6aee153c0b5964f2095a510699369d5",
     "NativeShaders/ShaderArchiveDecoder.swift": "d75d7be09bda965e7785eb56e1f1caabba9c1ab442ecac2d769f29ded1e04c23",
     "NativeShaders/ShaderCompiler.swift": "6591ff08228c48089ff1d9eec2bd2fd1fa88292d5a1792d3f76605f15ca81e04",
     "NativeShaders/ShaderDiscovery.swift": "1de74ac2cd0011005f5e74a9f0e7525b4d8fc9ff48ed7d9bf07784954a271db7",
     "NativeShaders/ShaderHelpers.swift": "ed479775e6112a9d2b4cfa1128d5d7630f0843b908b468cf2d5ffcab7a1314d0",
     "NativeShaders/ShaderPublication.swift": "acea7d3fb649ae32fe5fd019856a8999d851d32a4d93f4045a12d59475951885",
     "NativeShaders/ShaderRecord.swift": "d8d459c13bd874f47629c178c12c8c12316fa24b04d985eb1130bde8b17b8ca5",
-    "NativeShaders/ShaderRuntimeBridge.swift": "6a21efd4cc897167745c8b1d653f4457fd5ab0179e1e2154854988ae63068b0b",
+    "NativeShaders/ShaderRuntimeBridge.swift": "7e8e0c8a0dcbebd4429e9e0f652d9e5f424c88ebf22570774607892d076815ef",
     "NativeShaders/ShaderStore.swift": "27555e027a1fac43b70095216db8afff48cf5ef4f65a6f7e2cbc5d760b0a6639",
     "NativeShaders/ShaderWarmup.swift": "47dfb27fef828b5887ab33ed1ed23a69304bb6371fed41f39cc9e5b0074a2ad5",
     "NativeShaders/SideHarness.swift": "5a79d15caa89afea8494d0e24759716413da7746e894e7f11319eb78aa3f859d",
@@ -34,8 +34,11 @@
     "NativeShaders/SourcePipeline.swift": "7e2227ae8c703600eaaff8ba33996610fa1a4938c2e555d0193e59d060dc38e1",
     "NativeShaders/Spirv.swift": "3b207207bfcdd4e900b1a3446f8f5ce3060538442a797f40156480eb7d84eaf4",
     "NativeShaders/SpirvHarness.swift": "5cdcc845db4049e29b66ee08fcc08ec71c746dd82e9e4d76adec987c3709b4c5",
+    "NativeShaders/Tessellation.swift": "b33c03f3f98252dc6ac1b3a6e47092788b44d69cc52813c487840e60043141a1",
+    "NativeShaders/TessellationHarness.swift": "eb7d6f6b8fbc8e7b2d4101c2cf9346cc92be5e39aeb4b2c2c51164b9db79acd2",
+    "NativeShaders/Tessellator.swift": "eb6336a3718a7029042e71ece2c59c1eeec6a0e87a93c2c471f0d48ae069498f",
     "NativeShaders/Text.swift": "0cec23dee32fc076765aa8f89897699d472a859a606fb826160c574230457b61",
-    "NativeShaders/Translation.swift": "ae479f8265d893e1ff54583336fac8e383a42a169e80b1a7a690e345bd8965d0",
+    "NativeShaders/Translation.swift": "e5d633e87497ee16165ad64bf306878401d2a006b2b87583e5184380e673448e",
     "NativeShaders/TranslationBridge.h": "e86b5359abcea931c3bf49585334264741294dbb0a23ed6c2a55b2b8a93bb55c",
     "NativeShaders/TranslationHarness.swift": "a7d3a86c16d3f7479733407593b5a5e95ea64dbcd3b8f3cf76c73af9c08226d5",
     "NativeShaders/VariantHarness.swift": "c30f2612b8cf524b5b54f48a6d5dcbdeed8d7a54b707338cc32115dc8c2dadde",
@@ -48,12 +51,12 @@
     "NativeShaders/build-archive.py": "82921f17d83a90a50dfa2e54a8508c70cd42bd4dd9272a1f8f1be7e3edce1a95",
     "NativeShaders/build-cross.py": "0a85b104a85e0e53071f8c54ced9b0a7e3344cf5b1d3f9dd7ca53f109216b6c6",
     "NativeShaders/build-geometry.py": "55854e68d2b180ab7346ff48752157489e0baffc61cacda693b7ef0839353d5f",
-    "NativeShaders/build-translation.py": "0db36f8eb60f16b702c9557c6e75bf468f97943e31b36c78ba356a503e86a13a",
+    "NativeShaders/build-translation.py": "42a14b1656195f259f6e3e48d58ac9d866202b93acaf04718dca34d9e97b4156",
     "NativeShaders/build-warmup-speed.py": "38a73567662fd1554c52f1716c4f0e71c7590737b047872683f9298a2d85873c",
     "NativeShaders/build-warmup.py": "3d8fc4ab349e21137e7585115c66dae9bbbc17e2fbee203036dccca5be8452ae",
     "NativeShaders/build_receipt.py": "ec3ecd819e3cfca3a61b5d95cdebc5711914ff00199df0361e6ea912a4967c18",
-    "NativeShaders/integration.json": "639d39e8ff45c1bdeda61b150561f4b391785e1a3b52f01c512bc2eb9e357f2f",
-    "NativeShaders/public_corpus.py": "3645c2982132a64f9e310677fa3276783003e15a9ae05eba1c53a4dd91af1c8e",
+    "NativeShaders/integration.json": "20e74886d5892e401348a4a097deec113a320d7958f67b4b507a338cf95236e5",
+    "NativeShaders/public_corpus.py": "f89ed2305fd787a4f6d8d41ad4c31aba60522004ee05bb128a79b1215ec20df2",
     "NativeShaders/public_parity.py": "eb202bfa40f87ae478cc36cb1c0d935386ecf779bcdb8217631f15e49766e723",
     "NativeShaders/source-lock.json": "922b70b23aee76daa120406a71f3bcf7b4a361897987a1031c03ab27c890c7ec",
     "Tools/CapturedFlatCompiler/Test.c": "34148f1d5db3e18533c4cc5f210f4e7bdc35189475a586088b745ac282f76565",
@@ -61,7 +64,7 @@
     "Tools/MaxwellShaderCompiler/FixtureCompiler.cs": "b468c1c16a76ed5548f6fe378a245c0fdacf5c989dc76eaeb01dae8d94e271a1",
     "Tools/MaxwellShaderCompiler/FixtureSpirv.cs": "b08ba11a57e9bc2a9449c8dd4bab9ead03764b11abd3717a2b05fe1a5ae942ea",
     "Tools/MaxwellShaderCompiler/GameShaderFacade.cs": "950e48180d3d0ba76b206cba18c20638c41bb95d4bd7f8df6d066b75f8ff6fb4",
-    "Tools/MaxwellShaderCompiler/GameShaderTranslator.cs": "8bead2c5d1fd402432f1a1ed961bcba9de1703aafc456704f49e285776fcb733",
+    "Tools/MaxwellShaderCompiler/GameShaderTranslator.cs": "97cd45a44f86bbd46d8d5322e48c58488f4d2a7eca1e5f419892afb767a81e34",
     "Tools/MaxwellShaderCompiler/MaxwellShaderCompiler.csproj": "7524dfb6cb6869afb5f1d4945949a8ae92e4edb5b7640c1a406172328c129afa",
     "Tools/MaxwellShaderCompiler/NuGet.Config": "1082618e2865acd2b0399876ec131d9819d360254ef18992c6f5366f30a538f4",
     "Tools/MaxwellShaderCompiler/SatchelGameShader.h": "aeb600eef1197fe9a9c0349b167facbe61109aa9caa7ac53d436c7fb99de7da6",
@@ -168,6 +171,30 @@
     {
       "name": "compute-32",
       "input_sha256": "a7304712a121250c41235e4ef27b399dfdb582c7142df0e49fa743ffb0dc8ebc"
+    },
+    {
+      "name": "hull-tri",
+      "input_sha256": "d222a1313399459dc1253b1c210211daaee365e9dc3212e6a716acc86e4d1042"
+    },
+    {
+      "name": "hull-quad",
+      "input_sha256": "ddd6d14432adc17061eceaeadba5433ee26ed8d0b71e7fce8cda3387230414e3"
+    },
+    {
+      "name": "domain-tri",
+      "input_sha256": "01e6181ed3fbb38f4769ec6e86c9cc0fe23a43f482b95880dc20ffeaec07215e"
+    },
+    {
+      "name": "domain-tri-even",
+      "input_sha256": "5aaf8eeb85f59f9384ea3e3be3e9b8683ab2fa6217c110b9b22499c185e8608c"
+    },
+    {
+      "name": "domain-quad-odd-cw",
+      "input_sha256": "3db26f8a9c350744d57a81d507155348acf1da787e0f66ef1c8e9405e6c5080f"
+    },
+    {
+      "name": "domain-isolines",
+      "input_sha256": "196e1bce3613b576fc8205eef67614e4ab28b257f0aeeab0b24a54c133e68f89"
     }
   ],
   "outputs": {
@@ -356,6 +383,48 @@
       "reflection": "8388a7c3c27b837383a2f1673408dd1c7d8a222b34d53cad1f53a6311f0f3b55",
       "resources": "60135c462d40f3d736dc15a24b3f80f4b8f9dceee10623f165f4f81af3d6d7e6",
       "spirv": "d8e256bb6e45d86c7c7eaf19f4db2422ddc46901c31e198d82d06f01c36f3b34"
+    },
+    "hull-tri": {
+      "b": "422016fc76a58465252ca233b508d453c1759d095ebe61d2fd3e19bbfc478bbb",
+      "reader": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reflection": "5a90d4007600e36672d273098686ad1497b7b6f80d9595e957167d50d12cf7aa",
+      "resources": "46440ef5166c2f63e61d0d804b4db64358912ae1df5d00c1bfe34912e89bc3ee",
+      "spirv": "a21e895cab0dc081f3dbe81414c1228189e4f4d10404a92496b142da227d8646"
+    },
+    "hull-quad": {
+      "b": "502d5bbb474edaa427710384ea59721d87efac6f8b2317313bef59e2c18f69f3",
+      "reader": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reflection": "6b42da11e8498d49205b83a29bcc2c85b317da4ec761a4decfdabe95c4fc4b00",
+      "resources": "3095910c0e44e0d8c21846f49a0dcba70d778c61af9b4f3d81a172cc657329cb",
+      "spirv": "89d2549b3ea48b7fd86ae9941a8d8572d498c551935731785d03275385abf2f3"
+    },
+    "domain-tri": {
+      "b": "d16d22b420d58a1a20c99391ac050cf4d3a6473d1f717a838fd6e20b7d1c0507",
+      "reader": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reflection": "6c08ab322a3fd049e7a3bb11a5d35f4d5f88cee522005cc81a8470fe1612e5e0",
+      "resources": "4d97be38c0549170f00c05006d6bf56c1ab85776f7a6b6897f8be23b884a8aca",
+      "spirv": "5875ce379bea2bbd706f82c53de441a51a0e7994cf1b0c3d2726660f1f735d85"
+    },
+    "domain-tri-even": {
+      "b": "d16d22b420d58a1a20c99391ac050cf4d3a6473d1f717a838fd6e20b7d1c0507",
+      "reader": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reflection": "0216ef65636618c4f943ae2af5637b665cef3edbd21e35fb51eae3ebfd5f2072",
+      "resources": "3deea69a1bb6f25d2989c9c81498fa1e0d468180ea3422d02fca227e28552d7f",
+      "spirv": "1eb482f2ef4c2e1478a4d8f6a1e88a4d71197ddb06859e09fdcc49fc2604dbaf"
+    },
+    "domain-quad-odd-cw": {
+      "b": "df2384fb5d7e9b93141539a84b491d6e7e4cb6b84c2c7390681f445f14032a5f",
+      "reader": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reflection": "64525163ed89b85764023b3bf20d74881ffbb1789413eb0d01ce472d8e2a9536",
+      "resources": "e901a2f454b60762f89e4065915386cf918918e1dca8ef1bd08b60dcc6be11e4",
+      "spirv": "9f958f67ce7964281bbefa737b461ce4ab74aed2167fc4b1a817a63ce05c9f99"
+    },
+    "domain-isolines": {
+      "b": "df2384fb5d7e9b93141539a84b491d6e7e4cb6b84c2c7390681f445f14032a5f",
+      "reader": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reflection": "b6ab1e8f535ce04debb8098356e19551d6175861a4396b5ff2bfd7495358c7c1",
+      "resources": "5ef45fada0e7a24347fe83f4b1b781087def11f693f9ace77eaaadde7f2f2e03",
+      "spirv": "44648e9d97a455e77392eb43727542f6e8a40570018297e0f89c12052808136b"
     }
   }
 }

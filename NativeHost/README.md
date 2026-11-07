@@ -15,7 +15,9 @@ GPU mapping is retried on use. Source memory is bounded to 64 MiB, its disk cach
 2 GiB and live compiler libraries to 64. Host pipeline caches retain their existing
 engine limits. Translation is serialized; the compiler permits at most two jobs.
 Pinned default query facts are used, with observed fragment input requirements.
-Geometry and tessellation records fail explicitly. Runtime observations do not
+Geometry records take the engine's compute route. Hull and domain records translate
+(NativeShaders/RuntimeIntegration.md, tessellation handoff), but the host does not
+draw patch primitives yet, so those draws are still skipped. Runtime observations do not
 prove full-title shader coverage.
 
 `NativeGameReport` exports safe stage, service/SVC, symbolic crash and shader fields.

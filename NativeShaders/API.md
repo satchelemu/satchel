@@ -79,14 +79,22 @@ Use the reflection entry names. Do not assume every variant exists. c1 proof,
 constant-buffer extents and unwritten-storage binding analysis accompany it.
 MSL and reflection are private game-derived artifacts, never diagnostic logs.
 
-Vertex, fragment, compute and geometry preparation are implemented. Geometry
+All six stages are prepared. Geometry
 uses the pinned compute conversion and supplies five topology kernels plus its
 raster reader. Call `translated.reflection(variant:)` for each geometry variant;
 `bgv` has vertex-reader bindings, distinct from the geometry kernels. The base
 `reflectionJSON` remains available for ordinary variants. Public geometry analysis
 uses conservative full constant-buffer ranges and no unwritten-storage suppression.
-Hull and domain requests throw `unsupportedStage`. No such records occur in the
-available Zelda/Odyssey inventories. This API is title independent, not a claim
+Hull and domain requests (since 2026-11-07) return one `b` source each: the hull
+as a kernel reading the vertex capture, the domain shader as a plain vertex function
+with `main0` and `main0_z` entries. Their reflection's `tessellation` object holds
+the host contract (record sizes, buffer indices, capture words, output vertices,
+and for a domain shader its domain, spacing, winding and point mode); the compute
+tessellator is `SatchelShaderTessellator.source`. A domain request's facts may add
+`tess_domain` (`isolines`, `triangles`, `quads`), `tess_spacing` (`equal`,
+`fractional_even`, `fractional_odd`) and `tess_cw`; other stages refuse them. No
+such records occur in the available Zelda, Odyssey and Castlevania inventories, and
+the host does not draw patches yet. This API is title independent, not a claim
 that all games or stages are supported. See `RuntimeIntegration.md` for the host
 compute contract and `PrepareWarmup.md` for bounded Prepare warm-up and timings.
 

@@ -17,6 +17,8 @@
     "NativeShaders/ShaderRecord.swift",
     "NativeShaders/SourcePipeline.swift",
     "NativeShaders/Geometry.swift",
+    "NativeShaders/Tessellation.swift",
+    "NativeShaders/Tessellator.swift",
     "NativeShaders/Translation.swift",
     "NativeShaders/ShaderAPI.swift",
     "NativeShaders/ShaderStore.swift",
@@ -49,12 +51,11 @@
     "vs",
     "ps",
     "cs",
-    "gs"
-  ],
-  "unsupportedPreparationStages": [
+    "gs",
     "hs",
     "ds"
   ],
+  "unsupportedPreparationStages": [],
   "notices": [
     "NativeShaders/Notices",
     "Tools/MaxwellShaderCompiler/licenses",

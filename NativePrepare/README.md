@@ -26,9 +26,9 @@ NVN submit thread passes owned control/code snapshots to M5's Swift, NativeAOT a
 SPIRV-Cross pipeline, compiles the resulting MSL through Metal, and invalidates the
 host caches before binding it. Observed fragment inputs drive vertex padding.
 Sources are cached by full request, translator, device and OS identity outside the
-signed package. The first use can hitch. Tessellation translation
-and runtime query facts beyond the pinned defaults remain unsupported; failures
-appear in the report. No first-frame or gameplay claim follows from preparation
+signed package. The first use can hitch. Hull and domain shaders translate,
+but the host does not draw patch primitives yet; runtime query facts beyond the
+pinned defaults remain unsupported; failures appear in the report. No first-frame or gameplay claim follows from preparation
 success.
 
 NCA section storage now supports sparse maps and raw, zero-filled and LZ4

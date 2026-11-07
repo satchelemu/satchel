@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 WORK = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5')))
 SOURCES = ['Text', 'ShaderHelpers', 'Variants', 'Fetch', 'BaseTransforms', 'VertexEntries', 'Feedback',
-           'Reflection', 'RasterFacts', 'ReflectionJSON', 'Spirv', 'BufferAnalysis', 'ShaderRecord', 'SourcePipeline', 'Geometry', 'Translation', 'TranslationHarness']
+           'Reflection', 'RasterFacts', 'ReflectionJSON', 'Spirv', 'BufferAnalysis', 'ShaderRecord', 'SourcePipeline', 'Geometry', 'Tessellation', 'Translation', 'TranslationHarness']
 # Translation.swift times its NativeAOT call with SatchelShaderMetrics (ShaderCompiler.swift, which
 # uses ShaderAPI's types). A harness that builds only SOURCES adds these two; scripts that already
 # name them (build-api.py, build-geometry.py) keep their own lists.

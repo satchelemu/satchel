@@ -113,7 +113,7 @@ Remaining closure requirements:
 
 App builds default to `NativeShaders/public_parity.py` evidence instead of a private
 game-derived result. The bootstrap builds the native components with source-bound
-binary receipts and runs 23 original synthetic requests through the same NativeAOT,
+binary receipts and runs 29 original synthetic requests through the same NativeAOT,
 SPIRV-Cross and Swift translation path used by the app. The tracked
 `NativeShaders/public-parity-lock.json` records the source inventory, generated input hashes,
 and expected SPIR-V, resource, MSL-variant and reflection hashes. Staging rejects
@@ -258,6 +258,15 @@ their side source and the trailing newline of their tile read variant; every pix
 gains `primitive_id` and every vertex reflection `screen`); their SPIR-V is unchanged. The pipeline measurement host built from these products completed
 all 12 Mac opening routes (Castlevania, Odyssey and Zelda; exact and async; cold and warm)
 with zero shader failures and zero skipped draws.
+
+Tessellation stages (2026-11-07): `GameShaderTranslator.cs` answers the domain shader's
+tessellation mode from request facts (`tess_domain`, `tess_spacing`, `tess_cw`; the engine's
+accessor always answers triangles, equal spacing, counter-clockwise, as the facts' absence
+still does), so the NativeAOT product was rebuilt. The public lock gained six hull and
+domain cases; the other 23 cases' hashes are unchanged with the rebuilt translator, as
+outputs without those facts are. The implementation identity is unchanged, because no
+existing stage's output changed and hull and domain requests had never produced a cached
+result. See [NativeShaders/RuntimeIntegration.md](NativeShaders/RuntimeIntegration.md#tessellation-handoff).
 
 ### Clean break of 2026-11-05
 

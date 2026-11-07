@@ -4,7 +4,7 @@ The public gate checks the implementation that will be staged in the app. It nee
 no game, key, shader capture, private result, signing identity or network access.
 It is a regression and provenance check, not proof that every Switch shader is correct.
 
-`public_corpus.py` generates 23 original Maxwell requests. Vertex and fragment
+`public_corpus.py` generates 29 original Maxwell requests. Vertex and fragment
 programs follow the public bitfield fixtures in `Tools/CapturedFlatCompiler/Test.c`;
 compute programs follow the original EXIT fixture in `Tools/MaxwellShaderCompiler/fixture.c`.
 The requests cover four varying locations, three component rotations, integer vertex
@@ -12,6 +12,13 @@ inputs and fragment outputs, vertex output padding, dual and mapping-only fragme
 request flags, early fragment tests, and three compute workgroup/shared-memory settings.
 A request flag does not imply that its optional variant is emitted. These compute
 programs contain EXIT only and do not exercise memory or arithmetic instructions.
+Six tessellation requests (2026-11-07) are assembled from the pinned translator's
+instruction table: two hull programs (three and four output control points) that pass
+position and location 0 through and write outer, inner and per-patch values, and one
+domain program that interpolates control point positions with FADD and FFMA and reads
+a control point, the patch and the levels, under four mode facts (triangles with
+equal and fractional even spacing, quads with fractional odd spacing clockwise, and
+isolines). `check-tessellation.py` draws them on the Mac's GPU.
 The source lock stores hashes of the generated requests and their expected outputs. No fixture
 was extracted from a game. Existing third-party notices remain unchanged.
 

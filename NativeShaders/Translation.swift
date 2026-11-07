@@ -39,8 +39,9 @@ enum NativeShaderTranslation {
     static func prepare(code: Data, job initial: [String: Any], wanted: Set<Int> = [], mappingOnly: Bool = false, dual: Bool = false, cancelled: () -> Bool = { false }) throws -> PreparedShaderSources {
         var job = initial
         guard job["key"] is String, let stage = job["stage"] as? String,
-              ["vs", "ps", "cs", "gs"].contains(stage) else { throw ShaderTransformError.unsupported("stage outside current native preparation contract") }
+              ["vs", "ps", "cs", "gs", "hs", "ds"].contains(stage) else { throw ShaderTransformError.unsupported("stage outside current native preparation contract") }
         if stage == "gs" { return try ShaderGeometry.prepare(code: code, job: job, cancelled: cancelled) }
+        if stage == "hs" || stage == "ds" { return try ShaderTessellation.prepare(code: code, job: job, cancelled: cancelled) }
         var translated = try translate(code: code, job: job)
         var source = try cross(stage == "vs" ? ShaderSpirv.singleton(translated.spirv) : translated.spirv)
         if stage == "vs" {

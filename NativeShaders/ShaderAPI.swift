@@ -88,7 +88,12 @@ public enum SatchelShaderTranslator {
         var facts: [String: Any]?
         if let json = request.factsJSON {
             guard let value = try JSONSerialization.jsonObject(with: json) as? [String: Any],
-                  Set(value.keys).isSubset(of: ["tex", "img", "attr", "fout", "local", "shared", "early_fragment_tests", "debug", "reduced", "softfloat64"]) else {
+                  Set(value.keys).isSubset(of: ["tex", "img", "attr", "fout", "local", "shared", "early_fragment_tests", "debug", "reduced", "softfloat64",
+                                                 "tess_domain", "tess_spacing", "tess_cw"]),
+                  value["tess_domain"].map({ ["isolines", "triangles", "quads"].contains($0 as? String ?? "") }) ?? true,
+                  value["tess_spacing"].map({ ["equal", "fractional_even", "fractional_odd"].contains($0 as? String ?? "") }) ?? true,
+                  value["tess_cw"].map({ $0 is Bool }) ?? true,
+                  value["tess_domain"] == nil && value["tess_spacing"] == nil && value["tess_cw"] == nil || request.stage == .domain else {
                 throw SatchelShaderError.invalidRequest
             }
             facts = value
@@ -141,7 +146,7 @@ public enum SatchelShaderTranslator {
                                  cancelled: () -> Bool = { false }) throws -> SatchelTranslatedShader {
         try autoreleasepool {
             if cancelled() { throw SatchelShaderError.cancelled }
-            guard [.vertex, .fragment, .compute, .geometry].contains(request.stage) else {
+            guard [.vertex, .fragment, .compute, .geometry, .hull, .domain].contains(request.stage) else {
                 throw SatchelShaderError.unsupportedStage
             }
             do {

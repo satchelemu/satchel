@@ -23,11 +23,18 @@ semantic reflection without a subprocess, filesystem dependency, JIT or Metal
 compiler call inside the translation library. File access in the harnesses is
 only a development adapter.
 
-The Swift coordinator currently accepts vertex, fragment and compute shaders.
-It fails explicitly for geometry/tessellation preparation. The NativeAOT
-facade preserves the pinned geometry accessor and reader contract, but this
-does not yet implement the entire generic geometry source family. No unsupported
-stage is silently omitted from a package.
+The Swift coordinator accepts all six Maxwell stages. Geometry shaders take the
+pinned engine's compute route (`Geometry.swift`: five topology kernels and a vertex
+reader); its optional lean passthrough and slice-fold variants are not ported.
+Tessellation control (hull) and evaluation (domain) shaders take a compute
+tessellator route of Satchel's own (2026-11-07, `Tessellation.swift` and
+`Tessellator.swift`): Metal 4 has no tessellation in its render encoder, so the hull
+runs as a kernel that reads the vertex capture, a compute tessellator turns its
+levels into domain points and indices, and the domain shader becomes a plain vertex
+function. The host does not draw patch primitives yet; see
+[the tessellation handoff](RuntimeIntegration.md#tessellation-handoff). Interface
+shapes outside the checked ones fail explicitly. No unsupported stage is silently
+omitted from a package.
 
 Facts, stage pairs and mapping/dual-source requests are inputs. They must come
 from authenticated discovery, reviewed profile data or captured runtime state.
@@ -71,7 +78,8 @@ Mac executable. `check-records.py` compares native record normalization against
 intermediate fixture, then executes the same Swift source pipeline. That mode
 can isolate source transforms and buffer analysis while the C++ build is queued;
 it is explicitly not the full in-process proof. `check-spirv.py` covers original
-synthetic subgroup-lowering cases.
+synthetic subgroup-lowering cases. `check-tessellation.py` runs the tessellation
+route on the Mac's GPU from the public corpus only (see the tessellation handoff).
 
 The normalizer checks lengths, control magic, code size, c1 bounds and the
 canonical control-plus-code SHA-256 prefix. Full hashes should also be retained
