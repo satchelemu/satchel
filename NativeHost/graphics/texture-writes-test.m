@@ -67,6 +67,7 @@ int main(void) { @autoreleasepool {
     // The summary line, as the app reads it (NativeBootFeedback.LogSignals)
     char path[1024]; snprintf(path, sizeof path, "%s/tw-log-%d.txt", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", getpid());
     fflush(stderr); int saved = dup(2); FILE *log = freopen(path, "w", stderr);
+    g_stw_log_ns = 0;   // the line is rate limited to one every two seconds; the first poll above logged just now
     poll_all();
     fflush(stderr); dup2(saved, 2); close(saved); (void)log;
     CHECK(g_stw_unflushed == 1 && g_stw_flushed == 1 && g_stw_before == 1, "the unflushed write after first use counts once, nothing else");

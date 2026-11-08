@@ -90,13 +90,15 @@ queue += r'''int main(void) { @autoreleasepool {
 watch = a.output / 'texture-writes'; watch.mkdir(exist_ok=True)
 shutil.copyfile(a.engine / 'dm/gfx/nvn/hle_nvn.c', watch / 'hle_nvn.c')
 runpy.run_path(str(Path(__file__).with_name('texture_writes.py')))['host'](watch / 'hle_nvn.c')
-shutil.copyfile(watch / 'hle_nvn.c', nvn / 'hle_nvn_tw.c')
+# Beside nvn/, not in it: the test Makefile builds every nvn/*.c into the other fixtures. Its relative includes resolve the same.
+(engine / 'dm/gfx/tw').mkdir(exist_ok=True)
+shutil.copyfile(watch / 'hle_nvn.c', engine / 'dm/gfx/tw/hle_nvn.c')
 (tests / 't_satchel_texture_writes.m').write_text('#define nvn_game_fps nvn_game_fps_mtl_default\n#include "../nvn/nvn_mtl.m"\n#undef nvn_game_fps\n'
-    '#define g_ft g_ft_hle\n#include "../nvn/hle_nvn_tw.c"\n#undef g_ft\n' + Path(__file__).with_name('texture-writes-test.m').read_text())
+    '#define g_ft g_ft_hle\n#include "../tw/hle_nvn.c"\n#undef g_ft\n' + Path(__file__).with_name('texture-writes-test.m').read_text())
 (tests / 'satchel.mk').write_text('include Makefile\n' + ''.join(
     name + ': ' + name + '.m $(MTL_T_DEP)\n\tclang $(CFLAGS) -fobjc-arc -o $@ ' + name + '.m $(MTL_T_SRC) $(FW)\n'
     for name in ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']) +
-    't_satchel_texture_writes: t_satchel_texture_writes.m ../nvn/hle_nvn_tw.c $(MTL_T_DEP)\n\tclang $(CFLAGS) -fobjc-arc -o $@ t_satchel_texture_writes.m $(filter-out ../nvn/hle_nvn.c,$(MTL_T_SRC)) $(FW)\n')
+    't_satchel_texture_writes: t_satchel_texture_writes.m ../tw/hle_nvn.c $(MTL_T_DEP)\n\tclang $(CFLAGS) -I../nvn -fobjc-arc -o $@ t_satchel_texture_writes.m $(filter-out ../nvn/hle_nvn.c,$(MTL_T_SRC)) $(FW)\n')
 tools = DEPENDENCY_PATHS['deps_root']() / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 env = runpy.run_path(str(root / 'scripts/switch_native.py'))['tool_environment'](tools)
 import json

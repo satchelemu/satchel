@@ -3422,8 +3422,9 @@ final class NavigationJourneyTests: XCTestCase {
     func testTestPackageBesideReviewedPackage() throws {
         let developer = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelDeveloperControls"))
         app.launchArguments[developer + 1] = "YES"
-        app.launchArguments += ["-SatchelPreviewPrepareTests", "YES", "-SatchelPreviewKeys", "YES", "-SatchelPreviewIdentity", "YES",
-                                "-SatchelPreviewPrepareEnd", "signed", "-SatchelPreviewPrepareSeconds", "2"]
+        // The DLC fixture keeps the imported originals, so the base is offered for Prepare.
+        app.launchArguments += ["-SatchelPreviewPrepareTests", "YES", "-SatchelPreviewDLC", "included", "-SatchelPreviewKeys", "YES",
+                                "-SatchelPreviewIdentity", "YES", "-SatchelPreviewPrepareEnd", "signed", "-SatchelPreviewPrepareSeconds", "2"]
         app.launch()
         try workshop("workshop-prepare")
         try tap("prepare-base")

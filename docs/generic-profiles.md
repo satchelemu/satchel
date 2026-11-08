@@ -172,8 +172,9 @@ app's feedback code applied to each run's own log. The counted texture writes pe
 Comparison method: the lower half of each 1280x720 frame (ground and grass) in 32x32
 blocks, the share of blocks whose average colour differs by more than 12 from the reviewed
 run at the same frame, which grass and Link animating does not move much. Zelda learned
-without the texture switches: 70 to 77% at frames 1,800 to 3,600. With them: 20 to 50%,
-against 37 to 50% between two reviewed runs. Whole-frame pixel differences are dominated
+without the texture switches: 70 to 77% at frames 1,800 to 3,600. With them, in two runs:
+20 to 50% and 32 to 60%, against 37 to 50% between two reviewed runs; the frames show the
+same tall grass and plants, with wind and Link's idle pose as the visible differences. Whole-frame pixel differences are dominated
 by animation (43 to 49% of pixels between two reviewed runs) and do not separate the cases.
 
 A first version of the watch counted writes before first use too. Odyssey then learned the
