@@ -48,15 +48,17 @@ subprocess.run(base + ['-framework', 'Metal', str(ROOT / 'NativeHost/graphics/Pi
 subprocess.run([pipeline], check=True)
 # Launch prewarm policy, trial list copy and per-launch event files, in a private synthetic runtime folder.
 trial = ['-SatchelPipelineTrial', 'check-b', '-SatchelGraphicsProfile', 'YES']
-# Scheduling trials: valid lanes and ahead values pass through, invalid ones leave both unset.
-for args, expect, lanes, ahead in [([], '', '', ''), (['-SatchelPipelinePrewarm', 'YES'], '3000', '', ''),
-                     (['-SatchelPipelinePrewarm', 'YES', '-SatchelPipelinePrewarmMS', '1500', '-SatchelPipelineTrialListFrom', 'check-a'], '1500', '', ''),
-                     (['-SatchelPipelinePrewarm', 'YES', '-SatchelPipelinePrewarmMS', '99'], '3000', '', ''),
-                     (['-SatchelPipelineLanes', '4', '-SatchelPipelineAhead', '128'], '', '4', '128'),
-                     (['-SatchelPipelineLanes', '9', '-SatchelPipelineAhead', '0x10'], '', '', '')]:
+# Scheduling trials: valid lanes, ahead and translation ahead values pass through, invalid ones leave them unset.
+for args, expect, lanes, ahead, translation in [([], '', '', '', ''), (['-SatchelPipelinePrewarm', 'YES'], '3000', '', '', ''),
+                     (['-SatchelPipelinePrewarm', 'YES', '-SatchelPipelinePrewarmMS', '1500', '-SatchelPipelineTrialListFrom', 'check-a'], '1500', '', '', ''),
+                     (['-SatchelPipelinePrewarm', 'YES', '-SatchelPipelinePrewarmMS', '99'], '3000', '', '', ''),
+                     (['-SatchelPipelineLanes', '4', '-SatchelPipelineAhead', '128'], '', '4', '128', ''),
+                     (['-SatchelPipelineLanes', '4', '-SatchelPipelineAhead', '128', '-SatchelShaderAhead', '4'], '', '4', '128', '4'),
+                     (['-SatchelShaderAhead', '9'], '', '', '', ''), (['-SatchelShaderAhead', '0'], '', '', '', ''),
+                     (['-SatchelPipelineLanes', '9', '-SatchelPipelineAhead', '0x10'], '', '', '', '')]:
     runtime = OUT / 'pipeline-runtime'
     shutil.rmtree(runtime, ignore_errors=True)
     subprocess.run([pipeline, *trial, *args], env=dict(os.environ, PIPELINE_RUNTIME=str(runtime), EXPECT_PREWARM_MS=expect,
-                   EXPECT_LANES=lanes, EXPECT_AHEAD=ahead), check=True)
+                   EXPECT_LANES=lanes, EXPECT_AHEAD=ahead, EXPECT_SHADER_AHEAD=translation), check=True)
 shutil.rmtree(OUT / 'pipeline-runtime', ignore_errors=True)
-print('PASS: 25 settings/geometry processes, 6 pipeline launch policies and 6 launch prewarm, scheduling or trial file checks, all synthetic.')
+print('PASS: 25 settings/geometry processes, 6 pipeline launch policies and 9 launch prewarm, scheduling or trial file checks, all synthetic.')

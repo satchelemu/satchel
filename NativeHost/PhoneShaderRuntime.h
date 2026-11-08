@@ -5,7 +5,7 @@ extern uint32_t satchel_phone_shader_inputs(const char *) __attribute__((weak_im
 extern void *satchel_phone_shader_reflection(const char *) __attribute__((weak_import));
 extern void *satchel_phone_shader_library(const char *, int32_t *) __attribute__((weak_import));
 extern void satchel_phone_shader_ahead(const char *, const void *, size_t, const void *, size_t,
-                                       const char *, const void *, size_t, const void *, size_t) __attribute__((weak_import));
+                                       const char *, const void *, size_t, const void *, size_t, int32_t) __attribute__((weak_import));
 extern int32_t satchel_phone_shader_ahead_ready(const char *) __attribute__((weak_import));
 extern int32_t satchel_phone_shader_prepare_known(const char *, int32_t *) __attribute__((weak_import));
 static uint64_t satchel_phone_epoch;
@@ -18,6 +18,17 @@ static int satchel_phone_enabled(void) {
 static int satchel_phone_ahead_on(void) {
     const char *v = getenv("DM_PSO_AHEAD");   // set by the launch policy before a session starts
     return v && !strcmp(v, "1") && satchel_phone_enabled() && satchel_phone_shader_ahead && satchel_phone_shader_ahead_ready;
+}
+// Translation ahead in any pipeline mode (developer trial: DM_SHADER_AHEAD=<lanes 1..8>, set by
+// -SatchelShaderAhead before a session starts). 0 when unset or invalid: nothing changes.
+static int satchel_shader_ahead_lanes(void) {
+    const char *v = getenv("DM_SHADER_AHEAD"); char *end = NULL;
+    long lanes = v && *v ? strtol(v, &end, 10) : 0;
+    return v && *v && end && !*end && lanes >= 1 && lanes <= 8 ? (int)lanes : 0;
+}
+// Ahead jobs (translation and base libraries off the frame path) run in bounded mode and with translation ahead.
+static int satchel_phone_ahead_jobs_on(void) {
+    return satchel_phone_ahead_on() || (satchel_shader_ahead_lanes() && satchel_phone_enabled() && satchel_phone_shader_ahead && satchel_phone_shader_ahead_ready);
 }
 static NSDictionary *satchel_phone_reflection(NSString *name) {
     if (!satchel_phone_enabled() || !satchel_phone_shader_reflection || name.length < 16) return nil;

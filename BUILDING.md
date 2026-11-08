@@ -621,6 +621,8 @@ checks that the script uses one launch only. `-SatchelPipelinePrewarm YES` (opt-
 `-SatchelPipelineTrialListFrom <tag>` gives a new trial another trial's recorded list with an empty
 archive ([launch prewarm](NativeHost/graphics/README.md#launch-prewarm-of-recorded-pipelines)). On the
 Mac host, `NativeHost/bench_shaders.py --capture --prewarm` and `--cache relist` do the same.
+`-SatchelShaderAhead <1..8>` (Mac host `--shader-ahead N`) is the opt-in
+[translation ahead](NativeHost/graphics/README.md#translation-ahead) trial.
 Skip is restricted to a terminal draw in the current submission; all other timeouts wait. With
 `-SatchelGraphicsProfile YES`, `pipeline-skips.tsv` records frame/count rows beside
 the shader events. The developer overlay shows the last frame's skipped count.

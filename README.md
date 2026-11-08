@@ -114,7 +114,10 @@ See [the posture test guide](docs/testing.md#duo-postures).
   draw, and pipeline builds still wait. Game settings save the mode per title for the next
   launch; exact stays the default. An opt-in launch prewarm (`-SatchelPipelinePrewarm YES`,
   measured on the Mac only) builds the pipelines a device recorded before the first frame,
-  for a bounded loading time; it does nothing on a game's first launch. The shader warm-up is
+  for a bounded loading time; it does nothing on a game's first launch. An opt-in translation
+  ahead (`-SatchelShaderAhead 4`, measured on the Mac only) translates a new scene's programs on
+  parallel lanes before their draws reach them, which cut Zelda's first-launch title frame
+  translation wait from about 2 s to under 0.8 s on the Mac without changing any draw. The shader warm-up is
   opt-in: Prepare does not start it, only the game page's Warm up does, and a game plays
   without it. It can take hours for a large game. It now keeps a bounded queue fed,
   reuses identical translated source, and uses extra lanes when foreground or

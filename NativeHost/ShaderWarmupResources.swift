@@ -32,9 +32,10 @@ final class ShaderWarmupResources: @unchecked Sendable {
     private var replayingStartup = false
     private var session: UInt64 = 0
     private static let metadata = DispatchQueue(label: "Satchel shader startup index", qos: .utility)
-    // Bounded first use (pipeline mode "bounded"): programs are translated and their base
-    // libraries compiled as the game binds them, ahead of the draw. Two lanes of their own;
-    // results are the same store entries and compiler outputs a draw would make itself.
+    // Bounded first use (pipeline mode "bounded") and translation ahead (DM_SHADER_AHEAD): programs are
+    // translated and their base libraries compiled ahead of the draw. Lanes of their own (two, or the
+    // translation ahead lane count); results are the same store entries and compiler outputs a draw
+    // would make itself.
     private static let ahead: OperationQueue = {
         let queue = OperationQueue()
         queue.name = "Satchel shader ahead"
@@ -46,8 +47,10 @@ final class ShaderWarmupResources: @unchecked Sendable {
     private var aheadSeen: Set<String> = []
     private var aheadReady: Set<String> = []
     private var aheadLibraries: [String: (value: SatchelCompiledShader, order: UInt64)] = [:]
+    private var aheadShaders: [String: (value: SatchelTranslatedShader, order: UInt64)] = [:]   // by request identity
     private var aheadClock: UInt64 = 0, aheadFinished: UInt64 = 0
     private var aheadLanes = false
+    private var aheadWaiting: [String: Operation] = [:]   // queued ahead jobs not started yet, by identity
     static func get(directory: URL, reserve: Int = 1536 * 1024 * 1024) throws -> ShaderWarmupResources {
         poolLock.lock(); defer { poolLock.unlock() }
         let canonical = directory.standardizedFileURL.resolvingSymlinksInPath()
@@ -180,7 +183,7 @@ final class ShaderWarmupResources: @unchecked Sendable {
         Self.metadata.sync { }
         lock.lock(); defer { lock.unlock() }
         session &+= 1; started = false; replayingStartup = false; observed.removeAll(); prefetched.removeAll()
-        aheadSeen.removeAll(); aheadReady.removeAll(); aheadLibraries.removeAll()
+        aheadSeen.removeAll(); aheadReady.removeAll(); aheadLibraries.removeAll(); aheadShaders.removeAll(); aheadWaiting.removeAll()
     }
 
     // ---- Bounded first use ----
@@ -188,33 +191,43 @@ final class ShaderWarmupResources: @unchecked Sendable {
     // so a finished ahead job turns the draw's translation into a source-store hit and its base
     // library into a retained result. Nothing here decides what a draw renders.
     static let aheadLimit = 256, aheadLibraryLimit = 128
-    func useAheadLanes() {
+    func useAheadLanes(_ lanes: Int = 2) {
+        let count = max(1, min(lanes, 8))
         lock.lock(); let first = !aheadLanes; aheadLanes = true; lock.unlock()
-        // Two ahead lanes plus the draw's own demand: the draw never queues behind them.
-        if first { compiler.setMaximumConcurrentCompilations(3) }
+        Self.ahead.maxConcurrentOperationCount = count
+        // The ahead lanes plus the draw's own demand (the compiler allows at most four): with two
+        // lanes the draw never queues behind them.
+        if first { compiler.setMaximumConcurrentCompilations(min(count + 1, 4)) }
     }
     func aheadIsReady(_ key: String) -> Bool { lock.lock(); defer { lock.unlock() }; return aheadReady.contains(key) }
     func aheadProgress() -> Int32 { lock.lock(); defer { lock.unlock() }; return Int32(truncatingIfNeeded: aheadFinished) }
     /// `first` is translated before `vertex`; `vertex` receives the fragment input mask of `first`
     /// (zero when `first` is not a pixel shader) joined with the key's persisted mask, as the draw
-    /// computes it, and returns the vertex request.
-    func ahead(identity: String, first: (key: String, request: SatchelShaderRequest)?,
-               vertex: (key: String, make: (UInt32) throws -> SatchelShaderRequest)?) {
+    /// computes it, and returns the vertex request. Both requests are made on the lane. An urgent job
+    /// (the submission pre-pass) runs before the others, in the order sent, and promotes a queued job
+    /// of the same identity.
+    func ahead(identity: String, first: (key: String, make: () throws -> SatchelShaderRequest)?,
+               vertex: (key: String, make: (UInt32) throws -> SatchelShaderRequest)?, urgent: Bool = false) {
         lock.lock()
-        guard !aheadSeen.contains(identity), aheadQueued < Self.aheadLimit else { lock.unlock(); return }
+        if aheadSeen.contains(identity) {
+            if urgent, let waiting = aheadWaiting[identity] { waiting.queuePriority = .veryHigh }
+            lock.unlock(); return
+        }
+        guard aheadQueued < Self.aheadLimit else { lock.unlock(); return }
         if aheadSeen.count >= 65536 { aheadSeen.removeAll() }
         aheadSeen.insert(identity); aheadQueued += 1
         let generation = session
-        lock.unlock()
         let operation = BlockOperation { [self] in
+            lock.lock(); aheadWaiting.removeValue(forKey: identity); lock.unlock()
             defer { lock.lock(); aheadQueued -= 1; lock.unlock() }
             func current() -> Bool { lock.lock(); defer { lock.unlock() }; return session == generation }
             do {
                 var inputs: UInt32 = 0
                 var made: [(String, SatchelTranslatedShader)] = []
                 if let first {
-                    let shader = try autoreleasepool { try SatchelShaderMetrics.measure("ahead-translation") { try store.prepare(first.request) } }
-                    if first.request.stage == .fragment { inputs = Self.fragmentInputs(shader) }
+                    let request = try first.make()
+                    let shader = try autoreleasepool { try SatchelShaderMetrics.measure("ahead-translation") { try store.prepare(request) } }
+                    if request.stage == .fragment { inputs = Self.fragmentInputs(shader) }
                     made.append((first.key, shader))
                 }
                 if let vertex, current() {
@@ -222,6 +235,17 @@ final class ShaderWarmupResources: @unchecked Sendable {
                     let shader = try autoreleasepool { try SatchelShaderMetrics.measure("ahead-translation") { try store.prepare(request) } }
                     made.append((vertex.key, shader))
                 }
+                // The translations are held for their draw (at most aheadLibraryLimit), so it takes the
+                // object the store returned instead of loading the same entry again on its own thread.
+                lock.lock()
+                if session == generation {
+                    for (_, shader) in made { aheadClock &+= 1; aheadShaders[shader.requestSHA256] = (shader, aheadClock) }
+                    while aheadShaders.count > Self.aheadLibraryLimit,
+                          let oldest = aheadShaders.min(by: { $0.value.order < $1.value.order })?.key {
+                        aheadShaders.removeValue(forKey: oldest)
+                    }
+                }
+                lock.unlock()
                 for (key, shader) in made where shader.sources["b"] != nil {
                     guard current() else { return }
                     let compiled = try autoreleasepool { try SatchelShaderMetrics.measure("ahead-library") { try compiler.compile(shader, variant: "b") } }
@@ -240,13 +264,20 @@ final class ShaderWarmupResources: @unchecked Sendable {
                 }
             } catch { } // The draw's own required first use reports any failure.
         }
-        operation.queuePriority = .high
+        operation.queuePriority = urgent ? .veryHigh : .high
+        aheadWaiting[identity] = operation
+        lock.unlock()
         Self.ahead.addOperation(operation)
     }
     /// The draw's demand in bounded mode: the calling thread does the work itself (the store and
     /// compiler join an identical in-flight job), so it never queues behind background lanes.
     func prepareNow(_ request: SatchelShaderRequest) throws -> SatchelTranslatedShader {
-        try store.prepare(request)
+        // A finished ahead job's translation of this exact request (the store's own identity), if held.
+        if let identity = try? SatchelShaderTranslator.identity(request, normalized: SatchelShaderTranslator.normalized(request)) {
+            lock.lock(); let held = aheadShaders.removeValue(forKey: identity)?.value; lock.unlock()
+            if let held { return held }
+        }
+        return try store.prepare(request)
     }
     func compileNow(_ shader: SatchelTranslatedShader, variant: String) throws -> SatchelCompiledShader {
         let identity = shader.requestSHA256 + "/" + variant

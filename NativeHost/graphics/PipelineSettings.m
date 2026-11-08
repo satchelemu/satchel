@@ -65,8 +65,11 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     // Developer trials of first-use pipeline scheduling (unset: two compiler lanes and each mode's own
     // speculative budget). -SatchelPipelineLanes <1..8> sets the compiler lanes; -SatchelPipelineAhead
     // <1..128> lets the prediction walk start that many of a submission's predicted pipelines at once.
-    // Either changes when a pipeline is built, never which one a draw uses.
-    for (NSArray<NSString *> *knob in @[@[@"-SatchelPipelineLanes", @"DM_PSO_LANES", @8], @[@"-SatchelPipelineAhead", @"DM_PSO_SPECULATIVE", @128]]) {
+    // Either changes when a pipeline is built, never which one a draw uses. -SatchelShaderAhead <1..8>
+    // (translation ahead, any mode) sends a submission's programs to that many translation lanes ahead of
+    // their draws (graphics/TranslateAhead.inc); it changes when a shader is translated, never which.
+    for (NSArray<NSString *> *knob in @[@[@"-SatchelPipelineLanes", @"DM_PSO_LANES", @8], @[@"-SatchelPipelineAhead", @"DM_PSO_SPECULATIVE", @128],
+                                        @[@"-SatchelShaderAhead", @"DM_SHADER_AHEAD", @8]]) {
         NSString *text = argument(args, knob[0]); NSInteger value = 0;
         NSScanner *knobScanner = text ? [NSScanner scannerWithString:text] : nil;
         if (text && [knobScanner scanInteger:&value] && knobScanner.isAtEnd && value >= 1 && value <= [knob[2] integerValue])
@@ -140,8 +143,8 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
     fprintf(stderr, "Satchel loading: romfs=%s\n", mapped ? "mapped" : "pread");
 
     setenv("DM_PSO_ARCHIVE", SatchelPipelineArchiveDirectory(cacheRoot).fileSystemRepresentation, 1);
-    fprintf(stderr, "Satchel graphics: pipelines=%s workers=%s ahead=%s archive=%s\n", skipping ? "skip" : bounded ? "bounded" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy",
-            getenv("DM_PSO_LANES") ?: "2", getenv("DM_PSO_SPECULATIVE") ?: "default", getenv("DM_PSO_ARCHIVE"));
+    fprintf(stderr, "Satchel graphics: pipelines=%s workers=%s ahead=%s translation-ahead=%s archive=%s\n", skipping ? "skip" : bounded ? "bounded" : asynchronous ? "async" : hybrid ? "hybrid" : modern ? "exact" : "legacy",
+            getenv("DM_PSO_LANES") ?: "2", getenv("DM_PSO_SPECULATIVE") ?: "default", getenv("DM_SHADER_AHEAD") ?: "off", getenv("DM_PSO_ARCHIVE"));
     if (prewarm) fprintf(stderr, "Satchel graphics: launch prewarm of recorded pipelines, at most %ld ms before the first frame\n", (long)prewarmMS);
 }
 

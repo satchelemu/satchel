@@ -34,6 +34,8 @@ static int launch_checks(NSArray<NSString *> *args) {
     assert(![fm fileExistsAtPath:[trial stringByAppendingPathComponent:@"pipeline-skips.tsv"]]);
     assert(!strcmp(getenv("DM_SHADER_EVENTS"), [trial stringByAppendingPathComponent:@"shader-events.tsv"].fileSystemRepresentation));
     NSString *lanes = NSProcessInfo.processInfo.environment[@"EXPECT_LANES"], *ahead = NSProcessInfo.processInfo.environment[@"EXPECT_AHEAD"];
+    NSString *translation = NSProcessInfo.processInfo.environment[@"EXPECT_SHADER_AHEAD"];
+    if (translation.length) assert(getenv("DM_SHADER_AHEAD") && !strcmp(getenv("DM_SHADER_AHEAD"), translation.UTF8String)); else assert(!getenv("DM_SHADER_AHEAD"));
     if (lanes.length) assert(getenv("DM_PSO_LANES") && !strcmp(getenv("DM_PSO_LANES"), lanes.UTF8String)); else assert(!getenv("DM_PSO_LANES"));
     if (ahead.length) assert(getenv("DM_PSO_SPECULATIVE") && !strcmp(getenv("DM_PSO_SPECULATIVE"), ahead.UTF8String)); else assert(!getenv("DM_PSO_SPECULATIVE"));
     puts(prewarm ? "PASS: launch prewarm policy, trial list copy and fresh event files" : "PASS: no launch prewarm by default; trial event files start fresh");
@@ -61,7 +63,7 @@ int main(void) {
             assert(SatchelChangePlayerHaptics(NO));
             assert([SatchelSavedPlayerSettings(title)[@"DM_PIPELINE_MODE"] isEqual:mode]);
             assert(!strcmp(getenv("DM_PSO_PREBUILD"), "0"));
-            assert(!getenv("DM_PSO_LANES") && !getenv("DM_PSO_SPECULATIVE"));
+            assert(!getenv("DM_PSO_LANES") && !getenv("DM_PSO_SPECULATIVE") && !getenv("DM_SHADER_AHEAD"));
             assert(!strcmp(getenv("DM_PSO_PREPARE_THREADS"), "2"));
             assert(SatchelQueuePlayerSetting(@"DM_PIPELINE_MODE", @"exact"));
             assert([SatchelCurrentPlayerSettings()[@"DM_PIPELINE_MODE"] isEqual:mode]);

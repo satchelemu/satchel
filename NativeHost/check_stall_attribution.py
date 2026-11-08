@@ -42,7 +42,12 @@ def main():
     assert sa.last_launch(marked) == warm_events
     # One launch with no mark (Mac routes write a fresh file per boot) is unchanged.
     assert sa.summarize(cold, cold_events)['top'][0]['frame'] == 120
-    print('PASS: stall attribution uses the last launch only and refuses appended launches (4 synthetic cases)')
+    # The translation ahead walk (TranslateAhead.inc) is prediction time; a library wait inside it stays library time.
+    wait = next(e for e in cold_events if e[3] == 'pipeline-use')   # frame 120: 300 ms from 50 ms in
+    walk = cold_events + [(wait[0] + 305 * MS, 40 * MS, 7, 'translate-rest'), (wait[0] + 315 * MS, 10 * MS, 7, 'library-use')]
+    row = sa.summarize(cold, walk)['top'][0]
+    assert row['frame'] == 120 and row['pipeline'] == 300.0 and row['prediction'] == 30.0 and row['library'] == 10.0, row
+    print('PASS: stall attribution uses the last launch only and refuses appended launches, and counts the translation ahead walk as prediction (5 synthetic cases)')
 
 if __name__ == '__main__':
     main()

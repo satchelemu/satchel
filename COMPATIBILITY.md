@@ -232,7 +232,9 @@ The opt-in `bounded` mode starts translation and base libraries when a program i
 changes no draw; its Mac measurements are in `NativeHost/ShaderStalls.md`. It adds no phone
 compatibility claim either. The opt-in launch prewarm (`-SatchelPipelinePrewarm YES`) builds the
 pipelines a device recorded before the first frame; it does nothing on a game's first launch, was
-measured on the Mac only, and adds no phone claim.
+measured on the Mac only, and adds no phone claim. The opt-in translation ahead
+(`-SatchelShaderAhead <lanes>`) changes when shaders are translated, never which; it was measured on
+the Mac only and adds no phone claim.
 
 ## Controller acceptance
 

@@ -285,6 +285,97 @@ Ideas from the same round that were checked and not taken:
   for later launches; a first launch has none, and Apple's API gives no way to build one before the
   pipelines are known.
 
+# Translation ahead (2026-11-07, Mac)
+
+After the walk fix above, Zelda's cold title frame waited mostly for translation and libraries: the
+draws and the prediction walk translated each of its about 150 new programs (264 keys in the route)
+and compiled its libraries one at a time on the submit thread. The opt-in translation ahead
+(`-SatchelShaderAhead <lanes>`, `bench_shaders.py --shader-ahead N`; `NativeHost/graphics/README.md`,
+Translation ahead) sends the rest of the submission's programs to that many ahead lanes, in draw
+order, at its first new shader and at its first pipeline miss, and holds each finished translation
+and base library for its draw. The draws still prepare every program themselves; they make the same
+requests in the same order, so nothing they draw changes.
+
+Cold (`clean`) and warm opening routes, exact mode, 1,800 frames, render scale 1.0. A is main
+f5872ae's host with `--lanes 4 --speculative 128` (the previous trial); T is this branch with the
+same plus `--shader-ahead 4`; T2 with `--shader-ahead 2`; S is `--shader-ahead 4` with the pipeline
+knobs unset; D is main with nothing set. Runs alternated (A, T, T2, S, D, then D, S, T2, T, A, then
+pairs T, A). Five other workers shared the Mac (load average 4 to 15 at the start of every route below; one
+A pair started at load 61 and ran at up to 120, and is left out). The routes do not clear Apple's shared Metal
+compiler cache, and it was evicted between runs at random (its compile time for the route's
+libraries, summed over workers, ranged from 1.2 to 46 s; given per run as "Apple cache"), so library
+waits are compared only between runs with a similar compile sum. Translation is the application's own
+work and does not depend on it. Values are the worst frame (Zelda's title frame) and its translation
+(the draw's own plus the walk's look-ahead) and library waits on the submit thread.
+
+| Route | Worst frame, ms | > 50 / > 100 ms | Translation / library wait in it, ms | Apple cache, s |
+|---|---|---|---|---|
+| Zelda clean, A | 10,942; 7,942; 10,544; 11,119 | 16/13; 15/12; 17/13; 17/14 | 2,274 / 8,228; 1,670 / 5,712; 2,042 / 7,973; 1,924 / 8,593 | 28.7; 16.7; 27.6; 23.0 |
+| Zelda clean, T | 3,940; 5,158; 1,875; 6,848 | 14/12; 28/16; 13/11; 14/13 | 432 / 2,864; 511 / 3,586; 792 / 35; 482 / 5,577 | 26.3; 40.5; 3.5; 46.1 |
+| Zelda clean, T with held translations (the third on the final build) | 6,253; 4,733; 6,092 | 15/13; 18/11; 17/13 | 632 / 4,758; 511 / 3,363; 438 / 4,700 | 46.1; 26.8; 40.6 |
+| Zelda clean, T2 (the third with held translations) | 2,405; 2,047; 2,602 | 20/12; 18/10; 12/9 | 1,012 / 57; 1,053 / 40; 1,313 / 43 | 2.0; 1.2; 8.4 |
+| Zelda clean, S | 3,540; 4,352 | 16/11; 14/12 | 330 / 13; 255 / 1,250 | 12.9; 30.0 |
+| Zelda clean, D | 12,511; 6,063 | 14/13; 14/11 | 3,159 / 6,471; 2,992 / 488 | 21.2; 5.4 |
+| Zelda warm, A | 709; 527; 761 | 7/3; 6/1; 7/2 | 179 / 79; 149 / 59; 183 / 81 | 0.1 |
+| Zelda warm, T | 612; 593; 2,693; 787 | 5/1; 5/2; 14/10; 13/9 | 171 / 4; 175 / 3; 133 / 2,194; 20 / 709 | 0.2; 0.1; 17.1; 8.0 |
+| Zelda warm, T with held translations (T2 third, final build last) | 487; 542; 381; 524 | 4/1; 3/1; 3/1; 6/1 | 48 / 6; 53 / 6; 43 / 3; 55 / 15 | 0.2 to 0.3 |
+| Zelda warm, T2 and S | 528; 587; 593; 551 | 8/1; 7/2; 5/2; 4/1 | 153 / 3; 174 / 8; 161 / 2; 155 / 12 | 0.1 to 0.3 |
+| Zelda warm, D | 858; 957 | 10/5; 8/4 | 237 / 99; 263 / 121 | 0.1; 0.3 |
+| Odyssey clean, A | 442; 270 | 3/3; 3/2 | 127 / 249; 81 / 131 | |
+| Odyssey clean, T (the third with held translations, the fourth on the final build) | 111; 82; 115; 80 | 3/1; 3/0; 3/1; 3/0 | 18 / 29; 19 / 0; 18 / 31; 16 / 3 | |
+| Odyssey warm, A and T | 24 to 38 | 0/0 | none | |
+| Castlevania clean, A | 224; 219 | 5/5; 5/4 | none in the worst frame | |
+| Castlevania clean, T (the third with held translations) | 257; 210; 265 | 5/5; 5/3; 5/5 | 53 / 114; none; 61 / 112 | |
+| Castlevania warm, A | 264; 216 | 4/3; 3/2 | none | |
+| Castlevania warm, T (the third with held translations) | 232; 220; 215 | 3/1; 3/2; 3/2 | none | |
+
+What it changes: the translation the submit thread waits for in Zelda's cold title frame falls from
+1.7 to 2.3 s (A) and 3.0 to 3.2 s (D) to 0.43 to 0.79 s with four lanes, 1.0 to 1.3 s with two, and 0.26 to
+0.33 s with four lanes and the pipeline knobs unset (the shorter default walk waits less for later
+programs; their draws find them done). The libraries move off the submit thread with it: compiled on
+the lanes before the walk reaches their program, so the title frame's library wait falls from 5.7 to
+8.6 s to 2.9 to 5.6 s when Apple's cache is cold for the route (16 to 46 s of compiles; the lanes
+compile at most four at a time) and to 35 to 57 ms when it is warm. Worst frames: 7.9 to 11.1 s (A)
+against 3.9 to 6.8 s (T) with a cold Apple cache and 1.9 s (T) or 2.0 to 2.6 s (T2) with a warm one.
+Odyssey's cold opening loses its frames over 100 ms (worst 270 to 442 ms to 82 to 111 ms). Castlevania's
+slow frames hold no shader work and are unchanged. In warm openings the libraries the draws used to
+compile again (the source store keeps sources, Metal keeps no library) are ready on the lanes, and with
+held translations the title frame's translation wait falls from 150 to 180 ms to about 50 ms (worst
+frame 381 to 542 ms against 527 to 761 ms). Two warm T routes ran after Apple's cache was evicted
+(8 and 17 s of compiles) and waited 0.7 and 2.2 s for libraries; their A counterparts did not meet an
+eviction, so those two are not a comparison. The extra frames over 50 ms in one T route (28) hold
+guest and pacing time, not shader time, as in the previous round.
+
+The walk that sends the jobs costs at most 1.2 ms per submission (Zelda: 18 or 19 per route, 3 ms in
+all). The lanes do more work in all: translation summed over threads was 11 to 14 s per Zelda route
+against 7.5 to 9 s, because concurrent translations run slower on the shared Mac (median 11 to 14 ms
+against 7 to 9 ms) and a job whose padding no draw reaches (a vertex shader paired before its key's
+mask grew) is translated and left unused (22 extra source-store entries in the first route, 440 against
+418). That costs CPU and the game's threads share it; on the phone (two performance and four efficiency
+cores) the lane count needs the trial.
+
+Exactness: every route above passed with zero shader failures, zero fallback pipelines and zero
+skipped draws. The draws translated the same 264 keys the same number of times as main (the same
+multiset of `PhoneShader ... translated` lines) and left the same persisted vertex padding
+(`wanted.json` equal). Odyssey's captured frames 300, 1,200 and 1,800 are byte-identical between A and
+T, clean and warm, and between two A runs; Castlevania and Zelda differ between two A runs as much as
+between A and T (their openings animate with wall time). The final build with nothing set ran
+Odyssey's cold opening as main does (worst 265 ms, frames byte-identical to A); its first attempt ended
+at frame 5 with the guest crash earlier rounds saw on both hosts, with every new code path inert, and
+the repeat passed. Nothing here is a phone result.
+
+Ideas from the same round that were checked and not taken:
+
+- Reusing identical translations across stages and joining a shader translated twice in flight: the
+  source store already joins identical requests in flight and serves later ones from disk, and the
+  compiler joins and caches libraries by source hash, so two keys with the same source share one
+  library. Distinct keys are distinct requests (the key is part of the request).
+- More than four concurrent library compilations: the shared compiler allows at most four
+  (`NativeShaders/ShaderCompiler.swift`, `setMaximumConcurrentCompilations`). With a cold Apple cache
+  the lanes ran 3.2 compilations at a time on average and the title frame was bound by them. Raising
+  the clamp is a NativeShaders change (it does not change translator output) and was not made; on the
+  phone four compilations beside the game's threads are likely already the limit.
+
 # Scheduling and cache behavior
 
 Mapped shader registration copies control and code into bounded background requests.

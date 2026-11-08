@@ -61,6 +61,7 @@ inputs += [ROOT / 'NativeHost/build.py', ROOT / 'NativeHost/display_overlay.py',
 inputs += [ROOT / 'NativeHost/phone-prefetch.patch', ROOT / 'NativeHost/phone-ahead.patch', ROOT / 'NativeHost/graphics/shader_builds.py', ROOT / 'NativeHost/graphics/ShaderBuildQueue.inc']
 inputs += [ROOT / 'NativeHost/graphics/AsyncPipelines.inc', ROOT / 'NativeHost/graphics/SkipPipelines.inc', ROOT / 'NativeHost/graphics/async_pipelines.py']
 inputs += [ROOT / 'NativeHost/graphics/ShaderMetrics.inc', ROOT / 'NativeHost/graphics/shader_metrics.py']
+inputs += [ROOT / 'NativeHost/graphics/TranslateAhead.inc', ROOT / 'NativeHost/graphics/translate_ahead.py']
 inputs += [ROOT / 'NativeHost/graphics' / name for name in ['frame-timing.py', 'FrameTiming.h', 'FrameTiming.inc']]
 inputs += [ROOT / 'NativeHost/services' / name for name in
            ['overlay.py', 'ServiceIPC.inc', 'SessionIPC.inc', 'EngineAdapter.inc', 'RYUJINX-LICENSE.txt', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc', 'ClockState.inc', 'FileQueries.inc', 'MissingServices.inc', 'KernelSVC.inc', 'SdkRecording.inc', 'SdkFamilies.inc', 'Round11IPC.inc', 'coverage/MissingServiceNames.inc']]

@@ -15,6 +15,8 @@ parser.add_argument('--frame',type=int,default=1800)
 # Pipeline compiler lanes and the prediction walk's speculative limit (DM_PSO_LANES, DM_PSO_SPECULATIVE); unset keeps the host's defaults.
 parser.add_argument('--lanes',type=int,choices=range(1,9))
 parser.add_argument('--speculative',type=int,choices=range(0,129))
+# Translation ahead lanes (DM_SHADER_AHEAD, -SatchelShaderAhead); unset keeps translation at first use.
+parser.add_argument('--shader-ahead',type=int,choices=range(1,9))
 a=parser.parse_args();game=a.game;route=a.route; mode=a.cache
 assert a.frame>=1200
 assert 0 <= a.pipeline_budget_ms <= 16
@@ -53,6 +55,7 @@ env.update(DM_PSO_ASYNC='1' if a.pipeline_mode in {'async','bounded','skip'} els
 env.update(DM_NVN_SHMAP=str(package/'dm/shader_map.tsv'),DM_MSL_DIR=str(work/'empty-msl'),DM_PHONE_SHADERS='1',DM_PHONE_SHADER_CACHE=str(cache/'sources'))
 if a.lanes: env['DM_PSO_LANES']=str(a.lanes)
 if a.speculative is not None: env['DM_PSO_SPECULATIVE']=str(a.speculative)
+if a.shader_ahead: env['DM_SHADER_AHEAD']=str(a.shader_ahead)
 if a.capture:
     (cache/'shader-capture').mkdir(exist_ok=True); env['DM_NVN_SHDUMP']=str(cache/'shader-capture')
 if a.prewarm:
@@ -81,7 +84,7 @@ def watch():
         try:child.wait(5)
         except subprocess.TimeoutExpired:child.kill()
 watcher=threading.Thread(target=watch);watcher.start()
-allowed=['[slowframe]', 'PhoneShader ', 'parallel precompile','pipeline prepare','pipeline prewarm','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]']
+allowed=['[slowframe]', 'PhoneShader ', 'parallel precompile','translation ahead','pipeline prepare','pipeline prewarm','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]']
 failure=re.compile(r'prepare failed|compile failed|failed to load shader|failed to load: build|failed to create.*pipeline|reflection conversion failed|no library|not in the shader map|no vertex shader|no compute shader|geometry capture entry failed|unexpected argument buffer|offline reference source absent|FATAL|CRASH sig=')
 with (work/'host-safe.log').open('w') as log:
     for line in child.stdout:
@@ -101,7 +104,7 @@ child.wait();watcher.join()
 shots=[str(x) for x in sorted((work/'shots').glob('*.png'))]
 passed=child.returncode in (0,-15,143) and reason==['both frame checkpoints and DM_CTL capture'] and not failures
 passed &= bool(translated)
-result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,lanes=a.lanes,speculative=a.speculative,capture=a.capture,prewarm=a.prewarm,pipelineBudgetMs=a.pipeline_budget_ms,game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
+result=dict(pid=child.pid,pipelineMode=a.pipeline_mode,lanes=a.lanes,speculative=a.speculative,shaderAhead=a.shader_ahead,capture=a.capture,prewarm=a.prewarm,pipelineBudgetMs=a.pipeline_budget_ms,game=game,route=route,cacheMode=mode,finalFrame=a.frame,work=str(work),exit=child.returncode,seconds=round(time.monotonic()-start,2),stopReason=reason,frames=frames[-5:],translations=len(translated),stages=sorted(set(s for k,s in translated)),referenceLibraries=len(compiled),shaderFailures=failures,red=red,shots=shots,passed=passed,**counts)
 timings={}
 for line in (work/'frames.tsv').read_text().splitlines():
     cells=line.split('\t')

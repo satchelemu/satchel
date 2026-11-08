@@ -90,41 +90,54 @@ static uint32_t satchel_phone_fragment_inputs(const prog_t *program) {
     NSString *key = satchel_capture_key(program, 1, NULL);
     return key ? satchel_phone_shader_inputs(key.UTF8String) : 0;
 }
-// Bounded first use. Called on the game's recording threads (BindProgram, hle_nvn.c), never on the
-// draw path: the program's vertex and pixel (or compute) stages, as the draw would prepare them, go to
-// the ahead lanes. Lossy dedup by program serial; the draw stays the authority and joins or repeats
+// Fills one stage's ahead request: want 0 is the vertex stage, 1 the pixel stage or a lone compute
+// stage. Embedded kernels never translate, and geometry and tessellation stages are left to the draw.
+static int satchel_phone_ahead_stage(const prog_t *program, int want, char key[17], const void **control, size_t *control_size,
+                                     const void **code, size_t *code_size) {
+    if (!program || !program->serial || !program->nstage || program->nstage > 6) return 0;
+    int index = -1;
+    for (unsigned i = 0; i < program->nstage && index < 0; i++) {
+        int stage = satchel_capture_stage(&program->sd[i]);
+        // A compute program goes in the pixel slot (no vertex padding).
+        if (stage == want || (want == 1 && stage == 5 && program->nstage == 1)) index = (int)i;
+    }
+    if (index < 0) return 0;
+    uint8_t digest[8]; if (!prog_key(program, (unsigned)index, digest)) return 0;
+    for (int j = 0; j < 8; j++) snprintf(key + 2*j, 3, "%02x", digest[j]);
+    for (unsigned b = 0; b < sizeof k_nvn_builtin_map / sizeof *k_nvn_builtin_map; b++) if (!strcmp(key, k_nvn_builtin_map[b].ctl)) return 0;
+    const NVNshaderData *sd = &program->sd[index]; uint32_t own, count;
+    memcpy(&own, (const uint8_t *)sd->control + 0x20, 4);
+    memcpy(&count, (const uint8_t *)sd->control + 0x704, 4);
+    *control = sd->control; *control_size = own >= 0x760 && own < 0x880 ? own : 0x880;
+    *code = (const void *)(uintptr_t)sd->data; *code_size = count;
+    return 1;
+}
+// One ahead job: the vertex stage of `vertex`, padded with the inputs of the pixel stage of `pixel`, as
+// the draw that binds them prepares them. Urgent jobs (translation ahead, TranslateAhead.inc) run before
+// BindProgram hints, in the order they are sent. With skip_known (submit thread only, it reads the shader
+// map) a pair whose stages are all translated already is not sent. Returns 1 when a job was sent.
+static int satchel_phone_ahead_send(const prog_t *vertex, const prog_t *pixel, int urgent, int skip_known) {
+    char keys[2][17]; const void *controls[2] = {0}, *codes[2] = {0}; size_t control_sizes[2] = {0}, code_sizes[2] = {0};
+    int have[2] = {satchel_phone_ahead_stage(vertex, 0, keys[0], &controls[0], &control_sizes[0], &codes[0], &code_sizes[0]),
+                   satchel_phone_ahead_stage(pixel, 1, keys[1], &controls[1], &control_sizes[1], &codes[1], &code_sizes[1])};
+    if (!have[0] && !have[1]) return 0;
+    if (skip_known && (!have[0] || g_shmap[@(keys[0])]) && (!have[1] || g_shmap[@(keys[1])])) return 0;
+    satchel_phone_shader_ahead(have[0] ? keys[0] : NULL, controls[0], control_sizes[0], codes[0], code_sizes[0],
+                               have[1] ? keys[1] : NULL, controls[1], control_sizes[1], codes[1], code_sizes[1], urgent);
+    return 1;
+}
+// Bounded first use, and translation ahead. Called on the game's recording threads (BindProgram, hle_nvn.c),
+// never on the draw path: the program's vertex and pixel (or compute) stages, as the draw would prepare them,
+// go to the ahead lanes. Lossy dedup by program serial; the draw stays the authority and joins or repeats
 // any missing work exactly. (Hints at ProgramSetShaders were tried: Zelda registers far more programs
 // than it draws soon, and that work delayed the libraries its draws needed.)
 void satchel_phone_ahead(const prog_t *program) {
-    if (!satchel_phone_ahead_on() || !program || !program->serial || !program->nstage || program->nstage > 6) return;
+    if (!satchel_phone_ahead_jobs_on() || !program || !program->serial || !program->nstage || program->nstage > 6) return;
     static _Atomic uint64_t seen[4096];
     uint64_t serial = program->serial; size_t slot = (size_t)((serial * 0x9E3779B97F4A7C15ull) >> 52);
     if (atomic_load_explicit(&seen[slot], memory_order_relaxed) == serial) return;
     atomic_store_explicit(&seen[slot], serial, memory_order_relaxed);
-    int index[2] = {-1, -1};
-    for (unsigned i = 0; i < program->nstage; i++) {
-        int stage = satchel_capture_stage(&program->sd[i]);
-        if ((stage == 0 || stage == 1) && index[stage] < 0) index[stage] = (int)i;
-        // A compute program goes in the pixel slot (no vertex padding); embedded kernels never translate.
-        if (stage == 5 && program->nstage == 1) index[1] = (int)i;
-    }
-    char keys[2][17]; const void *controls[2] = {0}, *codes[2] = {0}; size_t control_sizes[2] = {0}, code_sizes[2] = {0};
-    int any = 0;
-    for (int s = 0; s < 2; s++) {
-        if (index[s] < 0) continue;
-        uint8_t digest[8]; if (!prog_key(program, (unsigned)index[s], digest)) continue;
-        for (int j = 0; j < 8; j++) snprintf(keys[s] + 2*j, 3, "%02x", digest[j]);
-        int embedded = 0;
-        for (unsigned b = 0; b < sizeof k_nvn_builtin_map / sizeof *k_nvn_builtin_map; b++) embedded |= !strcmp(keys[s], k_nvn_builtin_map[b].ctl);
-        if (embedded) continue;
-        const NVNshaderData *sd = &program->sd[index[s]]; uint32_t own, count;
-        memcpy(&own, (const uint8_t *)sd->control + 0x20, 4);
-        memcpy(&count, (const uint8_t *)sd->control + 0x704, 4);
-        controls[s] = sd->control; control_sizes[s] = own >= 0x760 && own < 0x880 ? own : 0x880;
-        codes[s] = (const void *)(uintptr_t)sd->data; code_sizes[s] = count; any = 1;
-    }
-    if (any) satchel_phone_shader_ahead(controls[0] ? keys[0] : NULL, controls[0], control_sizes[0], codes[0], code_sizes[0],
-                                        controls[1] ? keys[1] : NULL, controls[1], control_sizes[1], codes[1], code_sizes[1]);
+    satchel_phone_ahead_send(program, program, 0, 0);
 }
 // Submit thread, prediction walks only: in bounded mode a program whose ahead work has not finished is
 // left out of the walk instead of being translated and loaded there, one by one, on the frame path.

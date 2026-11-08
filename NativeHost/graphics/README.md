@@ -100,6 +100,10 @@ Developer launch arguments override the saved per-title pipeline mode for one la
   submitting thread takes the next free lane first. Invalid values leave both unset. They change when a
   pipeline is built, never which one a draw uses. Measured in `NativeHost/ShaderStalls.md` (Prediction
   coverage); `-SatchelPipelineLanes 4 -SatchelPipelineAhead 128` is the Mac-tested pair.
+- `-SatchelShaderAhead <1..8>` (Mac: `DM_SHADER_AHEAD`; `bench_shaders.py --shader-ahead`): developer
+  trial of translation ahead, below, on that many translation lanes, in any pipeline mode. Invalid
+  values leave it unset. It changes when a shader is translated and its library compiled, never which
+  translation a draw uses.
 - `-SatchelGraphicsProfile YES`: enable timing TSV, slow-frame attribution, pipeline
   waits and the engine GPU profile every 300 frames. The log remains `host.log`;
   `graphics-frames.tsv` is under the trial directory, or runtime root without a tag.
@@ -267,6 +271,35 @@ in exact mode; only when the work happens changes.
 Required waits remain: a draw whose translation, library or pipeline is not ready still waits
 for exactly that work, as in exact mode. This is not a strict per-frame bound. The measured
 distribution is in `NativeHost/ShaderStalls.md`.
+
+## Translation ahead
+
+`-SatchelShaderAhead <lanes>` (`DM_SHADER_AHEAD`) uses bounded mode's ahead jobs in any pipeline
+mode, exact included, without bounded's async selection or its walk rules. On a game's first launch a
+new scene's draws, and the prediction walk that looks ahead for their pipelines, used to translate each
+new program and compile its libraries one at a time on the submit thread. With translation ahead:
+
+- Bounded mode's BindProgram hints (`phone-ahead.patch`) run too, on the same lanes.
+- `TranslateAhead.inc` (applied by `translate_ahead.py`) walks the rest of the submission, following
+  the replay's return stack, at its first draw with an untranslated stage and at its first pipeline
+  miss (before the prediction walk). Each draw's vertex and pixel programs (and each bound compute
+  program) go to the ahead lanes once, in draw order, before the BindProgram hints (a queued hint of
+  the same program is promoted). Pairs whose stages are all translated are not sent. When the two
+  stages come from different programs, each program is also sent alone, as the walk prepares them.
+  The walk costs at most about 1 ms per submission on the Mac.
+- Each job makes the request that draw makes (the pixel stage, then the vertex stage padded with that
+  pixel stage's inputs and the key's persisted mask) and compiles both base libraries; the lanes build
+  the requests themselves from value snapshots, so the submit thread only copies the bytes.
+- The draws and the walk still prepare every program themselves on their own thread, as in bounded
+  mode: the source store and compiler join identical in-flight work and a finished job's library is
+  held for the draw, and so is its translation (at most 128 of each), so the draw does not load the
+  same source-store entry again. The draws make the same requests in the same order as without it; a
+  job whose request no draw makes (a padding the draw never reaches) only leaves an unused source-store
+  entry.
+- The compiler allows the lane count plus one concurrent compilations, at most four.
+
+It adds no stand-in, no fallback and no skipped draw. Measurements are in `NativeHost/ShaderStalls.md`
+(Translation ahead).
 
 ## Launch prewarm of recorded pipelines
 

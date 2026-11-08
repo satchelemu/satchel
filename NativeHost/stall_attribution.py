@@ -14,7 +14,7 @@ import bisect, json, sys
 ORDER = [('library', {'library-use'}), ('translation', {'prepare-draw'}), ('lookahead-translation', {'prepare-lookahead'}),
          ('translation', {'prepare-use'}), ('descriptor', {'pipeline-descriptor'}), ('shader-setup', {'shader-load'}),
          ('pipeline', {'pipeline-use', 'pipeline-wait', 'pipeline-required-wait', 'pipeline-fallback', 'pipeline-ready', 'pipeline-capacity-wait'}),
-         ('prediction', {'prediction'})]
+         ('prediction', {'prediction', 'translate-rest'})]
 RANK = {kind: i for i, (name, kinds) in enumerate(ORDER) for kind in kinds}
 NAMES = list(dict.fromkeys(name for name, kinds in ORDER))
 
