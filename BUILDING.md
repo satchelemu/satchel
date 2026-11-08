@@ -760,6 +760,10 @@ establish UI behavior and synthetic input routing, not physical controller behav
 For a disk-constrained UI run, `SATCHEL_UI_DIAGNOSTICS=never` omits Xcode's verbose
 failure sysdiagnostics. Assertions, failure screenshots and test result bundles remain
 in place. The default diagnostics policy is unchanged when the variable is absent.
+The generated navigation schemes capture screenshots, not screen recordings
+(`preferredScreenCaptureFormat`): on iOS 27.1, Apple's testmanagerd can crash while
+stopping a recording at test teardown, which fails an unrelated test with a lost
+connection. Failure screenshots and every assertion are kept.
 
 The optional warm-up clients build through `NativeApp/build.py
 --warmup-mac-harness --unsigned` and `--warmup-mac-tests --unsigned`, under the same

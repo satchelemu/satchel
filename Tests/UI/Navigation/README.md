@@ -282,7 +282,9 @@ nice -n 10 python3 -B NativePrepare/guard.py \
 The shared guard waits for heavy compilers and shader drivers, enforces a stricter 9 GiB
 per-process RSS limit and stops before free disk reaches 35 GiB. Xcode uses two jobs and
 serial testing, building only the selected simulator architecture. Each run writes a
-timestamped xcresult under `SATCHEL_OUT`. The default
+timestamped xcresult under `SATCHEL_OUT`. The scheme captures screenshots instead of
+screen recordings (iOS 27.1 testmanagerd can crash while stopping a recording at
+teardown); failure screenshots stay in the result bundle. The default
 Simulator is the task-owned `Satchel uitests3`, Duo iOS 27.1,
 `B1F54F54-BA40-4A62-86E7-2E9E6AF666C0`. Override with `SATCHEL_UI_SIMULATOR`. Targeted
 investigations can set `SATCHEL_UI_ONLY_TESTING` to comma-separated method names; omit it

@@ -58,7 +58,10 @@ def add_suite(project, app, target, *, dev=False, preview=False):
     scheme = app + 'Navigation'
     project.setdefault('schemes', {})[scheme] = {
         'build': {'targets': {app: 'all', target: ['test']}},
-        'test': {'config': 'Release', 'targets': [{'name': target, 'parallelizable': False}]},
+        # Screenshots, not screen recording: testmanagerd on iOS 27.1 crashes while
+        # stopping recordings at teardown. Failure screenshots are kept.
+        'test': {'config': 'Release', 'targets': [{'name': target, 'parallelizable': False}],
+                 'preferredScreenCaptureFormat': 'screenshots'},
     }
     return scheme
 

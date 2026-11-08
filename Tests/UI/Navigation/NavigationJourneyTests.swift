@@ -756,7 +756,7 @@ final class NavigationJourneyTests: XCTestCase {
         try workshop("workshop-prepare")
         let column = app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch
         func select(_ picker: String, _ title: String) throws {
-            for _ in 0..<4 where !app.buttons[picker].isHittable { column.swipeDown() }
+            revealControl(app.buttons[picker], in: column)
             try tap(picker)
             try tap(title)
         }
@@ -1262,7 +1262,7 @@ final class NavigationJourneyTests: XCTestCase {
                 } else if page == "Storage" {
                     let setting = self.app.switches["remove-originals-after-prepare"]
                     let scroll = self.app.scrollViews.firstMatch
-                    for _ in 0..<4 where !setting.isHittable { scroll.swipeUp() }
+                    self.revealControl(setting, in: scroll)
                     XCTAssertTrue(setting.exists)
                     XCTAssertTrue(setting.isEnabled)
                     XCTAssertTrue(setting.isHittable)
@@ -1602,7 +1602,7 @@ final class NavigationJourneyTests: XCTestCase {
             }
             let start = self.app.buttons["prepare-start"]
             let gameColumn = self.app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch
-            for _ in 0..<5 where !start.isHittable { gameColumn.swipeUp() }
+            self.revealControl(start, in: gameColumn)
             XCTAssertTrue(start.isHittable)
             XCTAssertTrue(self.app.buttons["prepare-start"].exists)
             XCTAssertFalse(self.app.buttons["prepare-start"].isEnabled, "No base is selected and Prepare must not run")
@@ -1842,12 +1842,12 @@ final class NavigationJourneyTests: XCTestCase {
         func row(_ text: String) {
             let row = app.descendants(matching: .any).matching(identifier: "prepare-dlc").firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 5))
-            for _ in 0..<4 where !row.isHittable { column.swipeUp() }
+            revealControl(row, in: column)
             XCTAssertTrue(row.isHittable)
             XCTAssertTrue(row.label.contains(text), "DLC row must show \(text), actual: \(row.label)")
         }
         func select(_ title: String) throws {
-            for _ in 0..<4 where !app.buttons["prepare-base"].isHittable { column.swipeDown() }
+            revealControl(app.buttons["prepare-base"], in: column)
             try tap("prepare-base")
             try tap(title)
         }
@@ -2575,7 +2575,7 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("play-focused")
         let vibration = app.switches["player-haptics"]
         let column = app.scrollViews.containing(.switch, identifier: "player-haptics").firstMatch
-        for _ in 0..<5 where !vibration.isHittable { column.swipeUp() }
+        revealControl(vibration, in: column)
         XCTAssertTrue(vibration.isEnabled && vibration.isHittable)
         let initial = try XCTUnwrap(vibration.value as? String)
         let changed = initial == "1" ? "0" : "1"
@@ -2921,13 +2921,13 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("open-focused")
         let scroll = app.scrollViews["detail-scroll"]
         let bonus = app.staticTexts["Lantern Sound Gallery"]
-        for _ in 0..<5 where !bonus.isHittable { scroll.swipeUp() }
+        revealControl(bonus, in: scroll)
         XCTAssertTrue(bonus.exists)
         XCTAssertTrue(bonus.isHittable)
         XCTAssertTrue(app.staticTexts["LOADED WITH THIS GAME"].exists)
         XCTAssertTrue(app.staticTexts["Bonus app on the same cartridge  ·  not playable in Satchel yet"].exists)
         let importedDLC = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "DLC ")).firstMatch
-        for _ in 0..<5 where !importedDLC.isHittable { scroll.swipeUp() }
+        revealControl(importedDLC, in: scroll)
         XCTAssertTrue(importedDLC.isHittable)
         XCTAssertTrue(app.staticTexts["ADD-ON CONTENT"].exists)
         try tap("close-game-detail")
@@ -3295,7 +3295,7 @@ final class NavigationJourneyTests: XCTestCase {
         XCTAssertFalse(app.textFields["prepare-title-id"].exists, "The raw title ID field is for developers only")
         let column = app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch
         func select(_ picker: String, _ title: String) throws {
-            for _ in 0..<4 where !app.buttons[picker].isHittable { column.swipeDown() }
+            revealControl(app.buttons[picker], in: column)
             try tap(picker)
             try tap(title)
         }
