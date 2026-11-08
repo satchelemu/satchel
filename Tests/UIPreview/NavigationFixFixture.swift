@@ -63,9 +63,53 @@ enum NavigationFixFixture {
             try fm.createDirectory(at: second, withIntermediateDirectories: true)
             let manifest = try Data(contentsOf: documents.appendingPathComponent("PreparedGames/" + packages[0] + "/manifest.json"))
             try manifest.write(to: second.appendingPathComponent("manifest.json"))
+            // Everything a whole-game delete clears or keeps: runtime caches and logs beside the
+            // save and its sync state, per-title settings, play history, title art and reports.
+            let title = base.applicationID.titleIDString
+            let runtime = documents.appendingPathComponent("NativeRuntime/" + title)
+            if fm.fileExists(atPath: runtime.path) { try fm.removeItem(at: runtime) }
             try fm.createDirectory(at: save.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data("Synthetic save retained".utf8).write(to: save)
+            try Data("synthetic sync state".utf8).write(to: runtime.appendingPathComponent("save.sync"))
+            for (path, text) in [("shader-capture/cache.bin", "synthetic cache"), ("session.json", "{}"), ("logs/host.log", "synthetic log")] {
+                let url = runtime.appendingPathComponent(path)
+                try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data(text.utf8).write(to: url)
+            }
+            defaults.set(["DM_SCREEN_MODE": "fit"], forKey: "SatchelPlayerSettings." + title)
+            let played = [title: PlayHistory.Entry(lastPlayed: Date().addingTimeInterval(-86400 * 3), seconds: 5400)]
+            defaults.set(try JSONEncoder().encode(played), forKey: PlayHistory.key)
+            try JSONEncoder().encode(base).write(to: art.appendingPathComponent("title-" + title + ".json"))
+            for package in packages {
+                let report = NativeGameReport.url(package: package)
+                try fm.createDirectory(at: report.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data("{}".utf8).write(to: report)
+            }
+            // A Prepare that was stopped before it finished left its staging folder.
+            if defaults.bool(forKey: "SatchelPreviewLeftovers") {
+                let stage = documents.appendingPathComponent("PreparedGames/.prepare-" + UUID().uuidString + "/rewrite")
+                try fm.createDirectory(at: stage, withIntermediateDirectories: true)
+                try Data(count: 3 * 1024 * 1024).write(to: stage.appendingPathComponent("main.partial"))
+            }
         } catch { preconditionFailure("Synthetic removal setup failed: \(error)") }
+    }
+
+    /// What a whole-game delete left: art files, per-title settings, play history, runtime
+    /// caches (non-save entries), sync state, the save, Satchel's save backups and reports.
+    static func deleteState() -> String {
+        let fm = FileManager.default
+        let defaults = UserDefaults.standard
+        guard let title = defaults.string(forKey: "SatchelPreviewFixTitle") else { return "fixture error: no title" }
+        let art = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("GameArt")
+        let artCount = [baseID + ".json", "title-" + title + ".json"].filter { fm.fileExists(atPath: art.appendingPathComponent($0).path) }.count
+        let runtime = documents.appendingPathComponent("NativeRuntime/" + title)
+        let entries = (try? fm.contentsOfDirectory(atPath: runtime.path)) ?? []
+        let caches = entries.filter { !SaveStore.holdsSaves($0) && !$0.hasPrefix(".") }.count
+        let backups = ((try? fm.contentsOfDirectory(atPath: runtime.appendingPathComponent("SaveBackups").path)) ?? [])
+            .filter { $0.hasPrefix("satchel-") && $0.hasSuffix(".zip") }.count
+        let reports = packages.filter { fm.fileExists(atPath: NativeGameReport.url(package: $0).path) }.count
+        let saveKept = (try? String(contentsOf: save, encoding: .utf8)) == "Synthetic save retained"
+        return "art=\(artCount) settings=\(defaults.object(forKey: "SatchelPlayerSettings." + title) == nil ? 0 : 1) history=\(PlayHistory.entry(title: title) == nil ? 0 : 1) caches=\(caches) sync=\(entries.contains("save.sync") ? 1 : 0) save=\(saveKept ? "kept" : "gone") backups=\(backups) reports=\(reports)"
     }
 
     private static func requiredItem(_ items: [HomebrewItem], id: String) throws -> HomebrewItem {

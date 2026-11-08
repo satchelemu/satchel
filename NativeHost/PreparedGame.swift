@@ -310,6 +310,10 @@ struct PreparedGameView: View {
             if ended == packageURL.lastPathComponent { UIApplication.shared.isIdleTimerDisabled = false; dismiss() }
         }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        // Play history: on screen and running counts as playing; the library, Quit and the
+        // background stop the clock.
+        .onChange(of: ready, initial: true) { _, ready in if ready && scenePhase == .active { PlayHistory.begin(title: titleID) } }
+        .onDisappear { PlayHistory.end() }
         .task(id: launchRequested) {
             guard launchRequested, !ready, failure == nil else { return }
             // The first check reads the whole package and can take minutes; keep it running
@@ -362,9 +366,9 @@ struct PreparedGameView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: SatchelNativeFocusEvent(2); SatchelNativeFocusEvent(3)
+            case .active: SatchelNativeFocusEvent(2); SatchelNativeFocusEvent(3); if ready { PlayHistory.begin(title: titleID) }
             case .inactive: SatchelNativeFocusEvent(0)
-            case .background: SatchelNativeFocusEvent(1)
+            case .background: SatchelNativeFocusEvent(1); PlayHistory.end()
             @unknown default: break
             }
         }

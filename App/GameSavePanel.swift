@@ -30,7 +30,10 @@ struct GameSavePanel: View {
     @State private var picker: SavePickerRequest?
     @State private var restoreBackup: SaveStore.Backup?
     @State private var exportDirectory: URL?
+    /// A save chosen in Files, held until its picker has closed.
+    @State private var chosenImport: URL?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.satchelConfirm) private var confirm
 
     private var running: Bool { SatchelNativeSaveTitle()?.caseInsensitiveCompare(titleID) == .orderedSame }
 
@@ -40,7 +43,10 @@ struct GameSavePanel: View {
         }.disabled(busy || running || summary.lastSaved == nil).accessibilityIdentifier("export-save")
         Button { picker = SavePickerRequest(export: nil) } label: {
             Label("Import save", systemImage: "square.and.arrow.down").lineLimit(1)
-        }.disabled(busy || running).accessibilityIdentifier("import-save")
+        }
+        // Before .disabled, so a disabled Import is no controller target.
+        .controllerAction("import-save", style: .button(.capsule, inset: -6)) { picker = SavePickerRequest(export: nil) }
+        .disabled(busy || running).accessibilityIdentifier("import-save")
         if !summary.backups.isEmpty {
             Button("Backups (\(summary.backups.count))") { showBackups.toggle() }
                 .lineLimit(1)
@@ -95,10 +101,10 @@ struct GameSavePanel: View {
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await refresh() } } }
         .onReceive(NotificationCenter.default.publisher(for: SaveLifecycle.changed)) { _ in Task { await refresh() } }
         .onReceive(NotificationCenter.default.publisher(for: .SatchelNativeSessionDidEnd)) { _ in Task { await refresh() } }
-        .sheet(item: $picker, onDismiss: cleanupExport) { request in
+        .sheet(item: $picker, onDismiss: pickerClosed) { request in
             SaveFileSheet(export: request.export) { url in
                 if request.export != nil { message = url == nil ? "Export cancelled." : "Save shared." }
-                else if let url { restore(url) }
+                else if let url { chosenImport = url }
                 picker = nil
             }
         }
@@ -112,6 +118,19 @@ struct GameSavePanel: View {
                 Text("Restore the backup from \(backup.date.formatted(date: .abbreviated, time: .standard)) (\(satchelBytes(backup.bytes)))? Your current save will be backed up before replacement. Only the latest 3 backups are kept.")
             }
         }
+    }
+    /// A save chosen in Files replaces the current one only once the player says so. With no
+    /// current save there is nothing to lose, so it goes in straight away.
+    private func pickerClosed() {
+        cleanupExport()
+        guard let url = chosenImport else { return }
+        chosenImport = nil
+        guard summary?.lastSaved != nil, let confirm else { restore(url); return }
+        confirm(SatchelConfirmRequest(title: "Replace your current save?",
+            message: "\(AppBrand.name) backs up your current save first, so you can restore it from Backups later. Then the save you chose replaces it.",
+            actions: [SatchelConfirmAction(id: "confirm-import-save", title: "Replace save", systemImage: "square.and.arrow.down") { restore(url) },
+                      SatchelConfirmAction(id: "cancel-import-save", title: "Keep current save", role: .cancel) { message = "Import cancelled. Your current save is unchanged." }],
+            identifier: "import-save-confirm"))
     }
     private func refresh() async {
         backupError = SaveLifecycle.error(title: titleID)

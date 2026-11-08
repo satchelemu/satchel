@@ -475,9 +475,19 @@ private struct ControllerHints: View {
     }
 }
 
+/// Modal scopes on screen (a confirmation over a screen). While one is up, every other
+/// scope ignores the controller and hides its focus, so only the question takes input.
+@MainActor final class ControllerModalScopes: ObservableObject {
+    static let shared = ControllerModalScopes()
+    @Published private(set) var count = 0
+    func change(_ delta: Int) { count = max(0, count + delta) }
+}
+
 private struct ControllerNavigation: ViewModifier {
     var enabled: Bool
     var back: (() -> Void)?
+    var modal = false
+    @ObservedObject private var modals = ControllerModalScopes.shared
     @StateObject private var focus = ControllerFocus()
     @Namespace private var namespace
     @State private var targets: [ControllerTarget] = []
@@ -487,12 +497,15 @@ private struct ControllerNavigation: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var motion: Animation { reduceMotion ? .easeInOut(duration: 0.16) : SatchelTheme.snap }
 
+    /// Takes input: enabled, and not covered by a modal scope (unless it is the modal one).
+    private var active: Bool { enabled && (modal || modals.count == 0) }
+
     func body(content: Content) -> some View {
         ScrollViewReader { proxy in
         content.environment(\.controllerFocus, ControllerFocusContext(focus: focus, namespace: namespace))
 #if PREVIEW_GAME
             .overlay(alignment: .topLeading) {
-                if enabled && UserDefaults.standard.bool(forKey: "SatchelPreviewControllerTests") {
+                if active && UserDefaults.standard.bool(forKey: "SatchelPreviewControllerTests") {
                     Text(focus.selected ?? "none").font(.system(size: 1)).allowsHitTesting(false)
                         .accessibilityIdentifier("controller-focus")
                     Text(focus.shown ? "shown" : "hidden").font(.system(size: 1)).allowsHitTesting(false)
@@ -501,7 +514,7 @@ private struct ControllerNavigation: ViewModifier {
             }
 #endif
             .overlay(alignment: .bottomTrailing) {
-                if enabled && focus.shown && hinting {
+                if active && focus.shown && hinting {
                     ControllerHints(back: back != nil)
                         .padding(.trailing, 14).padding(.bottom, 6)
                         .transition(.opacity)
@@ -510,12 +523,16 @@ private struct ControllerNavigation: ViewModifier {
             .onPreferenceChange(ControllerTargets.self) { targets = $0 }
             .onAppear {
                 onScreen = true
+                if modal { modals.change(1) }
                 ControllerInputMonitor.shared.start()
                 ControllerInputMonitor.shared.watchTouches()
             }
-            .onDisappear { onScreen = false; focus.selected = nil; focus.shown = false }
+            .onDisappear {
+                if modal && onScreen { modals.change(-1) }
+                onScreen = false; focus.selected = nil; focus.shown = false
+            }
             // Covered by a sheet or dialog, focus hides and comes back where it was.
-            .onChange(of: enabled) { _, _ in hide() }
+            .onChange(of: active) { _, _ in hide() }
             .onReceive(ControllerInputMonitor.shared.touches) { _ in hide() }
             .onReceive(ControllerInputMonitor.shared.events) { event in handle(event, proxy) }
             // Targets belong only to this scope, never to a presenting library underneath it.
@@ -529,7 +546,7 @@ private struct ControllerNavigation: ViewModifier {
     }
 
     private func handle(_ event: String, _ proxy: ScrollViewProxy) {
-        guard enabled && onScreen else { return }
+        guard active && onScreen else { return }
         if event == "back" { back?(); return }
         let ordered = targets.sorted {
             if abs($0.frame.midY - $1.frame.midY) > 30 { return $0.frame.midY < $1.frame.midY }
@@ -570,7 +587,7 @@ private struct ControllerNavigation: ViewModifier {
             return last
         }
         return ordered.first(where: { $0.selected == true })
-            ?? ordered.first(where: { ["menu-resume", "detail-play", "player-play", "quit-cancel"].contains($0.id) || $0.id.hasPrefix("game-") })
+            ?? ordered.first(where: { ["menu-resume", "detail-play", "player-play", "quit-cancel", "confirm-cancel"].contains($0.id) || $0.id.hasPrefix("game-") })
             ?? ordered[0]
     }
 
@@ -625,7 +642,9 @@ extension View {
                           onFocus: (() -> Void)? = nil, action: @escaping () -> Void) -> some View {
         modifier(ControllerAction(id: id, style: style, onFocus: onFocus, action: action))
     }
-    func controllerNavigation(enabled: Bool = true, back: (() -> Void)? = nil) -> some View {
-        modifier(ControllerNavigation(enabled: enabled, back: back))
+    /// A controller scope. `modal` marks a question over the screen: while it is up, the
+    /// screen's own scope takes no input.
+    func controllerNavigation(enabled: Bool = true, modal: Bool = false, back: (() -> Void)? = nil) -> some View {
+        modifier(ControllerNavigation(enabled: enabled, back: back, modal: modal))
     }
 }

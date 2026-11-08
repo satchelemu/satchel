@@ -15,6 +15,9 @@ struct GameDetailView: View {
     @State private var playing = false
     @State private var showDiagnostics = false
     @State private var removeTarget: HomebrewItem?
+    @State private var deleting = false
+    @State private var deleteFailure: String?
+    @State private var playHistory: PlayHistory.Entry?
     @Environment(\.dismiss) private var dismiss
     private var currentItem: HomebrewItem { library.items.first { $0.id == item.id } ?? item }
     private var originalRemoved: Bool { library.originalRemoved(currentItem) }
@@ -22,6 +25,9 @@ struct GameDetailView: View {
     private var info: GameInfo? { artwork.info(currentItem) }
     private var state: ShelfState { artwork.state(currentItem) }
     private var title: String { artwork.title(item) }
+    /// A Switch game (imported or prepared only), deleted whole; homebrew is only removed.
+    private var isGame: Bool { item.package != nil || GameArtworkStore.preparedFolder(item.id) != nil }
+    private var gameTitleID: UInt64? { GameRemoval.titleID(currentItem, artwork: artwork) }
 
     var body: some View {
         PanelChrome(identifier: "close-game-detail", close: { library.stop(); dismiss() }) {
@@ -58,56 +64,35 @@ struct GameDetailView: View {
             .confirmationDialog("Remove from this iPhone?", isPresented: Binding(get: { removeTarget != nil }, set: { if !$0 { removeTarget = nil } }),
                                 titleVisibility: .visible, presenting: removeTarget) { target in
                 Button("Remove \(artwork.title(target))", role: .destructive) {
-                    if target.id == item.id { removeGame(); dismiss() }
-                    else { artwork.forget(target); library.remove(target) }
+                    artwork.forget(target); library.remove(target)
+                    if target.id == item.id { dismiss() }
                 }
                 Button("Keep", role: .cancel) {}
-            } message: { target in
-                if target.id == item.id {
-                    Text("This removes the game, its updates and DLC, and its prepared copy from this iPhone. Saves are kept. The originals in Files or iCloud Drive are not touched, so you can import them again later.")
-                } else {
-                    Text("This deletes \(AppBrand.name)'s local copy. The original file in Files or iCloud Drive is not touched, so you can import it again later.")
-                }
+            } message: { _ in
+                Text("This deletes \(AppBrand.name)'s local copy. The original file in Files or iCloud Drive is not touched, so you can import it again later.")
             }
         }
         .controllerNavigation(enabled: !playing && removeTarget == nil, back: { library.stop(); dismiss() })
+        .task(id: gameTitleID) { playHistory = gameTitleID.flatMap(PlayHistory.entry) }
+        .onReceive(NotificationCenter.default.publisher(for: PlayHistory.changed)) { _ in playHistory = gameTitleID.flatMap(PlayHistory.entry) }
     }
 
-    /// Removes all of the game from this iPhone: its imported files, its updates and DLC, and
-    /// every package prepared from it, so no tile is left behind. Saves stay in NativeRuntime.
-    private func removeGame() {
-#if !SATCHEL_UI_PREVIEW_MINIMAL
-        guard !AddOnJob.shared.running else { library.error = "Wait for Add DLC to finish before removing this game."; return }
-#endif
-        let game = currentItem
-        let id = info?.applicationID ?? game.preparedSource?.titleID
-        var targets = [game] + updates
-        if let id {
-            targets += library.items.filter { other in
-                artwork.info(other)?.kind == .addOnContent && (artwork.info(other)?.addOns ?? []).contains { $0.applicationID == id }
+    /// Deletes the whole game, keeping or deleting its saves, and closes the page once it is gone.
+    private func deleteGame(keepSaves: Bool) {
+        let game = currentItem, extra = updates
+        deleting = true; deleteFailure = nil
+        Task {
+            let failure = await GameRemoval.delete(game, updates: extra, keepSaves: keepSaves, library: library, artwork: artwork)
+            deleting = false
+            // A partial failure still removed the game: its page closes and the home screen says why.
+            if library.items.contains(where: { $0.id == game.id }) || (GameArtworkStore.preparedFolder(game.id) != nil && artwork.isPrepared(game)) {
+                deleteFailure = failure ?? "The game could not be deleted."
+                Haptics.warning()
+            } else {
+                if let failure { library.error = failure }
+                dismiss()
             }
         }
-#if !SATCHEL_UI_PREVIEW_MINIMAL
-        let packages = id.map { id in artwork.prepared.filter { $0.applicationID == id }.map(\.folder) } ?? []
-#else
-        let packages: [String] = []
-#endif
-        let library = library, artwork = artwork
-        @MainActor func forgetFiles() { for target in targets { artwork.forget(target); library.remove(target) } }
-        guard !packages.isEmpty else { forgetFiles(); return }
-#if !SATCHEL_UI_PREVIEW_MINIMAL
-        // Packages go first: if one cannot be deleted (a game is still open), the game stays whole.
-        Task {
-            let failure = await Task.detached(priority: .userInitiated) { () -> String? in
-                for name in packages {
-                    do { try PreparedGameCleanup.delete(named: name) } catch { return error.localizedDescription }
-                }
-                return nil
-            }.value
-            artwork.refreshPrepared()
-            if let failure { library.error = failure } else { forgetFiles() }
-        }
-#endif
     }
 
     private func artColumn(side: CGFloat) -> some View {
@@ -248,6 +233,12 @@ struct GameDetailView: View {
                 .accessibilityIdentifier("detail-game-title")
             Text(artwork.subtitle(item, updates: updates)).font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(SatchelTheme.textDim)
+            if let played = PlayHistory.lastPlayedText(playHistory) {
+                Label([played, PlayHistory.playedText(playHistory)].compactMap { $0 }.joined(separator: "  ·  "), systemImage: "clock.fill")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.tide)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("detail-played")
+            }
         }
     }
 
@@ -513,30 +504,44 @@ struct GameDetailView: View {
 
     /// Why Remove cannot be used right now, shown under it before any tap.
     private var removeBlocked: String? {
+        if deleting { return "Deleting…" }
+        if isGame { return GameRemoval.blocker(library: library, item: currentItem, artwork: artwork) }
         if library.importing { return "Remove is available once the import finishes." }
         if library.runningID != nil { return "Remove is available once the game stops." }
-#if !SATCHEL_UI_PREVIEW_MINIMAL
-        // The engine runs one game per app launch, so its prepared copy stays in use until then.
-        if PrepareJob.gameSessionOpen, artwork.newestPackage(for: currentItem) != nil {
-            return "A game was played since \(AppBrand.name) opened. Close and reopen the app, then remove this game."
-        }
-#endif
         return nil
     }
 
+    /// Delete for a game asks whether to keep its saves; homebrew is only removed.
     @ViewBuilder private var removeButton: some View {
-        Button { removeTarget = item } label: {
-            Label("Remove from this iPhone", systemImage: "trash")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(SatchelTheme.ember)
-                .frame(minHeight: 44)
+        SatchelConfirmReader { confirm in
+            let ask = {
+                guard removeBlocked == nil else { return }
+                if isGame {
+                    let summary = GameRemoval.summary(for: currentItem, updates: updates, library: library, artwork: artwork)
+                    confirm(GameRemoval.confirmation(title: title, summary: summary) { keepSaves in deleteGame(keepSaves: keepSaves) })
+                } else { removeTarget = item }
+            }
+            Button { ask() } label: {
+                Label(isGame ? "Delete game from this iPhone" : "Remove from this iPhone", systemImage: "trash")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SatchelTheme.ember)
+                    .frame(minHeight: 44)
+                    .padding(.horizontal, 6)
+            }
+            .buttonStyle(PressableStyle(scale: 0.97))
+            .controllerAction("detail-delete", style: .button(.capsule, inset: -2)) { ask() }
+            .disabled(removeBlocked != nil)
+            .accessibilityIdentifier("detail-remove-import")
+            .padding(.top, 4)
         }
-        .buttonStyle(PressableStyle(scale: 0.97))
-        .disabled(removeBlocked != nil)
-        .accessibilityIdentifier("detail-remove-import")
-        .padding(.top, 4)
         if let removeBlocked {
             SatchelDisabledReason(text: removeBlocked).accessibilityIdentifier("detail-remove-reason")
+        }
+        if let deleteFailure {
+            Label(deleteFailure, systemImage: "exclamationmark.triangle.fill")
+                .font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundStyle(SatchelTheme.ember)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("detail-delete-error")
         }
     }
 

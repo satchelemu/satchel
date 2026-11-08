@@ -10,6 +10,7 @@ struct SigningIdentityView: View {
     @State private var expiry: Date?
     @State private var message = ""
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.satchelConfirm) private var confirm
 
     var body: some View {
         SatchelPanel(title: "Signing identity", tint: SatchelTheme.spark) {
@@ -99,16 +100,14 @@ struct SigningIdentityView: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityIdentifier("identity-import")
+        .controllerAction("identity-import", style: .button(.capsule)) { importing = true }
         if name != nil {
-            Button {
-                do { try SatchelSigningIdentity.removeStoredIdentity(); message = "Current signing identity removed. Retained migration copies are unchanged." }
-                catch { message = error.localizedDescription }
-                refresh()
-            } label: {
+            Button { askRemove() } label: {
                 SatchelButtonLabel(title: "Remove signing identity", systemImage: "trash", kind: .danger, height: 40)
             }
             .buttonStyle(PressableStyle())
             .accessibilityIdentifier("identity-remove")
+            .controllerAction("identity-remove", style: .button(.capsule)) { askRemove() }
         }
     }
 
@@ -122,6 +121,20 @@ struct SigningIdentityView: View {
     }
 
     private func clearImport() { passphrase = ""; selected = nil }
+    /// Removing the certificate stops Prepare until another is imported, so it asks first.
+    private func askRemove() {
+        guard let confirm else { return }
+        confirm(SatchelConfirmRequest(title: "Remove your signing identity?",
+            message: "\(AppBrand.name) cannot prepare games until you import a signing identity again. Games you already prepared are not changed. Your .p12 file in Files is not touched.",
+            actions: [SatchelConfirmAction(id: "confirm-identity-remove", title: "Remove signing identity", role: .destructive, systemImage: "trash") { remove() },
+                      SatchelConfirmAction(id: "cancel-identity-remove", title: "Keep it", role: .cancel) {}],
+            identifier: "identity-remove-confirm"))
+    }
+    private func remove() {
+        do { try SatchelSigningIdentity.removeStoredIdentity(); message = "Current signing identity removed. Retained migration copies are unchanged." }
+        catch { message = error.localizedDescription }
+        refresh()
+    }
     private func refresh() {
         name = nil; team = ""; expiry = nil
         do {

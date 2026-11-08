@@ -279,6 +279,24 @@ final class HomebrewLibrary: ObservableObject {
         } catch { self.error = "Could not update the library: \(error.localizedDescription)" }
     }
 
+    /// Removes several entries with one index write (a game with its updates and DLC).
+    /// Returns false, changing nothing, while the library is busy or the index cannot be written.
+    @discardableResult func remove(_ targets: [HomebrewItem]) -> Bool {
+        guard runningID == nil, !importing, !reclaimingOriginals else { return false }
+        guard !targets.isEmpty else { return true }
+        let ids = Set(targets.map(\.id))
+        let updated = items.filter { !ids.contains($0.id) }
+        do {
+            try JSONEncoder().encode(updated).write(to: indexURL, options: .atomic)
+            items = updated
+            for item in targets { try? FileManager.default.removeItem(at: localFile(item)) }
+            return true
+        } catch {
+            self.error = "Could not update the library: \(error.localizedDescription)"
+            return false
+        }
+    }
+
     func originalRemoved(_ item: HomebrewItem) -> Bool {
         item.preparedSource != nil && !FileManager.default.fileExists(atPath: localFile(item).path)
     }

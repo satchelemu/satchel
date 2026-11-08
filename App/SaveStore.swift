@@ -240,6 +240,35 @@ final class SaveStore: @unchecked Sendable {
         }
     }
 
+    /// Entries of a game's runtime folder that hold its saves: the save itself and every file
+    /// the engine's save sync keeps beside it (`save_device`, `save.sync`, `save-backups` and
+    /// the rest start with "save"), and Satchel's own backup list.
+    static func holdsSaves(_ name: String) -> Bool { name == "SaveBackups" || name.hasPrefix("save") }
+
+    /// Clears a deleted game's runtime folder: shader caches, logs, launch records and other
+    /// temporary files go. With `keepSaves` every save entry stays. Without it the current
+    /// save is first added to the backup list (a failed backup throws and deletes nothing),
+    /// then everything except that list goes, so the save can still be restored if the game
+    /// is added again. A folder that does not exist is fine. Returns the backup made, if any.
+    @discardableResult func purge(title: String, keepSaves: Bool) throws -> URL? {
+        // Never played here: nothing to clear, and no empty folder is left behind.
+        if title.count == 16, !fm.fileExists(atPath: root.appendingPathComponent(title.uppercased(), isDirectory: true).path) { return nil }
+        return try access(title, allowRunning: false) { folder, scratch in
+            var backup: URL?
+            if !keepSaves, let save = try snapshot(folder, scratch) {
+                backup = try self.backup(scan(save, title: title), save: save, folder: folder, scratch: scratch)
+            }
+            for url in try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil) {
+                let name = url.lastPathComponent
+                // The scratch tree is removed by `access` itself.
+                if name.hasPrefix(".satchel-save-") { continue }
+                if name == "SaveBackups" || (keepSaves && Self.holdsSaves(name)) { continue }
+                try fm.removeItem(at: url)
+            }
+            return backup
+        }
+    }
+
     private func extract(_ archive: URL, title: String, to destination: URL) throws -> Manifest {
         let reader = try SaveArchive.Reader(url: archive)
         guard let first = reader.members.first, first.name == "satchel-save.json" else { throw SaveFailure(message: "The ZIP has no Satchel save manifest.") }

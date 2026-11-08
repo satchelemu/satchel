@@ -33,6 +33,8 @@ final class NavigationJourneyTests: XCTestCase {
             "testGamePagePrepareSelectsBase", "testPrepareKeyAndStorageRecoveryMessages",
             "testStalePackageNeedsPrepareAgain", "testReadyGamePrepareAgain", "testSettingsPreparedGamesDeletesOnlyChosenPackage",
             "testRemovePreparedGameRemovesAllContentAndTile", "testRemoveOnlyUpdateKeepsPreparedGameAndDLC",
+            "testRemovePreparedGameAndSavesKeepsBackup", "testSettingsStorageTotalsAndLeftovers", "testRecentlyPlayedSortAndHistory",
+            "testPrepareTitleIDUpdatesAndCancelQuestion", "testSigningIdentityRemoveAsks",
             "testPrepareDLCRowTracksBaseSelection", "testPrepareUpdatePreselectedAndCaution", "testControllerRumblePersistsPerGame",
             "testDeveloperQuitGateAndMenuStillWorks", "testDeveloperQuitReturnsHome", "testDeveloperCycleTwoRounds", "testDeveloperCycleMissingPackage",
             "testQuitReturnsHomeAndCanLaunchAgain", "testQuitThenStartDifferentPreparedGame",
@@ -689,10 +691,14 @@ final class NavigationJourneyTests: XCTestCase {
 
     func testAddDLCRunningRefusesRemoval() throws {
         try startDLC()
-        try dlcButton("detail-remove-import").tap()
-        try tap("Remove Lantern Drift")
-        XCTAssertTrue(app.staticTexts["Wait for Add DLC to finish before removing this game."].waitForExistence(timeout: 8))
-        try tap("OK")
+        // Delete says why it is unavailable before any tap, and cannot be pressed.
+        let delete = app.buttons["detail-remove-import"]
+        revealControl(delete, in: app.scrollViews["detail-scroll"])
+        XCTAssertFalse(delete.isEnabled, "Delete must wait for Add DLC")
+        let reason = app.descendants(matching: .any)["detail-remove-reason"]
+        XCTAssertTrue(reason.waitForExistence(timeout: 8))
+        XCTAssertTrue(reason.label.contains("Wait for Add DLC to finish before deleting this game."), reason.label)
+        try tap("close-game-detail")
         fixtureText("fixture-removal-state", equals: "base=1 update=1 dlc=2 files=4 packages=2 other=5 save=kept")
         try openRemovalDetail()
         fixtureText("add-dlc-status", equals: "Reading and verifying DLC…")
@@ -1013,7 +1019,9 @@ final class NavigationJourneyTests: XCTestCase {
         // Central safety boundary, including context-menu confirmation and native launch.
         let forbidden = ["player-play", "prepare-start", "prepare-retry", "prepare-play", "warmup-start", "warmup-play",
                          "confirm-remove-prepared", "play-homebrew", "run-homebrew", "identity-import", "identity-remove", "identity-save",
-                         "Refresh artwork", "workshop-load-sample", "workshop-save-sample", "workshop-demo", "Restore backup"]
+                         "Refresh artwork", "workshop-load-sample", "workshop-save-sample", "workshop-demo", "Restore backup",
+                         "confirm-delete-with-saves", "confirm-import-save", "confirm-clean-leftovers", "confirm-identity-remove",
+                         "confirm-prepare-cancel"]
         XCTAssertFalse(forbidden.contains(id), "Read-only suite cannot invoke: \(id)")
         guard !forbidden.contains(id) else { return }
         try button(id, scroll: scroll).tap()
@@ -1744,28 +1752,38 @@ final class NavigationJourneyTests: XCTestCase {
         search.tap(); search.typeText("Lantern\n")
     }
 
+    private static let deleteSeeded = "art=2 settings=1 history=1 caches=3 sync=1 save=kept backups=0 reports=2"
+
+    /// Delete opens a question over the game page with both choices; Cancel and background
+    /// leave everything in place.
+    private func openDeleteQuestion() throws {
+        try openRemovalDetail()
+        try tap("detail-remove-import", scroll: app.scrollViews["detail-scroll"])
+        XCTAssertTrue(app.descendants(matching: .any)["delete-game-confirm"].waitForExistence(timeout: 8))
+        _ = try button("confirm-remove-prepared")
+        _ = try button("confirm-delete-with-saves")
+        _ = try button("cancel-remove-prepared")
+    }
+
+    /// Delete, keep saves: the game, update, DLC, both packages and their reports, its runtime
+    /// caches, settings, play history and art go; the save and its sync state stay.
     func testRemovePreparedGameRemovesAllContentAndTile() throws {
         try launchFixFixture()
-        try openRemovalDetail()
-        try tap("detail-remove-import", scroll: app.scrollViews["detail-scroll"])
-        _ = try button("Remove Lantern Drift")
-        if app.buttons["Keep"].exists {
-            try tap("Keep")
-        } else {
-            // The Duo popover omits the cancel button and uses outside dismissal.
-            let dismissRegion = app.otherElements["PopoverDismissRegion"]
-            XCTAssertTrue(dismissRegion.waitForExistence(timeout: 5))
-            XCTAssertTrue(dismissRegion.isHittable)
-            dismissRegion.tap()
-        }
-        absent(app.buttons["Remove Lantern Drift"])
+        fixtureText("fixture-delete-state", equals: Self.deleteSeeded)
+        try openDeleteQuestion()
+        sweepShot("Delete game question")
+        backgroundAndReturn(app.buttons["cancel-remove-prepared"].firstMatch)
+        try tap("cancel-remove-prepared")
+        absent(app.buttons["confirm-remove-prepared"])
         try tap("close-game-detail")
         fixtureText("fixture-removal-state", equals: "base=1 update=1 dlc=2 files=4 packages=2 other=5 save=kept")
-        try openRemovalDetail()
-        try tap("detail-remove-import", scroll: app.scrollViews["detail-scroll"])
-        try tap("Remove Lantern Drift")
+        fixtureText("fixture-delete-state", equals: Self.deleteSeeded)
+        try openDeleteQuestion()
+        // Simulator-only synthetic library: the destructive answer is invoked directly.
+        try button("confirm-remove-prepared").tap()
         _ = try button("import-homebrew")
         fixtureText("fixture-removal-state", equals: "base=0 update=0 dlc=0 files=0 packages=0 other=5 save=kept")
+        fixtureText("fixture-delete-state", equals: "art=0 settings=0 history=0 caches=0 sync=1 save=kept backups=0 reports=0")
         try findLanternShelf()
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "homebrew-")).count, 0,
                        "No imported, update, DLC or prepared-only tile may remain")
@@ -1775,8 +1793,20 @@ final class NavigationJourneyTests: XCTestCase {
         app.launchArguments.removeSubrange(demo...(demo + 1))
         app.launch()
         fixtureText("fixture-removal-state", equals: "base=0 update=0 dlc=0 files=0 packages=0 other=5 save=kept")
+        fixtureText("fixture-delete-state", equals: "art=0 settings=0 history=0 caches=0 sync=1 save=kept backups=0 reports=0")
         try findLanternShelf()
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "homebrew-")).count, 0)
+    }
+
+    /// Delete game and saves: the current save goes into the game's save-backup list first,
+    /// then the save, its sync state and everything else except that list go.
+    func testRemovePreparedGameAndSavesKeepsBackup() throws {
+        try launchFixFixture()
+        try openDeleteQuestion()
+        try button("confirm-delete-with-saves").tap()
+        _ = try button("import-homebrew")
+        fixtureText("fixture-removal-state", equals: "base=0 update=0 dlc=0 files=0 packages=0 other=5 save=missing")
+        fixtureText("fixture-delete-state", equals: "art=0 settings=0 history=0 caches=0 sync=0 save=gone backups=1 reports=0")
     }
 
     func testRemoveOnlyUpdateKeepsPreparedGameAndDLC() throws {
@@ -2337,8 +2367,18 @@ final class NavigationJourneyTests: XCTestCase {
         try tap("fixture-save-export")
         saveMessage("Save shared.")
         saveState("payload=checkpoint-current backups=1 export=verified")
+        // Import asks before replacing the current save. Keeping it changes nothing.
         try tap("import-save", scroll: app.scrollViews["detail-scroll"])
         try tap("fixture-save-import")
+        XCTAssertTrue(app.descendants(matching: .any)["import-save-confirm"].waitForExistence(timeout: 8))
+        sweepShot("Save import question")
+        backgroundAndReturn(app.buttons["cancel-import-save"].firstMatch)
+        try tap("cancel-import-save")
+        saveMessage("Import cancelled. Your current save is unchanged.")
+        saveState("payload=checkpoint-current backups=1 export=verified")
+        try tap("import-save", scroll: app.scrollViews["detail-scroll"])
+        try tap("fixture-save-import")
+        try button("confirm-import-save").tap()
         saveMessage("Save restored.")
         saveState("payload=checkpoint-old backups=2 export=verified")
         // The most recent backup holds the pre-import checkpoint. Cancel first.
@@ -2361,6 +2401,7 @@ final class NavigationJourneyTests: XCTestCase {
         saveState("payload=checkpoint-current backups=3 export=verified")
         try tap("import-save", scroll: app.scrollViews["detail-scroll"])
         try tap("fixture-save-import")
+        try button("confirm-import-save").tap()
         saveMessage("Save restored.")
         saveState("payload=checkpoint-old backups=3 export=verified")
         backgroundAndReturn(app.buttons["close-game-detail"].firstMatch)
@@ -2378,6 +2419,7 @@ final class NavigationJourneyTests: XCTestCase {
         ] {
             try tap("import-save", scroll: app.scrollViews["detail-scroll"])
             try tap(selection)
+            try button("confirm-import-save").tap()
             saveMessage(message)
             saveState("payload=checkpoint-current backups=1 export=none")
         }
@@ -2987,6 +3029,217 @@ final class NavigationJourneyTests: XCTestCase {
         try assertPostureGeometry("open")
     }
 
+    /// Delete on the game page and its question work with a controller: focus reaches Delete,
+    /// A opens the question with focus on its safe answer, the page takes no input meanwhile,
+    /// and B cancels.
+    func testControlsDeleteQuestion() throws {
+        launchControls("detail")
+        try pad("down")
+        let focus = app.staticTexts["controller-focus"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        for _ in 0..<30 where focus.label != "detail-delete" { try pad("down") }
+        XCTAssertEqual(focus.label, "detail-delete")
+        try pad("accept")
+        let question = app.descendants(matching: .any)["delete-game-confirm"]
+        XCTAssertTrue(question.waitForExistence(timeout: 5))
+        try pad("down")
+        XCTAssertEqual(app.staticTexts["controller-focus"].firstMatch.label, "confirm-cancel",
+                       "A destructive question starts on its safe answer")
+        try pad("up")
+        XCTAssertNotEqual(app.staticTexts["controller-focus"].firstMatch.label, "confirm-cancel")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "controller-focus").count, 1, "Only the question takes input")
+        sweepShot("Delete question with controller focus")
+        try pad("back")
+        absent(question)
+        _ = try button("close-game-detail")
+        // The first press shows focus on Delete again, the second opens the question;
+        // A on the safe answer cancels too.
+        try pad("accept")
+        try pad("accept")
+        XCTAssertTrue(question.waitForExistence(timeout: 5))
+        try pad("down")
+        try pad("down")
+        XCTAssertEqual(app.staticTexts["controller-focus"].firstMatch.label, "confirm-cancel")
+        try pad("accept")
+        absent(question)
+        _ = try button("close-game-detail")
+    }
+
+    /// Playing a game records it: the game page says when, and the library's default
+    /// Recently played order puts it first, ahead of games added later.
+    func testRecentlyPlayedSortAndHistory() throws {
+        try startSessionFixture()
+        try tap("game.pause")
+        try tap("menu-quit")
+        try tap("Quit game")
+        _ = try button("import-homebrew")
+        // Recently played is the default order; another journey may have stored a different one.
+        try tap("sort-library")
+        try tap("Recently played")
+        absent(app.buttons["Recently played"])
+        try tap("sort-library")
+        XCTAssertTrue(try button("Recently played").isSelected)
+        try tap("Recently played")
+        absent(app.buttons["Recently played"])
+        let shelf = app.scrollViews["collection-panel"]
+        let tiles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "homebrew-"))
+        let first = tiles.allElementsBoundByIndex.min { $0.frame.minX < $1.frame.minX }
+        XCTAssertEqual(first?.identifier, "homebrew-Lantern Drift [Base]", "The game just played leads the shelf")
+        XCTAssertTrue(shelf.exists)
+        // The game just played is still the focused tile.
+        let chip = app.descendants(matching: .any).matching(identifier: "focused-played").firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 8))
+        XCTAssertTrue(chip.label.contains("Played today"), chip.label)
+        try tap("open-focused")
+        let played = app.descendants(matching: .any).matching(identifier: "detail-played").firstMatch
+        XCTAssertTrue(played.waitForExistence(timeout: 8))
+        XCTAssertTrue(played.label.contains("Played today"), played.label)
+        sweepShot("Game page with play history")
+        try tap("close-game-detail")
+        // Recently added puts the newest import first again.
+        try tap("sort-library")
+        try tap("Recently added")
+        absent(app.buttons["Recently added"])
+        let newest = tiles.allElementsBoundByIndex.min { $0.frame.minX < $1.frame.minX }
+        XCTAssertNotNil(newest)
+    }
+
+    /// Settings > Storage totals what Satchel keeps, overall and per game, and cleans up a
+    /// stopped Prepare's staging folder after asking, leaving packages alone.
+    func testSettingsStorageTotalsAndLeftovers() throws {
+        app.launchArguments += ["-SatchelPreviewLeftovers", "YES"]
+        try launchFixFixture()
+        try tap("open-settings")
+        try tap("settings-Storage")
+        let column = app.scrollViews.containing(.staticText, identifier: "settings-page-Storage").firstMatch
+        let total = app.staticTexts["storage-total"]
+        XCTAssertTrue(total.waitForExistence(timeout: 8))
+        let measured = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in total.label != "Measuring…" }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [measured], timeout: 15), .completed)
+        let game = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "storage-game-")).firstMatch
+        XCTAssertTrue(game.waitForExistence(timeout: 8), "Per-game totals are listed")
+        let lantern = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "storage-game-", "Lantern Drift")).firstMatch
+        XCTAssertTrue(lantern.exists, "Lantern Drift has its own row")
+        XCTAssertTrue(lantern.label.contains("Prepared") && lantern.label.contains("Saves"), lantern.label)
+        sweepShot("Settings storage totals")
+        try tap("clean-up-leftovers", scroll: column)
+        XCTAssertTrue(app.descendants(matching: .any)["leftovers-confirm"].waitForExistence(timeout: 8))
+        try tap("confirm-cancel")
+        _ = try button("clean-up-leftovers", scroll: column)
+        try tap("clean-up-leftovers", scroll: column)
+        try button("confirm-clean-leftovers").tap()
+        XCTAssertTrue(app.staticTexts["storage-message"].waitForExistence(timeout: 8))
+        XCTAssertEqual(app.staticTexts["storage-message"].label, "Leftover files deleted.")
+        absent(app.buttons["clean-up-leftovers"])
+        try tap("close-settings")
+        fixtureText("fixture-removal-state", equals: "base=1 update=1 dlc=2 files=4 packages=2 other=5 save=kept")
+    }
+
+    /// Settings > About > Licenses lists the bundled notices and shows each one word for word.
+    func testSettingsLicenses() throws {
+        try tap("open-settings")
+        try tap("settings-About")
+        let column = app.scrollViews.containing(.staticText, identifier: "settings-page-About").firstMatch
+        try tap("settings-licenses", scroll: column)
+        _ = try button("close-licenses")
+        let title = app.staticTexts["licenses-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 8))
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "license-"))
+        XCTAssertGreaterThanOrEqual(rows.count, 5, "The app's notices are listed")
+        let mit = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "license-", "LibHac")).firstMatch
+        XCTAssertTrue(mit.exists, "The LibHac MIT notice is listed")
+        try tap(mit.identifier, scroll: app.scrollViews["licenses-list"])
+        let text = app.staticTexts["licenses-text"]
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            text.exists && text.label.contains("Permission is hereby granted")
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 8), .completed, "The MIT notice text is shown in full")
+        sweepShot("Licenses")
+        backgroundAndReturn(app.buttons["close-licenses"].firstMatch)
+        try tap("close-licenses")
+        absent(app.buttons["close-licenses"])
+        _ = try button("close-settings")
+    }
+
+    /// A signature reminder can be dismissed: it stays away through background and return and
+    /// comes back on the next launch.
+    func testSimulatorSignatureExpiryDismiss() throws {
+        let reminder = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "SideStore, AltStore or Xcode")).firstMatch
+        XCTAssertTrue(reminder.waitForExistence(timeout: 8))
+        try tap("signature-expiry-dismiss")
+        absent(reminder)
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        XCTAssertFalse(reminder.exists, "A dismissed reminder stays away until the next launch")
+        app.terminate()
+        app.launch()
+        _ = try button("import-homebrew")
+        XCTAssertTrue(reminder.waitForExistence(timeout: 8), "The reminder returns on the next launch")
+    }
+
+    /// Removing the signing identity asks first; keeping it changes nothing.
+    func testSigningIdentityRemoveAsks() throws {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewIdentity", "YES"]
+        app.launch()
+        try workshop("workshop-prepare")
+        let column = app.scrollViews.containing(.button, identifier: "identity-import").firstMatch
+        let remove = try button("identity-remove", scroll: column)
+        remove.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["identity-remove-confirm"].waitForExistence(timeout: 8))
+        sweepShot("Remove signing identity question")
+        try tap("cancel-identity-remove")
+        _ = try button("identity-remove", scroll: column)
+        try button("identity-remove", scroll: column).tap()
+        try button("confirm-identity-remove").tap()
+        absent(app.buttons["identity-remove"])
+        XCTAssertEqual(try button("identity-import", scroll: column).label, "Import signing identity")
+    }
+
+    /// Prepare hides the raw title ID field, lists only the chosen game's updates, and asks
+    /// before cancelling a running preparation.
+    func testPrepareTitleIDUpdatesAndCancelQuestion() throws {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewFixTests", "YES", "-SatchelPreviewPrepareTests", "YES",
+            "-SatchelPreviewKeys", "YES", "-SatchelPreviewIdentity", "YES", "-SatchelPreviewPrepareSeconds", "120"]
+        app.launch()
+        try workshop("workshop-prepare")
+        XCTAssertFalse(app.textFields["prepare-title-id"].exists, "The raw title ID field is for developers only")
+        let column = app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch
+        func select(_ picker: String, _ title: String) throws {
+            for _ in 0..<4 where !app.buttons[picker].isHittable { column.swipeDown() }
+            try tap(picker)
+            try tap(title)
+        }
+        // Updates and DLC are not base games.
+        try tap("prepare-base")
+        XCTAssertFalse(app.buttons["Lantern Drift [Update]"].exists, "An update is never offered as a base game")
+        try tap("Tidebreaker")
+        try tap("prepare-update")
+        XCTAssertFalse(app.buttons["Lantern Drift [Update]"].exists, "Another game's update is not offered")
+        try tap("No update selected")
+        try select("prepare-base", "Lantern Drift [Base]")
+        XCTAssertEqual(app.buttons["prepare-update"].value as? String, "Lantern Drift [Update]")
+        revealControl(app.buttons["prepare-start"], in: column)
+        try button("prepare-start").tap()
+        let cancel = app.buttons["prepare-cancel"]
+        revealDeviceCheckControl(cancel, in: column)
+        try button("prepare-cancel").tap()
+        XCTAssertTrue(app.descendants(matching: .any)["prepare-cancel-confirm"].waitForExistence(timeout: 8))
+        sweepShot("Cancel preparation question")
+        try tap("keep-preparing")
+        absent(app.buttons["keep-preparing"])
+        XCTAssertTrue(app.buttons["prepare-cancel"].exists, "Keep preparing leaves the run going")
+        try button("prepare-cancel").tap()
+        try button("confirm-prepare-cancel").tap()
+        let status = app.staticTexts["prepare-status"]
+        let stopped = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            status.exists && status.label.hasPrefix("Preparation cancelled") && !self.app.buttons["prepare-cancel"].exists
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [stopped], timeout: 30), .completed, status.exists ? status.label : "missing")
+        try tap("close-prepare")
+        fixtureText("fixture-removal-state", equals: "base=1 update=1 dlc=2 files=4 packages=2 other=5 save=kept")
+    }
+
     /// Every app screen on the closed Duo's front screen and the open inner screen: nothing
     /// in a scrolling column runs past that column's sides (the pause menu's settings column
     /// once cut off the left of its rows on the front screen). Screenshots for review.
@@ -3008,6 +3261,13 @@ final class NavigationJourneyTests: XCTestCase {
                 case "detail":
                     XCTAssertTrue(app.staticTexts["detail-game-title"].waitForExistence(timeout: 8))
                     try sweepColumn(app.scrollViews["detail-scroll"], "Sweep \(fold) detail")
+                    // The delete question over the game page.
+                    try tap("detail-remove-import", scroll: app.scrollViews["detail-scroll"])
+                    XCTAssertTrue(app.descendants(matching: .any)["delete-game-confirm"].waitForExistence(timeout: 5))
+                    Thread.sleep(forTimeInterval: 0.6)
+                    sweepShot("Sweep \(fold) delete question")
+                    try assertNothingClipped("\(fold) delete question")
+                    try tap("cancel-remove-prepared")
                 case "import":
                     Thread.sleep(forTimeInterval: 1)
                     sweepShot("Sweep \(fold) import")
@@ -3019,6 +3279,12 @@ final class NavigationJourneyTests: XCTestCase {
                         let column = app.scrollViews.containing(.staticText, identifier: "settings-page-" + page).firstMatch
                         try sweepColumn(column, "Sweep \(fold) settings \(page)")
                     }
+                    // Licenses, from About.
+                    let about = app.scrollViews.containing(.staticText, identifier: "settings-page-About").firstMatch
+                    try tap("settings-licenses", scroll: about)
+                    XCTAssertTrue(app.staticTexts["licenses-title"].waitForExistence(timeout: 8))
+                    try sweepColumn(app.scrollViews["licenses-list"], "Sweep \(fold) licenses")
+                    try tap("close-licenses")
                 }
             }
         }

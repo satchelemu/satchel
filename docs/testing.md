@@ -76,7 +76,8 @@ entry points exist. Needs the engine snapshot and the built shader dependencies.
 `SatchelNavigation` runs every app screen against synthetic library data in the iOS
 Simulator: home, search, import (including split and compressed containers), Prepare,
 settings, identity, saves, DLC rows, quit and relaunch, signature reminders, game
-diagnostics, install help, the import, warm-up and paused-game cards. The lifecycle
+diagnostics, install help, licenses, storage totals, whole-game delete with and without
+saves, play history, the import, warm-up and paused-game cards. The lifecycle
 journeys cover import cancellation and restart, warm-up interrupted by the system
 (including late cancellation acknowledgement), user pause, a game without a warm-up
 record, a Prepare that ends at Ready to play without starting warm-up, a paused warm-up

@@ -84,10 +84,12 @@ struct SettingsView: View {
     @AppStorage(PreparedImportCleanup.settingKey) private var removeOriginals = true
     @State private var showDeveloperControls = false
     @State private var showingInstallGuide = false
+    @State private var showingLicenses = false
     @State private var pickingKeys = false
-    @State private var freeBytes: Int64?
-    @State private var preparedBytes: [String: Int64] = [:]
+    @State private var usage: StorageUsage?
     @State private var cacheBytes: Int64 = 0
+    @State private var cleaningLeftovers = false
+    @State private var storageMessage: String?
     @State private var pendingDelete: PreparedGame?
     @State private var deleting: String?
     @State private var deleteFailure: String?
@@ -119,7 +121,7 @@ struct SettingsView: View {
             .satchelMenuStatus()
         }
         // A controller picks a section and B closes Settings, as on the other screens.
-        .controllerNavigation(enabled: !pickingKeys && !showingInstallGuide && pendingDelete == nil, back: { dismiss() })
+        .controllerNavigation(enabled: !pickingKeys && !showingInstallGuide && !showingLicenses && pendingDelete == nil, back: { dismiss() })
         .sheet(isPresented: $pickingKeys) {
             VStack(spacing: 0) {
                 HStack {
@@ -137,6 +139,9 @@ struct SettingsView: View {
         .task(id: page) { await measure() }
         .sheet(isPresented: $showingInstallGuide) {
             InstallGuideView { showingInstallGuide = false }
+        }
+        .sheet(isPresented: $showingLicenses) {
+            LicensesView { showingLicenses = false }
         }
     }
 
@@ -264,47 +269,87 @@ struct SettingsView: View {
 
     // MARK: Storage
 
+    /// A Prepare or Add DLC is running, so its temporary folder is live.
+    private var stagingBusy: String? {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        if PrepareJob.shared.running { return "Wait for the current preparation to finish." }
+        if AddOnJob.shared.running { return "Wait for Add DLC to finish." }
+#endif
+        return nil
+    }
+
+    /// "None" reads better than "Zero KB", and "…" shows while the first measurement runs.
+    private func amount(_ bytes: Int64?) -> String {
+        guard let bytes else { return "…" }
+        return bytes <= 0 ? "None" : satchelBytes(bytes)
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text).font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     private var storagePage: some View {
-        let used = library.libraryBytes
-        let prepared = preparedBytes.values.reduce(0, +)
-        let free = freeBytes ?? 0
-        let total = max(1, used + prepared + cacheBytes + free)
+        let measured = usage != nil
+        let games = usage?.imported ?? 0, prepared = usage?.prepared ?? 0
+        let saves = usage?.saves ?? 0
+        let caches = (usage?.caches ?? 0) + (usage?.shaderPacks ?? 0) + cacheBytes
+        let leftovers = usage?.leftovers ?? 0
+        let used = games + prepared + saves + caches + leftovers
+        let total = max(1, used + (usage?.free ?? 0))
         return VStack(alignment: .leading, spacing: 16) {
             SatchelPanel {
-                GeometryReader { geometry in
-                    HStack(spacing: 3) {
-                        segment(SatchelTheme.ember, Double(used) / Double(total), geometry.size.width)
-                        segment(SatchelTheme.leaf, Double(prepared) / Double(total), geometry.size.width)
-                        segment(SatchelTheme.tide, Double(cacheBytes) / Double(total), geometry.size.width)
-                        Capsule().fill(Color.white.opacity(0.08))
-                    }
+                HStack(alignment: .firstTextBaseline) {
+                    Text(measured ? satchelBytes(used) : "Measuring…").font(SatchelTheme.display(22))
+                        .accessibilityIdentifier("storage-total")
+                    Text("used by \(AppBrand.name)").font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(SatchelTheme.textDim)
                 }
-                .frame(height: 18)
+                if measured {
+                    GeometryReader { geometry in
+                        HStack(spacing: 3) {
+                            segment(SatchelTheme.ember, Double(games) / Double(total), geometry.size.width)
+                            segment(SatchelTheme.leaf, Double(prepared) / Double(total), geometry.size.width)
+                            segment(SatchelTheme.violet, Double(saves) / Double(total), geometry.size.width)
+                            segment(SatchelTheme.tide, Double(caches) / Double(total), geometry.size.width)
+                            segment(SatchelTheme.spark, Double(leftovers) / Double(total), geometry.size.width)
+                            Capsule().fill(Color.white.opacity(0.08))
+                        }
+                    }
+                    .frame(height: 18)
+                } else {
+                    SatchelProgressBar(value: nil, tint: SatchelTheme.tide, height: 18)
+                }
                 LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
                           alignment: .leading, spacing: 12) {
-                    legend(SatchelTheme.ember, "Games", used)
-                    legend(SatchelTheme.leaf, "Prepared", prepared)
-                    legend(SatchelTheme.tide, "Artwork", cacheBytes)
-                    legend(Color.white.opacity(0.3), "Free", free)
+                    legend(SatchelTheme.ember, "Imported games", measured ? games : nil)
+                    legend(SatchelTheme.leaf, "Prepared", measured ? prepared : nil)
+                    legend(SatchelTheme.violet, "Saves", measured ? saves : nil)
+                    legend(SatchelTheme.tide, "Caches and art", measured ? caches : nil)
+                    if leftovers > 0 { legend(SatchelTheme.spark, "Leftovers", leftovers) }
+                    legend(Color.white.opacity(0.3), "Free", measured ? usage?.free : nil)
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("storage-overview")
+            if let usage, usage.leftovers > 0 { leftoversPanel(usage) }
+            if let storageMessage {
+                Label(storageMessage, systemImage: "info.circle.fill").font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SatchelTheme.textDim).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("storage-message")
+            }
+            if let usage, !usage.games.isEmpty { gamesPanel(usage) }
             SatchelPanel(title: "Original imports") {
                 Toggle("Remove originals after Prepare", isOn: $removeOriginals)
                     .accessibilityIdentifier("remove-originals-after-prepare")
-                Text("On by default. After full package verification, removes imported games, covered updates and the shader pack used for Prepare. Turn this off to keep originals. Your library, artwork and saves stay on this iPhone; files in iCloud Drive are unchanged.")
-                    .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
+                note("On by default. After full package verification, removes imported games, covered updates and the shader pack used for Prepare. Turn this off to keep originals. Your library, artwork and saves stay on this iPhone; files in iCloud Drive are unchanged.")
             }
             CloudSaveSyncPanel()
             SatchelPanel(title: "Library") {
-                Text("\(library.items.count) library entries use \(satchelBytes(used)). Remove a game from its page to free space; the original in Files stays put.")
-                    .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
+                note("\(library.items.count) library entries use \(amount(measured ? games : nil)). Delete a game from its page to free its space; its files in iCloud Drive or Files stay put.")
             }
             SatchelPanel(title: "Artwork cache") {
-                Text("Titles and icons read from your games, \(satchelBytes(cacheBytes)). Refresh reads available originals again and keeps art for removed originals.")
-                    .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
-                    .fixedSize(horizontal: false, vertical: true)
+                note("Titles and icons read from your games, \(satchelBytes(cacheBytes)). Refresh reads available originals again and keeps art for removed originals.")
                 Button {
                     artwork.clearCache(library.items, fileURL: library.localFile)
                     Task { await measure() }
@@ -315,16 +360,94 @@ struct SettingsView: View {
         }
     }
 
+    /// Each game's share: its imported files, prepared copies, saves and caches.
+    private func gamesPanel(_ usage: StorageUsage) -> some View {
+        SatchelPanel(title: "By game") {
+            ForEach(usage.games) { game in
+                let parts = [("Imported", game.imported), ("Prepared", game.prepared), ("Saves", game.saves), ("Caches", game.caches)]
+                    .filter { $0.1 > 0 }.map { "\($0.0) \(satchelBytes($0.1))" }
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(gameName(game.id)).font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(SatchelTheme.text).lineLimit(2)
+                        Text(parts.joined(separator: "  ·  ")).font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(SatchelTheme.textDim).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Text(satchelBytes(game.total)).font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(SatchelTheme.text).fixedSize()
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("storage-game-" + game.id.titleIDString)
+            }
+            note("Delete a game from its page to free all of this. You choose there whether its saves stay.")
+        }
+    }
+
+    private func gameName(_ id: UInt64) -> String {
+        if let item = library.items.first(where: { artwork.info($0)?.kind == .application && artwork.info($0)?.applicationID == id }) {
+            return artwork.title(item)
+        }
+        if let title = artwork.titleInfo(id)?.title, !title.isEmpty { return title }
+        return NativeGameProfile.find(titleID: id.titleIDString)?.name ?? "Game \(id.titleIDString)"
+    }
+
+    private func leftoversPanel(_ usage: StorageUsage) -> some View {
+        let who = usage.leftoverCount == 1 ? "A preparation that was stopped before it finished" : "\(usage.leftoverCount) preparations that were stopped before they finished"
+        return SatchelPanel(title: "Leftover files", tint: SatchelTheme.spark) {
+            note(who + " left \(satchelBytes(usage.leftovers)) of temporary files. They are safe to delete; games, prepared games and saves are not touched.")
+            if cleaningLeftovers {
+                SatchelProgressBar(value: nil, tint: SatchelTheme.spark, height: 10)
+            } else {
+                SatchelConfirmReader { confirm in
+                    let ask = {
+                        guard stagingBusy == nil else { return }
+                        confirm(SatchelConfirmRequest(title: "Delete leftover files?",
+                            message: "Deletes \(satchelBytes(usage.leftovers)) of temporary files from preparations that did not finish. Games, prepared games and saves are not touched.",
+                            actions: [SatchelConfirmAction(id: "confirm-clean-leftovers", title: "Delete leftover files", role: .destructive,
+                                                           systemImage: "trash") { cleanLeftovers() }],
+                            identifier: "leftovers-confirm"))
+                    }
+                    Button { ask() } label: {
+                        SatchelButtonLabel(title: "Clean up leftovers", systemImage: "trash", kind: .secondary, height: 42)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .controllerAction("clean-up-leftovers", style: .button(.capsule)) { ask() }
+                    .disabled(stagingBusy != nil)
+                    .accessibilityIdentifier("clean-up-leftovers")
+                }
+                if let stagingBusy { SatchelDisabledReason(text: stagingBusy) }
+            }
+        }
+    }
+
+    private func cleanLeftovers() {
+        guard stagingBusy == nil else { storageMessage = stagingBusy; return }
+        cleaningLeftovers = true; storageMessage = nil
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        Task {
+            let failures = await Task.detached(priority: .userInitiated) { StorageMeter.removeLeftovers(documents: documents) }.value
+            cleaningLeftovers = false
+            storageMessage = failures.isEmpty ? "Leftover files deleted." : "Some leftover files could not be deleted: " + failures.joined(separator: "; ")
+            if failures.isEmpty { Haptics.success() } else { Haptics.warning() }
+            await measure()
+        }
+    }
+
     private func segment(_ color: Color, _ fraction: Double, _ width: CGFloat) -> some View {
         Capsule().fill(color).frame(width: fraction > 0 ? max(6, width * fraction) : 0)
     }
 
-    private func legend(_ color: Color, _ title: String, _ bytes: Int64) -> some View {
-        HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 9, height: 9)
-            Text(title).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
-            Text(satchelBytes(bytes)).font(.system(size: 13, weight: .bold, design: .rounded)).lineLimit(1)
+    private func legend(_ color: Color, _ title: String, _ bytes: Int64?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Circle().fill(color).frame(width: 9, height: 9)
+                Text(title).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
+                    .lineLimit(1).minimumScaleFactor(0.85)
+            }
+            Text(amount(bytes)).font(.system(size: 14, weight: .bold, design: .rounded)).lineLimit(1).padding(.leading, 15)
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Prepared
@@ -371,7 +494,7 @@ struct SettingsView: View {
                                 }
                             }
                             Spacer()
-                            Text(preparedBytes[game.folder].map(satchelBytes) ?? "…")
+                            Text(usage?.packages[game.folder].map(satchelBytes) ?? "…")
                                 .font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
 #if !SATCHEL_UI_PREVIEW_MINIMAL
                             Button { Haptics.tick(); pendingDelete = game } label: {
@@ -479,7 +602,13 @@ struct SettingsView: View {
             SatchelPanel(title: "Built with") {
                 bullet("cpu", "Native game execution and the Metal renderer build on NX2Apple (MIT).")
                 bullet("paintbrush.pointed.fill", "Shader translation builds on Ryujinx (MIT).")
-                bullet("doc.text", "Full notices ship inside the app.")
+                bullet("doc.text", "Every open source license \(AppBrand.name) uses ships inside the app.")
+                Button { showingLicenses = true } label: {
+                    SatchelButtonLabel(title: "Licenses", systemImage: "doc.text.fill", kind: .secondary, height: 42)
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityIdentifier("settings-licenses")
+                .controllerAction("settings-licenses", style: .button(.capsule)) { showingLicenses = true }
             }
             SatchelPanel(title: "Not affiliated") {
                 Text("\(AppBrand.name) is an independent project. It is not made, endorsed or supported by any console maker.")
@@ -493,24 +622,11 @@ struct SettingsView: View {
 
     private func measure() async {
         guard page == .storage || page == .prepared else { return }
-        let folders = artwork.prepared.map(\.folder)
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let (free, sizes) = await Task.detached(priority: .utility) { () -> (Int64?, [String: Int64]) in
-            let values = try? documents.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-            var sizes: [String: Int64] = [:]
-            for folder in folders {
-                let root = documents.appendingPathComponent("PreparedGames/" + folder, isDirectory: true)
-                var total: Int64 = 0
-                if let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]) {
-                    while let url = enumerator.nextObject() as? URL {
-                        total += Int64((try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize) ?? 0)
-                    }
-                }
-                sizes[folder] = total
-            }
-            return (values?.volumeAvailableCapacityForImportantUsage, sizes)
-        }.value
-        freeBytes = free; preparedBytes = sizes; cacheBytes = artwork.cacheBytes
+        let files = library.items.map { item in (url: library.localFile(item), title: GameRemoval.titleID(item, artwork: artwork)) }
+        let packages = Dictionary(artwork.prepared.map { ($0.folder, $0.applicationID) }, uniquingKeysWith: { first, _ in first })
+        cacheBytes = artwork.cacheBytes
+        usage = await Task.detached(priority: .utility) { StorageMeter.measure(documents: documents, files: files, packages: packages) }.value
     }
 }
 

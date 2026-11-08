@@ -70,7 +70,17 @@ Game-page additions awaiting hardware validation: per-title FPS target, render s
 screen mode, haptics and pipeline mode with defaults, override markers and reset. The
 save manager lists dated, sized backups, keeps the newest three, restores with
 confirmation and exports through the share sheet. Import accepts title-bound Satchel
-ZIPs, not arbitrary emulator archives. See [the test guide](docs/testing.md).
+ZIPs, not arbitrary emulator archives, and asks before replacing the current save (which it
+backs up first). See [the test guide](docs/testing.md).
+
+Library and app additions awaiting hardware validation: Delete game removes a game whole
+(its updates, DLC, prepared copies, artwork, per-title settings, shader caches and logs) and
+asks whether to keep its saves; deleting them keeps a backup of the current save in the
+game's backup list. Play history with a Recently played library order (the default),
+storage totals per game and overall in Settings > Storage with cleanup of files left by a
+stopped Prepare, a licenses viewer in Settings > About, dismissable signature reminders, and
+questions before removing the signing identity or cancelling a Prepare. All of these
+questions work with a controller.
 
 Also built and awaiting hardware validation: per-title rumble strength (0 to 300%) and
 controller rumble cutoff, on the game page and live in the pause menu; optional iCloud save

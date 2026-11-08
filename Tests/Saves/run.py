@@ -15,7 +15,7 @@ subprocess.run(['nice', '-n', '10', 'xcrun', 'clang', '-fobjc-arc', '-fblocks', 
                 '-c', root / 'Tests/Saves/SaveGate.m', '-o', gate], check=True)
 subprocess.run(['nice', '-n', '10', 'xcrun', 'swiftc', '-O', '-swift-version', '5',
                 '-import-objc-header', root / 'Tests/Saves/SaveGate.h', gate,
-                root / 'App/SaveArchive.swift', root / 'App/SaveStore.swift',
+                root / 'App/SaveArchive.swift', root / 'App/SaveStore.swift', root / 'App/StorageUsage.swift',
                 root / 'Tests/Saves/main.swift', '-o', binary], check=True)
 with tempfile.TemporaryDirectory(prefix='synthetic-', dir=out) as directory:
     subprocess.run([binary, directory], check=True, timeout=120)

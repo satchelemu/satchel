@@ -25,6 +25,41 @@ enum HomeRoute: Equatable {
 #endif
 }
 
+/// How the shelf is ordered. Kept between launches.
+enum LibrarySort: String, CaseIterable {
+    case played, added, name
+    var title: String {
+        switch self {
+        case .played: return "Recently played"
+        case .added: return "Recently added"
+        case .name: return "Name"
+        }
+    }
+    var systemImage: String {
+        switch self {
+        case .played: return "gamecontroller"
+        case .added: return "clock"
+        case .name: return "textformat"
+        }
+    }
+
+    /// Orders shelf entries. Recently played puts played games first, most recent first;
+    /// games never played follow, newest added first.
+    func sorted(_ entries: [ShelfEntry], title: (HomebrewItem) -> String, lastPlayed: (HomebrewItem) -> Date?) -> [ShelfEntry] {
+        switch self {
+        case .played:
+            let dates = Dictionary(entries.map { ($0.id, lastPlayed($0.item)) }, uniquingKeysWith: { first, _ in first })
+            return entries.sorted { a, b in
+                let left = dates[a.id] ?? nil, right = dates[b.id] ?? nil
+                if left != right { return (left ?? .distantPast) > (right ?? .distantPast) }
+                return a.item.importedAt > b.item.importedAt
+            }
+        case .added: return entries.sorted { $0.item.importedAt > $1.item.importedAt }
+        case .name: return entries.sorted { title($0.item).localizedStandardCompare(title($1.item)) == .orderedAscending }
+        }
+    }
+}
+
 private struct HomePresentation: Identifiable {
     let id = UUID()
     var route: HomeRoute
@@ -47,11 +82,11 @@ struct HomebrewView: View {
     @State private var exportDocument: NRODocument?
     @State private var query = ""
     @State private var searching = false
-    @State private var newestFirst = true
+    @AppStorage("SatchelLibrarySort") private var sort = LibrarySort.played
+    /// Read again whenever a game is played, so the shelf order and play times follow.
+    @State private var history = PlayHistory.all()
     @State private var focusedID: String?
 #if !SATCHEL_UI_PREVIEW_MINIMAL
-    /// A prepared package waiting for the Remove confirmation.
-    @State private var pendingRemoval: PreparedGame?
     /// The package of a game paused in the background (`PreparedLaunch.current`), which
     /// is not observable, so it is read again whenever the home screen comes back.
     @State private var pausedPackage: String?
@@ -79,12 +114,13 @@ struct HomebrewView: View {
     private var shelfCount: Int { artwork.shelf(shelfItems).count }
 
     private var entries: [ShelfEntry] {
-        artwork.shelf(shelfItems)
+        let found = artwork.shelf(shelfItems)
             .filter { query.isEmpty || artwork.title($0.item).localizedCaseInsensitiveContains(query) || $0.item.name.localizedCaseInsensitiveContains(query) }
-            .sorted {
-                newestFirst ? $0.item.importedAt > $1.item.importedAt
-                    : artwork.title($0.item).localizedStandardCompare(artwork.title($1.item)) == .orderedAscending
-            }
+        return sort.sorted(found, title: artwork.title, lastPlayed: { playEntry($0)?.lastPlayed })
+    }
+
+    private func playEntry(_ item: HomebrewItem) -> PlayHistory.Entry? {
+        GameRemoval.titleID(item, artwork: artwork).flatMap { history[GameRemoval.titleString($0)] }
     }
 
     private var focusedEntry: ShelfEntry? {
@@ -175,6 +211,8 @@ struct HomebrewView: View {
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .onChange(of: cut.bar, initial: true) { _, bar in barOnTop = bar == .top }
             }
+            // Delete from a tile's menu asks over the whole home screen.
+            .satchelConfirmHost()
             .safeAreaInset(edge: .bottom, spacing: 4) {
                 SignatureExpiryBanner(warnings: signatureWarnings, now: signatureCheckDate)
                     .padding(.horizontal, 32)
@@ -231,6 +269,7 @@ struct HomebrewView: View {
             DispatchQueue.main.async { refreshPaused() }
         }
 #endif
+        .onReceive(NotificationCenter.default.publisher(for: PlayHistory.changed)) { _ in history = PlayHistory.all() }
         .onAppear {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
             refreshPaused()
@@ -384,25 +423,21 @@ struct HomebrewView: View {
 #endif
     }
 
-#if !SATCHEL_UI_PREVIEW_MINIMAL
-    /// Removes every package of the game's title, packages from an older engine first, and
-    /// stops at the first failure. So it can never delete the current package and leave only
-    /// one that needs Prepare again.
-    private func remove(_ game: PreparedGame) {
-        let names = artwork.prepared.filter { $0.applicationID == game.applicationID }
-            .sorted { !$0.current && $1.current }.map(\.folder)
-        Task {
-            let failure = await Task.detached(priority: .userInitiated) { () -> String? in
-                for name in names {
-                    do { try PreparedGameCleanup.delete(named: name) } catch { return error.localizedDescription }
+    /// Deletes a whole game from a tile's menu, after the same question its game page asks.
+    private func askDelete(_ entry: ShelfEntry, _ confirm: @escaping (SatchelConfirmRequest) -> Void) {
+        guard GameRemoval.blocker(library: library, item: entry.item, artwork: artwork) == nil else { return }
+        let title = artwork.title(entry.item)
+        let summary = GameRemoval.summary(for: entry.item, updates: entry.updates, library: library, artwork: artwork)
+        confirm(GameRemoval.confirmation(title: title, summary: summary) { keepSaves in
+            Task {
+                if let failure = await GameRemoval.delete(entry.item, updates: entry.updates, keepSaves: keepSaves,
+                                                          library: library, artwork: artwork) {
+                    library.error = failure
                 }
-                return nil
-            }.value
-            artwork.refreshPrepared()
-            if let failure { library.error = failure } else { Haptics.click() }
-        }
+                if focusedID == entry.id { focusedID = nil }
+            }
+        })
     }
-#endif
 
     /// A game page for imported games; a prepared game with no imported file starts straight away.
     private func openEntry(_ id: String) {
@@ -479,9 +514,8 @@ struct HomebrewView: View {
 
     private var sortMenu: some View {
         Menu {
-            Picker("Sort library", selection: $newestFirst) {
-                Label("Recently added", systemImage: "clock").tag(true)
-                Label("Name", systemImage: "textformat").tag(false)
+            Picker("Sort library", selection: $sort) {
+                ForEach(LibrarySort.allCases, id: \.self) { Label($0.title, systemImage: $0.systemImage).tag($0) }
             }
         } label: { Label("Sort library", systemImage: "arrow.up.arrow.down") }
         .accessibilityIdentifier("sort-library")
@@ -729,15 +763,20 @@ struct HomebrewView: View {
                     .accessibilityLabel("\(artwork.title(entry.item)), \(artwork.state(entry.item).label)")
                     .accessibilityHint(focused == entry.id ? "Opens the game page" : "Selects this game")
                     .contextMenu {
-                        Button("Open", systemImage: "arrow.up.right") { openEntry(entry.item.id) }
-                            .accessibilityIdentifier("library-context-open")
+                        SatchelConfirmReader { confirm in
+                            Button("Open", systemImage: "arrow.up.right") { openEntry(entry.item.id) }
+                                .accessibilityIdentifier("library-context-open")
 #if !SATCHEL_UI_PREVIEW_MINIMAL
-                        if let game = artwork.preparedPackage(for: entry.item) ?? artwork.newestPackage(for: entry.item) {
-                            Button("View game report", systemImage: "doc.text.magnifyingglass") { reportPackage = game.folder }
-                            Button("Remove prepared game", systemImage: "trash", role: .destructive) { pendingRemoval = game }
-                                .accessibilityIdentifier("library-context-remove-prepared")
-                        }
+                            if let game = artwork.preparedPackage(for: entry.item) ?? artwork.newestPackage(for: entry.item) {
+                                Button("View game report", systemImage: "doc.text.magnifyingglass") { reportPackage = game.folder }
+                            }
 #endif
+                            if entry.item.package != nil || GameArtworkStore.preparedFolder(entry.item.id) != nil {
+                                Button("Delete game", systemImage: "trash", role: .destructive) { askDelete(entry, confirm) }
+                                    .disabled(GameRemoval.blocker(library: library, item: entry.item, artwork: artwork) != nil)
+                                    .accessibilityIdentifier("library-context-remove-prepared")
+                            }
+                        }
                     }
                 }
                 Button { tapped(Self.addTileID) } label: {
@@ -756,21 +795,6 @@ struct HomebrewView: View {
         // The focused tile's glow reaches past the shelf; let it bleed behind the title
         // below instead of ending in a hard edge at the scroll view's bounds.
         .scrollClipDisabled()
-#if !SATCHEL_UI_PREVIEW_MINIMAL
-        // On the shelf, not the root: a confirmationDialog beside the root's alert left the
-        // NavigationStack without its content on iOS 27.1 (a black home screen).
-        .alert("Remove this prepared game?", isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } }),
-               presenting: pendingRemoval) { game in
-            Button("Remove", role: .destructive) { remove(game) }
-                .accessibilityIdentifier("confirm-remove-prepared")
-            Button("Cancel", role: .cancel) {}
-                .accessibilityIdentifier("cancel-remove-prepared")
-        } message: { game in
-            let count = artwork.prepared.filter { $0.applicationID == game.applicationID }.count
-            Text(count > 1 ? "Deletes all \(count) prepared copies of this game from this iPhone to free their space. Your saves are kept. Prepare the game again to play it."
-                           : "Deletes \(game.folder) from this iPhone to free its space. Your saves are kept. Prepare the game again to play it.")
-        }
-#endif
         .scrollTargetBehavior(.viewAligned)
         .scrollPosition(id: $scrolledID, anchor: .leading)
         .contentMargins(.leading, cut.leading + inset - 7, for: .scrollContent)
@@ -841,7 +865,12 @@ struct HomebrewView: View {
         let text = VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
                 StateBadge(state: state)
-                if let update = entry.updates.first, let version = artwork.info(update)?.displayVersion {
+                if let played = PlayHistory.lastPlayedText(playEntry(entry.item)) {
+                    SatchelChip(text: played, systemImage: "clock.fill", tint: SatchelTheme.tide)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityValue(PlayHistory.playedText(playEntry(entry.item)) ?? "")
+                        .accessibilityIdentifier("focused-played")
+                } else if let update = entry.updates.first, let version = artwork.info(update)?.displayVersion {
                     SatchelChip(text: "Update v" + version, systemImage: "arrow.up.circle.fill", tint: SatchelTheme.violet)
                 }
             }

@@ -138,6 +138,8 @@ private struct PreviewRoot: View {
                     TimelineView(.periodic(from: .now, by: 0.2)) { _ in
                         Text(NavigationFixFixture.state()).font(.system(size: 1))
                             .accessibilityIdentifier("fixture-removal-state").allowsHitTesting(false)
+                        Text(NavigationFixFixture.deleteState()).font(.system(size: 1))
+                            .accessibilityIdentifier("fixture-delete-state").allowsHitTesting(false)
                     }
                 }
                 if UserDefaults.standard.bool(forKey: "SatchelPreviewWarmupTests") {

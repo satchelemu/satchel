@@ -211,6 +211,8 @@ struct PanelChrome<Content: View>: View {
                     }
                 }
                 .satchelBars()
+                // Confirmations asked for anywhere on the panel cover all of it.
+                .satchelConfirmHost()
         }
     }
 }

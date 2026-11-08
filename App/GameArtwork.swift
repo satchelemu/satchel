@@ -381,6 +381,13 @@ final class GameArtworkStore: ObservableObject {
         for ext in ["json", "jpg"] { try? FileManager.default.removeItem(at: directory.appendingPathComponent(item.id + "." + ext)) }
     }
 
+    /// Drops the art kept for a game by title ID, once the whole game is deleted from this iPhone.
+    func forgetTitle(_ applicationID: UInt64) {
+        titleInfos[applicationID] = nil; titleImages[applicationID] = nil
+        let base = directory.appendingPathComponent(Self.titleName(applicationID))
+        for ext in ["json", "jpg"] { try? FileManager.default.removeItem(at: base.appendingPathExtension(ext)) }
+    }
+
     /// Refuse cleanup unless the displayed metadata and icon are durable without the import.
     func preserveForCleanup(_ items: [HomebrewItem]) throws {
         for item in items {

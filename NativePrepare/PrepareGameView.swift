@@ -16,22 +16,43 @@ struct PrepareGameView: View {
     /// The base the update choice belongs to: a new base gets its own newest update preselected.
     @State private var updateBaseID = ""
     @State private var applicationID = ""
+    /// The raw title ID field is for multi-title dumps and developers only.
+    @AppStorage("SatchelDeveloperControls") private var developerControls = false
     @Environment(\.dismiss) private var dismiss
-    private var bases: [HomebrewItem] { library.items.filter { $0.package != nil && artwork.info($0)?.kind != .addOnContent && library.hasOriginal($0) } }
-    private var updates: [HomebrewItem] { library.items.filter { ["nsp", "nsz"].contains($0.fileExtension) && artwork.info($0)?.kind != .addOnContent && library.hasOriginal($0) } }
+    /// Imported base games: updates and DLC are never prepared on their own.
+    private var bases: [HomebrewItem] {
+        library.items.filter {
+            let kind = artwork.info($0)?.kind
+            return $0.package != nil && kind != .addOnContent && kind != .update && library.hasOriginal($0)
+        }
+    }
+    private var selectedBase: HomebrewItem? { bases.first { $0.id == baseID } }
+    /// The application to prepare: the typed title ID (developer controls only) or the base's own.
+    private func target(for base: HomebrewItem) -> UInt64? {
+        if developerControls, !applicationID.isEmpty { return UInt64(applicationID, radix: 16) }
+        return artwork.info(base)?.applicationID
+    }
+    /// Imported updates for the chosen base game only, newest first. Other games' updates,
+    /// base games and DLC stay out of the list.
+    private var updates: [HomebrewItem] {
+        guard let base = selectedBase, let target = target(for: base) else { return [] }
+        return library.items.filter { item in
+            guard item.id != base.id, ["nsp", "nsz"].contains(item.fileExtension), library.hasOriginal(item),
+                  let info = artwork.info(item) else { return false }
+            return info.kind == .update && info.applicationID == target
+        }
+        .sorted { (artwork.info($0)?.version ?? 0) > (artwork.info($1)?.version ?? 0) }
+    }
     /// Imported DLC that Prepare will include for the chosen game (PrepareJob passes every
     /// imported DLC; the pipeline keeps the ones whose application matches).
     private var addOns: [SwitchAddOnInfo] {
-        guard let base = bases.first(where: { $0.id == baseID }) else { return [] }
-        let target = applicationID.isEmpty ? artwork.info(base)?.applicationID : UInt64(applicationID, radix: 16)
-        guard let target else { return [] }
+        guard let base = selectedBase, let target = target(for: base) else { return [] }
         let infos = library.items.filter { library.hasOriginal($0) }.compactMap { artwork.info($0) }
         return GameInfo.addOns(for: target, in: infos)
     }
     /// The newest imported update for the chosen base, matched as the shelf groups updates.
     private var matchingUpdate: HomebrewItem? {
-        guard let base = bases.first(where: { $0.id == baseID }), let info = artwork.info(base),
-              let target = applicationID.isEmpty ? info.applicationID : UInt64(applicationID, radix: 16) else { return nil }
+        guard let base = selectedBase, let info = artwork.info(base), let target = target(for: base) else { return nil }
         let candidates = updates.compactMap { item in artwork.info(item).map { (id: item.id, info: $0) } }
         guard let id = GameInfo.newestUpdate(for: target, baseVersion: info.version, in: candidates) else { return nil }
         return updates.first { $0.id == id }
@@ -45,8 +66,7 @@ struct PrepareGameView: View {
     /// A plain note when a matching update is imported but set aside, or a newer one than the
     /// chosen update is. Prepare still works.
     private var updateCaution: String? {
-        guard let base = bases.first(where: { $0.id == baseID }), let info = artwork.info(base),
-              let target = applicationID.isEmpty ? info.applicationID : UInt64(applicationID, radix: 16) else { return nil }
+        guard let base = selectedBase, let info = artwork.info(base), let target = target(for: base) else { return nil }
         let candidates = updates.compactMap { item in artwork.info(item).map { (id: item.id, info: $0) } }
         return PrepareUpdateCaution.text(base: info, applicationID: target,
                                          selected: updates.first { $0.id == updateID }.flatMap { artwork.info($0) }, among: candidates)
@@ -85,6 +105,8 @@ struct PrepareGameView: View {
             .background { SatchelBackdrop(glow: SatchelTheme.leaf) }
             .satchelMenuStatus()
         }
+        // B closes the screen; preparation keeps going, as with the Library button.
+        .controllerNavigation(enabled: !showGameReport, back: { dismiss() })
         .sheet(isPresented: $showGameReport) { NativeGameReportView(package: job.package, titleID: "") }
         .onAppear {
             if !job.running, let initialBaseID, baseID.isEmpty { baseID = initialBaseID; preselectUpdate() }
@@ -99,10 +121,10 @@ struct PrepareGameView: View {
                 job.note("Auto prepare: no imported Zelda base found."); return
             }
             baseID = base.id; updateBaseID = base.id
-            let update = updates.first(where: { match($0) && $0.id != base.id })
+            let update = updates.first(where: match)
             updateID = update?.id ?? ""
             job.start(base: base, update: update, title: artwork.title(base), library: library, artwork: artwork,
-                      applicationID: applicationID.isEmpty ? artwork.info(base)?.applicationID : UInt64(applicationID, radix: 16))
+                      applicationID: target(for: base))
         }
         .onChange(of: baseID) { preselectUpdate() }
     }
@@ -138,7 +160,9 @@ struct PrepareGameView: View {
         if bases.isEmpty { return "Import a base game (XCI or NSP) first." }
         if !bases.contains(where: { $0.id == baseID }) { return "Choose a base game to prepare." }
         if case .failed(let reason) = artwork.status[baseID] { return reason }
-        if !applicationID.isEmpty && !NativePreparationRecipe.hex(applicationID, count: 16) { return "Enter a 16-digit hexadecimal title ID, or leave it empty for automatic selection." }
+        if developerControls, !applicationID.isEmpty, !NativePreparationRecipe.hex(applicationID, count: 16) {
+            return "Enter a 16-digit hexadecimal title ID, or leave it empty for automatic selection."
+        }
         return nil
     }
 
@@ -158,7 +182,9 @@ struct PrepareGameView: View {
             Group {
                 picker("Base game", detail: "An imported XCI or NSP", systemImage: "gamecontroller.fill", tint: SatchelTheme.ember,
                        items: bases, none: "Select base", selection: $baseID, identifier: "prepare-base")
-                picker("Update", detail: "The matching update NSP", systemImage: "arrow.up.circle.fill", tint: SatchelTheme.violet,
+                picker("Update", detail: selectedBase == nil ? "Choose a base game first"
+                                         : updates.isEmpty ? "No update for this game is imported" : "Updates imported for this game",
+                       systemImage: "arrow.up.circle.fill", tint: SatchelTheme.violet,
                        items: updates, none: "No update selected", selection: $updateID, identifier: "prepare-update")
                 if let updateCaution {
                     SatchelDisabledReason(text: updateCaution, systemImage: "exclamationmark.triangle.fill").accessibilityIdentifier("prepare-update-caution")
@@ -166,25 +192,30 @@ struct PrepareGameView: View {
                 addOnRow
             }
             .disabled(job.running)
-            TextField("Title ID (optional for multi-title dumps)", text: $applicationID)
-                .textInputAutocapitalization(.characters).autocorrectionDisabled().disabled(job.running)
-                .accessibilityIdentifier("prepare-title-id")
+            if developerControls {
+                TextField("Title ID (optional for multi-title dumps)", text: $applicationID)
+                    .textInputAutocapitalization(.characters).autocorrectionDisabled().disabled(job.running)
+                    .accessibilityIdentifier("prepare-title-id")
+            }
             Text("Preparation keeps going when you close this screen or switch apps. Shader warm-up is optional and starts only from the game page. New titles use experimental settings, explained in the game report.")
                 .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
-            Button {
-                guard let base = bases.first(where: { $0.id == baseID }) else { return }
-                job.start(base: base, update: updates.first { $0.id == updateID }, title: artwork.title(base), library: library,
-                          artwork: artwork, applicationID: applicationID.isEmpty ? artwork.info(base)?.applicationID : UInt64(applicationID, radix: 16))
-            } label: {
+            Button { startPrepare() } label: {
                 SatchelButtonLabel(title: "Prepare game", systemImage: "hammer.fill", kind: .accent(SatchelTheme.ember), height: 48)
             }
             .buttonStyle(PressableStyle())
+            .controllerAction("prepare-start", style: .button(.capsule)) { startPrepare() }
             .disabled(startBlocked != nil)
             .accessibilityHint(startBlocked ?? "")
             .accessibilityIdentifier("prepare-start")
             if let startBlocked { SatchelDisabledReason(text: startBlocked).accessibilityIdentifier("prepare-start-reason") }
         }
+    }
+
+    private func startPrepare() {
+        guard startBlocked == nil, let base = selectedBase else { return }
+        job.start(base: base, update: updates.first { $0.id == updateID }, title: artwork.title(base), library: library,
+                  artwork: artwork, applicationID: target(for: base))
     }
 
     private var statusPanel: some View {
@@ -230,12 +261,14 @@ struct PrepareGameView: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("prepare-play")
+                .controllerAction("prepare-play", style: .button(.capsule)) { play(outcome.package) }
             case .failed, .cancelled:
                 Button { Haptics.click(); job.retry(library: library, artwork: artwork, title: artwork.title) } label: {
                     SatchelButtonLabel(title: "Retry", systemImage: "arrow.clockwise", kind: .secondary, height: 40)
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityIdentifier("prepare-retry")
+                .controllerAction("prepare-retry", style: .button(.capsule)) { job.retry(library: library, artwork: artwork, title: artwork.title) }
             case .needsSignature:
                 EmptyView()
             }
@@ -297,13 +330,25 @@ struct PrepareGameView: View {
             if job.running {
                 HStack {
                     Spacer()
-                    Button { job.cancel() } label: {
-                        SatchelButtonLabel(title: job.cancelling ? "Cancelling…" : "Cancel preparation", systemImage: "xmark", kind: .danger, height: 38)
+                    SatchelConfirmReader { confirm in
+                        let ask = {
+                            guard job.running, !job.cancelling, !job.finalizing else { return }
+                            confirm(SatchelConfirmRequest(title: "Cancel preparing \(job.title.isEmpty ? "this game" : job.title)?",
+                                message: "The work done so far is discarded and the next Prepare starts from the beginning. Your imported game and any game you already prepared are kept.",
+                                actions: [SatchelConfirmAction(id: "confirm-prepare-cancel", title: "Cancel preparation", role: .destructive,
+                                                               systemImage: "xmark") { job.cancel() },
+                                          SatchelConfirmAction(id: "keep-preparing", title: "Keep preparing", role: .cancel) {}],
+                                identifier: "prepare-cancel-confirm"))
+                        }
+                        Button { ask() } label: {
+                            SatchelButtonLabel(title: job.cancelling ? "Cancelling…" : "Cancel preparation", systemImage: "xmark", kind: .danger, height: 38)
+                        }
+                        .buttonStyle(PressableStyle())
+                        .controllerAction("prepare-cancel", style: .button(.capsule)) { ask() }
+                        .disabled(job.cancelling || job.finalizing)
+                        .accessibilityHint(job.cancelling ? "Stopping at the next safe point and removing partial outputs." : "")
+                        .accessibilityIdentifier("prepare-cancel")
                     }
-                    .buttonStyle(PressableStyle())
-                    .disabled(job.cancelling || job.finalizing)
-                    .accessibilityHint(job.cancelling ? "Stopping at the next safe point and removing partial outputs." : "")
-                    .accessibilityIdentifier("prepare-cancel")
                 }
             }
         }

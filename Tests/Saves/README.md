@@ -56,3 +56,11 @@ Phone journey for the orchestrator, after building and installing through the no
 
 The Mac checks do not establish gameplay correctness or phone lifecycle behavior. No phone
 installation, launch or game play is performed by this worker.
+
+The same run checks a whole-game delete's runtime cleanup (`SaveStore.purge`): keeping saves
+leaves exactly the save entries (`save`, `save_device`, the sync files and both backup
+folders) and removes caches, logs and launch records; deleting saves first adds the current
+save to the backup list (and that backup restores it), then keeps only the list. A running
+game or a backup that cannot be made refuses and deletes nothing. It also checks Settings >
+Storage totals per game and overall and that leftover cleanup removes only `.prepare-` and
+`.satchel-dlc-` staging folders.

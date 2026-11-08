@@ -75,9 +75,25 @@ the real picker must appear, dismiss and reopen, including after background/retu
 - Simulator only: numeric split folders and reversed selected `ns0`/`xc0` parts for
   NSP, XCI, NSZ and XCZ. Each import must produce one byte-identical local container
   and deduplicate reimport. The fixture supplies the selection to the real import queue.
-- Simulator only: remove a prepared game, its update, two DLC imports and both prepared
-  packages, preserve saves and unrelated records, then require no shelf tile after relaunch.
-  Removing only the update must retain the game, DLC and prepared packages.
+- Simulator only: Delete game asks over the game page (cancel and background first), then
+  Delete, keep saves removes the game, its update, two DLC imports, both prepared packages
+  and their reports, its runtime caches and logs, per-title settings, play history and title
+  art, keeps the save and its sync state and unrelated records, and leaves no shelf tile after
+  relaunch. Delete game and saves keeps exactly one backup of the save in the game's backup
+  list and removes the rest. Removing only the update must retain the game, DLC and prepared
+  packages. A controller reaches Delete, the question starts on its safe answer, the page
+  underneath takes no input, and B or A on Cancel closes it (`testControlsDeleteQuestion`).
+- Simulator only: a synthetic play records history: Recently played (the default order)
+  puts that game first, its tile and game page say Played today.
+- Simulator only: Settings > Storage shows the overall total and a row per game, and a
+  stopped Prepare's staging folder is offered for cleanup, cancelled once, then deleted
+  without touching packages. Settings > About > Licenses lists the bundled notices and shows
+  the LibHac MIT text in full.
+- Simulator only: a dismissed signature reminder stays away through background and return
+  and returns on relaunch. Removing the signing identity and cancelling a running Prepare
+  each ask first; the Prepare screen hides the raw title ID field and lists only the chosen
+  game's updates. Importing a save asks before replacing the current one; keeping it
+  changes nothing.
 - Simulator only: the Prepare DLC row follows no base, a base without DLC and a base
   with two DLC imports. These fixtures write small local placeholders so the real
   `hasOriginal` checks determine availability.
