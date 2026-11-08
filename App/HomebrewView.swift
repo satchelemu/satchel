@@ -255,7 +255,8 @@ struct HomebrewView: View {
 #if !SATCHEL_UI_PREVIEW_MINIMAL
                 refreshPaused()
                 // A warm-up the player started that iOS stopped in the background picks up
-                // where it left off. One Prepare started in an earlier release waits for Resume.
+                // where it left off, unless a game is open or starting (WarmupGate). One
+                // Prepare started in an earlier release waits for Resume.
                 WarmupJob.shared.resumeIfInterrupted()
 #endif
                 // An interruption (a call) during a cover transition can leave SwiftUI and

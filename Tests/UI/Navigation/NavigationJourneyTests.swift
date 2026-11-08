@@ -2017,6 +2017,95 @@ final class NavigationJourneyTests: XCTestCase {
         try interruptedWarmup(lateAcknowledgement: true)
     }
 
+    /// The shelf's Play for the synthetic session package, from the home screen.
+    private func playLanternBesideWarmup() throws {
+        try tap("homebrew-Lantern Drift [Base]", scroll: app.scrollViews["collection-panel"])
+        if app.buttons["close-game-detail"].waitForExistence(timeout: 1) { try tap("close-game-detail") }
+        _ = try button("open-focused")
+        try tap("play-focused")
+        try button("player-play").tap()
+        _ = try button("game.pause")
+    }
+
+    /// Opens the pause menu right after a return from the background. On the iOS 27.1
+    /// Simulator the first tap on the pause button there is sometimes not delivered (seen in
+    /// both journeys below, never in the same run); one more tap is allowed, never more.
+    private func pauseAfterReturn(expecting id: String) throws {
+        try tap("game.pause")
+        if !app.buttons[id].waitForExistence(timeout: 3) { try tap("game.pause") }
+        _ = try button(id)
+    }
+
+    /// Play pauses a running warm-up with the Play is ready words, and nothing starts it again
+    /// beside the game: not a return to the app while the game runs, not the library over the
+    /// paused game, not Quit. Resume stays the player's.
+    func testWarmupPausedByPlayWaitsThroughGame() throws {
+        app.terminate()
+        app.launchArguments += ["-SatchelPreviewWarmupTests", "YES", "-SatchelPreviewSessionTests", "YES"]
+        app.launch()
+        _ = try button("import-homebrew")
+        try tap("fixture-warmup-start")
+        fixtureText("fixture-warmup-state", equals: "running:running")
+        try playLanternBesideWarmup()
+        backgroundAndReturn(app.buttons["game.pause"].firstMatch)
+        try pauseAfterReturn(expecting: "menu-library")
+        try tap("menu-library")
+        _ = try button("import-homebrew")
+        sessionState("started=1 paused=1 package=LanternDrift-1.2.0")
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        let card = try button("warmup-home-card")
+        XCTAssertTrue(card.label.contains("Play is ready"), card.label)
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        Thread.sleep(forTimeInterval: 2)
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        fixtureText("fixture-warmup-lifecycle", equals: "starts=1 interrupted=0")
+        try tap("play-focused")
+        _ = try button("menu-resume")
+        try tap("menu-quit")
+        try tap("Quit game")
+        _ = try button("import-homebrew")
+        sessionState("started=0 paused=0 package=none")
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        Thread.sleep(forTimeInterval: 2)
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        fixtureText("fixture-warmup-lifecycle", equals: "starts=1 interrupted=0")
+    }
+
+    /// A developer launch that opens a game by itself never resumes a warm-up iOS stopped:
+    /// not as the app opens, not beside the game, not after Quit in that process. The saved
+    /// run keeps its promise, and an ordinary launch resumes it on return.
+    func testWarmupStoppedByIOSWaitsOutAutomaticLaunch() throws {
+        app.terminate()
+        let ordinary = app.launchArguments
+        app.launchArguments[1] = "YES"
+        let flag = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelAutoLaunchPreparedGame"))
+        app.launchArguments[flag + 1] = "YES"
+        let seeded = ["-SatchelPreviewWarmupTests", "YES", "-SatchelPreviewStoppedWarmup", "YES"]
+        app.launchArguments += ["-SatchelPreparedGame", "LanternDrift-1.2.0", "-SatchelPreviewSessionTests", "YES"] + seeded
+        app.launch()
+        _ = try button("game.pause")
+        backgroundAndReturn(app.buttons["game.pause"].firstMatch)
+        try pauseAfterReturn(expecting: "menu-quit")
+        try tap("menu-quit")
+        try tap("Quit game")
+        _ = try button("import-homebrew")
+        sessionState("started=0 paused=0 package=none")
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        Thread.sleep(forTimeInterval: 2)
+        fixtureText("fixture-warmup-state", equals: "idle:paused")
+        fixtureText("fixture-warmup-lifecycle", equals: "starts=0 interrupted=1")
+        let card = try button("warmup-home-card")
+        XCTAssertTrue(card.label.contains("resumes when you return"), card.label)
+        app.terminate()
+        app.launchArguments = ordinary + seeded
+        app.launch()
+        _ = try button("import-homebrew")
+        backgroundAndReturn(app.buttons["import-homebrew"].firstMatch)
+        fixtureText("fixture-warmup-state", equals: "running:running")
+        try tap("fixture-warmup-finish")
+        fixtureText("fixture-warmup-state", equals: "idle:complete")
+    }
+
     func testWarmupHomeCardDisappearsWhenFinished() throws {
         try startWarmupFixture()
         try tap("fixture-warmup-finish")

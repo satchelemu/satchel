@@ -30,8 +30,9 @@ with no computer involved.
 
 The simulator UI suite covers import cancellation and restart, system-interrupted
 warm-up, a Prepare that finishes without starting warm-up, an earlier release's paused
-warm-up that waits for Resume, paused-game Resume after backgrounding, and Prepare
-availability after Quit.
+warm-up that waits for Resume, a warm-up that Play pauses and nothing restarts beside the
+game, a warm-up iOS stopped that waits out a developer auto-launch, paused-game Resume after
+backgrounding, and Prepare availability after Quit.
 These synthetic journeys do not replace phone checks of iCloud delivery, native session
 teardown or shader cache reuse. See [the test guide](docs/testing.md).
 

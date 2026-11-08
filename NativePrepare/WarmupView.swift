@@ -34,7 +34,7 @@ struct WarmupPanel: View {
     /// Why the button cannot be used right now, in words.
     private func blocked(_ package: String) -> String? {
         if job.running && job.journal?.package == package { return nil }
-        if SatchelNativeSessionStarted() || job.playRequested { return "Quit the game to warm up shaders" }
+        if job.gate.gameOpen { return "Quit the game to warm up shaders" }
         if prepare.running { return "Available after preparation finishes" }
         if job.running { return "Another warm-up is running" }
         if addOns.running { return "Available after Add DLC finishes" }

@@ -134,6 +134,11 @@ the real picker must appear, dismiss and reopen, including after background/retu
   `startedByUser`, stopped by iOS or ended with the app) stays paused through background and
   return, and its card and game page offer Resume, which continues it
   (`testWarmupLegacy*WaitsForResume`).
+- Simulator only: Play pauses a running warm-up with "Play is ready", and it stays paused
+  through background and return in the game, the library over the paused game and Quit
+  (`testWarmupPausedByPlayWaitsThroughGame`). A warm-up iOS stopped never resumes in a
+  developer auto-launch process, beside the game or after its Quit, and resumes on return
+  after an ordinary launch (`testWarmupStoppedByIOSWaitsOutAutomaticLaunch`).
 - Simulator only: the Prepare screen's "Test without reviewed settings" option is hidden
   without developer controls (`testTestPackageOptionHiddenWithoutDeveloperControls`). With
   them it starts off; a signed synthetic Prepare with it on ends as a test package beside the

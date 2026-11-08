@@ -81,9 +81,14 @@ saves, play history, the import, warm-up and paused-game cards. The lifecycle
 journeys cover import cancellation and restart, warm-up interrupted by the system
 (including late cancellation acknowledgement), user pause, a game without a warm-up
 record, a Prepare that ends at Ready to play without starting warm-up, a paused warm-up
-saved by an earlier release that waits for Resume, and Prepare and warm-up availability
-after Quit. `python3 -B Tests/WarmupResume/run.py <out>` checks on the Mac which saved
-warm-up resumes by itself and that only the game page starts one. It is read-only on a phone
+saved by an earlier release that waits for Resume, a warm-up that Play pauses and that
+stays paused through the game, the library over it and Quit, a warm-up iOS stopped that
+waits out a developer auto-launch, and Prepare and warm-up availability after Quit.
+`python3 -B Tests/WarmupResume/run.py <out>` checks on the Mac which saved warm-up resumes
+by itself and that only the game page starts one, and drives the production job through
+every route that opens a game (Play, a session prepared while the app was inactive, the
+pause menu's library, the developer cycle and auto-launch, a return while a game starts,
+an iOS stop as a game opens) to show no warm-up starts, resumes or keeps running beside it. It is read-only on a phone
 and mutating only on the simulator. Synthetic sessions do not establish native game
 teardown, cached shader reuse or iCloud background delivery on hardware.
 

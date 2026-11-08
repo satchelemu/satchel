@@ -127,13 +127,27 @@ memory pressure or starting a game cancels further warm-up work. A currently
 admitted Metal compile can finish, but Play does not join the job. Warm-up failure
 never marks a verified package unplayable.
 
+A warm-up never starts, resumes or keeps running while a game is open or on its way
+(`WarmupGate` in `WarmupJob.swift`). A game counts from Play's request until its session
+ends, by every route: the game page or warm-up card, the pause menu's library, the
+developer cycle and the automatic launch. That includes a session prepared while the app
+was inactive, which boots only once the app is active again (`PreparedLaunch.current` is
+set before the session starts). Play pauses a running warm-up with "Paused. Play is ready;
+resume to reuse cached work." and it waits for Resume, as before; any other way a session
+opens beside a run pauses it the same way at its next progress report or activation.
+Warm up and Resume say "Quit the game to warm up shaders" meanwhile.
+
 **Resume** reuses durable source entries and device pipeline archives, including
 after relaunching Satchel. A run the player started that iOS stopped in the
-background, or that ended with the app, resumes when Satchel is active again; the
-saved job records `startedByUser` for this. A saved run from a release that started
+background, or that ended with the app, resumes when Satchel is active again with no game
+open or starting; until then it keeps waiting with its words and cached work. A process
+launched to open a game by itself (`-SatchelAutoLaunchPreparedGame` with developer
+controls, or `-SatchelCyclePreparedGames`) never resumes one by itself; the saved run
+resumes on the next ordinary launch. The saved job records `startedByUser` for this. A saved run from a release that started
 warm-up after every Prepare has no such field: it stays paused with its Resume
 control and cached work, and never resumes by itself (`WarmupResume` in
-`WarmupJob.swift`, checked by `Tests/WarmupResume/run.py`). Saved progress does not
+`WarmupJob.swift`, checked by `Tests/WarmupResume/run.py`, which also drives the whole
+job through every route that opens a game). Saved progress does not
 authorize skipping verification or library acquisition. Shaders and vertex/fragment
 pairs in the private first-use capture (what the game drew in play on this phone) are
 built first, then the rest in their usual order; a partial run then covers the areas

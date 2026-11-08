@@ -89,4 +89,14 @@ check(oldProgress.unitsDone == nil && oldProgress.unitsTotal == nil && oldProgre
 let savedUnits = try JSONDecoder().decode(WarmupProgress.self, from: JSONEncoder().encode(WarmupProgress(unitsDone: 5, unitsTotal: 9)))
 check(savedUnits.unitsDone == 5 && savedUnits.unitsTotal == 9, "Units survive the save")
 
+// A game open or on its way holds every run back; other package work only holds starts; a
+// process launched to play holds only the automatic resume.
+check(WarmupGate().mayStart && WarmupGate().mayResume && !WarmupGate().mustPause, "Nothing open lets a run start")
+for gate in [WarmupGate(playRequested: true), WarmupGate(sessionOpen: true)] {
+    check(gate.gameOpen && !gate.mayStart && !gate.mayResume && gate.mustPause, "A game open or starting holds every run")
+}
+check(!WarmupGate(otherWork: true).mayStart && !WarmupGate(otherWork: true).mustPause, "Prepare holds a start, not a running run")
+let automated = WarmupGate(automatedPlay: true)
+check(automated.mayStart && !automated.mayResume && !automated.mustPause, "A launch to play holds only the automatic resume")
+
 print("Warm-up resume checks passed: \(checks)")

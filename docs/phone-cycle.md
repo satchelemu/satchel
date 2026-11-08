@@ -55,6 +55,14 @@ pass. Backgrounding fails the cycle. Copy the log before a new cycle, which repl
 If the log cannot be written, no next visit starts and the app reports `log-write-failed`
 on stderr; a failing storage device cannot guarantee a final log row.
 
+A process launched with `-SatchelAutoLaunchPreparedGame YES` (with developer controls) or
+`-SatchelCyclePreparedGames` never resumes a saved shader warm-up by itself, and no warm-up
+starts, resumes or keeps running beside any game (`WarmupGate`), so these runs do not share
+the CPU, the shader compiler or the phone's heat with one. A warm-up iOS stopped keeps its
+place and resumes on the next ordinary launch. To check, read its `progress.json` before and
+after a run: `completed` and `seconds` must not change. Do not rely on `state` alone: a run
+the app ended still reads `running` on disk until the warm-up next runs.
+
 ## Orchestrator commands
 
 Use zsh on the Mac, with the unsigned build reviewed, signed and installed separately

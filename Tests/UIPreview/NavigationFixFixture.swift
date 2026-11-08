@@ -39,6 +39,15 @@ enum NavigationFixFixture {
                                             interrupted: mode == "stopped" ? true : nil)
             if let data = try? JSONEncoder().encode(journal) { defaults.set(data, forKey: "SatchelWarmupJob") }
         }
+        // A warm-up the player started that iOS stopped in the background: it promises to
+        // resume when the player returns with no game open.
+        if defaults.bool(forKey: "SatchelPreviewStoppedWarmup") {
+            var progress = WarmupProgress(stage: WarmupStopWords.stoppedByIOS, completed: 1, total: 2)
+            progress.state = "paused"
+            let journal = WarmupJob.Journal(package: "LanternDrift-1.2.0", title: "Lantern Drift", progress: progress,
+                                            interrupted: true, startedByUser: true)
+            if let data = try? JSONEncoder().encode(journal) { defaults.set(data, forKey: "SatchelWarmupJob") }
+        }
         guard defaults.bool(forKey: "SatchelPreviewFixTests"), defaults.string(forKey: "SatchelPreviewDemo") == "library" else { return }
         do {
             let fm = FileManager.default

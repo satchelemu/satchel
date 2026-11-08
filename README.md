@@ -134,7 +134,9 @@ See [the posture test guide](docs/testing.md#duo-postures).
   charging, subject to thermal and power constraints. iOS sees progress after every
   finished shader, and shaders the game already used in play are built first. A large
   game only gets far with Satchel open, the screen on and the phone charging: in the
-  background iOS may stop it, and it resumes when the player returns. Phone speed
+  background iOS may stop it, and it resumes when the player returns. It never runs beside
+  a game: Play pauses it, and nothing starts or resumes it while a game is open or starting
+  (any route, including the developer auto-launch and cycle). Phone speed
   measurements remain pending. See [warm-up measurements](NativeShaders/WarmupSpeed.md) and
   [graphics notes](NativeHost/graphics/README.md).
 - No cheats, no multiplayer, no App Store release (and none planned).

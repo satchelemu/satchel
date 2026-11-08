@@ -55,6 +55,31 @@ enum WarmupResume {
         journal.startedByUser == true && journal.interrupted == true && journal.progress.state == "paused"
     }
 }
+
+/// What holds a warm-up back. A game counts as open from Play's request until its session
+/// ends, whatever opened it: the game page, the pause menu's library, the developer cycle
+/// or an automatic launch. `WarmupJob` fills this in from the app's live state.
+struct WarmupGate {
+    /// Play's package check and session setup are under way (`prepareForPlay`).
+    var playRequested = false
+    /// A session is prepared or running (`PrepareJob.gameSessionOpen`). A session prepared
+    /// while the app was inactive boots only once it is active again; it counts already.
+    var sessionOpen = false
+    /// Prepare or Add DLC is running.
+    var otherWork = false
+    /// This process was launched to open a game by itself (developer auto-launch or cycle).
+    var automatedPlay = false
+
+    var gameOpen: Bool { playRequested || sessionOpen }
+    /// Warm up or Resume may start a run.
+    var mayStart: Bool { !gameOpen && !otherWork }
+    /// A saved run may continue by itself. Never in a process launched to open a game by
+    /// itself: its game is on the way from the first moment, and the saved run keeps its
+    /// promise for the next ordinary launch.
+    var mayResume: Bool { mayStart && !automatedPlay }
+    /// A running warm-up pauses as Play's request pauses it, keeping its cached work.
+    var mustPause: Bool { gameOpen }
+}
 // End of saved warm-up state.
 
 /// Optional work on an already usable package. Failure never changes its playability.
@@ -89,7 +114,12 @@ enum WarmupResume {
     @Published private var stored: [String: Status] = [:]
     private var storedStamp: [String: Date] = [:]
     private var loading: Set<String> = []
+    /// The launch arguments of this process ask for a game to open by itself, with the
+    /// same conditions the home screen and the cycle use to open it.
+    private let automatedPlay: Bool
     private init() {
+        automatedPlay = (UserDefaults.standard.bool(forKey: "SatchelDeveloperControls") && PreparedLaunch.launchFlag("SatchelAutoLaunchPreparedGame"))
+            || NativePreparedCycle.requested
         for name in [UIApplication.didBecomeActiveNotification, UIApplication.willResignActiveNotification,
                      UIDevice.batteryStateDidChangeNotification, ProcessInfo.thermalStateDidChangeNotification,
                      Notification.Name.NSProcessInfoPowerStateDidChange] {
@@ -107,7 +137,15 @@ enum WarmupResume {
             journal = WarmupResume.restored(saved)
         }
     }
+    /// The live state that holds a warm-up back.
+    var gate: WarmupGate {
+        WarmupGate(playRequested: playRequested, sessionOpen: PrepareJob.gameSessionOpen,
+                   otherWork: PrepareJob.shared.running || AddOnJob.shared.running, automatedPlay: automatedPlay)
+    }
     private func refreshScheduling(resigning: Bool = false) {
+        // A game opened without Play's request still pauses the run (activation is one of
+        // the moments this runs).
+        if running, gate.mustPause { cancel() }
         let battery = UIDevice.current.batteryState
         let process = ProcessInfo.processInfo
         context?.scheduling.set(.select(foreground: !resigning && UIApplication.shared.applicationState == .active,
@@ -162,10 +200,11 @@ enum WarmupResume {
     }
 
     /// Restarts a run the player started that iOS stopped in the background, when nothing
-    /// blocks it. A run an earlier release started after Prepare waits for Resume.
+    /// blocks it: never while a game is open or on its way (`WarmupGate`). Such a run keeps
+    /// waiting and continues on a later return with no game open. A run an earlier release
+    /// started after Prepare waits for Resume.
     func resumeIfInterrupted() {
-        guard let journal, WarmupResume.resumesByItself(journal), !running, !playRequested,
-              !PrepareJob.shared.running, !AddOnJob.shared.running, !SatchelNativeSessionStarted() else { return }
+        guard let journal, WarmupResume.resumesByItself(journal), !running, gate.mayResume else { return }
         start(package: journal.package, title: journal.title)
     }
     func prepareForPlay() { playRequested = true; cancel() }
@@ -176,7 +215,7 @@ enum WarmupResume {
     /// Only a player's action reaches this: Warm up or Resume on a page, or the automatic
     /// return of a run the player started. Prepare never starts a warm-up.
     func begin(package: URL, title: String, keepAlive: Bool = true) -> Context? {
-        guard !running, !playRequested, !AddOnJob.shared.running, !SatchelNativeSessionStarted() else { return nil }
+        guard !running, gate.mayStart else { return nil }
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         guard package.standardizedFileURL.deletingLastPathComponent() == documents.appendingPathComponent("PreparedGames").standardizedFileURL,
               let data = try? WarmupRunner.bounded(package.appendingPathComponent("manifest.json"), maximum: 32 * 1024 * 1024),
@@ -205,6 +244,8 @@ enum WarmupResume {
         guard context?.token === value.token else { return }
         journal = Journal(package: value.package.lastPathComponent, title: value.title, progress: progress,
                           interrupted: interrupted ? true : nil, packageFailed: packageFailed ? true : nil, startedByUser: true); save()
+        // Play's request already paused the run; this also covers a game opened any other way.
+        if gate.mustPause { value.token.cancel() }
     }
 
     /// Marks the running warm-up as stopped by iOS; called by the expiration handlers.
@@ -228,7 +269,7 @@ enum WarmupResume {
         // The run rewrote this package's progress.json; read it again next time.
         storedStamp[value.package.lastPathComponent] = nil
         running = false; context = nil
-        if !playRequested, !SatchelNativeSessionStarted(), !PrepareJob.shared.running { UIApplication.shared.isIdleTimerDisabled = false }
+        if !gate.gameOpen, !PrepareJob.shared.running { UIApplication.shared.isIdleTimerDisabled = false }
         endBackgroundTask()
         // Cancellation may finish after the scene's active callback already ran.
         // Retry here too so a system-expired run cannot remain stranded on return.

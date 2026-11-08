@@ -139,7 +139,10 @@ imports and saves. An unsigned validation build cannot be installed directly.
    Allow an in-flight batch to drain before expecting the new count. Memory
    warnings or background expiration can pause work; record that separately.
 5. Pause, resume, request Play during warm-up, Quit and relaunch. Confirm the
-   package remains playable and resume reuses source entries. Remove all trial
+   package remains playable and resume reuses source entries. Play pauses the warm-up
+   ("Paused. Play is ready") and nothing restarts it while the game runs, so a play
+   measurement never shares the phone with it; a developer auto-launch or cycle never
+   resumes a saved run. Remove all trial
    launch arguments for ordinary use. Trial work intentionally does not warm the
    normal gameplay cache, so it is measurement evidence only.
 6. In Xcode's Devices and Simulators window, use Download Container and inspect
