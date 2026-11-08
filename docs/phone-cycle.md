@@ -169,9 +169,10 @@ plays there by itself) runs for 60 minutes, then the cycle quits through the men
 `-SatchelMemoryProfile YES` makes the scene-memory sampler append counts and sizes of
 the host's textures, buffers, pipelines, shaders and staging every 60 guest frames to
 `scene-memory.tsv` in the title's runtime folder, started fresh at launch. The
-profile's DM_MEMSTAT file in the same folder (`memory.tsv`, or a reviewed profile's
-own name such as `zelda-memory.tsv`) records footprint, Metal allocation and per-class
-charged memory every second. `-SatchelGraphicsProfile YES` adds frame times. Start at
+profile's DM_MEMSTAT file (`memory.tsv`, or a reviewed profile's own name such as
+`zelda-memory.tsv`) records footprint, Metal allocation and per-class charged memory
+every second. A relative DM_MEMSTAT name resolves to the container's `Documents/`, so
+this file is `Documents/zelda-memory.tsv`, not a file in the runtime folder. `-SatchelGraphicsProfile YES` adds frame times. Start at
 the library after a completed Quit. Do not write button commands to `ctl.txt` during
 this procedure; a `shot` line is the only allowed control command.
 
@@ -192,10 +193,16 @@ xcrun devicectl device process launch --device "$cycle_device" \
 xcrun devicectl device copy from --device "$cycle_device" \
   --domain-type appDataContainer --domain-identifier "$cycle_bundle" \
   --source Documents/cycle-log.tsv --destination "$soak_out/cycle-log.tsv"
-for name in scene-memory.tsv memory.tsv zelda-memory.tsv graphics-frames.tsv; do
+for name in scene-memory.tsv graphics-frames.tsv; do
   xcrun devicectl device copy from --device "$cycle_device" \
     --domain-type appDataContainer --domain-identifier "$cycle_bundle" \
     --source "Documents/NativeRuntime/$soak_title/$name" --destination "$soak_out/$name" || true
+done
+# The DM_MEMSTAT file is in Documents/, not in the runtime folder.
+for name in memory.tsv zelda-memory.tsv; do
+  xcrun devicectl device copy from --device "$cycle_device" \
+    --domain-type appDataContainer --domain-identifier "$cycle_bundle" \
+    --source "Documents/$name" --destination "$soak_out/$name" || true
 done
 ```
 
@@ -211,7 +218,8 @@ Keep the copied manifest private. Require the cycle row to read `ok` with
 footprint and Metal rows and every counter the summary calls `steady`. On a title
 screen nothing new should load after the first minutes, so any steady counter is a
 leak candidate; steps are expected only at the first load. Repeat with Odyssey and
-Castlevania by changing the package and title ID. Compare `footprint_at_quit_bytes`
+Castlevania by changing the package, the title ID and the memory file name
+(`odyssey-memory.tsv`, `castlevania-memory.tsv`). Compare `footprint_at_quit_bytes`
 with the summary's end value.
 
 ## Mac checks

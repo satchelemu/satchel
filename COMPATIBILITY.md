@@ -86,7 +86,10 @@ No rendering optimization is enabled by these diagnostics. The optional per-titl
 MetalFX spatial presentation setting defaults to off and does not change these
 phone ratings. It still needs matched phone captures and GPU-cost acceptance. The same
 holds for the optional edge smoothing present (`edge`) and the optional 3D view resample
-(`view`), which are also off by default.
+(`view`), which are also off by default. A first phone GPU timing of the 3D view resample
+(2026-11-08, Zelda title screen, no input, not played) is in the
+[phone round record](Validation/phone-round-2026-11-08.md); its look is unjudged and it does not
+change these ratings.
 Opt-in frame GPU timing uses command-buffer feedback rather than the OS power
 counter. Its CPU/GPU limit labels are diagnostic inferences, pending phone checks.
 
@@ -117,7 +120,11 @@ path, cold caches) ran Zelda for 60 minutes and Odyssey and Castlevania for at l
 2.44 to 2.46 GiB (a dialogue scene and a separate 32-minute gameplay loop) after their
 first loads. No host
 cache grew steadily. See [the soak evidence](Validation/memory-soak-2026-11-07.md).
-These are Mac readings and do not change a phone rating.
+These are Mac readings and do not change a phone rating. On the phone, a one-hour no-input
+soak of Zelda's title screen (2026-11-08, not played) kept the footprint between 2,233 and
+2,254 MiB with Metal flat; malloc grew steadily at about 23 MiB per hour, not yet attributed,
+and long play remains open (see the [phone round record](Validation/phone-round-2026-11-08.md)).
+It does not change a rating.
 
 The same new host also passes nine 120-second visits in one Mac process:
 Castlevania twice, Odyssey twice, Zelda twice, then Castlevania, Odyssey and Zelda.
@@ -247,7 +254,8 @@ compatibility claim either. The opt-in launch prewarm (`-SatchelPipelinePrewarm 
 pipelines a device recorded before the first frame; it does nothing on a game's first launch, was
 measured on the Mac only, and adds no phone claim. The opt-in translation ahead
 (`-SatchelShaderAhead <lanes>`) changes when shaders are translated, never which; it was measured on
-the Mac only and adds no phone claim.
+the Mac and in a first no-input phone trial on Zelda's title screen, one run each
+([record](Validation/phone-round-2026-11-08.md)), and adds no phone compatibility claim.
 
 ## Controller acceptance
 

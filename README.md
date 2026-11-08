@@ -125,7 +125,7 @@ See [the posture test guide](docs/testing.md#duo-postures).
   launch; exact stays the default. An opt-in launch prewarm (`-SatchelPipelinePrewarm YES`,
   measured on the Mac only) builds the pipelines a device recorded before the first frame,
   for a bounded loading time; it does nothing on a game's first launch. An opt-in translation
-  ahead (`-SatchelShaderAhead 4`, measured on the Mac only) translates a new scene's programs on
+  ahead (`-SatchelShaderAhead 4` on the Mac; on the phone a developer trial so far, one no-input run per setting, [record](Validation/phone-round-2026-11-08.md)) translates a new scene's programs on
   parallel lanes before their draws reach them, which cut Zelda's first-launch title frame
   translation wait from about 2 s to under 0.8 s on the Mac without changing any draw. The shader warm-up is
   opt-in: Prepare does not start it, only the game page's Warm up does, and a game plays
@@ -156,7 +156,10 @@ its cause remains under investigation. Long-play memory soaks on the Mac (a 60-m
 Zelda run and 30-minute Odyssey and Castlevania runs on the app's runtime shader path)
 found growth only in steps on new scenery and no steadily growing host cache; see
 [the soak evidence](Validation/memory-soak-2026-11-07.md). Mac results do not
-establish phone memory acceptance. Nine same-process Mac visits across the three
+establish phone memory acceptance. On the phone, a one-hour no-input soak of Zelda's title
+screen (2026-11-08, not played) ended cleanly and found steady malloc growth of about 23 MiB
+per hour, a leak candidate not yet attributed; long play on the phone remains open (see
+[the phone round](Validation/phone-round-2026-11-08.md)). Nine same-process Mac visits across the three
 titles also complete without a launch hang or stop timeout.
 See [session validation](NativeHost/session/README.md). Developer-only remote Quit
 and timed prepared-game cycles reuse the menu teardown and write per-visit telemetry.
@@ -291,7 +294,9 @@ default; a Mac picture comparison against 1.0 and its cost are in the
 3D view resample (`view`, per title, off by default) replaces a game's own FSR 1 upscale draw
 of its 3D view, before the HUD is drawn, with a Catmull-Rom resample; it finds the draw from
 NVN state alone and changes nothing in games without one (see the
-[graphics notes](NativeHost/graphics/README.md#3d-view-resample-opt-in)).
+[graphics notes](NativeHost/graphics/README.md#3d-view-resample-opt-in)). On the phone
+(2026-11-08, Zelda title screen, no input, not played) it was 0.2 to 0.3 ms cheaper at GPU p50
+than the plain path; its look on the phone is still unjudged.
 The graphics profile also provides paired GPU submission and CPU frame timing
 summaries in `host.log`, with phone timing verification still pending.
 They do not establish a full-resolution speedup or change the compatibility claims.
