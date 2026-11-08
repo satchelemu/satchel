@@ -545,6 +545,9 @@ The edge smoothing present compiles `NativeHost/graphics/PresentFilter.metal` at
 `SATCHEL_QUALITY_DIAGNOSTICS=1` on the pipeline Mac host build adds the render-scale burst
 captures, and `xcrun swiftc -O NativeHost/graphics/quality/present-quality.swift` builds the
 Mac comparison tool (see [present edge smoothing](NativeHost/graphics/README.md#present-edge-smoothing-opt-in)).
+The 3D view resample compiles `NativeHost/graphics/ViewUpscale.metal` at run time the same way;
+`xcrun swiftc -O NativeHost/graphics/quality/view-upscale.swift` builds its offline resample tool
+(see [3D view resample](NativeHost/graphics/README.md#3d-view-resample-opt-in)).
 
 `python3 -B NativeHost/graphics/frame-timing-check.py` uses `SATCHEL_OUT` and the
 shared build wait to test timing accounting and real Metal callbacks on synthetic

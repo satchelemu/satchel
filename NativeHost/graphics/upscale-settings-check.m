@@ -34,8 +34,8 @@ int main(int argc, const char **argv) { @autoreleasepool {
     assert(SatchelSavePlayerSettings(title, @{@"DM_SCREEN_MODE": @"stretch"}));
     assert([SatchelPlayerSettings(title)[@"DM_PRESENT_UPSCALE"] isEqual:@"spatial"]);
     assert(!SatchelSavePlayerSettings(title, @{@"DM_SCREEN_MODE": @"fit", @"DM_PRESENT_UPSCALE": @"temporal"}));
-    // Edge smoothing, alone or before the spatial scaler, is a per-title choice like spatial.
-    for (NSString *filter in @[@"edge", @"edge-spatial", @"spatial"]) {
+    // Edge smoothing, alone or before the spatial scaler, and the 3D view resample are per-title choices like spatial.
+    for (NSString *filter in @[@"edge", @"edge-spatial", @"view", @"spatial"]) {
         assert(SatchelSavePlayerSettings(title, @{@"DM_PRESENT_UPSCALE": filter}));
         assert([SatchelPlayerSettings(title)[@"DM_PRESENT_UPSCALE"] isEqual:filter]);
         assert([SatchelPlayerSettings(other)[@"DM_PRESENT_UPSCALE"] isEqual:@"off"]);

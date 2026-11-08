@@ -279,7 +279,11 @@ render scales. It defaults to off, falls back to bilinear when unsupported, and
 still needs phone image-quality and GPU-cost acceptance. An optional edge smoothing
 present (`edge`, or `edge-spatial` before the scaler) is also per title and off by
 default; a Mac picture comparison against 1.0 and its cost are in the
-[graphics notes](NativeHost/graphics/README.md#present-edge-smoothing-opt-in).
+[graphics notes](NativeHost/graphics/README.md#present-edge-smoothing-opt-in). An optional
+3D view resample (`view`, per title, off by default) replaces a game's own FSR 1 upscale draw
+of its 3D view, before the HUD is drawn, with a Catmull-Rom resample; it finds the draw from
+NVN state alone and changes nothing in games without one (see the
+[graphics notes](NativeHost/graphics/README.md#3d-view-resample-opt-in)).
 The graphics profile also provides paired GPU submission and CPU frame timing
 summaries in `host.log`, with phone timing verification still pending.
 They do not establish a full-resolution speedup or change the compatibility claims.

@@ -39,6 +39,8 @@ def prepare(source, destination):
     # Opt-in edge smoothing in the present (DM_PRESENT_UPSCALE edge and edge-spatial). Last, so the
     # shader build and metrics instrumentation above count only the engine's own pipeline sites.
     runpy.run_path(str(Path(__file__).with_name('present_filter.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
+    # Opt-in 3D view resample (DM_PRESENT_UPSCALE view): a game's FSR 1 upscale draw of its 3D view, before its HUD.
+    runpy.run_path(str(Path(__file__).with_name('view_upscale.py')))['apply'](Path(__file__).resolve().parents[2], destination / 'nvn_mtl.m')
     # How the replay holds a texture, for the texture-write watch in hle_nvn.c (texture_writes.py). Its own patch file, applied last.
     runpy.run_path(str(Path(__file__).with_name('texture_writes.py')))['metal'](destination / 'nvn_mtl.m')
     return destination / 'nvn_mtl.m'

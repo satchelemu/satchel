@@ -533,7 +533,8 @@ to four places, 3D +0.02 to +0.07 dB). On Castlevania's menu text the filter kee
 0.998 against the plain present. A filter after scan-out cannot separate the game's 3D
 view, upscaled by the game before the HUD is drawn, from the HUD; the place to fix the
 reduced view's roughness without touching the HUD is the game's own upscale draw, as the
-engine's `DM_UPSCALER` does for one game's upscaler shader.
+engine's `DM_UPSCALER` does for one game's upscaler shader; the opt-in 3D view resample below
+does that for an FSR 1 upscale draw.
 
 Mac GPU time per pass at 2853x1604 (medians of 20 command buffers, shared Mac): plain
 present 0.28 to 0.54 ms; edge pass at 1920x1080 0.15 to 0.44 ms; single-pass edge at
@@ -551,6 +552,96 @@ of an `off` session matched the tool's `off` with 0 of 13,728,636 bytes differen
 three frames of an `edge` session matched the tool's `edge` with 0 bytes different (and
 about 2.0 million bytes from `off`), so the engine runs exactly this filter and the plain
 present is unchanged.
+
+## 3D view resample (opt-in)
+
+`DM_PRESENT_UPSCALE` also takes `view` (developer argument `-SatchelUpscaler view`, saved per title,
+next launch; the present stays plain bilinear). `view_upscale.py` runs after `present_filter.py`
+in the overlay chain and embeds `ViewUpscale.metal`, compiled once on a background queue; until it
+is ready the game's draw stays. It acts where a game itself upscales its 3D view, before its HUD.
+
+What the games do (Mac pass dumps, `DM_CTL passdump` with `DM_NVN_PASSDUMP_ALL=1`, docked):
+
+- Zelda (Room of Awakening save): the 3D and post-processing passes run at the view size, 1600x896
+  at render scale 1.0, and the render-scale stub makes the game allocate its view targets at the
+  reduced size (1040x584 at 0.65, 800x448 at 0.5). Then one draw of three vertices samples that
+  R11G11B10F view into the 1920x1080 R11G11B10F target. Its uniform buffer starts with FSR 1's
+  first EASU constant (AMD's `FsrEasuCon` con0: 0.541667, 0.540741, -0.229167, -0.22963 at 0.65,
+  that is in / out and 0.5 in / out - 0.5); the values after con0 are not FSR's con1. The HUD's
+  quads follow in the same pass, then a copy to the RGBA8 sRGB scan-out. The draw is a plain
+  resample: a Catmull-Rom resample of the captured view (`DM_CTL texraw`) matches the game's own
+  output in the 3D region at SSIM 0.994 and 48.7 dB.
+- Odyssey (opening cutscene): every pass and the scan-out itself are 1600x900. The game has no
+  upscale draw; the present scales the whole picture. `view` replaces nothing (no log line).
+- Castlevania (language menu): the whole 1024x576 picture, text included, is drawn bilinearly into
+  the 1280x720 viewport of the 1920x1080 scan-out, with a depth attachment and no con0. Its UI is
+  in that picture, so it is not a 3D view under a HUD; `view` leaves it alone.
+
+The host finds the draw from NVN state only, with no title or shader key: three vertices, one
+instance, not indirect, the first draw of a new pass, one colour target (level 0, layer 0) with no
+depth, stencil or pending clear, blending off, all channels written, logic operation copy, viewport
+and scissor covering the target, a fragment shader binding exactly one texture (a single-sample 2D
+colour texture smaller than the target in both directions) besides samplers and uniform buffers,
+and a uniform buffer whose first four floats are FSR 1's con0 for that whole texture drawn to that
+whole target (within 1e-4). Such a draw is not encoded; `ViewUpscale.metal` draws a Catmull-Rom
+resample (nine bilinear taps, clamp to edge, negative lobes clamped at zero) of the same texture into
+the same target in a pass of its own, which the next pass is fully ordered after. The HUD draws that
+follow are the game's, unchanged, at full resolution. Anything that fails a check keeps the game's
+draw; with the setting on, the first 24 three-vertex draws into targets at least 1280 wide that are
+kept are logged with the failed check. Unset, and every other value, encode exactly what they did:
+the only change on those paths is a cached flag check per draw. The pass dump marks a replaced draw
+with an `N` line.
+
+Mac quality, 2026-11-07 (M4, Zelda's Room of Awakening save, docked). One session, eight bursts per
+row: `quality-diagnostics.py` with a third word `view` turns the resample on only for the frames
+encoded after the burst's 1.0 frame f005 is saved, so each burst holds the game's own 1.0 picture and
+a reduced frame through the resample (f008; f008 of the plain bursts for the game's EASU). SSIM / PSNR
+against that burst's f005, presented at 2853x1604 as `present-quality` does; standard deviations over
+the eight bursts in brackets; the floor (f003 against f005) is SSIM 0.996 to 0.999:
+
+| Scale, upscale | whole | HUD icons | 3D ring and Link | 3D wide |
+|---|---|---|---|---|
+| 0.65, game (EASU) | 0.9848 / 44.09 dB | 0.9963 / 51.41 (0.51) | 0.9814 / 42.01 (0.16) | 0.9850 / 43.88 (0.11) |
+| 0.65, `view` | 0.9861 / 44.43 | 0.9965 / 50.78 (1.02) | 0.9826 / 42.15 (0.55) | 0.9859 / 44.04 (0.39) |
+| 0.50, game (EASU) | 0.9772 / 41.54 | 0.9921 / 46.35 (0.77) | 0.9726 / 39.67 (0.40) | 0.9785 / 41.51 (0.29) |
+| 0.50, `view` | 0.9802 / 42.38 | 0.9926 / 46.55 (0.70) | 0.9758 / 40.45 (0.22) | 0.9807 / 42.18 (0.17) |
+
+The resample moves reduced frames closer to the 1.0 picture: at 0.5 by SSIM +0.003 and 0.7 to 0.8 dB
+on 3D regions, at 0.65 by SSIM +0.001 and 0.15 dB, within about one standard deviation. The HUD icons
+stay within their noise (they are drawn by the game at full size either way; the crop also holds the
+3D view behind them). Render scale still dominates: 0.5 with the resample stays well below 0.65.
+
+The same comparison offline, on one captured view texture of each scale and that frame's game output
+(`quality/view-upscale.swift`, crops as above, first session): at 0.65 the game's EASU gives
+0.9765 / 39.94 dB and 0.9830 / 42.40 dB on the two 3D crops; the engine's resample 0.9787 / 40.36 and
+0.9843 / 42.73; bilinear 0.9785 / 40.47 (but SSIM on the reference's edge pixels drops from 0.747 to
+0.733); Lanczos-2 equals Catmull-Rom; MetalFX spatial (linear or perceptual mode) 0.9763 / 39.76, no
+better than the game's. The present's edge smoothing at the view's own resolution before Catmull-Rom
+reaches 0.9792 / 40.77, but softens edges (edge SSIM 0.724) and is not used. At 0.5: game 0.9733 /
+39.88, resample 0.9759 / 40.37, MetalFX 0.9755 / 40.27 with the best edge SSIM (0.785 against the
+game's 0.767). Catmull-Rom is used: it gains SSIM and PSNR at both scales and keeps the game's edge
+SSIM at 0.65 (0.748 against 0.747), though not at 0.5 (0.753 against 0.767).
+
+Mac GPU cost at 0.65 (`DM_NVN_GPUPROF=every:30`, 60 sampled frames in the room in each of two
+sessions, shared Mac): the game's upscale and HUD pass 265 us median; with `view`, the resample pass
+169 us and the HUD pass 35 us, 176 us together, so the swap costs nothing on the Mac (the game's EASU
+draw is no longer run). The offline resample alone measures 0.24 to 0.72 ms at 1920x1080 on a busy
+Mac. Phone cost, the look in motion and other scenes and games are not measured. The setting stays
+opt-in per title.
+
+`upscale-check.py` adds the setting cases and real Metal checks of the resample: the FSR 1 con0
+match and its refusals (another source or target size, a viewport smaller than the texture, an
+offset mapping, zeros, non-finite values), the shader compiling, a flat source staying flat and a
+smooth pattern matching a CPU Catmull-Rom in the interior.
+
+Unset against main (Mac, 2026-11-07): the generated renderer differs from main's only by the added
+functions and the guarded check before a pass opens. Castlevania's language menu gives the same
+pass and draw records as main (394 in a two-frame pass dump), and its pictures differ from main's by
+3,947 to 5,095 of 8,294,400 bytes (largest 31), as two runs of main differ from each other (4,035 to
+5,230, largest 32): the menu animates, so these runs cannot show byte identity, and no replayed-frame
+comparison was made. With `view`, Odyssey's opening and Castlevania's menu replace no draw; the
+draws they keep are logged (Odyssey's 1600x900 passes; Castlevania's upscale into the scan-out has
+a depth attachment and no con0).
 
 ## Phone frame GPU timing
 
