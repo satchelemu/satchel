@@ -410,6 +410,15 @@ outputs without those facts are. The implementation identity is unchanged, becau
 existing stage's output changed and hull and domain requests had never produced a cached
 result. See [NativeShaders/RuntimeIntegration.md](NativeShaders/RuntimeIntegration.md#tessellation-handoff).
 
+Patch draws (2026-11-08): the graphics overlay's `tessellation_draw.py` draws NVN patch
+primitives through that route (host only; the translator, its products and the public lock
+are unchanged). Check it on the Mac with
+`SATCHEL_OUT=<private folder> python3 -B NativeHost/graphics/tess-draw-check.py` after
+sourcing the build environment: it builds a private translation harness and the overlaid host
+into a test under `<private folder>/tess-mac`, and replays synthetic NVN command streams with
+patch draws against a CPU reference draw, under Metal's validation layer, with encoding on the
+submit thread and on the encode thread.
+
 ### Clean break of 2026-11-05
 
 The pin moved from `bbc3b73784751d2a706932dc69fd67627e3445d4` (34 patches, chain

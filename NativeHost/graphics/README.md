@@ -748,3 +748,34 @@ the copy misses is logged outside the count; a flushed write before first use, a
 storage, a render-target texture's later write, a finalized texture, a second write, a profile
 with the switches on and a launch without the variable count nothing; the summary line has the
 format the app reads.
+
+## Tessellated (patch) draws
+
+`tessellation_draw.py` (applied after `view_upscale.py`) draws NVN patch primitives, which the
+pinned engine refused (`primitive type 14 not implemented`): Metal 4 has no tessellator, so a draw
+with hull and domain shaders runs as vertex capture, the hull kernel, a compute tessellator and
+the domain shader as a vertex function, following the contract in
+[NativeShaders/RuntimeIntegration.md](../../NativeShaders/RuntimeIntegration.md#tessellation-handoff)
+("Host draw" there describes the implementation and its refusals). In `hle_nvn.c`,
+`SetPatchSize` (an empty implementation before) and `Set{Outer,Inner}TessellationLevels` (red
+unimplemented stubs before) become `OP_BIND_STATE` records of kinds 6, 7 and 8; the first
+`SetPatchSize` a game records is logged once (`[nvn] SetPatchSize ...`), and the first patch draw
+too (`tessellation: first patch draw ...`). The tessellator's Metal source is embedded from
+`NativeShaders/Tessellator.swift` when the overlay is applied, so `NativeApp/build.py` fingerprints
+that file. The recorder stand-in of deferred encoding gains the one encoder call it lacked
+(threadgroup memory, made in order on the encode thread).
+
+Draws other than patches keep their path: a primitive check before the geometry route, the NVN
+stage number of the vertex stage's arguments (0 unless a domain draw is being encoded) and a flag
+check before the encode are the only changes on it. A game that never calls `SetPatchSize` records
+nothing new. `tess-draw-check.py` (with `SATCHEL_OUT`) replays synthetic NVN command streams with
+patch draws through the overlaid host on the Mac's GPU against a CPU reference draw; see the
+handoff for what it covers. No tested game draws patches, so nothing here is a game or phone result.
+
+Unchanged paths, Mac opening routes (2026-11-08, `build-pipeline-mac.py` hosts of main 4d41479 and
+of this change, `bench_shaders.py` clean exact routes to frame 1,800): Odyssey's frames 300, 1,200
+and 1,800 are byte-identical between the two hosts. Castlevania and Zelda pass on both with the same
+translation counts (16 and 264), no shader failure, no skipped draw and the same red lines; their
+frames differ between hosts as they do between main's own runs (three Zelda runs of main: two agree
+at frames 300 and 1,200 and the third differs in 94% of the pixels; two candidate runs differ from
+each other too). None of the three logs a `SetPatchSize` record or a patch draw.

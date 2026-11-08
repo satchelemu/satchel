@@ -93,8 +93,8 @@ and for a domain shader its domain, spacing, winding and point mode); the comput
 tessellator is `SatchelShaderTessellator.source`. A domain request's facts may add
 `tess_domain` (`isolines`, `triangles`, `quads`), `tess_spacing` (`equal`,
 `fractional_even`, `fractional_odd`) and `tess_cw`; other stages refuse them. No
-such records occur in the available Zelda, Odyssey and Castlevania inventories, and
-the host does not draw patches yet. This API is title independent, not a claim
+such records occur in the available Zelda, Odyssey and Castlevania inventories; the
+host draws patches through this contract since 2026-11-08 (synthetic Mac checks only). This API is title independent, not a claim
 that all games or stages are supported. See `RuntimeIntegration.md` for the host
 compute contract and `PrepareWarmup.md` for bounded Prepare warm-up and timings.
 

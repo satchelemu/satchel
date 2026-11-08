@@ -15,10 +15,11 @@ GPU mapping is retried on use. Source memory is bounded to 64 MiB, its disk cach
 2 GiB and live compiler libraries to 64. Host pipeline caches retain their existing
 engine limits. Translation is serialized; the compiler permits at most two jobs.
 Pinned default query facts are used, with observed fragment input requirements.
-Geometry records take the engine's compute route. Hull and domain records translate
-(NativeShaders/RuntimeIntegration.md, tessellation handoff), but the host does not
-draw patch primitives yet, so those draws are still skipped. Runtime observations do not
-prove full-title shader coverage.
+Geometry records take the engine's compute route. Hull and domain records translate,
+and since 2026-11-08 the host draws NVN patch primitives through the tessellation compute
+route (`graphics/tessellation_draw.py`; NativeShaders/RuntimeIntegration.md, tessellation
+handoff), proven on the Mac with synthetic command streams only; no tested game draws
+patches. Runtime observations do not prove full-title shader coverage.
 
 `NativeGameReport` exports safe stage, service/SVC, symbolic crash and shader fields.
 Capture payloads and shader source stay private. First frame and gameplay are not

@@ -20,6 +20,7 @@ shutil.copyfile(a.output / 'overlay/ShaderMetrics.inc', nvn / 'ShaderMetrics.inc
 shutil.copyfile(a.output / 'overlay/ShaderBuildQueue.inc', nvn / 'ShaderBuildQueue.inc')
 shutil.copyfile(a.output / 'overlay/AsyncPipelines.inc', nvn / 'AsyncPipelines.inc')
 shutil.copyfile(a.output / 'overlay/SkipPipelines.inc', nvn / 'SkipPipelines.inc')
+shutil.copyfile(a.output / 'overlay/TessellationDraw.inc', nvn / 'TessellationDraw.inc')
 tests = engine / 'dm/gfx/tests'
 source = '#define main original_main\n' + (a.engine / 'dm/gfx/tests/t_pso_warm.m').read_text() + '\n#undef main\n'
 source += r'''

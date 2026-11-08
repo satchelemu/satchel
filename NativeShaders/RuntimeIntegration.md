@@ -152,8 +152,9 @@ lacks, so neither had code to port for this. The route is Satchel's own, using t
 pinned SPIRV-Cross output (a hull kernel and a `[[patch]]` vertex function) and
 changing only their plumbing (`Tessellation.swift`), plus a compute tessellator
 (`Tessellator.swift`) written from the OpenGL 4.6 rules for primitive generation.
-The host's draw integration is not done; patch draws are still skipped, so no game
-result follows from this.
+Since 2026-11-08 the host draws NVN patch primitives through this route
+(`NativeHost/graphics/tessellation_draw.py`, "Host draw" below). None of the tested
+games draws patches, so no game result follows from this.
 
 The host contract, per patch draw with `P` patches of `N` input control points:
 
@@ -201,13 +202,75 @@ SPIRV-Cross's triangle-domain input carries outer levels 0 to 2 and inner level 
 only, so a triangle domain shader reading outer level 3 or inner level 1 reads 0.
 Integer spacing places vertices exactly as the specification does. Fractional
 spacing follows its rules (levels rounded up to even or odd, `n - 2` equal segments
-and two shorter ones next to the edge's centre, mirrored about it) but does not
-reproduce the Switch tessellator's exact fractional positions; the triangulation
-between rings is the specification's implementation-dependent part. Outer edge
+and two shorter ones mirrored about the edge's centre) but cannot be shown to
+reproduce the Switch tessellator's fractional positions: nothing on this Mac
+establishes them (2026-11-08 search: Ryujinx 1.3.3 hands tessellation to the host
+GPU's tessellator and has none of its own, the pinned engine has none, no Mesa or
+NVIDIA hardware documentation is present, and the Metal Shader Converter headers in
+Unreal Engine's tree describe Apple's emulation of Direct3D's tessellator, not the
+Switch's), so the rule below is kept. The exact difference: with `f` the rounded
+fractional level and `n` its segment count, the two short segments (each
+`(f - n + 2) / 2f` long) are the two central segments for even `n` and the two beside
+the central segment for odd `n`; the specification leaves where they sit to the
+implementation, as long as they are symmetric and identical for equal levels. Any
+placement it allows moves a vertex along its edge by at most `(n - f) / 2f` of the
+edge (under `1 / f`), never changes the number of vertices, their mirror symmetry or
+the end points, and is zero at integer levels. The triangulation between rings is
+also implementation-dependent, so triangle connectivity (not the vertex set) can
+differ from the Switch's at any spacing; that changes the picture only where a domain
+shader's output is not affine in the domain coordinates. Outer edge
 positions are 16.16 fixed point and mirror exactly, so patches sharing an edge at
 one level produce the same points. Each patch is emitted by one thread, so a draw
 of a few very finely tessellated patches is serial work; the host should bound
 buffer sizes, as the geometry route caps its scratch.
+
+### Host draw
+
+`tessellation_draw.py` (graphics overlay, after `view_upscale.py`) implements the
+contract above in `nvn_mtl.m` and `hle_nvn.c`. `SetPatchSize` and
+`Set{Outer,Inner}TessellationLevels` are recorded as `OP_BIND_STATE` kinds 6, 7 and 8
+(an empty implementation before) and kept in the draw state, so lookahead walks save
+and restore them with the rest of it. A draw of primitive 14 goes to `tess_draw`
+(`TessellationDraw.inc`) before the geometry route: the capture of every vertex the
+draw names (indexed draws capture their sorted unique indices, and each control point
+reads its index's record), then per instance the hull kernel (one threadgroup per patch,
+threadgroup memory 0 of `input_bytes_per_vertex * N` bytes), the tessellator's three
+kernels, and the domain shader drawn through `draw()` in the vertex stage's place with
+the program's pixel stage, its NVN stage 4 resources, and the draw's render pass, raster
+state and pipeline key. Instances are drawn one after another so patch numbers restart
+per instance. The tessellator source is embedded from `Tessellator.swift` at build time.
+Capacity is what the draw's patches can emit at level 64 (triangles 3,169 points and
+18,432 indices a patch, quads 4,225 and 24,576, isolines 4,160 and 8,192), at most 524,288
+points and 2,097,152 indices (8 MiB each) a draw and instance; a patch past it is dropped
+whole and counted, and the count is logged. Refused with a red line and
+not drawn: a program without both a translated hull and domain shader, a geometry stage
+after tessellation, transform feedback, indirect-count multi-draws, a primitive restart
+index inside the patch list, and a patch size never set (no default is assumed). Levels
+from `Set*TessellationLevels` apply only to programs without a hull, which this route
+refuses. Every other draw takes its old path; the changes on it are a primitive check
+before the geometry route, the vertex stage's NVN stage number in its argument encoding
+(0 unless a domain draw is encoded), and one flag check before the encode.
+
+`NativeHost/graphics/tess-draw-check.py` (with `SATCHEL_OUT` set) proves it on the Mac's
+GPU with synthetic NVN command streams replayed by the host as a game's submission is: the
+overlaid `nvn_mtl.m` and `hle_nvn.c` built into a test, public-synthetic vertex, hull and
+domain shaders translated by the repository's translator (`public_corpus.py`'s generators,
+no game data), and thirteen streams covering triangles and quads at equal, fractional even
+and fractional odd spacing, counter-clockwise and clockwise, levels from 1 to 64,
+plain and indexed draws with base vertices, two instances, a back-facing patch, isolines,
+and a patch draw without `SetPatchSize` (refused, nothing drawn, the draw after it
+unchanged). Against a CPU reference draw of the same patches: identical coverage with back
+faces culled (110,558 pixels; the 34 pixel centres within 0.01 px of a patch edge are not
+compared), and at every
+covered pixel the control point value of the vertex the indices name, the per-patch
+value, the levels and the patch number, exactly. A plain triangle draw of the patch
+corners in the same stream matches the same reference. The host's tessellator output for
+all 26 patches matches the specification's vertex count, a triangulated disk's
+`2V - B - 2` triangles, the domain's area and winding, and the outer edges (82 edges:
+`k / n` exactly at equal spacing, `n + 1` mirrored points with `n - 2` segments of `1 / f`
+at fractional spacing). It passes with Metal's validation layer, both with encoding on
+the submit thread and deferred to the encode thread (`DM_NVN_ENC_THREAD=1`, the iOS
+default). Changing the spacing, winding or patch size the host passes makes it fail.
 
 `NativeShaders/check-tessellation.py --products <m5 root> --output <folder>` runs
 it all on the Mac's GPU from the public corpus: 791 patches in 20 dispatches over

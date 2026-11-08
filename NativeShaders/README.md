@@ -31,7 +31,8 @@ tessellator route of Satchel's own (2026-11-07, `Tessellation.swift` and
 `Tessellator.swift`): Metal 4 has no tessellation in its render encoder, so the hull
 runs as a kernel that reads the vertex capture, a compute tessellator turns its
 levels into domain points and indices, and the domain shader becomes a plain vertex
-function. The host does not draw patch primitives yet; see
+function. Since 2026-11-08 the host draws NVN patch primitives this way (synthetic
+command streams on the Mac only); see
 [the tessellation handoff](RuntimeIntegration.md#tessellation-handoff). Interface
 shapes outside the checked ones fail explicitly. No unsupported stage is silently
 omitted from a package.

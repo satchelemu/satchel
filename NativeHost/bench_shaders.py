@@ -84,7 +84,7 @@ def watch():
         try:child.wait(5)
         except subprocess.TimeoutExpired:child.kill()
 watcher=threading.Thread(target=watch);watcher.start()
-allowed=['[slowframe]', 'PhoneShader ', 'parallel precompile','translation ahead','pipeline prepare','pipeline prewarm','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]']
+allowed=['[slowframe]', 'PhoneShader ', 'parallel precompile','translation ahead','pipeline prepare','pipeline prewarm','PackReference ','shader route B','frame ','DM_CTL: screenshot','[RED]','FATAL','CRASH sig=','UNIMPL ','[bootprof]','SetPatchSize','tessellation']
 failure=re.compile(r'prepare failed|compile failed|failed to load shader|failed to load: build|failed to create.*pipeline|reflection conversion failed|no library|not in the shader map|no vertex shader|no compute shader|geometry capture entry failed|unexpected argument buffer|offline reference source absent|FATAL|CRASH sig=')
 with (work/'host-safe.log').open('w') as log:
     for line in child.stdout:

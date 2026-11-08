@@ -54,6 +54,8 @@ for source in (OUT / 'overlays/display/dm').rglob('*'):
     if source.is_file(): shutil.copyfile(source, engine / 'dm' / source.relative_to(OUT / 'overlays/display/dm'))
 # The texture-write watch the app's boot feedback reads (texture_writes.py); the overlay below adds its Metal side.
 runpy.run_path(str(ROOT / 'NativeHost/graphics/texture_writes.py'))['host'](engine / 'dm/gfx/nvn/hle_nvn.c')
+# SetPatchSize and the tessellation levels, for patch draws (tessellation_draw.py); the overlay below adds the draw.
+runpy.run_path(str(ROOT / 'NativeHost/graphics/tessellation_draw.py'))['host'](engine / 'dm/gfx/nvn/hle_nvn.c')
 metal = runpy.run_path(str(ROOT / 'NativeHost/graphics/overlay.py'))['prepare'](engine / 'dm/gfx/nvn/nvn_mtl.m', OUT / 'graphics')
 # Optional frame-accurate artifact capture, excluded from measured runs.
 inc = metal.parent / 'AsyncPipelines.inc'
