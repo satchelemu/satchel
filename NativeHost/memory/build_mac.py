@@ -16,6 +16,7 @@ DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scr
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument('--baseline', action='store_true')
+parser.add_argument('--services', action='store_true', help="Add the app's service overlay (NativeHost/services), for attribution on app-only paths")
 a = parser.parse_args()
 OUT = Path(os.environ['SATCHEL_OUT']).resolve()
 if OUT.is_relative_to(ROOT): raise SystemExit('Build outputs must be outside the checkout.')
@@ -50,6 +51,13 @@ for name in ['vpx/libvpx.a']:
 runpy.run_path(str(ROOT / 'NativeHost/display_overlay.py'))['apply'](ROOT, original, OUT, {'SatchelNativeHost': [], 'SatchelNativeGraphics': []})
 for source in (OUT / 'overlays/display/dm').rglob('*'):
     if source.is_file(): shutil.copyfile(source, engine / 'dm' / source.relative_to(OUT / 'overlays/display/dm'))
+if a.services:
+    # The app layers these over the same hle_*.c sources (NativeApp/build.py); nothing else about the harness changes.
+    services = runpy.run_path(str(ROOT / 'NativeHost/services/overlay.py')); staged = OUT / 'overlays/services'
+    services['prepare'](engine / 'dm/host/hle_sf.c', staged); services['prepare_fs'](engine / 'dm/host/hle_fs.c', staged)
+    services['prepare_time'](engine / 'dm/host/hle_time.c', staged); services['prepare_svc'](engine / 'dm/host/hle_svc.c', staged)
+    for name in ['hle_thread.c', 'hle_misc.c']: services['prepare_support'](engine / 'dm/host' / name, staged)
+    for source in staged.iterdir(): shutil.copyfile(source, engine / 'dm/host' / source.name)
 metal = runpy.run_path(str(ROOT / 'NativeHost/graphics/overlay.py'))['prepare'](engine / 'dm/gfx/nvn/nvn_mtl.m', OUT / 'graphics')
 metal = runpy.run_path(str(ROOT / 'NativeHost/memory/overlay.py'))['prepare'](metal, OUT / 'memory', reclaim=not a.baseline)
 # Extra Mac-only diagnostics expose revisions retained outside the active shader

@@ -91,3 +91,15 @@ The scene harness build now generates the profile header, host shaders and dav1d
 the pinned engine, as build-pipeline-mac.py does: the older reference gen folder lacks
 the f8a5618d profile fields (DM_GAME_LAUNCH_PARAM and the module build list). Only its
 prebuilt libvpx is reused.
+
+Idle title-screen attribution (`soak_mac.py --no-input`)
+
+`--no-input` runs without confirmations or movement, for a scene the phone measured idle; the
+summary starts 300 seconds after the first frame. `--app-profile` turns on what the app's
+`-SatchelGraphicsProfile YES` does; `--window` presents through the display link and `--audio`
+uses the real, muted output path, both as the app does. `--snapshot-at S,S` records `heap`
+totals by class and size at those run seconds (counts and type names only), and
+`heap_diff.py A B` lists what changed, so reachable growth shows as well as leaks.
+`build_mac.py --services` adds the app's service overlay to the harness. The 2026-11-08 Zelda
+title result is in `Validation/title-malloc-2026-11-08.md`: the phone's steady 23 MiB per
+hour of malloc growth did not reproduce on the Mac, so its owner is not attributed.

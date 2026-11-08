@@ -39,7 +39,15 @@ p.add_argument('--confirm-seconds', type=int, default=90, help='Confirmation pha
 p.add_argument('--route', action='store_true', help="Start with run_mac.py's frame-scripted route instead of the session soak's start")
 p.add_argument('--leak-check', action='store_true', help='Scan the live host for unreferenced allocations before stopping')
 p.add_argument('--allocation-stacks', action='store_true', help='With --leak-check: in-memory stack logging, keeping only symbolic host and system frames')
+p.add_argument('--no-input', action='store_true', help="No confirmations or movement, as an idle title screen on the phone; the 'loop' starts at the first frame")
+p.add_argument('--app-profile', action='store_true', help='The per-frame and event writers that the app turns on with -SatchelGraphicsProfile YES (PipelineSettings.m)')
+p.add_argument('--audio', action='store_true', help='Real audio output path, muted, as the app runs it (the default is DM_AUDIO=0)')
+p.add_argument('--window', action='store_true', help='Present to a window through the display link, as the app does (the default is offscreen); the window stays above others without taking focus')
+p.add_argument('--snapshot-at', default='', help='Comma-separated run seconds at which to record heap totals by class and size; compare two with heap_diff.py')
 a = p.parse_args()
+if a.no_input and a.route: p.error('--no-input and --route exclude each other')
+if a.snapshot_at and not re.fullmatch('[0-9]+(,[0-9]+)*', a.snapshot_at): p.error('Invalid --snapshot-at')
+snapshot_times = sorted(int(value) for value in a.snapshot_at.split(',')) if a.snapshot_at else []
 if not 30 <= a.confirm_seconds <= 900 or not 60 <= a.seconds <= 7200 or not re.fullmatch('[a-z0-9-]+', a.label) or not re.fullmatch('[a-z0-9-]+', a.variant) or not re.fullmatch('[a-z0-9-]+', a.cache):
     p.error('Invalid duration, label or variant')
 keys = routes['ROUTES'][a.game] if a.route else ''
@@ -85,7 +93,15 @@ env.update(DM_PROFILE=str(package / 'profile.tsv'), DM_ROMFS=str(package / 'romf
     DM_NVN_SHOT=','.join(map(str, checkpoints)) + ':' + str(work / 'shots/frame-%d.png'), DM_NVN_SHOT_OUT='1280x720')
 (work / 'route.json').write_text(json.dumps({'game': a.game, 'variant': a.variant, 'frames': route_frames, 'keys': keys,
     'checkpoints': checkpoints, 'runtime': runtime_inputs, 'shaderMode': 'runtime', 'cache': a.cache, 'soakSeconds': a.seconds,
-    'routeEnd': route_end, 'start': 'route' if a.route else 'session-soak', 'confirmSeconds': None if a.route else CONFIRM, 'movement': MOVEMENT[a.game]}, indent=2) + '\n')
+    'routeEnd': route_end, 'start': 'route' if a.route else 'no-input' if a.no_input else 'session-soak', 'appProfile': a.app_profile, 'audio': a.audio, 'window': a.window, 'confirmSeconds': None if a.route else CONFIRM, 'movement': MOVEMENT[a.game]}, indent=2) + '\n')
+if a.audio: env.update(DM_AUDIO='1', DM_AUDIO_MUTE='1')
+# Read only by a harness built with build_mac.py --services; the app sets both beside host.log.
+env.update(DM_SERVICE_REPORT=str(work / 'services.log'), DM_MISSING_SERVICES=str(work / 'missing-services.json'))
+if a.window: env.update(DM_WINDOW='1', DM_WINDOW_TOP='1')
+if a.app_profile:
+    # PipelineSettings.m's -SatchelGraphicsProfile YES. The frame TSV is already on above, with its call rows off.
+    env.update(DM_SATCHEL_FRAME_TIMING='1', DM_SHADER_EVENTS=str(work / 'shader-events.tsv'), DM_PSO_SKIP_STATS=str(work / 'pipeline-skips.tsv'),
+               DM_BOOTPROF='1', DM_SLOWFRAME='1', DM_PSO_WAITLOG='1', DM_NVN_WAITS='1', DM_NVN_GPUPROF='every:300')
 # A long soak is this lane's one heavy job. Its name is not one the shared build
 # exclusion waits for, so other lanes' builds are not held for an hour.
 if a.allocation_stacks: env['MallocStackLogging'] = 'lite'
@@ -120,6 +136,13 @@ loop_start = [None]   # run seconds at which the movement loop began
 stop = threading.Event()
 
 
+def snapshot(seconds):
+    """Class and size totals of the live heap: counts and type names only, never contents."""
+    out = work / 'snapshots'; out.mkdir(exist_ok=True)
+    scan = subprocess.run(['heap', '--sortBySize', '--showSizes', '--noContent', '--quiet', str(child.pid)], capture_output=True, text=True, errors='replace', timeout=900)
+    (out / ('heap-%05d.txt' % seconds)).write_text(re.sub(r'0x[0-9a-fA-F]+', '<address>', scan.stdout))
+
+
 def drive():
     last_input = last_shot = last_sample = 0.0
     first_frame = None; confirmations = 0
@@ -134,7 +157,18 @@ def drive():
                 if file.tell() == 0: file.write('seconds\twall\tframe\trss\n')
                 row = progress[-1]; file.write('%s\t%s\t%d\t%d\n' % (row['seconds'], row['wall'], row['frame'], row['rss']))
         frame = progress[-1]['frame'] if progress else 0
+        if snapshot_times and now >= snapshot_times[0]: snapshot(snapshot_times.pop(0))
         if first_frame is None and frame > 0: first_frame = now
+        if a.no_input:
+            # As soak_summary.py --skip 300 does for a phone folder: boot and the title's first load are excluded.
+            if first_frame is not None and loop_start[0] is None and now - first_frame >= 300:
+                loop_start[0] = now
+                (work / 'loop-start.json').write_text(json.dumps(dict(seconds=round(now, 3), frame=frame)) + '\n')
+            if first_frame is not None and now - last_shot >= 300:
+                with ctl.open('a') as file: file.write('shot ' + str(work / 'shots' / ('soak-%04d.png' % int(now // 60))) + '\n')
+                last_shot = now
+            if now >= a.seconds: break
+            time.sleep(.25); continue
         if a.route: moving = frame >= route_end
         else: moving = first_frame is not None and now - first_frame >= CONFIRM
         if not a.route and first_frame is not None and not moving and now - last_input >= 6:
@@ -225,7 +259,7 @@ result = dict(game=a.game, variant=a.variant, label=a.label, seconds=a.seconds, 
               missingCheckpointShots=[f for f in checkpoints if not (work / 'shots' / ('frame-%d.png' % f)).is_file()],
               soakShots=sorted(path.name for path in (work / 'shots').glob('soak-*.png')), leakCheck=leak)
 result['completed'] = (alive and not failures and result['uninterrupted'] and max_gap < 60 and not result['missingCheckpointShots']
-                       and inputs[0] >= max(1, (a.seconds - 600) // 12) and (work / 'memory.tsv').is_file() and (work / 'census.tsv').is_file()
+                       and (a.no_input or inputs[0] >= max(1, (a.seconds - 600) // 12)) and (work / 'memory.tsv').is_file() and (work / 'census.tsv').is_file()
                        and (not a.leak_check or (leak and leak.get('exit') == 0 and leak.get('leaks') == 0)))
 (work / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
 print(json.dumps(result, indent=2))
