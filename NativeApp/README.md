@@ -28,7 +28,7 @@ resolved by `scripts/dependency_paths.py` as BUILDING.md describes): `<root>/NX2
 the durable snapshot referenced by `project.yml`, the locked Metal toolchain and
 materialization metadata under `<root>/build-inputs` (`SATCHEL_NATIVE_BUILD_INPUTS`),
 Capstone 5.0.7 under `~/SatchelBuild/rewriter/capstone-src` (`SATCHEL_CAPSTONE_SOURCE`), and
-OpenSSL 3.6.3 under `~/SatchelBuild/spike/openssl-ios` (override with `SATCHEL_OPENSSL_IOS`).
+OpenSSL 3.6.3 under `<root>/openssl-ios` (override with `SATCHEL_OPENSSL_IOS`).
 First-use shaders additionally consume the M5 native translator sources and validated
 artifacts under `<root>/m5`. Override their locations with
 `SATCHEL_SHADER_SOURCE` and `SATCHEL_SHADER_DEPS`. Without a root at the pin the build

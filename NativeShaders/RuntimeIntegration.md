@@ -1,8 +1,11 @@
 # Runtime renderer handoff
 
 Status: the final atomic prepare-and-snapshot version passed its Mac build,
-C ABI and lifetime checks, real GPU/cache checks and iOS link. Evidence is in
-`~/SatchelBuild/m5/snapshot-api-validation.json`. No phone execution is claimed.
+C ABI and lifetime checks, real GPU/cache checks and iOS link. Its evidence,
+`snapshot-api-validation.json`, is kept outside the repository in the maintainer's
+shader work folder of the time (`~/SatchelBuild/m5`); current runs write to the caller's
+own work folder (`SATCHEL_SHADER_WORK` or `<SATCHEL_OUT>/native-shaders-work`, see
+[the validation paths](README.md#validation-paths)). No phone execution is claimed.
 
 The any-game worker already has the games worker's program/draw-pair capture hook
 and a replacement/finalization lifetime for copied controls. Reuse those controls.

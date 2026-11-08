@@ -56,7 +56,10 @@ def main():
     dest.mkdir(parents=True, exist_ok=True)
     snapshot = dest/SNAPSHOT
     logs = dest/'rebuild-logs'; logs.mkdir(exist_ok=True)
-    env = dict(os.environ, SATCHEL_BUILD_ROOT=str(build), SATCHEL_DEPS_ROOT=str(dest), SATCHEL_SHADER_DEPS=str(dest/'m5'), PYTHONDONTWRITEBYTECODE='1')
+    # The rebuilt root owns its shader work too: the translation harness and the pipeline-full proof
+    # stay in <root>/m5, where NativeHost/shader_dependency.py reads that proof.
+    env = dict(os.environ, SATCHEL_BUILD_ROOT=str(build), SATCHEL_DEPS_ROOT=str(dest), SATCHEL_SHADER_DEPS=str(dest/'m5'),
+               SATCHEL_SHADER_WORK=str(dest/'m5'), PYTHONDONTWRITEBYTECODE='1')
     def execute(label, command):
         print('Building', label, flush=True)
         with (logs/(label+'.log')).open('w') as log:

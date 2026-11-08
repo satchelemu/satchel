@@ -12,8 +12,10 @@ and `candidate/dmhost` executables. `M5_BENCH_HOST` can select another executabl
 The package and host input roots are the three named directories under
 `~/SatchelBuild/anygame`. No ROM search or directory discovery is performed.
 
+Use a scratch folder of your own for both (not the shared shader products folder):
+
 ```sh
-ANYGAME_OUT=$HOME/SatchelBuild/m5/stalls M5_BENCH_OUT=$HOME/SatchelBuild/m5/stalls \
+ANYGAME_OUT=$HOME/SatchelBuild/<task>/stalls M5_BENCH_OUT=$HOME/SatchelBuild/<task>/stalls \
 python3 -B NativePrepare/guard.py python3 -B NativeHost/bench_shaders.py \
   --route baseline --game TOTK --cache clean
 ```

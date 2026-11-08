@@ -2,7 +2,7 @@
 set -euo pipefail
 signer_root=${0:A:h}
 signer_out=${SIGNER_OUT:-$HOME/SatchelBuild/signer}
-signer_ssl=/opt/homebrew/opt/openssl@3
+signer_ssl=${SATCHEL_OPENSSL_MAC:-/opt/homebrew/opt/openssl@3}  # a macOS OpenSSL 3 prefix, as NativePrepare/build-core.zsh reads it
 mkdir -p "$signer_out/mac-objects"
 /bin/zsh "$signer_root/wait-for-build.zsh"
 for signer_source in "$signer_root/SigningIdentity.mm" "$signer_root"/Vendor/zsign/*.cpp "$signer_root"/Vendor/zsign/common/*.cpp; do

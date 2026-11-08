@@ -14,7 +14,8 @@ spec = importlib.util.spec_from_file_location('dependency_paths', SCRIPT)
 paths = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(paths)
 VARIABLES = ['SATCHEL_DEPS_ROOT', 'SATCHEL_NATIVE_BUILD_INPUTS', 'SATCHEL_SHADER_DEPS',
-             'SATCHEL_ARCHIVE_LIBRARY', 'SATCHEL_MAC_HOST_GEN']
+             'SATCHEL_ARCHIVE_LIBRARY', 'SATCHEL_MAC_HOST_GEN', 'SATCHEL_OPENSSL_IOS',
+             'SATCHEL_SHADER_WORK', 'SATCHEL_OUT']
 
 
 class DependencyPathTests(unittest.TestCase):
@@ -83,6 +84,32 @@ class DependencyPathTests(unittest.TestCase):
             (self.home.parent / 'inputs/host-gen').mkdir(parents=True)
             self.assertEqual(paths.mac_host_gen(), self.home.parent / 'inputs/host-gen')
 
+    def test_openssl_ios(self):
+        root = self.home.parent / 'pinned'
+        with patch.dict(os.environ, SATCHEL_DEPS_ROOT=str(root)):
+            with self.assertRaisesRegex(SystemExit, r"dependency root's default\): set SATCHEL_OPENSSL_IOS"):
+                paths.openssl_ios()
+            library = root / 'openssl-ios/lib/libcrypto.a'
+            library.parent.mkdir(parents=True); library.write_bytes(b'synthetic')
+            self.assertEqual(paths.openssl_ios(), root / 'openssl-ios')
+            with patch.dict(os.environ, SATCHEL_OPENSSL_IOS=str(root / 'elsewhere')):
+                with self.assertRaisesRegex(SystemExit, 'the path SATCHEL_OPENSSL_IOS names'):
+                    paths.openssl_ios()
+        # An older default root is refused here too, never used for the library.
+        self.materialize(self.home, 'bbc3b73784751d2a706932dc69fd67627e3445d4')
+        with self.assertRaisesRegex(SystemExit, 'records engine bbc3b737'):
+            paths.openssl_ios()
+
+    def test_shader_work_is_never_the_products_folder_by_default(self):
+        self.materialize(self.home, paths.pin())
+        with patch.dict(os.environ, SATCHEL_SHADER_DEPS='/shaders'):
+            with self.assertRaisesRegex(SystemExit, 'set SATCHEL_OUT .* or SATCHEL_SHADER_WORK'):
+                paths.shader_work()
+            with patch.dict(os.environ, SATCHEL_OUT='/task'):
+                self.assertEqual(paths.shader_work(), Path('/task/native-shaders-work'))
+                with patch.dict(os.environ, SATCHEL_SHADER_WORK='/work'):
+                    self.assertEqual(paths.shader_work(), Path('/work'))
+
     def test_command_line(self):
         env = dict(os.environ, SATCHEL_DEPS_ROOT='/pinned-root')
         out = subprocess.run([sys.executable, '-B', SCRIPT, 'engine'], env=env, capture_output=True, text=True, check=True)
@@ -90,6 +117,13 @@ class DependencyPathTests(unittest.TestCase):
         failed = subprocess.run([sys.executable, '-B', SCRIPT, 'archive-library', 'macosx'], env=env, capture_output=True, text=True)
         self.assertEqual(failed.returncode, 1)
         self.assertIn('set SATCHEL_SHADER_DEPS', failed.stderr)
+        env = {k: v for k, v in env.items() if k not in ('SATCHEL_OUT', 'SATCHEL_SHADER_WORK')}
+        failed = subprocess.run([sys.executable, '-B', SCRIPT, 'shader-work'], env=env, capture_output=True, text=True)
+        self.assertEqual(failed.returncode, 1)
+        self.assertIn('set SATCHEL_OUT', failed.stderr)
+        out = subprocess.run([sys.executable, '-B', SCRIPT, 'shader-work'], env=dict(env, SATCHEL_OUT='/task'),
+                             capture_output=True, text=True, check=True)
+        self.assertEqual(out.stdout.strip(), '/task/native-shaders-work')
 
 
 if __name__ == '__main__':

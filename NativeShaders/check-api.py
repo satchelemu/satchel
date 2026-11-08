@@ -32,9 +32,9 @@ def main():
     for stage in ['vs', 'ps', 'cs']:
         chosen += [key for key in sorted(rows) if rows[key][0].startswith(stage+'_')][:8]
     packs = {}; counts = collections.Counter()
-    child = subprocess.Popen([pipeline.ROOT/'api-macosx/api-harness'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    child = subprocess.Popen([pipeline.WORK/'api-macosx/api-harness'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     try:
-        with tempfile.TemporaryDirectory(prefix='api-check-', dir=pipeline.ROOT) as temp:
+        with tempfile.TemporaryDirectory(prefix='api-check-', dir=pipeline.WORK) as temp:
             scratch = Path(temp); record = scratch/'record.bin'; output = scratch/'result.json'
             def call(request):
                 child.stdin.write(json.dumps(request)+'\n'); child.stdin.flush()
@@ -78,7 +78,7 @@ def main():
         except subprocess.TimeoutExpired: child.kill(); child.wait()
     assert child.returncode == 0
     result = dict(counts=counts, differences=0, provenance=['source=native','pc_paired=empty'])
-    (pipeline.ROOT/'api-result.json').write_text(json.dumps(result,indent=2)+'\n')
+    (pipeline.WORK/'api-result.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result))
 
 if __name__ == '__main__': main()

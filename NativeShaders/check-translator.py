@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import struct
 import subprocess
 import sys
@@ -13,7 +14,10 @@ import time
 
 sys.dont_write_bytecode = True
 from oracle import DOTNET_ROOT, TOOLS, PACKAGES, jobs
-ROOT = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5')))
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The NativeAOT library is read from the shader products; each labelled run goes to the caller's work folder.
+PRODUCTS = DEPENDENCY_PATHS['shader_deps']()
+WORK = DEPENDENCY_PATHS['shader_work']()
 
 def native(library, code, job):
     payload = json.dumps(job).encode()
@@ -32,10 +36,10 @@ def main():
     parser.add_argument('--limit', type=int, default=0)
     parser.add_argument('--label', required=True)
     args = parser.parse_args()
-    work = ROOT / args.label
-    work.mkdir(exist_ok=False)
+    work = WORK / args.label
+    work.mkdir(parents=True, exist_ok=False)
     scratch = work / 'scratch'; scratch.mkdir()
-    lib = ctypes.CDLL(str(ROOT / 'aot/repro/host-publish/SatchelShaderProbe.dylib'))
+    lib = ctypes.CDLL(str(PRODUCTS / 'aot/repro/host-publish/SatchelShaderProbe.dylib'))
     lib.satchel_shader_translate_v1.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_int)]
     lib.satchel_shader_translate_free.argtypes = [ctypes.c_void_p]
     if lib.satchel_shader_runtime_features() != 0: raise RuntimeError('Dynamic code enabled')

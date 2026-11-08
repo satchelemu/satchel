@@ -6,10 +6,13 @@ import json
 import os
 from pathlib import Path
 import struct
+import runpy
 import subprocess
 import tempfile
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
-WORK = Path.home()/'SatchelBuild/m5'
+# The general harness (build-api.py --general) and the results live in the caller's work folder.
+WORK = DEPENDENCY_PATHS['shader_work']()
 
 def main():
     if not os.environ.get('SATCHEL_M5_WATCHDOG_PID'): raise RuntimeError('Run through guard.py')

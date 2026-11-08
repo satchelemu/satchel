@@ -79,11 +79,14 @@ The only additional vendor change suppresses diagnostic capture when compiled
 with `SATCHEL_SIGNER_QUIET`. The MIT and OpenSSL Apache 2.0 notices ship in
 `PrepareAssets`. No new dependency version was introduced.
 
-The app links the existing OpenSSL 3.6.3 iOS archive at
-`~/SatchelBuild/spike/openssl-ios`. Set `SATCHEL_OPENSSL_IOS` to use another
-3.6.3 installation. If needed, `build-openssl.zsh` builds that version with two
-jobs under `~/SatchelBuild/signer/openssl-ios`; it is not run per game. The Mac
-checks use installed Homebrew OpenSSL 3.6.3. New builds wait for other xcodebuild
+The app links the existing OpenSSL 3.6.3 iOS archive at `<root>/openssl-ios` in the
+dependency root (`scripts/dependency_paths.py openssl-ios` prints it). Set
+`SATCHEL_OPENSSL_IOS` to use another 3.6.3 installation. If needed, `build-openssl.zsh`
+builds that version with two jobs under `~/SatchelBuild/signer/openssl-ios`; it is not
+run per game. The Mac checks (`build-mac.zsh`, `check-mac.zsh` and
+`NativePrepare/build-core.zsh` with `PREPARE_SIGNER=1`) use installed Homebrew OpenSSL
+3.6.3, or the macOS OpenSSL prefix `SATCHEL_OPENSSL_MAC` names; the iOS archive cannot link
+into a Mac executable. New builds wait for other xcodebuild
 processes and use nice 10, at most two compiler jobs.
 
 Run from the worktree:

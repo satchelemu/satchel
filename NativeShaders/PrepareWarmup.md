@@ -119,8 +119,11 @@ an OS upgrade, eviction or reboot. They show why the optional warm-up can move e
 compilation out of a launch on this Mac. The earlier shader worker's 436 phone
 compilations at median 0.33 s remain separate historical evidence.
 
-Evidence is in `~/SatchelBuild/m5/warmup-result.json` and incremental
-`warmup-timings.jsonl`. No shader source or game data is logged. Temporary records
+That run's evidence is the maintainer's `warmup-result.json` and incremental
+`warmup-timings.jsonl`, kept outside the repository in the shader work folder of the time
+(`~/SatchelBuild/m5`). A rerun (`build-warmup.py`, then `check-warmup.py` under `guard.py`)
+writes both to the caller's own work folder, `SATCHEL_SHADER_WORK` or
+`<SATCHEL_OUT>/native-shaders-work`. No shader source or game data is logged. Temporary records
 and the experimental source cache are removed after the check.
 
 The 2026-11-04 warm-up scheduling change, payload-free timing fields and exact

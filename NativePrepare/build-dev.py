@@ -90,9 +90,9 @@ for path in [OUT/'rewriter-ios/libnative_rewriter.a',OUT/'rewriter-ios/_deps/cap
 for name in ['Progress.swift','Rewrite.swift','MachO.swift','Discovery.swift','NROArchive.swift','Pipeline.swift','PrepareJob.swift','AddOnUpdate.swift','AddOnJob.swift','PrepareGameView.swift','WarmupJob.swift','WarmupView.swift','WarmupInventory.swift','WarmupRunner.swift']:
     target['sources'].append({'path':str(ROOT/'NativePrepare'/name)})
 target['sources'].append({'path':str(OUT/'core/Registry.c')})
-# Reuse the phone-proven OpenSSL 3.6.3 archive, with no identity build inputs.
-ssl = Path(os.environ.get('SATCHEL_OPENSSL_IOS', str(Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'spike/openssl-ios')))
-assert (ssl/'lib/libcrypto.a').is_file(), 'Run NativePrepare/Signer/build-openssl.zsh first'
+# Reuse the phone-proven OpenSSL 3.6.3 archive, with no identity build inputs: SATCHEL_OPENSSL_IOS,
+# else <dependency root>/openssl-ios (scripts/dependency_paths.py stops with the variable to set).
+ssl = runpy.run_path(str(ROOT/'scripts/dependency_paths.py'))['openssl_ios']()
 signer = ROOT/'NativePrepare/Signer'
 settings['HEADER_SEARCH_PATHS'] += ['"'+str(x)+'"' for x in [signer, signer/'Vendor/zsign', signer/'Vendor/zsign/common', ssl/'include']]  # quoted like the paths above
 settings['GCC_PREPROCESSOR_DEFINITIONS'] = ['$(inherited)', 'SATCHEL_SIGNER_QUIET=1']

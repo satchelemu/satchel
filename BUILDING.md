@@ -180,23 +180,36 @@ libraries are built afresh. `project.yml` spells those libraries under the maint
 ### The maintainer's local diagnostic route
 
 The earlier route uses installed tools, an explicit installed SDK and the maintainer's
-read-only caches. It does not qualify as a clean-Mac build and always exits 2:
+read-only caches. It does not qualify as a clean-Mac build and always exits 2. This is the
+run that made the current root, `~/SatchelBuild/engine-pin/deps` (2026-11-05, engine pin
+`f8a5618d`); to make another, give it a new empty `--root` and compare it with that one:
 
 ```sh
-SATCHEL_BUILD_ROOT="$HOME/SatchelBuild" SATCHEL_DEPS_ROOT="$HOME/SatchelDeps" \
+SATCHEL_BUILD_ROOT="$HOME/SatchelBuild" \
   nice -n 10 python3 -B scripts/bootstrap_deps.py \
-  --root "$HOME/SatchelBuild/anygame/deps-parity" \
+  --root "$HOME/SatchelBuild/<task>/deps" \
   --cache "$HOME/SatchelBuild/rename/inputs" \
   --cache "$HOME/SatchelBuild/rewriter" \
   --cache "$HOME/SatchelBuild/spike" \
   --cache "$HOME/SatchelBuild/rename/final-app/host/NativeAssets/font" \
-  --source-cache "$HOME/SatchelDeps" \
-  --dotnet "$HOME/SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/dotnet/dotnet" \
-  --compare "$HOME/SatchelDeps" --local-validation
+  --source-cache "$HOME/SatchelBuild/engine-pin/source-cache" \
+  --dotnet "$HOME/SatchelBuild/engine-pin/deps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/dotnet/dotnet" \
+  --compare "$HOME/SatchelBuild/engine-pin/deps" --local-validation
 ```
 
-These paths are explicit cache arguments, not bootstrap defaults. Its venv (fontTools)
-is copied from the source cache instead of being made from the pinned wheel.
+These paths are explicit cache arguments, not bootstrap defaults; the bootstrap sets
+`SATCHEL_DEPS_ROOT` and `SATCHEL_SHADER_DEPS` to the new root for its own recipes. Its venv
+(fontTools) is copied from the source cache instead of being made from the pinned wheel.
+`~/SatchelDeps` still holds the older engine materialization (`bbc3b737`): it is neither a
+cache nor a build input any more, and the resolver refuses it as a default.
+
+Builds against the current root set `SATCHEL_DEPS_ROOT=$HOME/SatchelBuild/engine-pin/deps`,
+`SATCHEL_NATIVE_BUILD_INPUTS=<root>/build-inputs`,
+`SATCHEL_CAPSTONE_SOURCE=<root>/sources/capstone-d2e5739cbb43df93d589a3a726c8f878b95beccb`,
+`SATCHEL_OPENSSL_IOS=<root>/openssl-ios`, `SATCHEL_BUILD_ROOT=$HOME/SatchelBuild` and
+`SATCHEL_SHADER_DEPS=$HOME/SatchelBuild/shader-translator/deps/m5`: the shared shader
+products with a current public proof (the root's own `m5` proof is stale, its AOT receipt
+no longer matches). On the maintainer's Mac one untracked environment script exports them.
 
 History of that route: the captured compiler README checkpoint was reconciled against
 the exact reviewed bytes from the archived history (only the title separator changed
@@ -296,11 +309,16 @@ rule: an explicit variable wins; otherwise the root is `SATCHEL_DEPS_ROOT`, or
 `~/SatchelDeps` only when that folder records the current engine pin in its
 `NX2Apple/engine-materialization.json`. The build inputs default to
 `<root>/build-inputs` (`SATCHEL_NATIVE_BUILD_INPUTS`), the shader products to `<root>/m5`
-(`SATCHEL_SHADER_DEPS`) and the zstd archive to
-`<shader products>/archive-<platform>/libShaderArchive.a` (`SATCHEL_ARCHIVE_LIBRARY`).
+(`SATCHEL_SHADER_DEPS`), the zstd archive to
+`<shader products>/archive-<platform>/libShaderArchive.a` (`SATCHEL_ARCHIVE_LIBRARY`) and
+the iOS OpenSSL to `<root>/openssl-ios` (`SATCHEL_OPENSSL_IOS`). The shader products are
+read-only inputs: the `NativeShaders` harness builders and private checks write to the
+caller's own work folder, `SATCHEL_SHADER_WORK`, else `<SATCHEL_OUT>/native-shaders-work`,
+and stop when neither is set ([NativeShaders/README.md](NativeShaders/README.md#validation-paths)).
 Anything else stops before building with the variable to set; no tool falls back to an
 older materialization. `python3 -B scripts/dependency_paths.py engine` (or `deps-root`,
-`build-inputs`, `shader-deps`, `archive-library macosx`) prints what a tool would use.
+`build-inputs`, `shader-deps`, `archive-library macosx`, `openssl-ios`, `shader-work`) prints
+what a tool would use.
 On the maintainer's Mac the current root is set by sourcing one environment script that
 exports these variables.
 
@@ -308,8 +326,9 @@ exports these variables.
 |---|---|---|---|
 | nxnative engine source with the NX2Apple fork patches | commit `f8a5618d5f505a4c0a0bcac7c413872d3a53c009` plus the 29 patches of [the tracked queue](scripts/deps/upstream/nxnative-queue/README.md) | `<root>/NX2Apple/engine` (rule above) | `SATCHEL_DEPS_ROOT` |
 | Interpreter-era libraries (VIXL CPU probe, shader bridge, Vulkan backend, guest graphics) | see each `Tools/*/README.md` | `<root>/tmp-snapshot-2026-11-01/...`, referenced from `project.yml` | `SATCHEL_DEPS_ROOT` through `NativeApp/build.py` |
-| Capstone | 5.0.7 | `~/SatchelBuild/rewriter/capstone-src` | `SATCHEL_CAPSTONE_SOURCE` (otherwise `SATCHEL_BUILD_ROOT`) |
-| OpenSSL for iOS | 3.6.3, static | `~/SatchelBuild/spike/openssl-ios` | `SATCHEL_OPENSSL_IOS` |
+| Capstone | 5.0.7 | `~/SatchelBuild/rewriter/capstone-src` (the bootstrap makes `<root>/sources/capstone-<commit>`) | `SATCHEL_CAPSTONE_SOURCE` (otherwise `SATCHEL_BUILD_ROOT`), for the app and `NativePrepare/build-core.zsh` |
+| OpenSSL for iOS | 3.6.3, static | `<root>/openssl-ios` (rule above) | `SATCHEL_OPENSSL_IOS` |
+| OpenSSL for the Mac Prepare signer and its checks (`PREPARE_SIGNER=1`, `NativePrepare/Signer/*-mac.zsh`) | 3, static, macOS | Homebrew `openssl@3` | `SATCHEL_OPENSSL_MAC` (the iOS build cannot link into a Mac executable) |
 | MoltenVK | v1.4.2 | built by `Tools/VulkanBackend` scripts | see that README |
 | SPIRV-Cross, SPIRV-Tools, SPIRV-Headers | pinned in `Tools/ShaderBridge` and `Tools/VulkanBackend` | same | same |
 | Shader translator (the engine's Ryujinx shader parts, NativeAOT) | engine commit above, see [the shader translator pin](#the-shader-translator-pin) | `<root>/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
@@ -606,7 +625,9 @@ They do not replace the canonical unsigned Release app build or phone validation
 
 - One heavy build at a time. The Mac crashed when three workers compiled at once;
   `NativeShaders/guard.py` and the build driver wait for other compilers and keep a
-  35 GiB disk reserve.
+  35 GiB disk reserve. `NativeShaders/guard.py` serializes on one shared lock file,
+  `heavy-build.lock` in `SATCHEL_SHADER_DEPS` (in `~/SatchelBuild/m5` when that is unset);
+  its samples go to the caller's own shader work folder.
 - Build outputs never go inside the checkout and never in `/tmp` (which is wiped on
   reboot). Use `~/SatchelBuild/<task>/`.
 - Experiments use their own bundle IDs (`com.dell.satchel.<name>`) so the installed app

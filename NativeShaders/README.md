@@ -12,8 +12,9 @@ Satchel M5's full Zelda native parity passed: 28,669 records, 71,621 exact MSL
 sources and 28,669 exact semantic reflection files after removing offline
 compiler provenance. General translation, discovery, runtime compilation and
 cache APIs are described in `API.md`; their core iOS linking has passed.
-The any-game worker owns app and host integration. Read
-`~/SatchelBuild/m5/report.md` for measured results and the current gate.
+The any-game worker owns app and host integration. The measured results and gate of
+that work were recorded in the maintainer's private report beside its outputs (then
+`~/SatchelBuild/m5/report.md`, outside the repository).
 
 The native path is `ShaderRecord.normalize`, `NativeShaderTranslation.prepare`,
 the NativeAOT `satchel_shader_translate_v1` facade, the pinned C++
@@ -45,14 +46,40 @@ Mac builder's compiler, cache or deletion orchestration.
 
 ## Validation paths
 
+These scripts read and write in three places, and none of them is a fixed folder:
+
+- Shader products, read only: the NativeAOT library (`aot/`), the SPIRV-Cross bridge
+  (`cross-<platform>/`) and the zstd decoder (`archive-<platform>/`) come from
+  `SATCHEL_SHADER_DEPS`, else `<SATCHEL_DEPS_ROOT>/m5`, through `scripts/dependency_paths.py`
+  (see [BUILDING.md](../BUILDING.md#native-dependencies-the-build-expects)). The engine,
+  its shader tools and the Zelda profile come from the same dependency root.
+- The caller's work folder, written: every harness the `build-*.py` builders make
+  (`translation-harness`, `api-<platform>/`, `api-general-<platform>/`, `geometry-harness`,
+  `warmup-harness`), every labelled check run and result, and the guard's samples. It is
+  `SATCHEL_SHADER_WORK`, else `<SATCHEL_OUT>/native-shaders-work`; with neither set the
+  scripts stop and say so. The checks look for their harness there, so build and check
+  with the same setting. `Tools/Rename/rebuild_dependencies.py` sets it to `<root>/m5`, which
+  keeps a rebuilt root's `pipeline-full/result.json` where `NativeHost/shader_dependency.py`
+  reads the private proof.
+- The products themselves are built in place by `build-cross.py` and `build-archive.py`
+  (and the AOT step of `Tools/MaxwellShaderCompiler/build.py`). Run them only with
+  `SATCHEL_SHADER_DEPS` set to the folder they may write, as the bootstrap does. Their own
+  fallback is still the historical `~/SatchelBuild/m5`: their source bytes are part of every
+  product's build receipt, so editing them would invalidate every existing products folder.
+
 Use `NativeShaders/guard.py` for heavy builds. It preserves the 35 GiB reserve,
 waits for external compiler drivers, runs at nice level 10 and sets two build
-workers. All outputs go under `~/SatchelBuild/m5`.
+workers. Heavy (non-light) runs serialize on one shared lock file,
+`heavy-build.lock` in `SATCHEL_SHADER_DEPS`, or in `~/SatchelBuild/m5` when that variable
+is unset; every worker sharing those products waits on that same file, so it does not
+follow the work folder.
 
 The guard checks owned descendant RSS every five seconds, stops at 9 GiB to
 leave headroom below the 10 GiB maximum. It pauses when swap grows more than
 1 GiB above the saved startup baseline or memory pressure reports less than
-10 percent free. Existing swap alone does not block work. It records sampled peaks per PID under `~/SatchelBuild/m5/limits/`.
+10 percent free. Existing swap alone does not block work. It keeps the startup baseline
+(`resource-baseline-v2.json`, or `SATCHEL_M5_BASELINE_FILE` inside the work folder) and
+records sampled peaks per PID under `limits/`, both in the work folder.
 The light mode skips only the external compiler wait, keeping all memory,
 swap and disk checks. Both Swift source harnesses drain an autorelease pool
 after every request. The census restarts its child every 500 shaders, with a
@@ -61,6 +88,9 @@ at batch boundaries permit bounded rework after an interruption. Resume
 checks the executable, comparator and ordered input inventory identities.
 
 ```zsh
+export SATCHEL_OUT="$HOME/SatchelBuild/<task>"      # the guard's samples, harnesses and results
+export SATCHEL_SHADER_DEPS="<products>"              # the shader products (and the shared lock)
+# Rebuilding the products writes into SATCHEL_SHADER_DEPS; skip these to use existing ones.
 python3 NativeShaders/guard.py python3 NativeShaders/build-cross.py
 python3 NativeShaders/guard.py python3 NativeShaders/build-cross.py iphoneos
 python3 NativeShaders/guard.py python3 NativeShaders/build-translation.py

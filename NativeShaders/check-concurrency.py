@@ -6,16 +6,21 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import runpy
 import sys
 sys.dont_write_bytecode=True
 from oracle import PACKAGES,jobs
-ROOT=Path.home()/'SatchelBuild/m5'
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The NativeAOT library is read from the shader products; scratch goes to the caller's work folder.
+PRODUCTS=DEPENDENCY_PATHS['shader_deps']()
+WORK=DEPENDENCY_PATHS['shader_work']()
 _spec=importlib.util.spec_from_file_location('translator_check',Path(__file__).with_name('check-translator.py'))
 _module=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_module)
 
 def main():
-    work=ROOT/'concurrency';work.mkdir(exist_ok=False)
-    lib=ctypes.CDLL(str(ROOT/'aot/repro/host-publish/SatchelShaderProbe.dylib'))
+    WORK.mkdir(parents=True,exist_ok=True)
+    work=WORK/'concurrency';work.mkdir(exist_ok=False)
+    lib=ctypes.CDLL(str(PRODUCTS/'aot/repro/host-publish/SatchelShaderProbe.dylib'))
     lib.satchel_shader_translate_v1.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_void_p,ctypes.c_int,ctypes.POINTER(ctypes.c_void_p),ctypes.POINTER(ctypes.c_int)]
     lib.satchel_shader_translate_free.argtypes=[ctypes.c_void_p]
     scope,rows=jobs();packs={};inputs=[]

@@ -92,7 +92,9 @@ format provenance, remaining gaps, progress coverage and discarded-output timing
 ## Validation commands
 
 From the worktree, all compilation is low-priority and Swift uses two threads.
-Build/test outputs default to `~/SatchelBuild/content`.
+Build/test outputs go to `CONTENT_BUILD`, default `~/SatchelBuild/content/tests`; set it to a
+folder of your own when other work shares the Mac. The shader archive comes from the
+dependency root (`SATCHEL_SHADER_DEPS`, see [BUILDING.md](../../BUILDING.md#native-dependencies-the-build-expects)).
 
 ```sh
 scripts/test_content_pipeline.sh
@@ -108,16 +110,21 @@ RomFS and compares the entire image hash. The output directory must exist.
 `--select BASE UPDATE KEYS TITLE_ID` performs only selection, which can check
 that an unrelated update is refused without exporting content.
 
-Independent NX2Apple oracles, using its existing Python environment:
+Independent NX2Apple oracles, using the pinned engine and the Python environment of the
+dependency root (`scripts/dependency_paths.py` prints both; it stops with the variable to
+set when there is no root at the engine pin). `<reference>` is a private extraction of your
+own dump (the maintainer's was Zelda 1.4.3's `extract/v720896`), read only:
 
 ```sh
-nice -n 15 /tmp/satchel-switch-integration/venv/bin/python3 Tools/ContentPipeline/compare_reference.py \
-  --tools "$HOME/SatchelDeps/NX2Apple/engine/dm/tools" \
+ENGINE="$(python3 -B scripts/dependency_paths.py engine)"
+TOOLS_ENV="$(python3 -B scripts/dependency_paths.py integration-tools)"
+nice -n 15 "$TOOLS_ENV/venv/bin/python3" Tools/ContentPipeline/compare_reference.py \
+  --tools "$ENGINE/dm/tools" \
   --synthetic "$HOME/SatchelBuild/content/sanitized/synthetic" \
-  --reference "$HOME/SatchelBuild/zelda/work/extract/v720896" \
+  --reference "<reference>" \
   --native "$HOME/SatchelBuild/content/parity"
 nice -n 15 xcrun clang -std=c11 -O1 -Wall -Wextra -Werror \
-  -I "$HOME/SatchelDeps/NX2Apple/engine/dm/host" Tools/ContentPipeline/HostImageTest.c \
+  -I "$ENGINE/dm/host" Tools/ContentPipeline/HostImageTest.c \
   -o "$HOME/SatchelBuild/content/tests/host-image-test"
 nice -n 15 "$HOME/SatchelBuild/content/tests/host-image-test" "$HOME/SatchelBuild/content/parity/RomFS.img"
 ```

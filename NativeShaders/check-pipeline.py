@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import statistics
 import subprocess
@@ -24,7 +25,12 @@ from guard import atomic_json, resources
 _spec=importlib.util.spec_from_file_location("check_translator",Path(__file__).with_name("check-translator.py"))
 _translator=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_translator)
 native=_translator.native
-ROOT = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5')))
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The NativeAOT library is read from the shader products. The harnesses (build-translation.py) and each
+# labelled run live in the caller's work folder; the dependency rebuild points SATCHEL_SHADER_WORK at <root>/m5
+# so its pipeline-full proof stays where NativeHost/shader_dependency.py reads it.
+PRODUCTS = DEPENDENCY_PATHS['shader_deps']()
+WORK = DEPENDENCY_PATHS['shader_work']()
 DEFAULT_CORPUS = Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 
 def main():
@@ -47,16 +53,16 @@ def main():
     if not 1 <= args.batch_size <= 2000: parser.error('Batch size must be between 1 and 2000')
     if args.max_batches<0: parser.error('Maximum batch count cannot be negative')
     if Path(args.label).name != args.label or args.label in ('.','..'): parser.error('Label must be one directory name')
-    work = ROOT / args.label; work.mkdir(exist_ok=args.resume)
+    work = WORK / args.label; work.mkdir(parents=True, exist_ok=args.resume)
     scratch = work / 'scratch'; scratch.mkdir(exist_ok=args.resume)
     for path in scratch.iterdir(): path.unlink()
-    executable=ROOT/('source-harness' if args.source_stages else 'translation-harness')
+    executable=WORK/('source-harness' if args.source_stages else 'translation-harness')
     child=None
     scope, rows = jobs()
     sys.path.insert(0,str(TOOLS))
     import c1_guard, cb_extent
     if args.source_stages:
-        lib=ctypes.CDLL(str(ROOT/'aot/repro/host-publish/SatchelShaderProbe.dylib'))
+        lib=ctypes.CDLL(str(PRODUCTS/'aot/repro/host-publish/SatchelShaderProbe.dylib'))
         lib.satchel_shader_translate_v1.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_void_p,ctypes.c_int,ctypes.POINTER(ctypes.c_void_p),ctypes.POINTER(ctypes.c_int)]
         lib.satchel_shader_translate_free.argtypes=[ctypes.c_void_p]
         spv_scope=functions({'spv_single_lane','_ep_drop','int_inputs'})
@@ -118,7 +124,7 @@ def main():
     ordered=[k for k in ordered if k not in set(unbuilt)]
     if args.limit: ordered=ordered[:args.limit]
     digest=hashlib.sha256()
-    for path in [Path(__file__),executable,ROOT/'aot/repro/host-publish/SatchelShaderProbe.dylib']:
+    for path in [Path(__file__),executable,PRODUCTS/'aot/repro/host-publish/SatchelShaderProbe.dylib']:
         digest.update(path.read_bytes())
     facts_identity={'rows':rows,'facts':scope['FACTS'],'pairing':pc,
         'pairs':{k:sorted(v) for k,v in pairs.items()},'mapping':sorted(bf),'dual':sorted(dual)}

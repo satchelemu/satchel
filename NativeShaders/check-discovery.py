@@ -7,11 +7,15 @@ import json
 import os
 from pathlib import Path
 import struct
+import runpy
 import subprocess
 import time
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
-WORK = Path.home()/'SatchelBuild/m5'
-PROFILE = Path.home()/'SatchelBuild/host/engine/dm/games/0100F2C0115B6000'
+# The general harness (build-api.py --general) and the results live in the caller's work folder.
+WORK = DEPENDENCY_PATHS['shader_work']()
+# The Zelda profile of the pinned engine, as oracle.py reads it (SATCHEL_SHADER_PROFILE overrides).
+PROFILE = Path(os.environ.get('SATCHEL_SHADER_PROFILE', DEPENDENCY_PATHS['engine']() / 'dm/games/0100F2C0115B6000'))
 IMAGE = Path.home()/'SatchelBuild/oneapp/transfer/Documents/PreparedGames/TOTK-1.4.3-2/romfs.img'
 
 def files():
@@ -57,7 +61,7 @@ def main():
     if args.all_effects:
         for name in index:
             if name.startswith('/Effect/') and name.endswith('.byml.zs'):expected.setdefault(name,set())
-    dictionary=index['/Pack/ZsDic.pack.zs'];output=WORK/args.label;output.mkdir()
+    dictionary=index['/Pack/ZsDic.pack.zs'];output=WORK/args.label;output.mkdir(parents=True)
     scratch=output/'scratch';scratch.mkdir();record_path=scratch/'records.json'
     child=None;observed=set();differences=[];pairs=set();counts=collections.Counter();started=time.monotonic()
     try:

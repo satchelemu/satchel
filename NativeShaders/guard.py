@@ -1,17 +1,31 @@
 #!/usr/bin/env python3
-"""Wait for resources, then sample only this command's descendants every 5 seconds."""
+"""Wait for resources, then sample only this command's descendants every 5 seconds.
+
+Two locations, kept apart on purpose:
+- The shared heavy-build lock, heavy-build.lock in SATCHEL_SHADER_DEPS, or in
+  ~/SatchelBuild/m5 when that variable is unset. Every worker that shares those shader
+  products serializes its heavy builds on that one file, so its location never moves to a
+  per-caller folder (see LOCK below); --light never takes it.
+- This caller's own work folder (SATCHEL_SHADER_WORK, else <SATCHEL_OUT>/native-shaders-work,
+  else stop): the swap baseline, the sampled limits under limits/ and the disk check.
+"""
 import argparse
 import fcntl
 import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import signal
 import subprocess
 import time
 
-WORK = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5')))
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+
+# The shared heavy-build lock: the same file as before the shader work folder existed, because
+# other workers wait on it. Do not derive it from the dependency resolver or the work folder.
+LOCK = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home().joinpath('SatchelBuild/m5'))) / 'heavy-build.lock'
 RESERVE = 35 * 1024**3
 SWAP_GROWTH_LIMIT = 1024**3
 MINIMUM_MEMORY_FREE = 10
@@ -26,11 +40,18 @@ def swap_used():
         raise RuntimeError('Cannot read vm.swapusage; no work started')
     return int(float(match[1]) * 1024**('KMGT'.index(match[2]) + 1))
 
+def work():
+    """This caller's own work folder; stops with the variable to set when there is none."""
+    return DEPENDENCY_PATHS['shader_work']()
+
+def baseline_file():
+    return Path(os.environ.get('SATCHEL_M5_BASELINE_FILE', str(work()/'resource-baseline-v2.json')))
+
 def swap_baseline():
     # A new explicitly selected work phase may establish its startup baseline.
     # Keep that file unchanged across every step and retry in the phase.
-    path=Path(os.environ.get('SATCHEL_M5_BASELINE_FILE', str(WORK/'resource-baseline-v2.json')))
-    if path.parent.resolve() != WORK.resolve():
+    path=baseline_file()
+    if path.parent.resolve() != work().resolve():
         raise RuntimeError('Swap baseline must be a task-owned file')
     if not path.exists():
         value={'swap_bytes':swap_used(),'started':time.strftime('%Y-%m-%d %H:%M:%S')}
@@ -46,7 +67,7 @@ def memory_free():
     return int(match[1])
 
 def resources(extra=512 * 1024**2):
-    free, swap = shutil.disk_usage(WORK).free, swap_used()
+    free, swap = shutil.disk_usage(work()).free, swap_used()
     baseline, pressure = swap_baseline(), memory_free()
     reason = None
     if free < RESERVE + extra:
@@ -136,17 +157,18 @@ def main():
     if command[:1] == ['--']: command = command[1:]
     if not command or not 1 <= args.rss_limit_mib <= 9216:
         parser.error('Provide a command and an RSS ceiling of at most 9216 MiB')
-    WORK.mkdir(exist_ok=True)
-    logs = WORK/'limits'; logs.mkdir(exist_ok=True)
+    work().mkdir(parents=True, exist_ok=True)
+    logs = work()/'limits'; logs.mkdir(exist_ok=True)
     path = logs/(time.strftime('%Y%m%d-%H%M%S') + '-' + str(os.getpid()) + '.json')
     report = {'status':'waiting', 'sample_seconds':SAMPLE_SECONDS, 'rss_limit_bytes':args.rss_limit_mib*1024**2,
               'requested_maximum_rss_bytes':10*1024**3, 'swap_growth_limit_bytes':SWAP_GROWTH_LIMIT,
               'swap_baseline_bytes':swap_baseline(), 'minimum_memory_free_percent':100,
-              'swap_baseline_file':os.environ.get('SATCHEL_M5_BASELINE_FILE', str(WORK/'resource-baseline-v2.json')),
+              'swap_baseline_file':str(baseline_file()),
               'processes':{}, 'peak_swap_bytes_during_work':0}
     lock = None
     if not args.light:
-        lock = (WORK/'heavy-build.lock').open('a')
+        LOCK.parent.mkdir(exist_ok=True)
+        lock = LOCK.open('a')
     locked = False
     def cancelled_wait(signum, frame):
         report.update(status='cancelled while waiting', exit_code=128+signum)

@@ -92,6 +92,10 @@ The private real-game comparison remains in `check-pipeline.py`. Use
 `complete: true` and zero differences in addition to public validation. An explicit
 `SATCHEL_SHADER_PARITY=private` retains the old maintainer-only build route, defaulting
 to `<products>/pipeline-full/result.json`. The public default never falls back to it.
+`check-pipeline.py --label pipeline-full` writes that result to the caller's shader work
+folder (`<work>/pipeline-full/result.json`, see [README.md](README.md#validation-paths)), not
+into the products: name it with `SATCHEL_SHADER_PRIVATE_PROOF`, or run the check with
+`SATCHEL_SHADER_WORK=<products>`, as the dependency rebuild does.
 Neither route creates or copies private evidence into the repository. The staged
 source manifest records which gate was used.
 

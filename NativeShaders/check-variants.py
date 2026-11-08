@@ -6,12 +6,15 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import time
 
 sys.dont_write_bytecode = True
-ROOT = Path.home() / 'SatchelBuild/m5'
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The variant harness and the results live in the caller's work folder.
+ROOT = DEPENDENCY_PATHS['shader_work']()
 from oracle import TOOLS
 CORPUS = Path.home() / 'SatchelBuild/shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 sys.path.insert(0, str(TOOLS))
@@ -23,7 +26,7 @@ def main():
     parser.add_argument('--label', required=True)
     args = parser.parse_args()
     work = ROOT / args.label
-    work.mkdir(exist_ok=False)
+    work.mkdir(parents=True, exist_ok=False)
     generated = work / 'current.metal'
     child = subprocess.Popen([ROOT / 'variant-harness'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     start = time.monotonic()

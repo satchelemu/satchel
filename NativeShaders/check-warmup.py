@@ -5,12 +5,15 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import statistics
 import subprocess
 import tempfile
 from oracle import jobs, PROFILE, PACKAGES
 
-WORK=Path.home()/'SatchelBuild/m5'
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The warm-up client (build-warmup.py) and the results live in the caller's work folder.
+WORK=DEPENDENCY_PATHS['shader_work']()
 CORPUS=Path.home()/'SatchelBuild/shaders/package/TOTK-1.4.3-src/msl/b-26dc2fa9477c'
 
 def main():

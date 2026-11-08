@@ -3,14 +3,17 @@
 import json
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
 def main():
     if not os.environ.get('SATCHEL_M5_WATCHDOG_PID'):
         raise RuntimeError('Run this check through guard.py --light')
     here=Path(__file__).resolve().parent
-    logs=Path.home()/'SatchelBuild/m5/limits'
+    # The inner guard inherits this environment, so it samples into the same work folder.
+    logs=DEPENDENCY_PATHS['shader_work']()/'limits'
     sentinel=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'])
     inner=None
     try:

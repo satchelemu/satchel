@@ -5,13 +5,16 @@ import json
 import os
 import shutil
 from pathlib import Path
+import runpy
 import struct
 import subprocess
 import tempfile
 import time
 from oracle import ENGINE, records
 
-WORK=Path.home()/'SatchelBuild/m5'
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The geometry harness (build-geometry.py) and the results live in the caller's work folder.
+WORK=DEPENDENCY_PATHS['shader_work']()
 PACKAGES=Path.home()/'SatchelBuild/games/odyssey/shader/pkg'
 CORPUS=PACKAGES.parent/'cache/b-26dc2fa9477c'
 

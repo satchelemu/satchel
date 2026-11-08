@@ -7,13 +7,18 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import runpy
 import tempfile
 import time
 import types
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
-WORK=Path.home()/'SatchelBuild/m5'
-ENGINE=Path.home()/'SatchelDeps/tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/NX2Apple'
-PROFILE=Path.home()/'SatchelBuild/host/engine/dm/games/0100F2C0115B6000'
+# The general harness (build-api.py --general) and the results live in the caller's work folder.
+WORK=DEPENDENCY_PATHS['shader_work']()
+# The NSO parser of the interpreter-era NX2Apple snapshot inside the dependency root.
+ENGINE=DEPENDENCY_PATHS['integration_tools']()/'NX2Apple'
+# The Zelda profile of the pinned engine, as oracle.py reads it (SATCHEL_SHADER_PROFILE overrides).
+PROFILE=Path(os.environ.get('SATCHEL_SHADER_PROFILE',DEPENDENCY_PATHS['engine']()/'dm/games/0100F2C0115B6000'))
 
 def main():
     if not os.environ.get('SATCHEL_M5_WATCHDOG_PID'):raise RuntimeError('Run through guard.py')
@@ -35,7 +40,7 @@ def main():
     sys.modules.update({'lz4':package,'lz4.block':block})
     import nso
     source=Path.home()/'SatchelBuild/zelda/work/extract/v720896/ExeFS/main'
-    output=WORK/'discovery-main-2';output.mkdir();started=time.monotonic()
+    output=WORK/'discovery-main-2';output.mkdir(parents=True);started=time.monotonic()
     with tempfile.TemporaryDirectory(prefix='image-',dir=output) as temporary:
         root=Path(temporary);image=root/'image.bin'
         module=nso.load(source.read_bytes(),'private main')

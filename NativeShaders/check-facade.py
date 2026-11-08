@@ -3,9 +3,12 @@
 import ctypes
 import json
 from pathlib import Path
+import runpy
 import struct
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
-ROOT = Path.home() / 'SatchelBuild/m5'
+# Reads the NativeAOT library from the shader products; writes nothing.
+ROOT = DEPENDENCY_PATHS['shader_deps']()
 
 def main():
     lib = ctypes.CDLL(str(ROOT/'aot/repro/host-publish/SatchelShaderProbe.dylib'))

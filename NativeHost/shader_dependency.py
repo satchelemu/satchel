@@ -13,8 +13,13 @@ DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scr
 SOURCES = [Path(p).stem for p in json.loads((Path(__file__).resolve().parents[1]/'NativeShaders/integration.json').read_text())['swiftSources']]
 
 def stage(root, output, platform='iphoneos'):
-    default = root if (root/'NativeShaders/ShaderAPI.swift').exists() else Path.home()/'SatchelBuild/m5/wt'
-    source = Path(os.environ.get('SATCHEL_SHADER_SOURCE', default))
+    # The checkout being built carries the translator sources; SATCHEL_SHADER_SOURCE names another one.
+    if os.environ.get('SATCHEL_SHADER_SOURCE'):
+        source = Path(os.environ['SATCHEL_SHADER_SOURCE'])
+    elif (root/'NativeShaders/ShaderAPI.swift').exists():
+        source = root
+    else:
+        raise RuntimeError('No NativeShaders sources in ' + str(root) + ': set SATCHEL_SHADER_SOURCE to a Satchel checkout that has them')
     # The renamed shader products live in the dependency root since the 2026-11-03 rename.
     products = DEPENDENCY_PATHS['shader_deps']()
     sys.path.insert(0, str(root / 'NativeShaders'))

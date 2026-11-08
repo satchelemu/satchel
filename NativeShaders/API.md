@@ -176,13 +176,15 @@ No host or phone capture has been launched by m5.
 
 ## Build artifacts
 
-The iOS builds are available under `~/SatchelBuild/m5/`: the NativeAOT framework
-in `aot/SatchelShaderProbe.framework`, SPIRV-Cross static library in
+The iOS builds are in the shader products folder (`SATCHEL_SHADER_DEPS`, else
+`<SATCHEL_DEPS_ROOT>/m5`; `python3 -B scripts/dependency_paths.py shader-deps` prints it):
+the NativeAOT framework in `aot/SatchelShaderProbe.framework`, SPIRV-Cross static library in
 `cross-iphoneos/libGameShaderBridge.a`, and decoder in
 `archive-iphoneos/libShaderArchive.a`. Compile the Swift sources listed in
 `integration.json` into the app, import `ArchiveTranslationBridge.h`, link the two
 static libraries and C++, and embed/sign the NativeAOT framework with the app's
-existing signing setup. The `api-general-iphoneos` dylib proves linking; it is not
+existing signing setup. The `api-general-iphoneos` dylib (`build-api.py iphoneos --general`,
+written to the caller's shader work folder) proves linking; it is not
 a packaged shipping framework. No certificate or phone operation was performed.
 
 The full game facade and the original fixed diagnostic fixture are separate

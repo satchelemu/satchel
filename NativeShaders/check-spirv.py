@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Original synthetic SPIR-V transformation fixtures, no game instructions."""
 from pathlib import Path
+import runpy
 import struct
 import subprocess
 import sys
 
 sys.dont_write_bytecode=True
 from oracle import functions
-ROOT=Path.home()/'SatchelBuild/m5'
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The SPIR-V harness and the fixtures live in the caller's work folder.
+ROOT=DEPENDENCY_PATHS['shader_work']()
 
 def instruction(op,*args):return [(len(args)+1)<<16|op,*args]
 def main():
-    work=ROOT/'spirv-tests';work.mkdir(exist_ok=False)
+    work=ROOT/'spirv-tests';work.mkdir(parents=True,exist_ok=False)
     scope=functions({'spv_single_lane','_ep_drop'})
     scope.update(SG_OPS={333:'true',334:'pred',335:'pred',336:'true',337:'value',338:'value',339:'ballot',345:'value',346:'value',347:'value',348:'value'},
                  SG_BUILTINS={36:'one',41:'zero',4416:'one4',4417:'one4',4418:'zero4',4419:'one4',4420:'zero4'})

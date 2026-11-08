@@ -8,10 +8,13 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import runpy
 import tempfile
 import time
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
-WORK=Path.home()/'SatchelBuild/m5'
+# The API harness (build-api.py) and the results live in the caller's work folder.
+WORK=DEPENDENCY_PATHS['shader_work']()
 CAPTURE=Path.home()/'SatchelBuild/castlevania/capture-inputs/opening-gameplay'
 CORPUS=Path.home()/'SatchelBuild/castlevania/runtime-shaders/cache/b-26dc2fa9477c'
 

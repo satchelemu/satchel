@@ -2,16 +2,19 @@
 """Validate native record normalization and rejection boundaries without game logs."""
 import json
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 import time
 
 sys.dont_write_bytecode=True
 from oracle import PACKAGES,jobs
-ROOT=Path.home()/'SatchelBuild/m5'
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
+# The record harness and the results live in the caller's work folder.
+ROOT=DEPENDENCY_PATHS['shader_work']()
 
 def main():
-    work=ROOT/'records-full';work.mkdir(exist_ok=False)
+    work=ROOT/'records-full';work.mkdir(parents=True,exist_ok=False)
     scratch=work/'scratch';scratch.mkdir()
     child=subprocess.Popen([ROOT/'record-harness'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
     scope,rows=jobs();packs={};counts={'attempted':0,'code_equal':0,'job_equal':0,'rejections':0};differences=[];start=time.monotonic()
