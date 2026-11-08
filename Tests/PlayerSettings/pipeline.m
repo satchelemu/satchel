@@ -18,7 +18,18 @@ static int launch_checks(NSArray<NSString *> *args) {
     // A previous launch under the same tag left appended event rows behind.
     assert([@"1\t1\t1\tframe\n2\t1\t1\tframe\n" writeToFile:[trial stringByAppendingPathComponent:@"shader-events.tsv"] atomically:YES encoding:NSUTF8StringEncoding error:nil]);
     assert([@"0\t0\n1\t0\n" writeToFile:[trial stringByAppendingPathComponent:@"pipeline-skips.tsv"] atomically:YES encoding:NSUTF8StringEncoding error:nil]);
+    // A previous launch's memory profile, and a stale variable the flag must replace or clear.
+    NSString *memory = [trial stringByAppendingPathComponent:@"scene-memory.tsv"];
+    assert([@"frame\n0\n" writeToFile:memory atomically:YES encoding:NSUTF8StringEncoding error:nil]);
+    setenv("SATCHEL_SCENE_MEMORY", "/synthetic-stale/scene-memory.tsv", 1);
     SatchelApplyPipelineSettings(runtime);
+    if ([NSProcessInfo.processInfo.environment[@"EXPECT_MEMORY_PROFILE"] isEqualToString:@"1"]) {
+        assert(getenv("SATCHEL_SCENE_MEMORY") && !strcmp(getenv("SATCHEL_SCENE_MEMORY"), memory.fileSystemRepresentation));
+        assert(![fm fileExistsAtPath:memory]);
+    } else {
+        assert(!getenv("SATCHEL_SCENE_MEMORY"));
+        assert([fm fileExistsAtPath:memory]);
+    }
     BOOL prewarm = expect.length > 0;
     assert(!strcmp(getenv("DM_SATCHEL_PREWARM"), prewarm ? "1" : "0"));
     assert(!strcmp(getenv("DM_PSO_PREPARE"), prewarm ? "1" : "0"));

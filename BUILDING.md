@@ -645,6 +645,12 @@ allocation counts, types and symbolic host/system frames. It never stores alloca
 contents. The zero-leak requirement is unchanged. These runs do not install or launch
 the iPhone app; use `NativeApp/build.py --unsigned` for the separate app build check.
 
+Long-play memory soaks use the scene harness instead:
+`NativeHost/memory/build_mac.py` builds it, `NativeHost/memory/soak_mac.py` runs an
+existing package for a set time on the app's runtime shader path, and
+`NativeHost/memory/soak_summary.py` attributes growth per host cache. See
+[the memory README](NativeHost/memory/README.md).
+
 The private Mac helper waits for shared heavy builds before compiling a missing
 library. That wait can stall a running game and is retained in acceptance results.
 For captured offline translations, use an isolated tools directory whose

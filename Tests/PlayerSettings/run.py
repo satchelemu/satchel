@@ -55,10 +55,12 @@ for args, expect, lanes, ahead, translation in [([], '', '', '', ''), (['-Satche
                      (['-SatchelPipelineLanes', '4', '-SatchelPipelineAhead', '128'], '', '4', '128', ''),
                      (['-SatchelPipelineLanes', '4', '-SatchelPipelineAhead', '128', '-SatchelShaderAhead', '4'], '', '4', '128', '4'),
                      (['-SatchelShaderAhead', '9'], '', '', '', ''), (['-SatchelShaderAhead', '0'], '', '', '', ''),
-                     (['-SatchelPipelineLanes', '9', '-SatchelPipelineAhead', '0x10'], '', '', '', '')]:
+                     (['-SatchelPipelineLanes', '9', '-SatchelPipelineAhead', '0x10'], '', '', '', ''),
+                     (['-SatchelMemoryProfile', 'YES'], '', '', '', ''), (['-SatchelMemoryProfile', 'yes'], '', '', '', '')]:
     runtime = OUT / 'pipeline-runtime'
     shutil.rmtree(runtime, ignore_errors=True)
     subprocess.run([pipeline, *trial, *args], env=dict(os.environ, PIPELINE_RUNTIME=str(runtime), EXPECT_PREWARM_MS=expect,
-                   EXPECT_LANES=lanes, EXPECT_AHEAD=ahead, EXPECT_SHADER_AHEAD=translation), check=True)
+                   EXPECT_LANES=lanes, EXPECT_AHEAD=ahead, EXPECT_SHADER_AHEAD=translation,
+                   EXPECT_MEMORY_PROFILE='1' if args == ['-SatchelMemoryProfile', 'YES'] else '0'), check=True)
 shutil.rmtree(OUT / 'pipeline-runtime', ignore_errors=True)
-print('PASS: 25 settings/geometry processes, 6 pipeline launch policies and 9 launch prewarm, scheduling or trial file checks, all synthetic.')
+print('PASS: 25 settings/geometry processes, 6 pipeline launch policies and 11 launch prewarm, scheduling, memory profile or trial file checks, all synthetic.')

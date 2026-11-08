@@ -128,6 +128,17 @@ void SatchelApplyPipelineSettings(NSString *runtime) {
         setenv("DM_NVN_TSV", [[cacheRoot stringByAppendingPathComponent:@"graphics-frames.tsv"] fileSystemRepresentation], 1);
     }
 
+    // Opt-in memory profile (-SatchelMemoryProfile YES): the scene-memory sampler
+    // (NativeHost/memory/SceneMemory.inc) appends counts and byte sizes of the host's
+    // textures, buffers, pipelines, shaders and staging every 60 guest frames to
+    // scene-memory.tsv, started fresh at each launch. Nothing is sampled without it.
+    unsetenv("SATCHEL_SCENE_MEMORY");
+    if ([argument(args, @"-SatchelMemoryProfile") isEqualToString:@"YES"]) {
+        NSString *memory = [cacheRoot stringByAppendingPathComponent:@"scene-memory.tsv"];
+        [NSFileManager.defaultManager removeItemAtPath:memory error:nil];
+        setenv("SATCHEL_SCENE_MEMORY", memory.fileSystemRepresentation, 1);
+    }
+
     if ([argument(args, @"-SatchelPauseProfile") isEqualToString:@"YES"]) {
         setenv("DM_HOST_PAUSE", "1", 1);
         setenv("DM_HITCH_DUMP", "100:40", 1);

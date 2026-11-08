@@ -24,11 +24,7 @@ p.add_argument('--label', default='route')
 p.add_argument('--shader-mode', choices=['pack', 'runtime'], default='pack')
 a = p.parse_args()
 if a.frames is None: a.frames = 9000 if a.game == 'Castlevania' else 7200
-routes = {
-    'Castlevania': Path(__file__).with_name('castlevania-route.txt').read_text().strip(),
-    'Odyssey': 'f900:A~f9,f1200:A~f9,f1500:A~f9,f2100:A~f9,f3600:Plus~f9,f3900:B~f9,f4500:LUp~f90,f5000:RRight~f120,f6000:Plus~f9,f6300:B~f9',
-    'TOTK': 'f900:A~f9,f1200:A~f9,f1500:A~f9,f4200:Plus~f9,f4500:B~f9,f5100:LUp~f90,f6000:Plus~f9,f6300:B~f9',
-}
+routes = runpy.run_path(str(Path(__file__).with_name('routes.py')))['ROUTES']
 if a.keys is None: a.keys = routes[a.game]
 
 OUT = Path(os.environ['SATCHEL_OUT']).resolve()
@@ -46,11 +42,7 @@ tables = {'Castlevania': BUILD / 'castlevania/package/Castlevania-1.0.0/dm', 'Od
 saves = {'Odyssey': BUILD / 'oneapp/transfer/Documents/NativeRuntime/0100000000010000/save', 'TOTK': BUILD / 'host/saves/dmios-final/Documents/save'}
 if a.game in saves: shutil.copytree(saves[a.game], work / 'save', dirs_exist_ok=True)
 for path in [host, package / 'romfs.img', package / 'profile.tsv', patched, libraries[a.game], tables[a.game] / 'shader_map.tsv']: assert path.exists(), path
-checkpoints = sorted({300, 900, 1800, 2400, 3600, 4800, 6000, a.frames})
-if a.game == 'Castlevania': checkpoints = sorted(set(checkpoints) | {6900, 7250, 7295, 8015})
-if a.game == 'Odyssey': checkpoints = sorted(set(checkpoints) | {3700, 4000, 5200, 6100, 6400})
-if a.game == 'TOTK': checkpoints = sorted(set(checkpoints) | {4300, 4600, 6100, 6400})
-checkpoints = [frame for frame in checkpoints if frame <= a.frames]
+checkpoints = runpy.run_path(str(Path(__file__).with_name('routes.py')))['checkpoints'](a.game, a.frames)
 env = {k: v for k, v in os.environ.items() if not k.startswith(('DM_', 'SATCHEL_SCENE_'))}
 env.update(DM_PROFILE=str(package / 'profile.tsv'), DM_ROMFS=str(package / 'romfs.img'),
     DM_ROOT=str(work), DM_SAVE=str(work / 'save'), DM_TEMP=str(work / 'temp'), DM_AOC_DIR=str(work / 'aoc'),

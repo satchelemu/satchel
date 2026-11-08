@@ -47,3 +47,47 @@ which pool owns each ghost and retires matching ghosts on pool finalization, thr
 the existing deferred GPU fence path. The metadata shares the same 512-entry bound
 and is freed at session teardown. It does not evict live descriptors or discard
 GPU-only texture contents based only on their age.
+
+Long-play soaks (`soak_mac.py`)
+
+`soak_mac.py GAME VARIANT --seconds N --label L [--leak-check] [--route]` runs the
+scene harness built by build_mac.py on an existing package, read in place, for N wall
+seconds. It uses the app's current shader path (the phone translator at runtime, an
+empty seed library) and PipelineSettings.m's default exact pipeline policy; the
+translation and pipeline caches persist under `SATCHEL_OUT/caches/<name>/<game>` like
+the app's runtime folder. By default it starts like session/soak.py: the title's
+private Mac save backup, 90 seconds of confirmations from the first frame, then that
+tool's balanced movement loop (MOVEMENT), one entry every six seconds. `--route`
+plays run_mac.py's frame-scripted route instead, so its capture checkpoints compare
+against another build. Every five minutes of the loop it saves a screenshot for
+visual review. `--leak-check` scans the live host with the installed `leaks` tool
+before stopping and keeps only counts and type names; `--allocation-stacks` adds
+in-memory stack logging and keeps only symbolic host and system frames (it grows memory
+itself, so use it in a separate run from growth measurements). The harness does not
+carry the session overlays: the engine's replaced dirty-page arrays, which the app
+keeps on a retired list until Quit, show up here as 16-byte leaks from
+`nvn_dirty_add_range`, a fixed number per title.
+
+Each run writes memory.tsv (scene memory, every 60 frames), census.tsv, vm.tsv (the
+engine's DM_MEMSTAT per-class accounting, every second) and progress.tsv (resident
+size and frame, every five seconds). census.tsv is a Mac-only column per file-scope
+host table of the composed renderer: every `nvn_hmap` (entries and capacity) and
+every Foundation collection (count). census.py generates it from the composed source,
+so a new cache cannot be left out; the app does not contain it. The long run's
+executable is named `memory-soak-host`, which the shared build exclusion does not
+wait for, so an hour of soak does not hold other lanes' builds.
+
+`soak_summary.py RUN...` classifies every counter over the movement loop: "steady"
+when it grows in at least three quarters of the second half's ten-minute windows and
+its second-half slope exceeds 8 MiB (bytes) or six entries per hour and its final value
+clears the first half's peak (a counter that dips and recovers is not steady);
+otherwise "step" for net growth, "falling" or "flat". Given a folder copied from the
+phone (scene-memory.tsv and the DM_MEMSTAT file), it starts the loop after `--skip`
+seconds and maps frames to seconds at the run's mean frame rate. It writes soak-summary.json and soak-summary.md
+in the run folder. A step needs the screenshots to tell a new area from repeated
+content; a steady counter on repeated content is a leak candidate.
+
+The scene harness build now generates the profile header, host shaders and dav1d from
+the pinned engine, as build-pipeline-mac.py does: the older reference gen folder lacks
+the f8a5618d profile fields (DM_GAME_LAUNCH_PARAM and the module build list). Only its
+prebuilt libvpx is reused.

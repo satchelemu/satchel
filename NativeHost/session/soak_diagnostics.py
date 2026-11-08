@@ -69,14 +69,14 @@ def helper_samples(pid):
     return records
 
 
-def allocation_metadata(output):
+def allocation_metadata(output, host='mac-stop-probe'):
     rows = []
     for line in output.splitlines():
         if re.search(r'\d+ leaks for \d+ total leaked bytes', line):
             rows.append(line)
         elif re.match(r'\s*\d+ \(', line):
             rows.append(line)
-        elif re.search(r'\b(?:mac-stop-probe|libobjc\.A\.dylib|libsystem_\w+\.dylib|'
+        elif re.search(r'\b(?:' + re.escape(host) + r'|libobjc\.A\.dylib|libsystem_\w+\.dylib|'
                        r'AGX\w+|Metal|MetalTools|Foundation|CoreFoundation|QuartzCore)\b', line):
             # A full-stack row has an image and symbol. Reject paths and unknown
             # guest images even though leaks itself already disables contents.

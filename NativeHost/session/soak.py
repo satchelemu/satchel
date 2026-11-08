@@ -29,6 +29,14 @@ SAVES = {'Castlevania': BUILD / 'castlevania/run/save-display-gameplay',
          'Odyssey': BUILD / 'host/saves/before-oneapp-2049/0100000000010000/save',
          'TOTK': BUILD / 'host/saves/dmios-final/Documents/save'}
 
+# Balanced movement loop, one entry every six seconds after the confirmation phase.
+# memory/soak_mac.py reuses it, so both soaks drive the same inputs.
+MOVEMENT = {
+    'Castlevania': ['LRight~0.6', 'Y~0.25', 'B~0.25', 'LLeft~0.6', 'Y~0.25', 'B~0.25'],
+    'Odyssey': ['LUp~0.6', 'Y~0.25', 'B~0.25', 'LDown~0.6', 'RRight~0.5', 'RLeft~0.5'],
+    'TOTK': ['LLeft~0.25\nLRight~0.25', 'X~0.25', 'Y~0.25', 'RRight~0.25\nRLeft~0.25', 'Y~0.25', 'X~0.25'],
+}
+
 
 def manifest(folder):
     digest = hashlib.sha256()
@@ -338,11 +346,7 @@ def main():
                     # Balanced short movement limits drift into hazards during
                     # repeated routes. Zelda pairs movement before camera changes to avoid
                     # drifting toward a ledge. Saves and visual checks stay independent.
-                    sequence = {
-                        'Castlevania': ['LRight~0.6', 'Y~0.25', 'B~0.25', 'LLeft~0.6', 'Y~0.25', 'B~0.25'],
-                        'Odyssey': ['LUp~0.6', 'Y~0.25', 'B~0.25', 'LDown~0.6', 'RRight~0.5', 'RLeft~0.5'],
-                        'TOTK': ['LLeft~0.25\nLRight~0.25', 'X~0.25', 'Y~0.25', 'RRight~0.25\nRLeft~0.25', 'Y~0.25', 'X~0.25'],
-                    }[args.titles[cycle]]
+                    sequence = MOVEMENT[args.titles[cycle]]
                     key = 'A~0.5' if elapsed < 90 else sequence[input_count % len(sequence)]
                     if args.titles[cycle] == 'Castlevania' and elapsed < 90:
                         # Its first-run Continue affordance also accepts touch.

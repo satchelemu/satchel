@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import runpy
 import shlex
 import shutil
@@ -41,7 +42,9 @@ engine = OUT / 'engine'
 if not engine.exists():
     shutil.copytree(original, engine, ignore=shutil.ignore_patterns('.git', 'gen', '__pycache__'), symlinks=True)
 reference = Path.home() / 'SatchelBuild/castlevania/engine/dm/host/gen'
-for name in ['0100BA4026E94000/game_profile.h', 'vpx/libvpx.a', 'msl-macosx/host_msl_gen.h']:
+# The reference gen folder predates the f8a5618d pin and lacks its profile fields: only its
+# prebuilt libvpx is reused. The profile header, host shaders and dav1d come from the pin below.
+for name in ['vpx/libvpx.a']:
     target = engine / 'dm/host/gen' / name; target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(reference / name, target)
 runpy.run_path(str(ROOT / 'NativeHost/display_overlay.py'))['apply'](ROOT, original, OUT, {'SatchelNativeHost': [], 'SatchelNativeGraphics': []})
@@ -58,6 +61,15 @@ text = replace(text, '    const char *path = getenv("SATCHEL_SCENE_MEMORY");',
 text = replace(text, 'upload_buffers\\tupload_bytes\\n', 'upload_buffers\\tupload_bytes\\tretired_shaders\\n')
 text = replace(text, '\\t'.join(['%llu'] * 24) + '\\n', '\\t'.join(['%llu'] * 25) + '\\n')
 text = replace(text, 'upload_buffers, upload_bytes);', 'upload_buffers, upload_bytes, retired_shaders);')
+# Mac-only census of every file-scope host table (SATCHEL_CACHE_CENSUS), for long-run attribution.
+# Tables declared in included overlay fragments are part of the same translation unit.
+census = runpy.run_path(str(ROOT / 'NativeHost/memory/census.py'))
+included = ''.join((metal.parent / name).read_text() for name in re.findall(r'^#include "([A-Za-z0-9_]+\.inc)"', text, re.M)
+                   if (metal.parent / name).is_file())
+code, _ = census['source'](text + '\n' + included)
+text = replace(text, '    satchel_scene_memory_sample();', '    satchel_scene_memory_sample();\n    satchel_cache_census();')
+text = replace(text, 'static void satchel_scene_memory_sample(void);', 'static void satchel_scene_memory_sample(void);\nstatic void satchel_cache_census(void);')
+text += '\n' + code
 metal.write_text(text)
 shutil.copyfile(metal, engine / 'dm/gfx/nvn/nvn_mtl.m')
 for source in metal.parent.glob('*.inc'): shutil.copyfile(source, engine / 'dm/gfx/nvn' / source.name)
@@ -71,6 +83,9 @@ crash = runpy.run_path(str(ROOT / 'NativeHost/session/crash_overlay.py'))['safe_
 (engine / 'dm/host/crash.c').write_text(crash)
 env = dict(os.environ, GAME='0100BA4026E94000', DM_GAME='0100BA4026E94000',
            DM_GAMES_DIR=str(Path.home() / 'SatchelBuild/castlevania/profile'), DM_GAMES_FIRST='1', J='2', MAKEFLAGS='-j2')
+for target in ['gen/dav1d/libdav1d.a', 'gen/0100BA4026E94000/game_profile.h', 'gen/msl-macosx/host_msl_gen.h']:
+    if not (engine / 'dm/host' / target).exists():
+        subprocess.run(['nice', '-n', '10', 'make', '-j2', 'GAME=0100BA4026E94000', target], cwd=engine / 'dm/host', env=env, check=True)
 dry = subprocess.run(['make', '-n', '-B', 'GAME=0100BA4026E94000', 'dmhost'], cwd=engine / 'dm/host', env=env, capture_output=True, text=True, check=True)
 line = next(line for line in dry.stdout.splitlines() if ' -o dmhost ' in line)
 command = shlex.split(line); command[command.index('-o') + 1] = str(OUT / 'scene-harness')

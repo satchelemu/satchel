@@ -150,7 +150,10 @@ Long-session validation is still open. After ownership fixes, the Mac harness pa
 an uninterrupted 30-minute Castlevania interval and a 60-minute, 12-stop switching
 loop with zero detected leaks. A retained-cache Zelda retry also passed thirty
 minutes and guest join on main `cd6fbf9`. The historical timeout did not reproduce;
-its cause and live memory growth remain under investigation. Mac results do not
+its cause remains under investigation. Long-play memory soaks on the Mac (a 60-minute
+Zelda run and 30-minute Odyssey and Castlevania runs on the app's runtime shader path)
+found growth only in steps on new scenery and no steadily growing host cache; see
+[the soak evidence](Validation/memory-soak-2026-11-07.md). Mac results do not
 establish phone memory acceptance. Nine same-process Mac visits across the three
 titles also complete without a launch hang or stop timeout.
 See [session validation](NativeHost/session/README.md). Developer-only remote Quit

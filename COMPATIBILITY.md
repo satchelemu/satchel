@@ -109,6 +109,15 @@ guest retirement. Guest join took 0.521 seconds. Its shared-Mac average was
 this is not evidence of its cause or a fix, and the live footprint is not a phone
 memory result.
 
+Mac long-play memory soaks on 2026-11-07 (main `6103cee`, the app's runtime shader
+path, cold caches) ran Zelda for 60 minutes and Odyssey and Castlevania for at least
+30 minutes each. Zelda's footprint rose in steps with new scenery, from 4.09 to 4.27 GiB, then
+12 MiB over its last 30 minutes; Odyssey stayed at 3.86 GiB and Castlevania at
+2.44 to 2.46 GiB (a dialogue scene and a separate 32-minute gameplay loop) after their
+first loads. No host
+cache grew steadily. See [the soak evidence](Validation/memory-soak-2026-11-07.md).
+These are Mac readings and do not change a phone rating.
+
 The same new host also passes nine 120-second visits in one Mac process:
 Castlevania twice, Odyssey twice, Zelda twice, then Castlevania, Odyssey and Zelda.
 All nine reach visible gameplay, stop and retire their guest resources. The final
