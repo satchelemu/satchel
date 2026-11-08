@@ -10,9 +10,10 @@ from pathlib import Path
 import os
 import re
 import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[2]
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 failures = []
 
 

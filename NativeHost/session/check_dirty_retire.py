@@ -5,12 +5,13 @@ from pathlib import Path
 import argparse
 import runpy
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--baseline-ref', help='Also reproduce retained arrays from this git revision')
 args = parser.parse_args()
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 OUT = Path(os.environ.get('SESSION_CHECK_OUT', Path.home() / 'SatchelBuild/session')) / 'soak-dirty-check'
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / 'NXNative-LICENSE.txt').write_bytes((ENGINE / 'LICENSE').read_bytes())

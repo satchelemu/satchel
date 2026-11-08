@@ -14,6 +14,7 @@ import os
 import runpy
 import subprocess
 import sys
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--source-shaders', action='store_true', help='Mac diagnostic: compile retained Metal sources when libraries are absent')
@@ -24,7 +25,7 @@ OUT = Path(os.environ.get('SATCHEL_OUT', Path(os.environ.get('SATCHEL_BUILD_ROOT
 if OUT.resolve().is_relative_to(ROOT): raise SystemExit('Service build outputs must be outside the worktree.')
 OUT.mkdir(parents=True, exist_ok=True)
 runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
 pin = (ROOT / 'scripts/deps/upstream/nxnative-queue/README.md').read_text()
 if 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009' not in pin or not (ENGINE / 'dm/fork_patches.txt').is_file():

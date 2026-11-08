@@ -9,9 +9,10 @@ import os
 from pathlib import Path
 import runpy
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 OUT = Path(os.environ.get('SESSION_SUSPEND_OUT', Path.home() / 'SatchelBuild/mkdebug/suspend-check'))
 OUT.mkdir(parents=True, exist_ok=True)
 assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'

@@ -11,6 +11,8 @@ import sys
 
 from build_receipt import digest, verify
 from public_corpus import corpus
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = 'NativeShaders/public-parity-lock.json'
@@ -105,10 +107,23 @@ def run_corpus(work, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--products', type=Path, default=Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home() / 'SatchelDeps/m5')))
-    parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--candidate', action='store_true', help='Write a review candidate only, never a passing proof')
+    parser.add_argument('--products', type=Path, help='default: SATCHEL_SHADER_DEPS, else <SATCHEL_DEPS_ROOT>/m5')
+    parser.add_argument('--output', type=Path, help='harness folder; required unless --validate')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--candidate', action='store_true', help='Write a review candidate only, never a passing proof')
+    mode.add_argument('--validate', action='store_true',
+                      help='Check the existing proof against the lock, sources and product receipts; writes nothing')
     args = parser.parse_args()
+    args.products = args.products or DEPENDENCY_PATHS['shader_deps']()
+    if args.validate:
+        # Read-only: no harness build and no write under <products>, so a check never disturbs a
+        # shared root that other builds are staging from.
+        result = validate_proof(args.products, ROOT)
+        print('Public shader proof valid: ' + str(result['cases']) + ' synthetic requests, lock ' +
+              result['lock_sha256'][:12] + ', proof ' + result['proof_sha256'][:12] + ' (nothing written)')
+        return
+    if args.output is None:
+        parser.error('--output is required unless --validate is given')
     args.output.mkdir(parents=True, exist_ok=True)
     if not args.candidate:
         destination = args.products / 'public-parity'; destination.mkdir(exist_ok=True)

@@ -4,6 +4,8 @@ TASK_ROOT="${0:A:h:h}"
 TASK_BUILD="${CONTENT_BUILD:-$HOME/SatchelBuild/content/tests}"
 mkdir -p "$TASK_BUILD"
 cd "$TASK_ROOT"
+# The shader archive of the current dependency root, or a clear stop naming the variable to set.
+ARCHIVE_LIBRARY="$(python3 -B scripts/dependency_paths.py archive-library macosx)"
 export TMPDIR="$TASK_BUILD/"
 C_FLAGS=()
 SWIFT_FLAGS=()
@@ -27,5 +29,5 @@ nice -n 15 xcrun swiftc -swift-version 6 -warnings-as-errors -O -num-threads 2 "
   App/SwitchStorage.swift App/SwitchKeys.swift App/SwitchContentMeta.swift App/SwitchPatchStorage.swift \
   App/SwitchContentPipeline.swift App/SwitchCompressedInput.swift App/SwitchRomFSImage.swift App/SwitchDecodedModule.swift \
   "$TASK_BUILD/executable_fixtures.swift" "$TASK_BUILD/romfs_fixtures.swift" Tests/switch_content.swift \
-  "$TASK_BUILD/crypto.o" "$TASK_BUILD/nso.o" "${SATCHEL_ARCHIVE_LIBRARY:-$HOME/SatchelBuild/m5/archive-macosx/libShaderArchive.a}" -o "$TASK_BUILD/content-tests"
+  "$TASK_BUILD/crypto.o" "$TASK_BUILD/nso.o" "$ARCHIVE_LIBRARY" -o "$TASK_BUILD/content-tests"
 nice -n 15 "$TASK_BUILD/content-tests" "$TASK_BUILD/synthetic"

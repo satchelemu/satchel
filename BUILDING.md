@@ -239,6 +239,17 @@ ANYGAME_OUT="$HOME/SatchelBuild/anygame/bootstrap-guard" \
   --output "$HOME/SatchelBuild/anygame/parity-check"
 ```
 
+A full run first marks `<products>/public-parity/result.json` incomplete, so a failed
+rerun never leaves an older success for staging; on a root other builds share, that
+briefly fails their staging too. To check an existing proof without writing anything,
+use `--validate`: it rechecks the proof against the tracked lock, the source inventory
+and every product receipt, builds no harness, and exits 1 with the reason when the
+proof is stale:
+
+```sh
+python3 -B NativeShaders/public_parity.py --validate   # products from SATCHEL_SHADER_DEPS
+```
+
 The private check is retained. Set `SATCHEL_SHADER_PRIVATE_PROOF` to its result path
 to require both public and real-game parity. `SATCHEL_SHADER_PARITY=private` explicitly
 selects the prior maintainer route for existing dependency roots, using
@@ -279,15 +290,29 @@ named next to it, and the clean route sets every one inside its work folder (the
 `<root>` paths in "From a fresh clone" above). The pins are the ones the maintainer
 validated against.
 
+Every build tool and check resolves the dependency root, the engine snapshot, the native
+build inputs and the shader products through `scripts/dependency_paths.py`, with one
+rule: an explicit variable wins; otherwise the root is `SATCHEL_DEPS_ROOT`, or
+`~/SatchelDeps` only when that folder records the current engine pin in its
+`NX2Apple/engine-materialization.json`. The build inputs default to
+`<root>/build-inputs` (`SATCHEL_NATIVE_BUILD_INPUTS`), the shader products to `<root>/m5`
+(`SATCHEL_SHADER_DEPS`) and the zstd archive to
+`<shader products>/archive-<platform>/libShaderArchive.a` (`SATCHEL_ARCHIVE_LIBRARY`).
+Anything else stops before building with the variable to set; no tool falls back to an
+older materialization. `python3 -B scripts/dependency_paths.py engine` (or `deps-root`,
+`build-inputs`, `shader-deps`, `archive-library macosx`) prints what a tool would use.
+On the maintainer's Mac the current root is set by sourcing one environment script that
+exports these variables.
+
 | Dependency | Pin | Expected location | Override |
 |---|---|---|---|
-| nxnative engine source with the NX2Apple fork patches | commit `f8a5618d5f505a4c0a0bcac7c413872d3a53c009` plus the 29 patches of [the tracked queue](scripts/deps/upstream/nxnative-queue/README.md) | `~/SatchelDeps/NX2Apple/engine` | `SATCHEL_DEPS_ROOT` |
-| Interpreter-era libraries (VIXL CPU probe, shader bridge, Vulkan backend, guest graphics) | see each `Tools/*/README.md` | `~/SatchelDeps/tmp-snapshot-2026-11-01/...`, referenced from `project.yml` | `SATCHEL_DEPS_ROOT` through `NativeApp/build.py` |
+| nxnative engine source with the NX2Apple fork patches | commit `f8a5618d5f505a4c0a0bcac7c413872d3a53c009` plus the 29 patches of [the tracked queue](scripts/deps/upstream/nxnative-queue/README.md) | `<root>/NX2Apple/engine` (rule above) | `SATCHEL_DEPS_ROOT` |
+| Interpreter-era libraries (VIXL CPU probe, shader bridge, Vulkan backend, guest graphics) | see each `Tools/*/README.md` | `<root>/tmp-snapshot-2026-11-01/...`, referenced from `project.yml` | `SATCHEL_DEPS_ROOT` through `NativeApp/build.py` |
 | Capstone | 5.0.7 | `~/SatchelBuild/rewriter/capstone-src` | `SATCHEL_CAPSTONE_SOURCE` (otherwise `SATCHEL_BUILD_ROOT`) |
 | OpenSSL for iOS | 3.6.3, static | `~/SatchelBuild/spike/openssl-ios` | `SATCHEL_OPENSSL_IOS` |
 | MoltenVK | v1.4.2 | built by `Tools/VulkanBackend` scripts | see that README |
 | SPIRV-Cross, SPIRV-Tools, SPIRV-Headers | pinned in `Tools/ShaderBridge` and `Tools/VulkanBackend` | same | same |
-| Shader translator (the engine's Ryujinx shader parts, NativeAOT) | engine commit above, see [the shader translator pin](#the-shader-translator-pin) | `~/SatchelDeps/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
+| Shader translator (the engine's Ryujinx shader parts, NativeAOT) | engine commit above, see [the shader translator pin](#the-shader-translator-pin) | `<root>/m5` | `SATCHEL_SHADER_SOURCE`, `SATCHEL_SHADER_DEPS` |
 | Ryujinx 1.3.3 full source (reference only, not linked or fetched; the shader parts are the engine's vendored copy above) | tag 1.3.3 | `~/SatchelDeps/reference/ryujinx-1.3.3` | none |
 
 The per-component READMEs under `Tools/` describe how each library was fetched and built
@@ -454,7 +479,8 @@ app with two jobs at nice 10, and runs the signature, entitlement, landscape and
 `~/SatchelBuild/oneapp`), never inside the checkout.
 
 ```bash
-SATCHEL_OUT=~/SatchelBuild/oneapp SATCHEL_BUILD_ROOT=~/SatchelBuild SATCHEL_DEPS_ROOT=~/SatchelDeps nice -n 10 python3 -B NativeApp/build.py
+# SATCHEL_DEPS_ROOT and the other variables in "From a fresh clone" name a root at the current pin.
+SATCHEL_OUT=~/SatchelBuild/oneapp SATCHEL_BUILD_ROOT=~/SatchelBuild nice -n 10 python3 -B NativeApp/build.py
 ```
 
 The generated `Satchel.xcodeproj` is not tracked (run `xcodegen generate` to open the
@@ -556,7 +582,9 @@ signing and no team set simply asks you to pick one.
 The [importer validation guide](docs/importer-validation.md) documents synthetic
 containers and an output-discarding content benchmark. The content test and
 benchmark scripts accept `SATCHEL_ARCHIVE_LIBRARY` for a task-local build of the
-existing pinned Zstd decoder. `CONTENT_MAIN` and `CONTENT_EXECUTABLE` select the
+existing pinned Zstd decoder; without it they link the shader products' archive (the
+rule in "Native dependencies the build expects") and stop with the variable to set when
+it is missing. `CONTENT_MAIN` and `CONTENT_EXECUTABLE` select the
 benchmark entry point and binary path. The Prepare core harness also accepts
 `PREPARE_PIPELINE` for a private measurement adapter; production builds always use
 `NativePrepare/Pipeline.swift`. These Mac tools do not sign or run games.

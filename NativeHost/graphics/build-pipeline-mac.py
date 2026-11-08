@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(os.environ['SATCHEL_OUT']).resolve()
@@ -18,7 +19,8 @@ runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
 sys.path.insert(0, str(ROOT / 'NativeHost'))
 import shader_dependency
 shader_source = shader_dependency.stage(ROOT, OUT, 'macosx')
-aot = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'm5/aot/repro/host-publish/SatchelShaderProbe.dylib'
+# The same shader products shader_dependency staged from, so the dylib matches the staged sources.
+aot = DEPENDENCY_PATHS['shader_deps']() / 'aot/repro/host-publish/SatchelShaderProbe.dylib'
 runtime_inputs = {
     'aotPath': str(aot), 'aotSHA256': hashlib.sha256(aot.read_bytes()).hexdigest(),
     'stagedShaders': json.loads((shader_source / 'source-manifest.json').read_text())['files'],
@@ -36,7 +38,7 @@ subprocess.run(['nice', '-n', '10', 'xcrun', 'swiftc', '-target', 'arm64-apple-m
     ROOT / 'App/NativeGameProfile.swift', runtime, capture, ROOT / 'NativeHost/ShaderWarmupResources.swift',
     shader_source / 'libGameShaderBridge.a', shader_source / 'libShaderArchive.a', aot, '-lc++', '-framework', 'Metal',
     '-Xlinker', '-rpath', '-Xlinker', aot.parent, '-o', library], check=True)
-original = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+original = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 assert subprocess.check_output(['git', '-C', str(original), 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 engine = OUT / 'engine'
 if not engine.exists():

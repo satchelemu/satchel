@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 BUILD = Path.home() / 'SatchelBuild'
@@ -136,7 +137,7 @@ def compile_library(requested, library):
             temporary = Path(temporary)
             source = requested.with_suffix('.metal')
             if not source.is_file():
-                deps = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps'))
+                deps = DEPENDENCY_PATHS['deps_root']()
                 sys.path.insert(0, str(deps / 'NX2Apple/engine/dm/gfx/tools'))
                 base = requested.with_name(key + '_b.metal').read_text()
                 reflection = json.loads(requested.with_name(key + '_b.json').read_text())

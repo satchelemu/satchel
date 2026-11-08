@@ -239,8 +239,9 @@ reclaiming its input, then releases it and requires complete teardown. Alternati
 movie deferred-event cases cover an empty/future wait and an event signal spinning
 in guest code while holding the native queue lock. Two distinct synthetic code
 entries and vtables verify that switching replaces cached SDK addresses. The
-probe uses the existing Mac libvpx archive at
-`~/SatchelBuild/zelda/host-gen/vpx/libvpx.a`; no dependency is added.
+probe uses an existing Mac libvpx archive at `<host-gen>/vpx/libvpx.a`, where `<host-gen>`
+is `SATCHEL_MAC_HOST_GEN` (default `<build inputs>/host-gen`; the probe stops with that
+variable named when the folder is missing); no dependency is added.
 
 ## Native producers and guest memory
 
@@ -296,7 +297,7 @@ nice -n 10 python3 -B NativeHost/session/run_mac_restart.py
 ```
 
 These scripts need the provisioned canonical engine and existing Mac generated
-host headers/libvpx archive. The builder creates its own privacy overlay and
+host headers/libvpx archive (`SATCHEL_MAC_HOST_GEN`, generated from the pinned engine). The builder creates its own privacy overlay and
 composes the current pipeline policy. The runner uses only the existing private
 Castlevania and TOTK packages, fresh private runtime/save directories and public
 numeric metrics. Other host/guest output is discarded at the pipe.

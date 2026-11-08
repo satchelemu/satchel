@@ -55,6 +55,26 @@ two jobs. The output folder holds a freshly compiled Mac harness; the proof is w
 to `<products>/public-parity/result.json`. The check never writes to the tracked lock.
 A missing or changed receipt requires rebuilding the affected component, not editing
 the receipt. Older dependency roots can still use the explicit private mode below.
+Without `--products` or `SATCHEL_SHADER_DEPS`, the products are `<SATCHEL_DEPS_ROOT>/m5`
+(`scripts/dependency_paths.py`).
+
+A full run writes an incomplete `result.json` before it starts, so a failed rerun can
+never leave an older success for staging. On a root several workers share, that also
+fails their staging until the run finishes. To check the existing proof instead, run
+the read-only mode:
+
+```sh
+SATCHEL_SHADER_DEPS="$HOME/SatchelBuild/anygame/deps-parity/m5" \
+  python3 -B NativeShaders/public_parity.py --validate
+```
+
+It performs the same checks staging does: the tracked lock against the current source
+inventory and corpus, every Mac and iOS product against its receipt, and the proof
+against the lock hash, those products and the locked outputs. It builds no harness,
+needs no `--output`, writes nothing (no file under `<products>` changes), and exits 1
+with the reason when the proof is stale or incomplete. It cannot be combined with
+`--candidate`. A change to a lock-covered source (including this script) makes every
+existing proof stale until one full run on that root.
 
 ## Reviewing a translator change
 

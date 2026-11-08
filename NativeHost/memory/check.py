@@ -6,11 +6,12 @@ import runpy
 import shlex
 import shutil
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(os.environ['SATCHEL_OUT']).resolve()
 if OUT.is_relative_to(ROOT): raise SystemExit('Outputs must be outside the checkout.')
-source = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+source = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 OUT.mkdir(parents=True, exist_ok=True)
 runpy.run_path(str(ROOT / 'NativeApp/build_support.py'))['wait']()
 engine = OUT / 'engine'
@@ -18,8 +19,8 @@ if not engine.exists(): shutil.copytree(source, engine, ignore=shutil.ignore_pat
 # The profile header and the host's own shader header come from this snapshot's tools, since the
 # engine decides which macros the header carries. The profile is the tracked Castlevania one.
 import json
-tools = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
-inputs = Path(os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS', Path.home() / 'SatchelBuild/zelda'))
+tools = DEPENDENCY_PATHS['deps_root']() / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
+inputs = DEPENDENCY_PATHS['build_inputs']()
 generate = runpy.run_path(str(ROOT / 'scripts/switch_native.py'))['tool_environment'](tools)
 generate.update(SATCHEL_METAL_TOOLCHAIN=json.loads((inputs / 'native-toolchain.json').read_text())['metal_toolchain'],
                 GAME='0100BA4026E94000', DM_GAME='0100BA4026E94000', DM_GAMES_FIRST='1',

@@ -6,13 +6,14 @@ import os
 import runpy
 import shutil
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--baseline-ref', help='Also reproduce invalid keys from this git revision')
 args = parser.parse_args()
 ROOT = HERE.parents[1]
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 OUT = Path(os.environ.get('SESSION_KEY_OUT', Path.home() / 'SatchelBuild/session/round2-shader-key'))
 OUT.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(ENGINE / 'LICENSE', OUT / 'NXNative-LICENSE.txt')

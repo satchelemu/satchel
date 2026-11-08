@@ -6,11 +6,12 @@ import runpy
 import shutil
 import subprocess
 import tempfile
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 OUT = Path(os.environ.get('SESSION_OUT', Path.home() / 'SatchelBuild/session/stop-probe'))
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
 OUT.mkdir(parents=True, exist_ok=True)
 assert subprocess.check_output(['git', '-C', ENGINE, 'rev-parse', 'HEAD'], text=True).strip() == 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
@@ -38,7 +39,7 @@ for i, path in enumerate([HERE / 'stop_probe.c', HERE / 'SessionBoundary.c', HER
     subprocess.run(base + flags + ['-c', str(path), '-o', str(obj)], check=True)
     objects.append(str(obj))
 binary = OUT / 'stop-probe'
-vpx = Path.home() / 'SatchelBuild/zelda/host-gen/vpx/libvpx.a'
+vpx = DEPENDENCY_PATHS['mac_host_gen']() / 'vpx/libvpx.a'
 subprocess.run(base + objects + [str(vpx), '-Wl,-dead_strip', '-framework', 'AudioToolbox',
                                 '-o', str(binary)], check=True)
 # Keep the existing engine's transaction checks intact. They include fault injection.

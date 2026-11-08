@@ -2,10 +2,11 @@
 """Build a diagnostic Mac host from the pinned engine and graphics overlay."""
 from pathlib import Path
 import os,sys,runpy,json,subprocess,importlib.util,shutil,time
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 root=Path(__file__).resolve().parents[2]
 out=Path(os.environ['SATCHEL_OUT'])/'gpu-mac';engine=out/'engine'
 out.mkdir(parents=True,exist_ok=True)
-deps=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home()/'SatchelDeps'))
+deps=DEPENDENCY_PATHS['deps_root']()
 build=Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home()/'SatchelBuild'))
 source=deps/'NX2Apple/engine'
 assert subprocess.check_output(['git','-C',source,'rev-parse','HEAD'],text=True).strip()=='f8a5618d5f505a4c0a0bcac7c413872d3a53c009'

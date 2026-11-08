@@ -7,6 +7,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[3] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -81,7 +83,7 @@ def generate(mode, out):
     else:
         dev = mode != 'sim-minimal'
         project = read_yaml(ROOT / ('Tests/UIPreview/project-game.yml' if dev else 'Tests/UIPreview/project.yml'))
-        engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+        engine = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
         if dev:
             sys.path.insert(0, str(ROOT / 'NativeHost'))
             from display_overlay import apply

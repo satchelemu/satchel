@@ -13,6 +13,8 @@ import subprocess
 import threading
 import time
 import sys
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 BUILD = Path.home() / 'SatchelBuild'
 OUT = Path(os.environ.get('SESSION_MAC_OUT', BUILD / 'session/soak-mac'))
@@ -139,7 +141,7 @@ def main():
     cache_cancellations = [0]
     cache_waits = []
     from soak_diagnostics import red_templates, red_category
-    templates = red_templates(Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine')
+    templates = red_templates(DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine')
     red_categories = {}
     unmapped_translations = {title: 0 for title in TITLES}
     cycle_shader_errors = [0] * len(args.titles)

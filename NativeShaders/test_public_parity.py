@@ -121,6 +121,33 @@ class PublicGateTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'stale or incomplete'):
             gate.validate_proof(self.work, self.root)
 
+    def snapshot(self):
+        return {str(p.relative_to(self.work)): (p.stat().st_mtime_ns, build_receipt.digest(p))
+                for p in sorted(self.work.rglob('*')) if p.is_file()}
+
+    def test_validate_mode_is_read_only(self):
+        argv = ['public_parity.py', '--products', str(self.work), '--validate']
+        before = self.snapshot()
+        with patch('sys.argv', argv), patch.object(gate, 'ROOT', self.root), \
+             patch.object(gate, 'run_corpus', side_effect=AssertionError('validate must not run the corpus')):
+            gate.main()
+        self.assertEqual(self.snapshot(), before)
+        # A stale proof fails and stays exactly as it was: validation never marks it incomplete.
+        self.proof['lock_sha256'] = 'old'; self.save()
+        before = self.snapshot()
+        with patch('sys.argv', argv), patch.object(gate, 'ROOT', self.root):
+            with self.assertRaisesRegex(RuntimeError, 'stale or incomplete'):
+                gate.main()
+        self.assertEqual(self.snapshot(), before)
+
+    def test_validate_excludes_candidate_and_needs_no_output(self):
+        with patch('sys.argv', ['public_parity.py', '--products', str(self.work), '--validate', '--candidate']):
+            with self.assertRaises(SystemExit):
+                gate.main()
+        with patch('sys.argv', ['public_parity.py', '--products', str(self.work)]):
+            with self.assertRaises(SystemExit):
+                gate.main()
+
     def test_staging_rejects_bad_public_or_private_before_copy(self):
         path = gate.ROOT / 'NativeHost/shader_dependency.py'
         spec = importlib.util.spec_from_file_location('shader_dependency', path)

@@ -4,13 +4,14 @@ import os
 from pathlib import Path
 import runpy
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 OUT = Path(os.environ.get('SESSION_CHECK_OUT', Path.home() / 'SatchelBuild/session')) / 'soak-crash-check'
 OUT.mkdir(parents=True, exist_ok=True)
-(OUT / 'NXNative-LICENSE.txt').write_bytes((Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine/LICENSE').read_bytes())
+(OUT / 'NXNative-LICENSE.txt').write_bytes((DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine/LICENSE').read_bytes())
 runpy.run_path(str(HERE.parents[1] / 'NativeApp/build_support.py'))['wait']()
-source = (Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine/dm/host/crash.c').read_text()
+source = (DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine/dm/host/crash.c').read_text()
 fixed = runpy.run_path(str(HERE / 'overlay.py'))['bound_crash_report'](source)
 prefix = '''#include <pthread.h>
 #include <stdatomic.h>

@@ -8,13 +8,15 @@ import json
 import re
 import subprocess
 import argparse
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 p = argparse.ArgumentParser(description=__doc__)
-p.add_argument('--engine', type=Path, default=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine')
+p.add_argument('--engine', type=Path, help='default: <SATCHEL_DEPS_ROOT>/NX2Apple/engine')
 p.add_argument('--ryujinx', type=Path, default=Path.home() / 'SatchelDeps/reference/ryujinx-1.3.3')
 p.add_argument('--output', type=Path, default=HERE / 'coverage')
-a = p.parse_args(); a.output.mkdir(parents=True, exist_ok=True)
+a = p.parse_args(); a.engine = a.engine or DEPENDENCY_PATHS['engine'](); a.output.mkdir(parents=True, exist_ok=True)
 PIN = 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 assert subprocess.check_output(['git', '-C', str(a.engine), 'rev-parse', 'HEAD'], text=True).strip() == PIN
 

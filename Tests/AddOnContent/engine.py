@@ -6,7 +6,8 @@ import ast
 import runpy
 import subprocess
 import sys
-engine=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine/dm/host'
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
+engine=DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine/dm/host'
 out=Path(sys.argv[1]); out.mkdir(parents=True,exist_ok=True)
 misc=(engine/'hle_misc.c').read_text()
 aoc=misc[misc.index('static int g_aoc['):misc.index('// The event object')]

@@ -6,6 +6,8 @@ import json
 import os
 import plistlib
 import subprocess
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(os.environ.get('SATCHEL_OUT', Path.home() / 'SatchelBuild/session/pad-app'))
@@ -33,7 +35,7 @@ for marker in [b"controller '%s' seen: category", b'controller-log.txt', b'GCSup
 linked = subprocess.check_output(['otool', '-L', binary], text=True)
 assert '/GameController.framework/' in linked and '/CoreHaptics.framework/' in linked
 # The complete pinned source, including its MIT notice, remains pristine.
-engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+engine = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 for name, digest in json.loads((OUT / 'host/engine-source-hashes.json').read_text()).items():
     assert hashlib.sha256((engine / name).read_bytes()).hexdigest() == digest, name
     assert hashlib.sha256((OUT / 'host/engine' / name).read_bytes()).hexdigest() == digest, name

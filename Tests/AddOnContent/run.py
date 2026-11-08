@@ -2,9 +2,12 @@
 """Build Mac tests using the production metadata reader, packager and manifest checks."""
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 root=Path(__file__).resolve().parents[2]
+# The shader archive of the current dependency root, or a clear stop naming the variable to set.
+archive=runpy.run_path(str(root/'scripts/dependency_paths.py'))['archive_library']('macosx')
 out=Path(sys.argv[1]); out.mkdir(parents=True,exist_ok=True)
 for name in ['executable','romfs','content','package_reader']:
     (out/(name+'_fixtures.swift')).write_text((root/('Tests/'+('package_reader' if name == 'package_reader' else 'switch_'+name)+'.swift')).read_text().replace('@main',''))
@@ -35,5 +38,5 @@ for scope in ['fm','FileManager.default']:
 (out/'Cancellation.swift').write_text((root/'NativePrepare/Rewrite.swift').read_text().split('private final class RewriteProgressContext')[0])
 (out/'PreparedVerifier.swift').write_text(verifier + '\nfunc SatchelNativeSessionStarted() -> Bool { false }\n')
 sources=['SwitchPackage','SwitchPackageImport','SwitchControl','SwitchExecutable','SwitchRomFS','SwitchStorage','SwitchKeys','SwitchContentMeta','SwitchPatchStorage','SwitchContentPipeline','SwitchCompressedInput','SwitchRomFSImage','SwitchDecodedModule','SwitchAddOnContent','PreparedAddOn','NativeGameProfile','HomebrewItem']
-run(['xcrun','swiftc','-swift-version','5','-O','-num-threads','2','-import-objc-header',out/'Bridge.h',*[root/'App'/(s+'.swift') for s in sources],*[out/(s+'_fixtures.swift') for s in ['executable','romfs','content','package_reader']],out/'GameInfoReader.swift',out/'Shelf.swift',out/'PreparedVerifier.swift',out/'Cancellation.swift',root/'NativePrepare/AddOnUpdate.swift',root/'Tests/AddOnContent/UpdateTests.swift',root/'Tests/AddOnContent/Tests.swift',out/'crypto.o',out/'nso.o',Path.home()/'SatchelBuild/m5/archive-macosx/libShaderArchive.a','-o',out/'dlc-tests'])
+run(['xcrun','swiftc','-swift-version','5','-O','-num-threads','2','-import-objc-header',out/'Bridge.h',*[root/'App'/(s+'.swift') for s in sources],*[out/(s+'_fixtures.swift') for s in ['executable','romfs','content','package_reader']],out/'GameInfoReader.swift',out/'Shelf.swift',out/'PreparedVerifier.swift',out/'Cancellation.swift',root/'NativePrepare/AddOnUpdate.swift',root/'Tests/AddOnContent/UpdateTests.swift',root/'Tests/AddOnContent/Tests.swift',out/'crypto.o',out/'nso.o',archive,'-o',out/'dlc-tests'])
 run([out/'dlc-tests',out/'synthetic',*sys.argv[2:]])

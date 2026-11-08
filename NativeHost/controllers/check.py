@@ -4,10 +4,11 @@ from pathlib import Path
 import os
 import runpy
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
 OUT = Path(os.environ.get('PAD_CHECK_OUT', Path.home() / 'SatchelBuild/session/pad-check'))
 OUT.mkdir(parents=True, exist_ok=True)

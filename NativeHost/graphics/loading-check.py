@@ -2,10 +2,12 @@
 """Exercise the patched ReadFile against synthetic images outside the repository."""
 from pathlib import Path
 import argparse, os, struct, subprocess
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--out', type=Path, required=True)
-p.add_argument('--engine', type=Path, default=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine')
-a=p.parse_args(); a.out=a.out.resolve(); root=Path(__file__).resolve().parents[2]
+p.add_argument('--engine', type=Path, help='default: <SATCHEL_DEPS_ROOT>/NX2Apple/engine')
+a=p.parse_args(); a.engine=a.engine or DEPENDENCY_PATHS['engine'](); a.out=a.out.resolve(); root=Path(__file__).resolve().parents[2]
 if a.out.is_relative_to(root): p.error('Use a private output directory outside the repository')
 a.out.mkdir(parents=True,exist_ok=True)
 for name in ['hle_fs.c','hle_svc.c','romfs_image.h']:(a.out/name).write_bytes((a.engine/'dm/host'/name).read_bytes())

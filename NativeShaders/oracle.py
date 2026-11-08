@@ -8,15 +8,17 @@ from pathlib import Path
 import re
 import struct
 import sys
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
 # The pinned engine snapshot (nxnative f8a5618d with the fork patches); its shader tools are the parity reference.
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 TOOLS = ENGINE / 'dm/gfx/tools'
 # The game whose profile and shader packages a private check reads (default: Zelda TOTK 1.4.3).
 PROFILE = Path(os.environ.get('SATCHEL_SHADER_PROFILE', ENGINE / 'dm/games/0100F2C0115B6000'))
 PACKAGES = Path(os.environ.get('SATCHEL_SHADER_PACKAGES', Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'zelda/work/shader/pkg'))
 # The .NET runtime that runs the engine's prebuilt translator (check-translator.py).
-DOTNET_ROOT = Path(os.environ.get('SATCHEL_DOTNET_ROOT', Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/dotnet'))
+DOTNET_ROOT = Path(os.environ.get('SATCHEL_DOTNET_ROOT', DEPENDENCY_PATHS['deps_root']() / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration/dotnet'))
 
 def records(d):
     """The package's BTCDBTCD records, as the pinned record_index cuts them."""

@@ -12,13 +12,14 @@ from pathlib import Path
 import re
 import runpy
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--baseline-ref', help='Also reproduce the large pool double free from this git revision')
 args = parser.parse_args()
 OUT = Path(os.environ.get('SESSION_CHECK_OUT', Path.home() / 'SatchelBuild/session')) / 'soak-pipeline-check'
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine/dm/gfx/nvn/nvn_mtl.m'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine/dm/gfx/nvn/nvn_mtl.m'
 source = ENGINE.read_text()
 state = (HERE / 'SessionGraphicsState.inc').read_text()
 helper = re.search(r'static void satchel_mtl_release_pending\(void\) \{[\s\S]*?\n\}', state)[0]

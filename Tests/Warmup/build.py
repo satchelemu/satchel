@@ -2,6 +2,8 @@
 """Compile the production warm-up and actual package verifier for Mac measurement."""
 from pathlib import Path
 import json,os,shutil,subprocess
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 root=Path(os.environ.get('SATCHEL_WARMUP_SOURCE', Path(__file__).resolve().parents[2]))
 out=Path(os.environ.get('SATCHEL_WARMUP_OUT',Path.home()/'SatchelBuild/dlc/warmup/mac'))
 out=out.expanduser().resolve()
@@ -32,7 +34,7 @@ if source_main.name == 'Checks.swift':
  fixture.write_text('#include <metal_stdlib>\nusing namespace metal; kernel void warm_fixture() {}\n')
  run(['xcrun','--sdk','macosx','metal','-std=metal3.2','-mmacosx-version-min=26.0','-c',fixture,'-o',out/'synthetic.air'])
  run(['xcrun','--sdk','macosx','metallib',out/'synthetic.air','-o',out/'synthetic.metallib'])
-deps=Path(os.environ.get('SATCHEL_DEPS_ROOT',Path.home()/'SatchelDeps'))/'m5';aot=deps/'aot/repro/host-publish/SatchelShaderProbe.dylib'
+deps=DEPENDENCY_PATHS['shader_deps']();aot=deps/'aot/repro/host-publish/SatchelShaderProbe.dylib'
 run(['xcrun','swiftc','-swift-version','5','-O','-num-threads','2','-target','arm64-apple-macos26.0','-import-objc-header',header,*sources,verifier,source_main,*objects,
  deps/'cross-macosx/libGameShaderBridge.a',deps/'archive-macosx/libShaderArchive.a',aot,'-Xlinker','-rpath','-Xlinker',aot.parent,'-lc++','-framework','Metal','-framework','GameController','-o',out/'warmup'])
 for name in ['NativeGameProfiles.json','NativeRuntimeProfiles.json']:(out/name).write_bytes((root/'App'/name).read_bytes())

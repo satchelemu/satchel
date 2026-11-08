@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'NativeShaders'))
@@ -21,10 +23,12 @@ from public_corpus import corpus
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--products', type=Path, default=Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home() / 'SatchelDeps/m5')))
-    parser.add_argument('--engine', type=Path, default=Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine')
+    parser.add_argument('--products', type=Path, help='default: SATCHEL_SHADER_DEPS, else <SATCHEL_DEPS_ROOT>/m5')
+    parser.add_argument('--engine', type=Path, help='default: <SATCHEL_DEPS_ROOT>/NX2Apple/engine')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    args.products = args.products or DEPENDENCY_PATHS['shader_deps']()
+    args.engine = args.engine or DEPENDENCY_PATHS['engine']()
     args.output.mkdir(parents=True, exist_ok=True)
     spec = importlib.util.spec_from_file_location('translation_build', ROOT / 'NativeShaders/build-translation.py')
     builder = importlib.util.module_from_spec(spec); spec.loader.exec_module(builder)

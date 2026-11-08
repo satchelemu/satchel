@@ -4,6 +4,8 @@ TASK_ROOT="${0:A:h:h}"
 TASK_BUILD="${CONTENT_BUILD:-$HOME/SatchelBuild/content/tests}"
 mkdir -p "$TASK_BUILD"
 cd "$TASK_ROOT"
+# The shader archive of the current dependency root, or a clear stop naming the variable to set.
+ARCHIVE_LIBRARY="$(python3 -B scripts/dependency_paths.py archive-library macosx)"
 export TMPDIR="$TASK_BUILD/"
 cat > "$TASK_BUILD/ParityBridge.h" <<BRIDGE
 #include "$TASK_ROOT/Core/SwitchCrypto.h"
@@ -16,4 +18,4 @@ nice -n 15 xcrun swiftc -swift-version 6 -warnings-as-errors -g -O -num-threads 
   App/SwitchPackage.swift App/SwitchControl.swift App/SwitchExecutable.swift App/SwitchRomFS.swift \
   App/SwitchKeys.swift App/SwitchContentMeta.swift App/SwitchPatchStorage.swift App/SwitchContentPipeline.swift App/SwitchCompressedInput.swift \
   App/SwitchRomFSImage.swift App/SwitchDecodedModule.swift "${CONTENT_MAIN:-Tools/ContentPipeline/Parity.swift}" \
-  "$TASK_BUILD/crypto.o" "$TASK_BUILD/nso.o" "${SATCHEL_ARCHIVE_LIBRARY:-$HOME/SatchelBuild/m5/archive-macosx/libShaderArchive.a}" -o "${CONTENT_EXECUTABLE:-$TASK_BUILD/content-parity}"
+  "$TASK_BUILD/crypto.o" "$TASK_BUILD/nso.o" "$ARCHIVE_LIBRARY" -o "${CONTENT_EXECUTABLE:-$TASK_BUILD/content-parity}"

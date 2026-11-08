@@ -8,10 +8,11 @@ from pathlib import Path
 import runpy
 import shutil
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 HOST = ENGINE / 'dm/host'
 OUT = Path(os.environ.get('SESSION_MAC_OUT', Path.home() / 'SatchelBuild/session/mac-stop'))
 OUT.mkdir(parents=True, exist_ok=True)
@@ -55,7 +56,7 @@ dirty = runpy.run_path(str(HERE / 'dirty_overlay.py'))['prepare'](ENGINE / 'dm/g
 sources = [nvn if p.name == 'hle_nvn.c' else dirty if p.name == 'nvn_dirty.c' else p for p in sources]
 sources = [metal if p.name == 'nvn_mtl.m' else p for p in sources]
 sources += [HERE / n for n in ['SessionBoundary.c', 'SessionNativeWorkers.c', 'SessionInputGate.c', 'SessionCoordinator.c', 'SessionState.c', 'mac_probe_metrics.m', 'mac_stop_probe.c']]
-generated = Path.home() / 'SatchelBuild/zelda/host-gen'
+generated = DEPENDENCY_PATHS['mac_host_gen']()
 includes = [HERE, overlay, HOST, ENGINE / 'dm/gfx/nvn', ENGINE / 'dm/gfx/nvn/include',
             generated / '0100BA4026E94000', generated / 'msl-macosx',
             ENGINE / 'dm/third_party/libvpx', ENGINE / 'dm/third_party/stb_vorbis',

@@ -57,7 +57,8 @@ other archive codecs, ZBIC NSOs and system 23 compressed NRO executables remain
 unsupported. These are distinct from ordinary NROs carried in zstd frames.
 
 The native decoder reuses M5's pinned zstd 1.5.7 BSD archive under
-`~/SatchelBuild/m5/archive-{macosx,iphoneos}/libShaderArchive.a`. It is an
+`<shader products>/archive-{macosx,iphoneos}/libShaderArchive.a` (`SATCHEL_SHADER_DEPS`, or
+`SATCHEL_ARCHIVE_LIBRARY` for the library itself; see BUILDING.md). It is an
 additional link dependency, not a per-game tool. NCZ transport follows MIT NSZ
 revision `148218ff89bb4b607d07730a8cf87d5e1f249ebc`; sparse/compression layouts
 follow the installed MIT LibHac 0.19.0 used by NX2Apple. License notices are in

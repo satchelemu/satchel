@@ -19,10 +19,11 @@ from pathlib import Path
 import re
 import runpy
 import subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-ENGINE = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+ENGINE = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
 OUT = Path(os.environ.get('SESSION_SECOND_OUT', Path.home() / 'SatchelBuild/mkdebug/second-launch-check'))
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--baseline-ref', help='Also reproduce the game_env double free from this git revision')

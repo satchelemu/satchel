@@ -9,10 +9,12 @@ import json
 import os
 import re
 import statistics
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 
 def summarize(log, source, first=1, last=None):
-    engine = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'NX2Apple/engine'
+    engine = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
     spec = importlib.util.spec_from_file_location('gpuprof', engine / 'dm/tools/gpuprof.py')
     profile = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(profile)

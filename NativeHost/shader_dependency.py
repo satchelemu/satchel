@@ -7,6 +7,8 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import runpy
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
 SOURCES = [Path(p).stem for p in json.loads((Path(__file__).resolve().parents[1]/'NativeShaders/integration.json').read_text())['swiftSources']]
 
@@ -14,7 +16,7 @@ def stage(root, output, platform='iphoneos'):
     default = root if (root/'NativeShaders/ShaderAPI.swift').exists() else Path.home()/'SatchelBuild/m5/wt'
     source = Path(os.environ.get('SATCHEL_SHADER_SOURCE', default))
     # The renamed shader products live in the dependency root since the 2026-11-03 rename.
-    products = Path(os.environ.get('SATCHEL_SHADER_DEPS', Path.home()/'SatchelDeps/m5'))
+    products = DEPENDENCY_PATHS['shader_deps']()
     sys.path.insert(0, str(root / 'NativeShaders'))
     from public_parity import validate_proof
     # Default: the public proof when this dependency root has one (fresh bootstrap),

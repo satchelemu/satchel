@@ -235,7 +235,8 @@ Run from the checkout containing the changes. `NativeApp/build.py --ui-tests-sim
 selects the isolated UI harness without building device archives. The existing native
 build remains the default. The generator applies the current display patches to the
 pinned engine under
-`$SATCHEL_DEPS_ROOT/NX2Apple/engine` (default `~/SatchelDeps/NX2Apple/engine`).
+`$SATCHEL_DEPS_ROOT/NX2Apple/engine` (the default root follows the rule in BUILDING.md,
+"Native dependencies the build expects").
 Its overlay lives under the selected output folder; it does not reuse another
 worker's generated gamepad source.
 

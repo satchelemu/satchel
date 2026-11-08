@@ -2,12 +2,13 @@
 """Build-only M3.5 driver. Products and source snapshots stay outside the repository."""
 from pathlib import Path
 import argparse, hashlib, json, os, re, runpy, shlex, shutil, subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/dependency_paths.py'))
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ.get('SATCHEL_HOST_OUT', str(Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'host')))
 ENGINE = OUT / 'engine'
-ZELDA = Path(os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS', Path(os.environ.get('SATCHEL_BUILD_ROOT', Path.home().joinpath('SatchelBuild'))) / 'zelda'))
-TOOLS = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
+ZELDA = DEPENDENCY_PATHS['build_inputs']()
+TOOLS = DEPENDENCY_PATHS['deps_root']() / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 GAME = '0100F2C0115B6000'
 PIN = 'f8a5618d5f505a4c0a0bcac7c413872d3a53c009'
 CHAIN = '26dc2fa9477c'
@@ -29,9 +30,12 @@ def heavy_guard():
     print('Heavy build guard: no Zelda build process; state=' + state['stage'], flush=True)
 
 def prepare(unsigned=False):
-    source = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'NX2Apple/engine'
+    source = DEPENDENCY_PATHS['deps_root']() / 'NX2Apple/engine'
     material = json.loads((ZELDA / 'engine-materialization.json').read_text())
-    assert material['pin'] == PIN and len(material['patches']) == PATCHES
+    assert material['pin'] == PIN and len(material['patches']) == PATCHES, (
+        f"{ZELDA / 'engine-materialization.json'} records engine {material['pin'][:8]} with {len(material['patches'])} patches, "
+        f'not {PIN[:8]} with {PATCHES}: set SATCHEL_NATIVE_BUILD_INPUTS (default <SATCHEL_DEPS_ROOT>/build-inputs) '
+        'to the build inputs of a dependency root at the pin; see BUILDING.md')
     assert subprocess.check_output(['git', '-C', source, 'rev-parse', 'HEAD'], text=True).strip() == PIN
     if not ENGINE.exists():
         shutil.copytree(source, ENGINE, ignore=shutil.ignore_patterns('.git', 'gen', '__pycache__', '.DS_Store'))
@@ -116,10 +120,10 @@ def prepare(unsigned=False):
     target['sources'].append({'path': str(ROOT / 'NativeHost/NativeMenuBridge.swift')})
     target['sources'].append({'path': str(ROOT / 'NativeHost/SatchelMenuSession.swift')})
     target['sources'].append({'path': str(OUT / 'NativeAssets'), 'type': 'folder', 'buildPhase': 'resources'})
-    snapshot = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home().joinpath('SatchelDeps'))) / 'tmp-snapshot-2026-11-01/tmp'
+    snapshot = DEPENDENCY_PATHS['deps_root']() / 'tmp-snapshot-2026-11-01/tmp'
     def durable(s):
         default_deps = str(Path.home().joinpath('SatchelDeps'))
-        configured_deps = str(Path(os.environ.get('SATCHEL_DEPS_ROOT', default_deps)))
+        configured_deps = str(DEPENDENCY_PATHS['deps_root']())
         if s.startswith(default_deps + '/'):
             return configured_deps + s[len(default_deps):]
         # project.yml spells library paths under the maintainer's home folder. On any other

@@ -2,6 +2,7 @@
 """Exercise the pipeline overlay with pinned engine tests and real Metal fixtures."""
 from pathlib import Path
 import argparse, os, runpy, shutil, subprocess
+DEPENDENCY_PATHS = runpy.run_path(str(Path(__file__).resolve().parents[2] / 'scripts/dependency_paths.py'))
 
 p = argparse.ArgumentParser()
 p.add_argument('--engine', type=Path, required=True)
@@ -88,10 +89,10 @@ queue += r'''int main(void) { @autoreleasepool {
 (tests / 'satchel.mk').write_text('include Makefile\n' + ''.join(
     name + ': ' + name + '.m $(MTL_T_DEP)\n\tclang $(CFLAGS) -fobjc-arc -o $@ ' + name + '.m $(MTL_T_SRC) $(FW)\n'
     for name in ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']))
-tools = Path(os.environ.get('SATCHEL_DEPS_ROOT', Path.home() / 'SatchelDeps')) / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
+tools = DEPENDENCY_PATHS['deps_root']() / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 env = runpy.run_path(str(root / 'scripts/switch_native.py'))['tool_environment'](tools)
 import json
-env.update(SATCHEL_METAL_TOOLCHAIN=json.loads((Path(os.environ.get('SATCHEL_NATIVE_BUILD_INPUTS', Path.home() / 'SatchelBuild/zelda')) / 'native-toolchain.json').read_text())['metal_toolchain'],
+env.update(SATCHEL_METAL_TOOLCHAIN=json.loads((DEPENDENCY_PATHS['build_inputs']() / 'native-toolchain.json').read_text())['metal_toolchain'],
            GAME='0100BA4026E94000', DM_GAME='0100BA4026E94000', DM_GAMES_FIRST='1',
            DM_GAMES_DIR=str(Path.home() / 'SatchelBuild/castlevania/profile'),
            TMPDIR=str(a.output / 'tmp'), PYTHONDONTWRITEBYTECODE='1', MAKEFLAGS='-j2')

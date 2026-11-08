@@ -23,13 +23,16 @@ Builds wait for active heavy compilers and shader drivers, use nice 10 and two j
 host guard requires 35 GiB free; Prepare requires 15 GiB. Generic host utility shaders are
 built, never game shaders. All outputs stay outside the checkout.
 
-Existing dependencies: `~/SatchelDeps/NX2Apple/engine`, the durable snapshot referenced
-by `project.yml`, the locked Metal toolchain and materialization metadata under
-`~/SatchelBuild/zelda`, Capstone 5.0.7 under `~/SatchelBuild/rewriter/capstone-src`, and
+Existing dependencies, all in one dependency root at the engine pin (`SATCHEL_DEPS_ROOT`,
+resolved by `scripts/dependency_paths.py` as BUILDING.md describes): `<root>/NX2Apple/engine`,
+the durable snapshot referenced by `project.yml`, the locked Metal toolchain and
+materialization metadata under `<root>/build-inputs` (`SATCHEL_NATIVE_BUILD_INPUTS`),
+Capstone 5.0.7 under `~/SatchelBuild/rewriter/capstone-src` (`SATCHEL_CAPSTONE_SOURCE`), and
 OpenSSL 3.6.3 under `~/SatchelBuild/spike/openssl-ios` (override with `SATCHEL_OPENSSL_IOS`).
 First-use shaders additionally consume the M5 native translator sources and validated
-artifacts under `~/SatchelBuild/m5`. Override their locations with
-`SATCHEL_SHADER_SOURCE` and `SATCHEL_SHADER_DEPS`. After integrating `phone-shaders`,
+artifacts under `<root>/m5`. Override their locations with
+`SATCHEL_SHADER_SOURCE` and `SATCHEL_SHADER_DEPS`. Without a root at the pin the build
+stops with the variable to set. After integrating `phone-shaders`,
 the local `NativeShaders` sources are used automatically. The source staging manifest
 records input digests. The app embeds/signs the staged `SatchelShaderTranslator.framework` and links
 the pinned SPIRV-Cross bridge and M5's BSD zstd archive for native NCZ and registered-module decoding. The original fixture probe stays separate.
