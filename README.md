@@ -265,12 +265,15 @@ that automated workers follow in this repository.
 - [COMPATIBILITY.md](COMPATIBILITY.md): what has been tried, how well it runs, and how to
   add a game to the list.
 
-Local distribution tooling exports a deterministic unsigned IPA with a hash manifest,
-checks an ad hoc re-sign on the Mac, and generates a validated SideStore/AltStore
-source using the existing screenshots. URLs remain placeholders. Real installer
-capability preservation and refresh still need phone validation. See
+Nothing is published yet. One offline command (`scripts/release_dry_run.py`) prepares a
+release from a clean, committed tree: the unsigned IPA with a hash manifest and
+`SHA256SUMS`, an ad hoc re-sign check, the SideStore/AltStore source with its real URL
+shape (the IPA as a GitHub release asset of satchelemu/satchel, the source served from
+the repository), release notes and the maintainer's
+[publishing checklist](docs/publishing.md). Real installer capability preservation and
+refresh still need phone validation. See
 [the distribution guide](NativeApp/Distribution/README.md). The release workflow is
-manual-only and hard-disabled pending clean-runner dependency reproduction.
+manual-only and hard-disabled until it has run once on a pinned runner.
 
 Opt-in GPU pass attribution and paired analysis are available in the
 [graphics diagnostics](NativeHost/graphics/README.md#gpu-pass-cost-diagnostics).

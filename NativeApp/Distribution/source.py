@@ -195,33 +195,99 @@ def jpeg_size(path):
             stream.seek(length - 2, 1)
 
 
-def screenshots(base):
-    metadata = json.loads((ROOT / 'NativeApp/Distribution/release.json').read_text())
+def release_metadata():
+    return json.loads((ROOT / 'NativeApp/Distribution/release.json').read_text())
+
+
+# The published layout: the IPA is a GitHub release asset under the release tag; the
+# source is a tracked file served from the repository's default branch; the icon and
+# screenshots are tracked files served at the release tag, so they never change under
+# an existing version. Only these hosts and placeholders are accepted.
+LAYOUT_HOSTS = {'download': 'github.com', 'source': 'raw.githubusercontent.com',
+                'icon': 'raw.githubusercontent.com', 'screenshot': 'raw.githubusercontent.com'}
+PLACEHOLDERS = {'repository', 'tag', 'sourceBranch', 'sourcePath', 'iconPath', 'screenshotDirectory', 'name'}
+
+
+def release_layout(version, build, metadata=None):
+    """Resolve the release URL templates in release.json for one version and build."""
+    publish = (metadata or release_metadata()).get('publish')
+    require(isinstance(publish, dict), 'release.json needs a publish section')
+    repository = text(publish.get('repository'), 'repository')
+    require(re.fullmatch(r'[A-Za-z0-9-]+/[A-Za-z0-9._-]+', repository) is not None, 'Invalid repository')
+    require(re.fullmatch(r'[0-9A-Za-z.{}_-]+', text(publish.get('tag'), 'tag')) is not None
+            and set(re.findall(r'{(\w+)}', publish['tag'])) <= {'version', 'build'}, 'Invalid tag template')
+    tag = publish['tag'].format(version=version, build=build)
+    require(re.fullmatch(r'[0-9A-Za-z._-]+', tag) is not None, 'Invalid resolved tag')
+    values = {'repository': repository, 'tag': tag}
+    for key in ['sourceBranch', 'sourcePath', 'iconPath', 'screenshotDirectory']:
+        value = text(publish.get(key), key)
+        require(re.fullmatch(r'[A-Za-z0-9._/-]+', value) is not None and '..' not in value.split('/')
+                and not value.startswith('/') and not value.endswith('/'), 'Invalid ' + key)
+        values[key] = value
+    for key in ['sourcePath', 'iconPath']:
+        require((ROOT / values[key]).parent.is_dir(), key + ' must name a path in this repository')
+    require((ROOT / values['iconPath']).read_bytes()[:8] == b'\x89PNG\r\n\x1a\n', 'The icon must be a tracked PNG')
+    layout = {'tag': tag, 'repository': repository, 'sourcePath': values['sourcePath'],
+              'iconPath': values['iconPath'], 'screenshotDirectory': values['screenshotDirectory']}
+    for key, host in LAYOUT_HOSTS.items():
+        template = text(publish.get(key), key + ' URL template')
+        require(set(re.findall(r'{(\w+)}', template)) <= PLACEHOLDERS, 'Unknown placeholder in ' + key)
+        if key == 'screenshot':
+            require('{name}' in template, 'The screenshot template needs {name}')
+            layout[key] = template.format(name='{name}', **values)
+            resolved = layout[key].format(name='x.jpg')
+        else:
+            require('{name}' not in template, 'Only the screenshot template takes {name}')
+            layout[key] = resolved = template.format(**values)
+        parts = urlsplit(url(resolved))
+        require(parts.hostname == host and not parts.query and not parts.fragment
+                and parts.path.startswith('/' + repository + '/'),
+                key + ' URL must be under ' + host + '/' + repository)
+        require(key == 'source' or tag in parts.path.split('/'), key + ' URL must name the release tag')
+    return layout
+
+
+def screenshots(base=None, layout=None):
+    metadata = release_metadata()
+    directory = ROOT / (layout['screenshotDirectory'] if layout else 'docs/screenshots')
     result = []
     for name in metadata['screenshots']:
         require(Path(name).name == name, 'Invalid tracked screenshot name')
-        width, height = jpeg_size(ROOT / 'docs/screenshots' / name)
-        result.append({'imageURL': base + '/screenshots/' + name, 'width': width, 'height': height})
+        width, height = jpeg_size(directory / name)
+        link = layout['screenshot'].format(name=name) if layout else base + '/screenshots/' + name
+        result.append({'imageURL': link, 'width': width, 'height': height})
     return result
 
 
-def make_source(ipa, base_url, entitlements=None, build_date=None):
+def make_source(ipa, base_url=None, entitlements=None, build_date=None):
+    """Build the source. Without base_url, use the published layout from release.json.
+
+    base_url keeps the flat layout (base/Satchel.ipa, base/icon.png, base/screenshots/,
+    base/source.json) for a self-hosted mirror or a local test server.
+    """
     info, permissions, usage, built = inspect_ipa(ipa, entitlements, build_date)
-    base = url(base_url).rstrip('/')
-    require(not urlsplit(base).query and not urlsplit(base).fragment, 'Base URL must not have a query or fragment')
+    if base_url is None:
+        layout = release_layout(info['CFBundleShortVersionString'], info['CFBundleVersion'])
+        links = {'download': layout['download'], 'icon': layout['icon'], 'source': layout['source']}
+        shots = screenshots(layout=layout)
+    else:
+        base = url(base_url).rstrip('/')
+        require(not urlsplit(base).query and not urlsplit(base).fragment, 'Base URL must not have a query or fragment')
+        links = {'download': base + '/Satchel.ipa', 'icon': base + '/icon.png', 'source': base + '/source.json'}
+        shots = screenshots(base)
     version = {'version': info['CFBundleShortVersionString'], 'buildVersion': info['CFBundleVersion'],
-               'date': built, 'downloadURL': base + '/Satchel.ipa', 'size': ipa.stat().st_size,
+               'date': built, 'downloadURL': links['download'], 'size': ipa.stat().st_size,
                'minOSVersion': info['MinimumOSVersion'], 'sha256': sha256(ipa)}
     app = {'name': 'Satchel', 'bundleIdentifier': BUNDLE, 'developerName': 'Satchel contributors',
            'localizedDescription': 'Prepare and play your own Switch dumps on iPhone. '
                'Personal signing required. Other accounts and installer capability preservation still need verification; see the install guide.',
-           'iconURL': base + '/icon.png', 'screenshots': screenshots(base),
-           'screenshotURLs': [item['imageURL'] for item in screenshots(base)], 'versions': [version],
+           'iconURL': links['icon'], 'screenshots': shots,
+           'screenshotURLs': [item['imageURL'] for item in shots], 'versions': [version],
            'appPermissions': {'entitlements': permissions, 'privacy': usage}}
     for old, new in [('version', 'version'), ('versionDate', 'date'), ('downloadURL', 'downloadURL'),
                      ('size', 'size'), ('minOSVersion', 'minOSVersion')]:
         app[old] = version[new]
-    source = {'name': 'Satchel', 'identifier': 'com.dell.satchel.source', 'sourceURL': base + '/source.json',
+    source = {'name': 'Satchel', 'identifier': 'com.dell.satchel.source', 'sourceURL': links['source'],
               'apps': [app], 'news': []}
     validate_source(source)
     return source
@@ -236,12 +302,13 @@ def main():
     generator = commands.add_parser('generate', help='Generate and validate source.json from an exported IPA')
     generator.add_argument('ipa', type=Path)
     generator.add_argument('--out', type=Path, default=DEFAULT_OUT)
-    generator.add_argument('--base-url', default='https://example.invalid/satchel')
+    generator.add_argument('--base-url', help='Flat layout for a self-hosted mirror; default: the published layout in release.json')
     generator.add_argument('--entitlements', type=Path, help='Built entitlements plist for an externally exported IPA')
     generator.add_argument('--build-date', help='ISO 8601 build timestamp with timezone for an external export')
     checker = commands.add_parser('validate', help='Validate source schema and compare every field with the IPA')
     checker.add_argument('source', type=Path)
     checker.add_argument('ipa', type=Path)
+    checker.add_argument('--base-url', help='Expect the flat layout under this base instead of the published layout')
     checker.add_argument('--entitlements', type=Path)
     checker.add_argument('--build-date')
     args = parser.parse_args()
@@ -254,12 +321,12 @@ def main():
             destination = args.out / 'source.json'
             with destination.open('x') as stream:
                 stream.write(json.dumps(source, indent=2, ensure_ascii=False) + '\n')
-            print('PASS: source schema and IPA fields validated; URLs may be placeholders')
+            print('PASS: source schema and IPA fields validated; ' +
+                  ('flat layout under ' + args.base_url if args.base_url else 'published layout ' + source['sourceURL']))
         else:
             source = json.loads(args.source.read_text())
             validate_source(source)
-            base = source['sourceURL'].removesuffix('/source.json')
-            expected = make_source(args.ipa, base, args.entitlements, args.build_date)
+            expected = make_source(args.ipa, args.base_url, args.entitlements, args.build_date)
             require(source == expected, 'Source fields do not match the IPA and configured URLs')
             digest = hashlib.sha256()
             with args.ipa.open('rb') as stream:

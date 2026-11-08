@@ -681,9 +681,20 @@ shipped `1.0 (1)` instead of relying on XcodeGen's implicit Info.plist defaults.
 The export includes an account-neutral entitlement template and requires both memory
 entitlements. Ad hoc signing checks that those values survive a local re-sign. Real
 installer preservation still needs the [phone journey](docs/distribution-validation.md).
-The source JSON uses placeholder URLs, measured IPA size/SHA-256 and tracked screenshots.
-No release, tag or upload is created. The draft Actions workflow is manual dispatch
-only with a hard-disabled job until the clean-runner dependency gaps above are closed.
+The source JSON uses the published URL layout from `release.json` (the IPA as an asset
+of the `v<version>` GitHub release of satchelemu/satchel, the source as `source.json` on
+`main`, icon and screenshots at the tag), measured IPA size and SHA-256 and the tracked
+screenshots. None of those URLs exists until the maintainer publishes.
+
+`scripts/release_dry_run.py --out <new folder>` is the whole release in one offline
+command: from a clean, committed tree that passes the hygiene check it builds the
+unsigned app (or takes a `scripts/clean_build.py` work folder with `--clean-work`),
+packages it twice and compares, checks the ad hoc re-sign, and writes the IPA, manifest,
+entitlement template, `SHA256SUMS`, source, release notes and a filled-in publishing
+checklist. It runs inside `sandbox-exec` with outbound IP denied and publishes nothing;
+the maintainer's steps are in [docs/publishing.md](docs/publishing.md). The draft Actions
+workflow runs the clean route, its `--check` and this dry run for an existing tag; it is
+manual dispatch only with a hard-disabled job until the steps in that checklist are done.
 
 ## Controller checks
 

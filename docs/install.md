@@ -59,16 +59,17 @@ See [AltStore's app and refresh guide](https://faq.altstore.io/altstore-classic/
 
 ## Adding a source later
 
-When a maintainer supplies a real source URL, open Browse, Sources, then add that URL
-in SideStore or AltStore Classic. Select Satchel from the source to install or update.
-The locally generated source.json uses example.invalid placeholders until a maintainer
-configures real URLs. Those placeholders cannot install anything. Use the local IPA
-route above for now. The [local packaging tools](../NativeApp/Distribution/README.md)
-produce a reproducible unsigned IPA, hash manifest and source with the existing
-screenshots. The source requests both memory entitlements, but a source declaration
-does not grant them. Sideloading tools must re-sign using your own certificate and
-preserve the required capabilities. Automatic preservation by either store remains
-unverified. This project has not hosted or uploaded a source or IPA.
+Once the maintainer publishes a release, the source will be
+`https://raw.githubusercontent.com/satchelemu/satchel/main/source.json`. In SideStore or
+AltStore Classic open Browse, Sources, add that URL and select Satchel from it to install
+or update. Each release's IPA will be an asset of its GitHub release
+(`https://github.com/satchelemu/satchel/releases`). Neither exists yet: no source or
+IPA has been published, so use the local IPA route above for now. The
+[local packaging tools](../NativeApp/Distribution/README.md) produce a reproducible
+unsigned IPA, hash manifest and source with the existing screenshots. The source
+requests both memory entitlements, but a source declaration does not grant them.
+Sideloading tools must re-sign using your own certificate and preserve the required
+capabilities. Automatic preservation by either store remains unverified.
 
 ## Xcode on a Mac
 

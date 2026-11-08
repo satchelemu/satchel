@@ -8,5 +8,17 @@
     "game-detail.jpg",
     "import.jpg",
     "settings-keys.jpg"
-  ]
+  ],
+  "publish": {
+    "repository": "satchelemu/satchel",
+    "tag": "v{version}",
+    "sourceBranch": "main",
+    "sourcePath": "source.json",
+    "iconPath": "App/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+    "screenshotDirectory": "docs/screenshots",
+    "download": "https://github.com/{repository}/releases/download/{tag}/Satchel.ipa",
+    "source": "https://raw.githubusercontent.com/{repository}/{sourceBranch}/{sourcePath}",
+    "icon": "https://raw.githubusercontent.com/{repository}/{tag}/{iconPath}",
+    "screenshot": "https://raw.githubusercontent.com/{repository}/{tag}/{screenshotDirectory}/{name}"
+  }
 }

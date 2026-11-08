@@ -5,6 +5,42 @@ They use Python's standard library and macOS codesign, with no added dependencie
 They do not publish, upload, install, contact an account or use a signing identity.
 The ad hoc check uses codesign's `-` identity, which is not installable on an iPhone.
 
+## Release dry run (one command)
+
+`scripts/release_dry_run.py` writes everything a release would publish into a fresh
+folder outside the checkout, and publishes nothing. From a clean checkout of the commit
+to release, with the dependency root set as in [BUILDING.md](../../BUILDING.md):
+
+```zsh
+python3 -B scripts/release_dry_run.py --out "$HOME/SatchelBuild/release-1.0"
+```
+
+It refuses to start unless `git status` shows no modified or untracked file, the
+hygiene check (`scripts/check_repo_hygiene.sh`) passes, and no ignored key, dump,
+identity or prepared file sits inside the checkout outside the private folders
+(`local/`, `notes/`, `private/`, `scratch/` and the agent folders). It then builds the
+unsigned app with `NativeApp/build.py --unsigned` under the build guard (or, with
+`--clean-work <folder>`, takes the app of a `scripts/clean_build.py` work folder whose
+`--check` passes and whose app step recorded this exact commit), and writes
+`release/` with the IPA, its manifest, the entitlement template, `SHA256SUMS`, the
+source in the published layout, this version's source entry, `RELEASE_NOTES.md` (from
+ROADMAP.md and COMPATIBILITY.md at this commit) and `PUBLISHING_CHECKLIST.md` (the
+manual steps with this release's values), plus `dry-run.json` with every check. It
+exports the IPA twice and requires identical bytes, runs the ad hoc re-sign check, and
+deletes the build afterwards unless `--keep-build` is given. `--expect-tag v1.0` also
+requires that local tag to name the commit.
+
+The whole run happens inside `sandbox-exec` with outbound IP traffic denied (the
+dependency recipes' policy). Two exact binaries start outside it because a sandboxed
+process cannot run them: the build guard's set-user-ID `/bin/ps`, and
+`/usr/bin/sandbox-exec`, through which the Swift compiler starts its macro plugin server
+under Swift's own sandbox profile (a sandbox cannot be applied inside another).
+Everything else, git, xcodebuild and codesign included, stays inside. It never runs
+`gh`, `git fetch`, `git push` or `git tag`.
+`NativeApp/Distribution/test_release.py` checks the refusals, the sandbox (a loopback
+connection inside it is denied) and that none of the release tools imports network
+code. The maintainer's checklist is [docs/publishing.md](../../docs/publishing.md).
+
 ## Build, export and verify
 
 The clean-Mac route in [BUILDING.md](../../BUILDING.md) (`scripts/clean_build.py`) runs
@@ -43,7 +79,8 @@ Outputs:
 - `Satchel.manifest.json`, with the IPA SHA-256 and size, each file's SHA-256, size
   and mode, version, build, minimum iOS, release date and requested entitlement keys.
 - `Satchel.entitlements`, the account-neutral template for the eventual signer.
-- `source.json`, after the generate step, with nonfunctional HTTPS placeholders.
+- `source.json`, after the generate step, with the published URL layout below (the
+  URLs do not exist until the maintainer publishes).
 
 The IPA has fixed 1980 ZIP timestamps, lexical ordering, 0755 directories and Mach-O
 binaries, and 0644 resources. It carries no provisioning profile or code signatures.
@@ -104,11 +141,30 @@ verify it. The external manifest is the authoritative local integrity check.
 `schema.py` validates the schema's limited keyword set without third-party packages;
 `validate` then compares every generated field with the IPA and tracked screenshots.
 
-Default download, source, icon and screenshot URLs use `https://example.invalid/satchel`.
-They cannot install anything. At release time the maintainer must provide a real
-HTTPS base using `--base-url`, stage the existing screenshots under `screenshots/`
-and a reviewed `icon.png`, and separately authorize hosting. No release is created
-by any of these commands. Revalidate against the exact IPA before hosting it.
+## Published URL layout
+
+`release.json` holds the URL templates, resolved per version (`{tag}` is `v{version}`):
+
+| URL | Shape | Served from |
+|---|---|---|
+| IPA (`downloadURL`) | `https://github.com/satchelemu/satchel/releases/download/v1.0/Satchel.ipa` | the GitHub release asset of the tag |
+| Source (`sourceURL`) | `https://raw.githubusercontent.com/satchelemu/satchel/main/source.json` | a tracked `source.json` on `main` |
+| Icon (`iconURL`) | `.../satchelemu/satchel/v1.0/App/Assets.xcassets/AppIcon.appiconset/AppIcon.png` | the tracked app icon at the tag |
+| Screenshots | `.../satchelemu/satchel/v1.0/docs/screenshots/library.jpg` and the other three | the tracked screenshots at the tag |
+
+`source.py generate` and `validate` use this layout by default. The generator refuses a
+template with another host, a repository other than `satchelemu/satchel`, an unknown
+placeholder, a download, icon or screenshot URL without the tag, or an icon that is not
+a tracked PNG. Icon and screenshots are served at the tag, so a published version never
+changes under its users. `--base-url` keeps the older flat layout (base/Satchel.ipa,
+base/icon.png, base/screenshots/, base/source.json) for a self-hosted mirror or a local
+test server. None of these URLs exists until the maintainer publishes the release and
+commits `source.json`; nothing here creates them.
+
+No local copy of the AltStore or SideStore documentation or of any schema of theirs is on
+this Mac (searched 2026-11-07); `source.schema.json` is the transcription made on
+2026-11-04. The fields the clients really read are listed for confirmation in
+[docs/publishing.md](../../docs/publishing.md#source-fields-to-confirm).
 
 For an external export, `generate` and `validate` retain `--entitlements` and
 `--build-date`. These explicitly supply missing metadata, but do not substitute for
@@ -119,18 +175,22 @@ the canonical packager's manifest and re-sign checks.
 ```zsh
 python3 -B NativeApp/Distribution/test_source.py
 python3 -B NativeApp/Distribution/test_ipa.py
+python3 -B NativeApp/Distribution/test_release.py
 ```
 
 Synthetic tests exercise deterministic ZIP bytes, file modes and hashes, unchanged
 inputs, private-input rejection, template policy, no overwrite, archive tampering,
-source schema, privacy and screenshot metadata. They mock codesign and never count
-as real signing evidence. Run the separate ad hoc check on the actual app too.
+source schema, the published URL layout, privacy and screenshot metadata, and the dry
+run's tree, tag, output-folder and sandbox rules. They mock codesign and never count as
+real signing evidence. Run the separate ad hoc check on the actual app too (the dry run
+does).
 
 The [refresh journey](../../docs/distribution-validation.md) covers installed-signature
 expiry and installer refresh, including prepared games and preservation of saves.
 The Actions draft `.github/workflows/ipa-draft.yml` has manual dispatch only and its
-job is hard-disabled. It outlines building an existing release tag with the clean-Mac
-route (`scripts/clean_build.py`, see [BUILDING.md](../../BUILDING.md)), has read-only
-permissions, no signing secrets and no upload step. Before enabling it, pin a runner
-image with Xcode 27.2, run the route there once, confirm disk capacity and review the
-complete workflow. It cannot currently produce a release on CI.
+job is hard-disabled. For an existing release tag it runs the clean-Mac route
+(`scripts/clean_build.py`, see [BUILDING.md](../../BUILDING.md)), its `--check`, the
+distribution tests and hygiene, then the release dry run with `--clean-work` and
+`--expect-tag`. It has read-only permissions, no signing secrets and no upload step, a
+pinned runner label and Xcode path, and `actions/checkout` pinned by commit. Before
+enabling it, follow "Enabling the CI draft" in [docs/publishing.md](../../docs/publishing.md).

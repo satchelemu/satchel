@@ -133,6 +133,44 @@ class SourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Non-string privacy'):
             source.privacy({'NSLocationTemporaryUsageDescriptionDictionary': {'purpose': 'test'}})
 
+    def test_published_layout_is_templated_by_version(self):
+        self.write_ipa()
+        result = source.make_source(self.ipa)
+        app = result['apps'][0]
+        raw = 'https://raw.githubusercontent.com/satchelemu/satchel/'
+        self.assertEqual(result['sourceURL'], raw + 'main/source.json')
+        self.assertEqual(app['downloadURL'], 'https://github.com/satchelemu/satchel/releases/download/v2.3/Satchel.ipa')
+        self.assertEqual(app['versions'][0]['downloadURL'], app['downloadURL'])
+        self.assertEqual(app['iconURL'], raw + 'v2.3/App/Assets.xcassets/AppIcon.appiconset/AppIcon.png')
+        self.assertEqual(app['screenshotURLs'], [raw + 'v2.3/docs/screenshots/' + name for name in
+                                                 ['library.jpg', 'game-detail.jpg', 'import.jpg', 'settings-keys.jpg']])
+        self.assertNotIn('example.invalid', json.dumps(result))
+        source.validate_source(result)
+        # Every URL that points into the repository names a tracked file at the tag.
+        for link in [app['iconURL'], *app['screenshotURLs']]:
+            self.assertTrue((source.ROOT / link.split('/v2.3/', 1)[1]).is_file(), link)
+
+    def test_layout_rejects_wrong_shapes(self):
+        metadata = source.release_metadata()
+        edits = [('repository', 'someone else/satchel'), ('tag', 'v{version}/x'), ('tag', '{commit}'),
+                 ('download', 'https://example.invalid/{tag}/Satchel.ipa'),
+                 ('download', 'http://github.com/{repository}/releases/download/{tag}/Satchel.ipa'),
+                 ('download', 'https://github.com/{repository}/releases/latest/download/Satchel.ipa'),
+                 ('download', 'https://github.com/other/repo/releases/download/{tag}/Satchel.ipa'),
+                 ('source', 'https://raw.githubusercontent.com/{repository}/{sourceBranch}/{secret}'),
+                 ('screenshot', 'https://raw.githubusercontent.com/{repository}/{tag}/docs/screenshots'),
+                 ('icon', 'https://raw.githubusercontent.com/{repository}/{tag}/{name}'),
+                 ('iconPath', 'docs/screenshots/library.jpg'), ('sourcePath', '../source.json'),
+                 ('sourceBranch', '/main')]
+        for key, value in edits:
+            with self.subTest(key=key, value=value):
+                changed = copy.deepcopy(metadata)
+                changed['publish'][key] = value
+                with self.assertRaises((ValueError, KeyError)):
+                    source.release_layout('1.0', '1', changed)
+        with self.assertRaises(ValueError):
+            source.release_layout('1.0', '1', {'version': '1.0'})
+
     def test_rejects_invalid_urls(self):
         self.write_ipa()
         for value in ['http://example.invalid', 'https://user:secret@example.invalid',

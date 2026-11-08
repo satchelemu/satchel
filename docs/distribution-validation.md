@@ -36,7 +36,8 @@ connect to a real installer.
 1. Back up saves. Use a separately prepared test device or the orchestrator's approved
    in-place installation procedure. Do not uninstall the existing app or change its
    bundle identifier to troubleshoot signing.
-2. Review the IPA hash against `Satchel.manifest.json`. Install with the user's own
+2. Use the IPA from a release dry run (`scripts/release_dry_run.py`) and check it with
+   `shasum -a 256 -c SHA256SUMS` in its `release/` folder. Install with the user's own
    SideStore or AltStore Classic account, supplying the requested entitlements where
    supported. The unsigned template is not automatically applied by every installer.
    Keep credentials and identity details off logs and reports.
@@ -44,6 +45,10 @@ connect to a real installer.
    increased memory and extended virtual addressing to be present in the running
    signature. If an installer strips either, stop: do not remove the requirement to
    make the install pass. Record the installer version and entitlement presence only.
+   A missing entitlement here most likely means the installer found no entitlement in
+   the IPA's (absent) code signature; the pinned NX2Apple notes report that installers
+   read entitlements from the signature they replace. Report it; the placeholder
+   signature decision in [publishing.md](publishing.md) is the fix to weigh.
 4. Compare the warning's deadline with the installed profile and app signer expiry
    using private signing tools. The earlier deadline must win. On an installation
    within three days of expiry, the home banner must appear on launch and after
@@ -61,6 +66,11 @@ connect to a real installer.
    expired, restore the store with its documented computer setup, then refresh Satchel.
    Verify library and saves before resuming play. Never delete Satchel as recovery.
 
+8. After the maintainer publishes a release ([publishing.md](publishing.md)), add the
+   published source in SideStore and AltStore Classic, update Satchel from it in place,
+   and repeat steps 3 and 5.
+
 The single remaining distribution acceptance blocker is installer capability and
 refresh validation on a real signed phone. Publication and clean-runner CI activation
-are separate maintainer work, outside this local validation.
+are separate maintainer work, prepared by the release dry run and
+[the publishing checklist](publishing.md), outside this local validation.
