@@ -2,6 +2,7 @@
 #include "round7-contracts.inc"
 #include "round8-contracts.inc"
 #include "round11-contracts.inc"
+#include "round12-contracts.inc"
 typedef struct { uint32_t h, id; int domain; } SystemObject;
 static uint32_t system_call(SystemObject o, unsigned cmd, unsigned descriptor, const void *args, size_t n) {
     int slot = satchel_session_slot(o.h); assert(slot >= 0);
@@ -12,6 +13,8 @@ static uint32_t system_call(SystemObject o, unsigned cmd, unsigned descriptor, c
         if (round8_contracts[i].command == cmd && !strcmp(round8_contracts[i].kind, kind)) round8_contracts[i].hits[o.domain]++;
     for (unsigned i = 0; i < sizeof round11_contracts / sizeof *round11_contracts; i++)
         if (round11_contracts[i].command == cmd && !strcmp(round11_contracts[i].kind, kind)) round11_contracts[i].hits[o.domain]++;
+    for (unsigned i = 0; i < sizeof round12_contracts / sizeof *round12_contracts; i++)
+        if (round12_contracts[i].command == cmd && !strcmp(round12_contracts[i].kind, kind)) round12_contracts[i].hits[o.domain]++;
     return broad_call(o.h, o.domain, o.id, cmd, descriptor, args, n);
 }
 static SystemObject system_root(const char *name, int domain) {

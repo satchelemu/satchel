@@ -187,10 +187,12 @@ static uint32_t satchel_event_reply(SatchelIPCRequest *r, unsigned count, int si
 #include "Round8IPC.inc"
 #include "Round8Trace.inc"
 #include "Round11IPC.inc"
+#include "Round12IPC.inc"
 static uint32_t satchel_ipc_dispatch(const char *service, SatchelIPCRequest *r, uint8_t *out, size_t *n, void *caller) {
     uint32_t cmd = r->command; *n = 0;
-    uint32_t system_result = satchel_round11_dispatch(service, r, out, n, caller);
-    if (system_result != SATCHEL_IPC_UNKNOWN) satchel_service_trace(11, service, cmd, system_result);
+    uint32_t system_result = satchel_round12_dispatch(service, r, out, n, caller);
+    if (system_result != SATCHEL_IPC_UNKNOWN) satchel_service_trace(12, service, cmd, system_result);
+    else if ((system_result = satchel_round11_dispatch(service, r, out, n, caller)) != SATCHEL_IPC_UNKNOWN) satchel_service_trace(11, service, cmd, system_result);
     else {
         system_result = satchel_round8_dispatch(service, r, out, n, caller);
         if (system_result != SATCHEL_IPC_UNKNOWN) satchel_round8_trace(service, cmd, system_result);

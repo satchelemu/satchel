@@ -66,7 +66,7 @@ int satchel_sf_svc_session(uint32_t handle) {
 uint32_t satchel_sf_svc_send(uint32_t handle, void *message, size_t size, void *caller) { return satchel_session_send(handle, message, size, caller); }
 '''
     target = destination / 'hle_sf.c'; target.write_text(text)
-    for name in ['ServiceIPC.inc', 'EngineAdapter.inc', 'SessionIPC.inc', 'MissingServices.inc', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc', 'Round11IPC.inc']:
+    for name in ['ServiceIPC.inc', 'EngineAdapter.inc', 'SessionIPC.inc', 'MissingServices.inc', 'SystemIPC.inc', 'Round8IPC.inc', 'Round8Trace.inc', 'Round11IPC.inc', 'Round12IPC.inc']:
         shutil.copyfile(HERE / name, destination / name)
     shutil.copyfile(HERE / 'coverage/MissingServiceNames.inc', destination / 'MissingServiceNames.inc')
     return target
@@ -246,6 +246,8 @@ int satchel_kernel_thread_handle(uint32_t handle) {
     pthread_mutex_lock(&G); int found = h_peek(handle, O_THREAD) != NULL; pthread_mutex_unlock(&G);
     return found;
 }
+// svcExitProcess (hle_svc.c overlay): the calling guest thread leaves as ExitThread does.
+void satchel_kernel_exit_current(void) { thread_exit(cur()); __builtin_unreachable(); }
 """
         text += """
 // IPC copy handles are real read ends in the existing kernel table. Each object

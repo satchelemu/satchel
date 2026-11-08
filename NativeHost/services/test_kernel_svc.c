@@ -22,11 +22,23 @@ uint32_t svc_thread_main_init(void);
 
 // The host session transport is the services adapter's own test; here only the routing.
 #define SESSION 0xd0003u
-static void *sent_message; static size_t sent_size; static unsigned sends;
+static void *sent_message; static size_t sent_size; static unsigned sends; static uint32_t send_result = 0x1234;
 int satchel_sf_svc_session(uint32_t handle) { return handle == SESSION; }
 uint32_t satchel_sf_svc_send(uint32_t handle, void *message, size_t size, void *caller) {
-    assert(handle == SESSION); (void)caller; sent_message = message; sent_size = size; sends++; return 0x1234;
+    assert(handle == SESSION); (void)caller; sent_message = message; sent_size = size; sends++; return send_result;
 }
+// ExitProcess: the Mac hosts' graceful exit, and the app's hook.
+void dm_host_shutdown(const char *why) { _exit(strcmp(why, "svcExitProcess") ? 41 : 42); }
+static int exit_pipe[2];
+// The calling thread's key destructor runs only when it leaves through pthread_exit; it then ends the
+// child, whose sanitizer threads would keep it alive after its main thread is gone.
+static pthread_key_t exit_key;
+static void exit_left(void *value) { char c = 'y'; (void)value; _exit(write(exit_pipe[1], &c, 1) == 1 ? 0 : 98); }
+static int test_exit_hook(void) {
+    char c = 'x';
+    return write(exit_pipe[1], &c, 1) == 1 && !pthread_key_create(&exit_key, exit_left) && !pthread_setspecific(exit_key, &c);
+}
+static int exit_status(pid_t child) { int status = 0; assert(waitpid(child, &status, 0) == child); return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status); }
 
 enum { P = 0x1000 };
 static __thread uint64_t r[31];   // per thread: the stress threads share this file's helpers
@@ -111,6 +123,7 @@ int main(void) {
     assert(svc(2, src, P, 1, 0) == SATCHEL_K_INVALID_MEM_STATE && svc(3, src, P, 0, 0) == SATCHEL_K_INVALID_MEM_STATE);
     assert(!svc(2, src + 8 * P, P, 1, 0));   // the neighbour is not borrowed
     assert(svc(0x22, 0, src, 8 * P, SESSION) == SATCHEL_K_INVALID_MEM_STATE);   // BorrowIpcBuffer refuses borrowed memory
+    assert(svc(0x23, 0, src, 8 * P, SESSION) == SATCHEL_K_INVALID_MEM_STATE && !r[1]);
 
     // A read-only owner permission is recorded and reported.
     uint32_t hr; assert(!create(src + 0x20000, 4 * P, 1, &hr));
@@ -196,6 +209,9 @@ int main(void) {
     }
     satchel_kernel_unlock();
     assert(create(src, P, 0, &h) == SATCHEL_K_HANDLE_TABLE_FULL && !live_records());
+    send_result = 0; unsigned before_full = sends;   // the done event needs a handle: nothing is sent
+    assert(svc(0x23, 0, src, P, SESSION) == SATCHEL_K_HANDLE_TABLE_FULL && !r[1] && sends == before_full);
+    send_result = 0x1234;
     for (unsigned i = 0; i < nfill; i++) close_handle(fillers[i]);
     assert(!create(src, P, 0, &h)); close_handle(h);
 
@@ -212,6 +228,34 @@ int main(void) {
     assert(svc(0x21, SESSION, 0, 0, 0) == 0x1234 && sends == 2 && sent_message == tlr && sent_size == 0x100);
     assert(svc(0x22, 0, src + 8, P, SESSION) == SATCHEL_K_INVALID_ADDRESS && svc(0x22, 0, src, P + 8, SESSION) == SATCHEL_K_INVALID_SIZE);
     assert(svc(0x22, 0, as, P, SESSION) == SATCHEL_K_INVALID_MEM_STATE && svc(0x22, 0, src, P, 0x1001) == SATCHEL_K_INVALID_HANDLE && sends == 2);
+    // SendAsyncRequestWithUserBuffer: the synchronous checks, then a done event signaled with the reply.
+    unsigned before_async = sends;
+    assert(svc(0x23, 0, src + 8, P, SESSION) == SATCHEL_K_INVALID_ADDRESS && !r[1]);
+    assert(svc(0x23, 0, src, 0, SESSION) == SATCHEL_K_INVALID_SIZE && svc(0x23, 0, src, P + 8, SESSION) == SATCHEL_K_INVALID_SIZE);
+    assert(svc(0x23, 0, UINT64_MAX - P + 1, 2 * P, SESSION) == SATCHEL_K_INVALID_MEM_STATE);
+    assert(svc(0x23, 0, as, P, SESSION) == SATCHEL_K_INVALID_MEM_STATE && svc(0x23, 0, src, P, 0x1001) == SATCHEL_K_INVALID_HANDLE && !r[1]);
+    assert(sends == before_async);
+    assert(svc(0x23, 0, src, P, SESSION) == 0x1234 && !r[1] && sends == before_async + 1);   // a failed send closes its event
+    send_result = 0;
+    assert(!svc(0x23, 0, src, 2 * P, SESSION) && sends == before_async + 2 && sent_message == (void *)src && sent_size == 2 * P);
+    uint32_t done = (uint32_t)r[1]; assert(done >= 0x1001);
+    assert(!svc(0x17, done, 0, 0, 0));                          // ResetSignal: it was signaled
+    assert(svc(0x17, done, 0, 0, 0) == 0xFA01u);                // now clear: InvalidState
+    assert(svc(0x11, done, 0, 0, 0) == 0xE401u);                // the read end only: SignalEvent refuses it
+    close_handle(done); assert(svc(0x17, done, 0, 0, 0) == 0xE401u);
+    send_result = 0x1234;
+
+    // ExitProcess never returns: without the app's hook the host ends gracefully; with it,
+    // the hook runs and only the calling thread leaves (the app's session stop ends the rest).
+    pid_t child = fork(); assert(child >= 0);
+    if (!child) { svc(0x07, 0, 0, 0, 0); _exit(99); }
+    assert(exit_status(child) == 42);
+    assert(!pipe(exit_pipe));
+    child = fork(); assert(child >= 0);
+    if (!child) { satchel_exit_process_hook = test_exit_hook; svc(0x07, 0, 0, 0, 0); _exit(99); }
+    close(exit_pipe[1]); char seen[3] = {0};
+    assert(read(exit_pipe[0], seen, 1) == 1 && read(exit_pipe[0], seen + 1, 1) == 1 && !strcmp(seen, "xy")); close(exit_pipe[0]);
+    assert(exit_status(child) == 0);   // the hook ran, then the calling thread left through pthread_exit
     assert(!svc(0x24, 0, SATCHEL_CURRENT_PROCESS, 0, 0) && r[1] == SATCHEL_APPLICATION_PID);
     assert(!svc(0x24, 0, 0xFFFF8000u, 0, 0) && r[1] == SATCHEL_APPLICATION_PID);
     assert(!svc(0x24, 0, main_thread, 0, 0) && r[1] == SATCHEL_APPLICATION_PID);
@@ -227,5 +271,6 @@ int main(void) {
     assert(!live_records());
     puts("PASS: transfer memory create, map, unmap and close follow Ryujinx results; borrowed ranges block heap shrink, stack mappings, permission stubs and IPC buffers; aliases share bytes; limit, full table, close while mapped, reset and concurrency");
     puts("PASS: shared memory, named ports, direct session requests, process IDs, resource limits, preemption and cache flush calls");
+    puts("PASS: SendAsyncRequestWithUserBuffer checks and signaled done event, full handle table; ExitProcess ends the host, or runs the app hook and ends the calling thread");
     return 0;
 }

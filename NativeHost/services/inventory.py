@@ -190,6 +190,10 @@ round8_sdk = json.loads((HERE / 'round8-sdk.json').read_text())
 round11 = json.loads((HERE / 'round11.json').read_text())
 # Round 11 children, by reference interface: the transport kind each one is served as.
 round11_children = {('ISession', 'Apm/ISession.cs'): 'apm:session', ('SessionServer', 'Apm/ISession.cs'): 'apm:session', ('IPsmSession', 'Ptm/Psm/IPsmSession.cs'): 'IPsmSession'}
+round12 = json.loads((HERE / 'round12.json').read_text())
+# Round 12 children are served under their reference interface names.
+round12_children = {('FinalOutputRecorder', 'Audio/Detail/FinalOutputRecorder.cs'), ('ISfService', 'Lp2p/ISfService.cs'),
+                    ('ISfServiceMonitor', 'Lp2p/ISfServiceMonitor.cs'), ('IEnsureNetworkClockAvailabilityService', 'Ntc/StaticService/IEnsureNetworkClockAvailabilityService.cs')}
 rows = []
 for c in classes:
     # Keep child interfaces even when they have no named port. They are command surfaces too.
@@ -247,6 +251,9 @@ for c in classes:
             kind11 = service if service != '(object)' else next((k for (n, s), k in round11_children.items() if c['name'] == n and x['source'].endswith('/' + s)), None)
             if kind11 and x['command'] in round11.get(kind11, []):
                 state = 'ported round 11, reference contracts; see README'
+            kind12 = service if service != '(object)' else next((n for n, s in round12_children if c['name'] == n and x['source'].endswith('/' + s)), None)
+            if kind12 and x['command'] in round12.get(kind12, []):
+                state = 'ported round 12, reference contracts; see README'
             if category == 'Fs' and c['name'] == 'IFile' and x['command'] == 2:
                 state = 'round 9 SDK FlushFile delegates backing flush; raw IPC unchanged'
             rows.append(dict(rank=rank_command(category, service, c['name'], x['command']), service=service, interface=c['name'], command=x['command'], method=x['method'],
@@ -274,14 +281,17 @@ syscall = a.ryujinx / 'src/Ryujinx.HLE/HOS/Kernel/SupervisorCall/Syscall.cs'
 syscall_text = syscall.read_text()
 overlay_svcs = {int(m[1], 16) for m in re.finditer(r'case (0x[0-9a-fA-F]+)\s*:', (HERE / 'KernelSVC.inc').read_text())}
 engine_svcs = {int(x['number'], 16): x for x in svcs}
-UNIMPLEMENTED = {
-    0x07: 'Ends the process. The app has no path from a guest SVC to its own end of a game (the menu Quit stops the session); not reached by the tested games, the placeholder still returns success',
-    0x23: 'Asynchronous IPC needs a reply event; SDK clients use the synchronous forms, which reach the host sessions',
-}
+# The SVCs an application may call: the union of the kernel capability masks (ACI0 EnableSystemCalls)
+# in the main.npdm of the tested programs, Odyssey 1.0.0 and 1.4.1, Zelda 1.0.0 and 1.4.3 and
+# Castlevania 1.0.0, read once by a private probe on 2026-11-07; no game file is read here. Every
+# granted call Ryujinx implements has an answer (asserted below).
+GRANTED = set(range(0x01, 0x2A)) | {0x2C, 0x2D, 0x2F} | set(range(0x32, 0x37)) | {0x5F}
+NOT_GRANTED = 'Not granted by any tested application NPDM (their masks allow 0x01 to 0x29, 0x2C, 0x2D, 0x2F, 0x32 to 0x36 and 0x5F). '
+UNIMPLEMENTED = {}
 for n, why in [((0x40, 0x41, 0x43, 0x44, 0x70, 0x71, 0x72), 'Server side of IPC, for system modules that host services; an application is a client and the host serves IPC itself'),
-               ((0x4B, 0x4C), 'nn::jit code memory: runtime JIT is out of scope (AGENTS.md); the pinned hle_jit.c takes nn::jit over at the SDK level and Satchel offers no JIT image'),
-               ((0x65, 0x6F, 0x73, 0x74, 0x75, 0x77, 0x78, 0x7B, 0x7D, 0x7E), 'Privileged: loader, process manager and debugger calls that an application NPDM does not grant; the host runs one process')]:
-    UNIMPLEMENTED.update(dict.fromkeys(n, why))
+               ((0x4B, 0x4C), 'nn::jit code memory, granted only to JIT titles: runtime JIT is out of scope (AGENTS.md); the pinned hle_jit.c takes nn::jit over at the SDK level and Satchel offers no JIT image'),
+               ((0x65, 0x6F, 0x73, 0x74, 0x75, 0x77, 0x78, 0x7B, 0x7D, 0x7E), 'Privileged: loader, process manager and debugger calls; the host runs one process')]:
+    UNIMPLEMENTED.update(dict.fromkeys(n, NOT_GRANTED + why + '. The engine\'s logged placeholder answers'))
 svc_rows = []
 for m in re.finditer(r'\[Svc\((0x[0-9a-fA-F]+|\d+)\)\]\s*\n\s*public \w+ (\w+)\(', syscall_text):
     number = int(m[1], 0)
@@ -292,6 +302,7 @@ for m in re.finditer(r'\[Svc\((0x[0-9a-fA-F]+|\d+)\)\]\s*\n\s*public \w+ (\w+)\(
                          status=status, implementation=where, reason=why))
 assert len(svc_rows) == 72 and not overlay_svcs & set(engine_svcs), (len(svc_rows), overlay_svcs & set(engine_svcs))
 assert not set(UNIMPLEMENTED) & (overlay_svcs | set(engine_svcs))
+assert not set(UNIMPLEMENTED) & GRANTED, sorted(set(UNIMPLEMENTED) & GRANTED)
 svc_rows.sort(key=lambda x: int(x['number'], 16))
 write('svc-table.tsv', svc_rows)
 # Every service Ryujinx 1.3.3 registers, against what a Satchel game reaches: a host session
@@ -316,15 +327,17 @@ FAMILIES = {
     'nvdrv': ['NvOsDrv'], 'olsc:u': [], 'pctl': ['pctl'], 'pl:u': ['pl'], 'prepo:u': ['prepo'], 'psm': [], 'set': ['settings'],
     'sfdnsres': ['nnsocketGetAddrInfo', 'nnsocketGetHostByName', 'nsd::Resolve'], 'ssl': ['ssl', 'nnssl'], 'time:u': ['time'], 'vi:u': ['vi'],
 }
-OPEN = {
-    'audrec:u': 'Final output recorder; no SDK takeover and no host session. Not reached by the tested games',
-    'grc:c': 'Game movie recording service; the SDK records through am (EnableGamePlayRecording takeover). No host session',
-    'hidbus': 'Joy-Con rail devices (Ring-Con); Ryujinx answers only GetBusHandle. No host session, no SDK takeover',
-    'lp2p:app': 'Local peer-to-peer (newer SDKs); Ryujinx registers it without commands. No host session',
-    'mnpp:app': 'Mainland China application rules; Ryujinx answers stubs. Not needed outside that region',
-    'notif:a': 'Application alarms (newer SDKs). No host session, no SDK takeover',
-    'npns:u': 'Push notifications; Ryujinx registers it without commands. A game that connects gets the missing-service report',
-    'ntc': 'Network clock correction (nn::time::EnsureNetworkClockAvailability); offline host, no host session yet',
+OPEN = {}
+# Round 12 host sessions that match a Ryujinx stub or a registration without commands, as the table says.
+REFERENCE = {
+    'audrec:u': 'Ryujinx stubs: the recorder opens with two channels at the requested rate, records nothing and never releases a buffer; its buffer event never signals',
+    'grc:c': 'Ryujinx registers it without commands: the session opens and every command is reported missing, as Ryujinx reports it not implemented',
+    'hidbus': 'Ryujinx stub: GetBusHandle answers no handle (no rail device)',
+    'lp2p:app': 'Ryujinx stubs: both objects open, Initialize answers 0, the group commands succeed and do nothing, the two monitor events never signal',
+    'mnpp:app': 'Ryujinx stubs: Initialize succeeds; SendRawTelemetryData refuses a null user or a title buffer over 64 bytes and stores nothing',
+    'notif:a': 'Ryujinx registers it without commands: the session opens and every command is reported missing, as Ryujinx reports it not implemented',
+    'npns:u': 'Ryujinx registers it without commands: the session opens and every command is reported missing, as Ryujinx reports it not implemented',
+    'ntc': 'Ryujinx with internet access off (its default): StartTask is NetworkTimeNotAvailable; Cancel signals the finish event and sets NetworkTimeTaskCanceled',
 }
 # An application's service access list (its NPDM) names only these; the rest serve system
 # modules, applets and privileged clients. This is the public application list (switchbrew), not
@@ -343,7 +356,7 @@ for reg in sorted({r['service']: r for r in registrations}.values(), key=lambda 
     if port in served:
         status = 'Satchel host session' + (' and SDK takeover' if engine_hooks or own else '')
         where = ['NativeHost/services/SessionIPC.inc'] + where
-        reason = 'Zeroed-success compatibility session (the pinned engine policy), not reference contracts' if port == 'olsc:u' or port.startswith('caps:') else ''
+        reason = 'Zeroed-success compatibility session (the pinned engine policy), not reference contracts' if port == 'olsc:u' or port.startswith('caps:') else REFERENCE.get(port, '')
     elif engine_hooks or own:
         status = 'SDK takeover'; reason = 'The client is taken over at the SDK (' + str(len(engine_hooks)) + ' engine and ' + str(len(own)) + ' Satchel functions); no host session'
     elif port in APPLICATION:

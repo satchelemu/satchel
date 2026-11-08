@@ -700,7 +700,7 @@ registration order and capacity, the bounded fatal diagnostics. `test_adapter.c`
 overlaid `hle_sf.c` and calls each new takeover through its registered entry, and reaches
 `apm` through the real `ConnectToHipcService` and `SendSyncRequest` hooks.
 
-Not done: `ntc` (EnsureNetworkClockAvailability), `pl:u` raw IPC (it needs shared memory the
+Not done in round 11 (round 12 below answers `ntc`, `hidbus`, push notifications and the open SVCs it can): `ntc` (EnsureNetworkClockAvailability), `pl:u` raw IPC (it needs shared memory the
 host does not hand out), `bcat:u` raw IPC, `hidbus`, push notifications, and the open SVCs
 (ExitProcess has no path to the app's own end of a game). Sources: `Apm/IManager.cs`,
 `Apm/ISession.cs`, `Apm/ManagerServer.cs`, `Apm/SessionServer.cs`, `Apm/PerformanceState.cs`,
@@ -708,3 +708,60 @@ host does not hand out), `bcat:u` raw IPC, `hidbus`, push notifications, and the
 `Spl/IRandomInterface.cs` and `Fatal/IService.cs` under `src/Ryujinx.HLE/HOS/Services`, and
 `src/Ryujinx.Horizon/MmNv/Ipc/Request.cs` with `Sdk/MmNv/Session.cs`, of Ryujinx 1.3.3 (MIT,
 `RYUJINX-LICENSE.txt`).
+
+## Round 12 the last open application services and SVCs
+
+After round 11, 8 of the 46 services an application may use were open. Each now opens a host
+session that answers what Ryujinx 1.3.3 answers (`Round12IPC.inc`, 34 contracts in `round12.json`),
+so no application port gives the missing-service report any more; the reason column of
+`coverage/service-table.tsv` says, for each, which Ryujinx behavior it matches. Ported rows are now
+320 of 1,674.
+
+| Port | Commands | Behavior, as in Ryujinx |
+| --- | --- | --- |
+| `audrec:u` | 0; `FinalOutputRecorder` 0 to 11 | The recorder opens with the requested rate, two channels and normal frames (the Horizon layout puts the parameter at 0 and the applet resource user ID at 8). Every recorder command is the reference stub: state 0, no buffer released, contains false, end time 0, one buffer event per recorder that never signals |
+| `hidbus` | 1 | GetBusHandle: no handle and a zeroed BusHandle; the host has no rail device (Ring-Con) |
+| `lp2p:app` | 0, 8; `ISfService` 0, 768, 776, 1536, 1544; `ISfServiceMonitor` 0, 256, 288, 296, 312, 328 | Both objects open without reading arguments; Initialize answers 0; group, send, receive, info and IP calls are stubs; the monitor has its own state-change and join events, a new copy per call, never signaled |
+| `mnpp:app` | 0, 1 | Initialize succeeds (the China-only registration is skipped); SendRawTelemetryData needs its send buffer, refuses a null user (InvalidArgument) and a title buffer over 64 bytes (InvalidBufferSize), and stores nothing |
+| `ntc` | 0; `IEnsureNetworkClockAvailabilityService` 0 to 3 | Ryujinx with internet access off, its default and the only branch an offline host has: StartTask is NetworkTimeNotAvailable and the finish event stays clear; Cancel signals it and GetResult then answers NetworkTimeTaskCanceled |
+| `grc:c`, `notif:a`, `npns:u` | none | Ryujinx registers these without commands. The session opens; every command is unknown and is reported missing under the reference interface name (`IGrcService`, `INotificationServicesForApplication`, `INpnsUser`), as Ryujinx reports it not implemented |
+
+`DM_SF_TRACE=1` prints `Round12 service=... command=... result=0x...`, which `run_mac.py` keeps.
+
+### Supervisor calls
+
+The kernel capability masks in the `main.npdm` of every tested program (Odyssey 1.0.0 and 1.4.1,
+Zelda 1.0.0 and 1.4.3, Castlevania 1.0.0) grant SVCs 0x01 to 0x29, 0x2C, 0x2D, 0x2F, 0x32 to 0x36
+and 0x5F, read once by a private probe, not stored here. Of the 21 SVCs that had no answer, two are
+granted, and both now have one in `KernelSVC.inc`:
+
+| SVC | Behavior |
+|---|---|
+| 0x07 ExitProcess | Does not return. Ryujinx's TerminateCurrentProcess ends the guest process. In the app, `NativeHost/SessionBridge.m` sets a hook that asks the same `SatchelStopNativeSession` coordinator as the menu's Quit, on the main queue, and the calling guest thread leaves as ExitThread does; the session stop ends the rest. Without the hook (the Mac hosts) the host ends through its graceful shutdown |
+| 0x23 SendAsyncRequestWithUserBuffer | Ryujinx's order: InvalidAddress, InvalidSize, InvalidMemState for a wrapping range, the user buffer as for 0x22, no event limit to reserve (GetInfo(ResourceLimit) answers 0), InvalidHandle, then HandleTableFull for the done event. The host sessions answer at once, so the reply is in the buffer when the returned read end is signaled; a failed send closes it |
+
+The other 19 (the IPC server calls, code memory, and the privileged process, debug and resource
+limit calls) are granted to none of the tested programs; `inventory.py` asserts that no granted SVC
+Ryujinx implements lacks an answer, and the table gives each remaining one its reason.
+
+### Checks
+
+`test_round12.inc` runs in `check.py`'s sanitizer suite: every round 12 contract in both
+transports, the bare ports' unknown commands, argument sizes, the send buffer and null user, event
+identity, copies and release, cancel before and after the event is taken, and reset.
+`test_adapter.c` connects all eight ports through the real `ConnectToHipcService` hook and checks
+the missing-command rows of the bare ports. `test_kernel_svc.c` (ASan and UBSan, then TSan) checks
+0x23's errors, the signaled done event (ResetSignal succeeds once, SignalEvent refuses the read end)
+and a full handle table, and runs 0x07 in forked children: without the hook the host shuts down,
+with it the hook runs and the calling thread leaves through `pthread_exit`.
+
+Not proven: no tested game calls these ports or SVCs, so they are synthetic checks only, and the
+app's ExitProcess return to the library is built but has not run on the phone. Sources:
+`src/Ryujinx.Horizon/Audio/AudioUserIpcServer.cs`, `Sdk/Audio/Detail/FinalOutputRecorder.cs`,
+`FinalOutputRecorderManager.cs` and the parameter structs, `Sdk/Sf/RawDataOffsetCalculator.cs`,
+`Grc/IGrcService.cs`, `Hid/IHidbusServer.cs`, `Hid/Types/Npad/BusHandle.cs`, `Ldn/Lp2p/*.cs`,
+`Mnpp/IServiceForApplication.cs`, `Mnpp/ResultCode.cs`, `Notification/INotificationServicesForApplication.cs`,
+`Npns/INpnsUser.cs`, `Nim/Ntc/IStaticService.cs`, `Nim/Ntc/StaticService/IEnsureNetworkClockAvailabilityService.cs`
+and `Time/ResultCode.cs` under `src/Ryujinx.HLE/HOS/Services`, and `Kernel/SupervisorCall/Syscall.cs`,
+`Kernel/Ipc/KClientSession.cs` and `Kernel/Process/KProcess.cs` under `src/Ryujinx.HLE/HOS`, of
+Ryujinx 1.3.3 (MIT, `RYUJINX-LICENSE.txt`).

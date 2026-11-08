@@ -120,6 +120,7 @@ static void *race(void *arg) { for (unsigned i = 0; i < 1000; i++) satchel_ipc_o
 #include "test_system.inc"
 #include "test_round8.inc"
 #include "test_round11.inc"
+#include "test_round12.inc"
 int main(int argc, char **argv) {
     assert(argc == 2); satchel_test_fs_setup(argv[1]); satchel_test_fs_queries();
     test_ports();
@@ -128,6 +129,7 @@ int main(int argc, char **argv) {
     test_system();
     test_round8();
     test_round11();
+    test_round12();
     for (int dom = 0; dom < 2; dom++) {
         uint8_t *out = message + (dom ? 48 : 32);
         unsetenv("DM_LANG"); make(0, dom, 0, NULL, 0); assert(!send("set", dom)); assert(!memcmp(out, "en-US\0\0\0", 8));

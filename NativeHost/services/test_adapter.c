@@ -211,6 +211,23 @@ int main(int argc, char **argv) {
     // Round 11 raw IPC through the real hooks: apm answers the engine's performance mode.
     assert(!h_sf_Connect(&handle, "apm")); request(1, 0); assert(!send_hook(handle, (uint32_t *)msg, sizeof msg));
     assert(satchel_u32(msg + 24) == 0 && satchel_u32(msg + 32) == (dm_profile()->perf_boost ? 1u : 1u)); h_sf_Close(handle);
+    // Round 12 through the real hooks: every application port that was open now connects. The ports
+    // Ryujinx registers without commands report each command missing under the reference interface.
+    char round12_summary[PATH_MAX]; snprintf(round12_summary, sizeof round12_summary, "%s.round12.json", argv[1]);
+    setenv("DM_MISSING_SERVICES", round12_summary, 1); satchel_sessions_reset();
+    const char *const round12_ports[] = {"audrec:u", "grc:c", "hidbus", "lp2p:app", "mnpp:app", "notif:a", "npns:u", "ntc"};
+    for (unsigned i = 0; i < 8; i++) { assert(!h_sf_Connect(&handle, round12_ports[i])); h_sf_Close(handle); }
+    const char *const bare[][2] = {{"grc:c", "IGrcService"}, {"notif:a", "INotificationServicesForApplication"}, {"npns:u", "INpnsUser"}};
+    for (unsigned i = 0; i < 3; i++) {
+        assert(!h_sf_Connect(&handle, bare[i][0])); request(0, 0); assert(!send_hook(handle, (uint32_t *)msg, sizeof msg));
+        assert(satchel_u32(msg + 24) == SATCHEL_IPC_UNKNOWN); h_sf_Close(handle);
+        assert(satchel_missing_count == i + 1 && !strcmp(satchel_missing[i].service, bare[i][0]) &&
+               !strcmp(satchel_missing[i].interface, bare[i][1]) && !satchel_missing[i].command && !satchel_missing[i].method);
+    }
+    assert(!h_sf_Connect(&handle, "hidbus")); request(1, 0); satchel_put32(msg + 4, 14);   // 24 argument bytes
+    assert(!send_hook(handle, (uint32_t *)msg, sizeof msg) && !satchel_u32(msg + 24)); h_sf_Close(handle);
+    satchel_sessions_reset(); assert(satchel_missing_count == 0);
+    puts("PASS: round 12 ports connect through the real hooks; bare ports report missing commands by reference interface");
     // Round 11 SDK takeovers (SdkFamilies.inc), registered under their SDK names.
     assert(!strcmp(hle_force_h_oe_SatchelRecordingSupported.name, "_ZN2nn2oe28IsGamePlayRecordingSupportedEv"));
     h_oe_SatchelUserActive(); h_oe_SatchelWireless(1); h_oe_SatchelMediaBegin(); h_oe_SatchelMediaEnd();

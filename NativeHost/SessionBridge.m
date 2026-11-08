@@ -351,6 +351,21 @@ static void *guest_thread(void *unused) {
     }
     return NULL;
 }
+#ifdef SATCHEL_MANAGED_SESSION
+// svcExitProcess (NativeHost/services/KernelSVC.inc) on a guest thread: the game ended itself.
+// Return to the library through the coordinator the menu's Quit uses; the caller's thread exits.
+extern int (*satchel_exit_process_hook)(void);
+static int bridge_exit_process(void) {
+    report_session(@"boot", @"exit process");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!g_started) return;
+        SatchelStopNativeSession(^(NSError *error) {
+            if (error) fprintf(stderr, "Satchel stop after ExitProcess failed: %ld\n", (long)error.code);
+        });
+    });
+    return 1;
+}
+#endif
 void front_ios_boot(void) {
     if (!g_prepared || g_started) return;
     // A long package verification can finish after the user backgrounds the app.
@@ -366,6 +381,7 @@ void front_ios_boot(void) {
     }
     g_started = YES;
 #ifdef SATCHEL_MANAGED_SESSION
+    satchel_exit_process_hook = bridge_exit_process;
     void satchel_front_session_begin(void); satchel_front_session_begin();
 #else
     front_ios_audio_session();

@@ -1,0 +1,11 @@
+{
+  "audrec:u": [0],
+  "FinalOutputRecorder": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+  "hidbus": [1],
+  "lp2p:app": [0, 8],
+  "ISfService": [0, 768, 776, 1536, 1544],
+  "ISfServiceMonitor": [0, 256, 288, 296, 312, 328],
+  "mnpp:app": [0, 1],
+  "ntc": [0],
+  "IEnsureNetworkClockAvailabilityService": [0, 1, 2, 3]
+}

@@ -37,6 +37,17 @@ int satchel_kernel_thread_handle(uint32_t handle);
 // hle_sf.c overlay: the host's HIPC sessions, for SendSyncRequest without the SDK wrapper.
 int satchel_sf_svc_session(uint32_t handle);
 uint32_t satchel_sf_svc_send(uint32_t handle, void *message, size_t size, void *caller);
+// hle_thread.c overlay: readable event handles in the kernel table (0 when it is full), and the
+// calling guest thread's own exit, ExitThread's path, which does not return.
+uint32_t satchel_host_event_create(int signaled);
+void satchel_host_event_set(uint32_t handle, int signaled);
+void satchel_host_event_close(uint32_t handle);
+void satchel_kernel_exit_current(void) __attribute__((noreturn));
+
+// svcExitProcess ends the game. The app sets this hook (NativeHost/SessionBridge.m) to return
+// to the library through the coordinator the menu's Quit uses; without it (the Mac hosts) the
+// host process ends gracefully, as Ryujinx's TerminateCurrentProcess ends the guest process.
+int (*satchel_exit_process_hook)(void);
 
 // One record per transfer memory. "object" means a handle still owns it and it
 // counts toward the limit. The owner's range stays borrowed while the record is
@@ -238,6 +249,24 @@ static int satchel_guest_string(uint64_t addr, char *out, size_t max) {
     out[max] = 0; return 1;
 }
 
+// BorrowIpcBuffer: page-aligned, mapped read and write memory without an attribute.
+static uint32_t satchel_ipc_user_buffer(uint64_t message, uint64_t size) {
+    uint32_t result = satchel_memory_arguments(message, size);
+    if (!result) {
+        pthread_mutex_lock(&g_map_lock);
+        if (!map_source_backed(message, size) || map_source_busy(message, size)) result = SATCHEL_K_INVALID_MEM_STATE;
+        pthread_mutex_unlock(&g_map_lock);
+    }
+    return result;
+}
+static void satchel_svc_exit_process(void) __attribute__((noreturn));
+static void satchel_svc_exit_process(void) {
+    static _Atomic int logged; if (!atomic_fetch_add(&logged, 1)) LOG("SVC 0x07 ExitProcess: the game ended its process");
+    int (*hook)(void) = satchel_exit_process_hook;
+    if (!hook || !hook()) dm_host_shutdown("svcExitProcess");   // does not return
+    satchel_kernel_exit_current();   // the session stop ends the other threads; this one never returns to the game
+}
+
 // Returns 1 when the call is answered here. Register use follows the public
 // Horizon ABI, as the rest of this file: inputs from x0 (x1 when x0 is an
 // output pointer), w0 the Result, outputs from x1.
@@ -276,15 +305,26 @@ static int satchel_kernel_svc(int num, uint64_t *regs) {
     }
     case 0x22: {  // SendSyncRequestWithUserBuffer(x1 message, x2 size, w3 session)
         uint64_t message = regs[1], size = regs[2]; uint32_t handle = (uint32_t)regs[3];
-        uint32_t result = satchel_memory_arguments(message, size);
-        if (!result) {   // BorrowIpcBuffer: mapped read and write memory without an attribute
-            pthread_mutex_lock(&g_map_lock);
-            if (!map_source_backed(message, size) || map_source_busy(message, size)) result = SATCHEL_K_INVALID_MEM_STATE;
-            pthread_mutex_unlock(&g_map_lock);
-        }
+        uint32_t result = satchel_ipc_user_buffer(message, size);
         if (!result) result = satchel_sf_svc_session(handle) ? satchel_sf_svc_send(handle, (void *)(uintptr_t)message, size, (void *)(uintptr_t)regs[30]) : SATCHEL_K_INVALID_HANDLE;
         regs[0] = result; return 1;
     }
+    case 0x23: {  // SendAsyncRequestWithUserBuffer(→w1 done event; x1 message, x2 size, w3 session)
+        // Ryujinx's order: arguments, BorrowIpcBuffer, the event resource limit (none here:
+        // GetInfo(ResourceLimit) answers 0), the session, then the event handle. The host
+        // sessions answer at once, so the reply is in the buffer when the event is signaled.
+        uint64_t message = regs[1], size = regs[2]; uint32_t handle = (uint32_t)regs[3], event = 0;
+        uint32_t result = satchel_ipc_user_buffer(message, size);
+        if (!result && !satchel_sf_svc_session(handle)) result = SATCHEL_K_INVALID_HANDLE;
+        if (!result && !(event = satchel_host_event_create(0))) result = SATCHEL_K_HANDLE_TABLE_FULL;
+        if (!result) {
+            result = satchel_sf_svc_send(handle, (void *)(uintptr_t)message, size, (void *)(uintptr_t)regs[30]);
+            if (result) { satchel_host_event_close(event); event = 0; }
+            else satchel_host_event_set(event, 1);
+        }
+        regs[0] = result; regs[1] = event; return 1;
+    }
+    case 0x07: satchel_svc_exit_process(); return 1;   // ExitProcess(): does not return
     case 0x24: {  // GetProcessId(→x1 process ID; w1 process or thread handle)
         uint32_t handle = (uint32_t)regs[1];
         int found = handle == SATCHEL_CURRENT_PROCESS || satchel_kernel_thread_handle(handle);

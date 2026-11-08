@@ -15,7 +15,7 @@ arp:w	src/Ryujinx.Horizon/Arp/ArpIpcServer.cs (Writer)	system only	4	0	0		Not in
 auddev	src/Ryujinx.Horizon/Audio/AudioUserIpcServer.cs (AudioSnoopManager)	system only	7	0	0		Not in an application service access list: system modules, applets and privileged clients
 audin:u	src/Ryujinx.Horizon/Audio/AudioUserIpcServer.cs (AudioInManager)	SDK takeover	6	0	4	dm/host/hle_audio.c	The client is taken over at the SDK (4 engine and 0 Satchel functions); no host session
 audout:u	src/Ryujinx.Horizon/Audio/AudioUserIpcServer.cs (AudioOutManager)	SDK takeover	4	0	79	dm/host/hle_audio.c; dm/host/hle_audren.c	The client is taken over at the SDK (79 engine and 0 Satchel functions); no host session
-audrec:u	src/Ryujinx.Horizon/Audio/AudioUserIpcServer.cs (FinalOutputRecorderManager)	open	1	0	0		Final output recorder; no SDK takeover and no host session. Not reached by the tested games
+audrec:u	src/Ryujinx.Horizon/Audio/AudioUserIpcServer.cs (FinalOutputRecorderManager)	Satchel host session	1	1	0	NativeHost/services/SessionIPC.inc	Ryujinx stubs: the recorder opens with two channels at the requested rate, records nothing and never releases a buffer; its buffer event never signals
 audren:u	src/Ryujinx.Horizon/Audio/AudioUserIpcServer.cs (AudioRendererManager)	Satchel host session and SDK takeover	5	2	79	NativeHost/services/SessionIPC.inc; dm/host/hle_audio.c; dm/host/hle_audren.c	
 avm	src/Ryujinx.HLE/HOS/Services/Sdb/Avm/IAvmService.cs (IAvmService)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 bcat:a	src/Ryujinx.Horizon/Bcat/BcatIpcServer.cs (ServiceCreator)	system only	3	0	0		Not in an application service access list: system modules, applets and privileged clients
@@ -72,12 +72,12 @@ friend:v	src/Ryujinx.Horizon/Friends/FriendsIpcServer.cs (ServiceCreator)	system
 fsp-ldr	src/Ryujinx.HLE/HOS/Services/Fs/IFileSystemProxyForLoader.cs (IFileSystemProxyForLoader)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 fsp-pr	src/Ryujinx.HLE/HOS/Services/Fs/IProgramRegistry.cs (IProgramRegistry)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 fsp-srv	src/Ryujinx.HLE/HOS/Services/Fs/IFileSystemProxy.cs (IFileSystemProxy)	Satchel host session and SDK takeover	97	3	74	NativeHost/services/SessionIPC.inc; dm/host/hle_fs.c; dm/host/hle_sdkinit.c	
-grc:c	src/Ryujinx.HLE/HOS/Services/Grc/IGrcService.cs (IGrcService)	open	0	0	0		Game movie recording service; the SDK records through am (EnableGamePlayRecording takeover). No host session
+grc:c	src/Ryujinx.HLE/HOS/Services/Grc/IGrcService.cs (IGrcService)	Satchel host session	0	0	0	NativeHost/services/SessionIPC.inc	Ryujinx registers it without commands: the session opens and every command is reported missing, as Ryujinx reports it not implemented
 grc:d	src/Ryujinx.HLE/HOS/Services/Grc/IRemoteVideoTransfer.cs (IRemoteVideoTransfer)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 hid	src/Ryujinx.HLE/HOS/Services/Hid/IHidServer.cs (IHidServer)	Satchel host session and SDK takeover	117	30	132	NativeHost/services/SessionIPC.inc; dm/host/hle_hid.c	
 hid:dbg	src/Ryujinx.HLE/HOS/Services/Hid/IHidDebugServer.cs (IHidDebugServer)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 hid:sys	src/Ryujinx.HLE/HOS/Services/Hid/IHidSystemServer.cs (IHidSystemServer)	system only	4	0	0		Not in an application service access list: system modules, applets and privileged clients
-hidbus	src/Ryujinx.HLE/HOS/Services/Hid/IHidbusServer.cs (IHidbusServer)	open	1	0	0		Joy-Con rail devices (Ring-Con); Ryujinx answers only GetBusHandle. No host session, no SDK takeover
+hidbus	src/Ryujinx.HLE/HOS/Services/Hid/IHidbusServer.cs (IHidbusServer)	Satchel host session	1	1	0	NativeHost/services/SessionIPC.inc	Ryujinx stub: GetBusHandle answers no handle (no rail device)
 hshl:set	src/Ryujinx.Horizon/Hshl/HshlIpcServer.cs (SetterManager)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 hshl:sys	src/Ryujinx.Horizon/Hshl/HshlIpcServer.cs (Manager)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 hwopus	src/Ryujinx.Horizon/Audio/HwopusIpcServer.cs (HardwareOpusDecoderManager)	SDK takeover	10	0	51	dm/host/hle_codec.c; dm/host/hle_codec_video.c	The client is taken over at the SDK (51 engine and 0 Satchel functions); no host session
@@ -95,7 +95,7 @@ ldr:pm	src/Ryujinx.HLE/HOS/Services/Loader/IProcessManagerInterface.cs (IProcess
 ldr:ro	src/Ryujinx.HLE/HOS/Services/Ro/IRoInterface.cs (IRoInterface)	system only	6	0	0		Not in an application service access list: system modules, applets and privileged clients
 ldr:shel	src/Ryujinx.HLE/HOS/Services/Loader/IShellInterface.cs (IShellInterface)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 lm	src/Ryujinx.Horizon/LogManager/LmIpcServer.cs (LogService)	SDK takeover	1	0	1	dm/host/hle_sdkinit.c	The client is taken over at the SDK (1 engine and 0 Satchel functions); no host session
-lp2p:app	src/Ryujinx.HLE/HOS/Services/Ldn/Lp2p/IServiceCreator.cs (IServiceCreator)	open	2	0	0		Local peer-to-peer (newer SDKs); Ryujinx registers it without commands. No host session
+lp2p:app	src/Ryujinx.HLE/HOS/Services/Ldn/Lp2p/IServiceCreator.cs (IServiceCreator)	Satchel host session	2	2	0	NativeHost/services/SessionIPC.inc	Ryujinx stubs: both objects open, Initialize answers 0, the group commands succeed and do nothing, the two monitor events never signal
 lp2p:sys	src/Ryujinx.HLE/HOS/Services/Ldn/Lp2p/IServiceCreator.cs (IServiceCreator)	system only	2	0	0		Not in an application service access list: system modules, applets and privileged clients
 lr	src/Ryujinx.HLE/HOS/Services/Ncm/Lr/ILocationResolverManager.cs (ILocationResolverManager)	system only	1	0	0		Not in an application service access list: system modules, applets and privileged clients
 mig:usr	src/Ryujinx.HLE/HOS/Services/Mig/IService.cs (IService)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
@@ -103,7 +103,7 @@ mii:e	src/Ryujinx.HLE/HOS/Services/Mii/IStaticService.cs (IStaticService)	SDK ta
 mii:u	src/Ryujinx.HLE/HOS/Services/Mii/IStaticService.cs (IStaticService)	system only	1	0	0		Not in an application service access list: system modules, applets and privileged clients
 miiimg	src/Ryujinx.HLE/HOS/Services/Mii/IImageDatabaseService.cs (IImageDatabaseService)	system only	2	0	0		Not in an application service access list: system modules, applets and privileged clients
 mm:u	src/Ryujinx.Horizon/MmNv/MmNvIpcServer.cs (Request)	Satchel host session	8	8	0	NativeHost/services/SessionIPC.inc	
-mnpp:app	src/Ryujinx.HLE/HOS/Services/Mnpp/IServiceForApplication.cs (IServiceForApplication)	open	2	0	0		Mainland China application rules; Ryujinx answers stubs. Not needed outside that region
+mnpp:app	src/Ryujinx.HLE/HOS/Services/Mnpp/IServiceForApplication.cs (IServiceForApplication)	Satchel host session	2	2	0	NativeHost/services/SessionIPC.inc	Ryujinx stubs: Initialize succeeds; SendRawTelemetryData refuses a null user or a title buffer over 64 bytes and stores nothing
 ncm	src/Ryujinx.HLE/HOS/Services/Ncm/IContentManager.cs (IContentManager)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 news:a	src/Ryujinx.HLE/HOS/Services/News/IServiceCreator.cs (IServiceCreator)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 news:c	src/Ryujinx.HLE/HOS/Services/News/IServiceCreator.cs (IServiceCreator)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
@@ -127,10 +127,10 @@ nim	src/Ryujinx.HLE/HOS/Services/Nim/INetworkInstallManager.cs (INetworkInstallM
 nim:eca	src/Ryujinx.HLE/HOS/Services/Nim/IShopServiceAccessServerInterface.cs (IShopServiceAccessServerInterface)	system only	3	0	0		Not in an application service access list: system modules, applets and privileged clients
 nim:ecas	src/Ryujinx.HLE/HOS/Services/Nim/IShopServiceAccessSystemInterface.cs (IShopServiceAccessSystemInterface)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 nim:shp	src/Ryujinx.HLE/HOS/Services/Nim/IShopServiceManager.cs (IShopServiceManager)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
-notif:a	src/Ryujinx.HLE/HOS/Services/Notification/INotificationServicesForApplication.cs (INotificationServicesForApplication)	open	0	0	0		Application alarms (newer SDKs). No host session, no SDK takeover
+notif:a	src/Ryujinx.HLE/HOS/Services/Notification/INotificationServicesForApplication.cs (INotificationServicesForApplication)	Satchel host session	0	0	0	NativeHost/services/SessionIPC.inc	Ryujinx registers it without commands: the session opens and every command is reported missing, as Ryujinx reports it not implemented
 notif:s	src/Ryujinx.HLE/HOS/Services/Notification/INotificationServicesForSystem.cs (INotificationServicesForSystem)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
 npns:s	src/Ryujinx.HLE/HOS/Services/Npns/INpnsSystem.cs (INpnsSystem)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
-npns:u	src/Ryujinx.HLE/HOS/Services/Npns/INpnsUser.cs (INpnsUser)	open	0	0	0		Push notifications; Ryujinx registers it without commands. A game that connects gets the missing-service report
+npns:u	src/Ryujinx.HLE/HOS/Services/Npns/INpnsUser.cs (INpnsUser)	Satchel host session	0	0	0	NativeHost/services/SessionIPC.inc	Ryujinx registers it without commands: the session opens and every command is reported missing, as Ryujinx reports it not implemented
 ns:am	src/Ryujinx.HLE/HOS/Services/Ns/IApplicationManagerInterface.cs (IApplicationManagerInterface)	system only	1	0	0		Not in an application service access list: system modules, applets and privileged clients
 ns:am2	src/Ryujinx.HLE/HOS/Services/Ns/IServiceGetterInterface.cs (IServiceGetterInterface)	system only	2	0	0		Not in an application service access list: system modules, applets and privileged clients
 ns:dev	src/Ryujinx.HLE/HOS/Services/Ns/IDevelopInterface.cs (IDevelopInterface)	system only	0	0	0		Not in an application service access list: system modules, applets and privileged clients
@@ -142,7 +142,7 @@ ns:vm	src/Ryujinx.HLE/HOS/Services/Ns/IVulnerabilityManagerInterface.cs (IVulner
 ns:web	src/Ryujinx.HLE/HOS/Services/Ns/IServiceGetterInterface.cs (IServiceGetterInterface)	system only	2	0	0		Not in an application service access list: system modules, applets and privileged clients
 nsd:a	src/Ryujinx.HLE/HOS/Services/Sockets/Nsd/IManager.cs (IManager)	system only	25	0	0		Not in an application service access list: system modules, applets and privileged clients
 nsd:u	src/Ryujinx.HLE/HOS/Services/Sockets/Nsd/IManager.cs (IManager)	SDK takeover	25	0	3	dm/host/hle_misc.c; dm/host/hle_offline.c	The client is taken over at the SDK (3 engine and 0 Satchel functions); no host session
-ntc	src/Ryujinx.HLE/HOS/Services/Nim/Ntc/IStaticService.cs (IStaticService)	open	1	0	0		Network clock correction (nn::time::EnsureNetworkClockAvailability); offline host, no host session yet
+ntc	src/Ryujinx.HLE/HOS/Services/Nim/Ntc/IStaticService.cs (IStaticService)	Satchel host session	1	1	0	NativeHost/services/SessionIPC.inc	Ryujinx with internet access off (its default): StartTask is NetworkTimeNotAvailable; Cancel signals the finish event and sets NetworkTimeTaskCanceled
 nvdrv	src/Ryujinx.HLE/HOS/Services/Nv/INvDrvServices.cs (INvDrvServices)	SDK takeover	14	0	6	dm/host/hle_nvdrv.c	The client is taken over at the SDK (6 engine and 0 Satchel functions); no host session
 nvdrv:a	src/Ryujinx.HLE/HOS/Services/Nv/INvDrvServices.cs (INvDrvServices)	system only	14	0	0		Not in an application service access list: system modules, applets and privileged clients
 nvdrv:s	src/Ryujinx.HLE/HOS/Services/Nv/INvDrvServices.cs (INvDrvServices)	system only	14	0	0		Not in an application service access list: system modules, applets and privileged clients

@@ -33,7 +33,8 @@ static uint32_t satchel_session_new(const char *kind, int duplicate, uint32_t *h
 static uint32_t satchel_session_connect(uint32_t *out, const char *name, void *caller) {
     static const char *const served[] = {"olsc:u", "set", "acc:u0", "time:u", "time:a", "time:r", "time:s", "hid", "fsp-srv", "nifm:u", "aoc:u", "friend:u", "prepo:u", "appletOE", "appletAE", "vi:u", "audren:u", "pctl",
         "caps:su", "caps:u", "caps:a", "caps:c", "caps:sc", "caps:ss",   // the capture services, as the pinned engine serves them (nxnative df7fa667)
-        "apm", "apm:am", "psm", "csrng", "mm:u", "fatal:u"};   // round 11 (Round11IPC.inc)
+        "apm", "apm:am", "psm", "csrng", "mm:u", "fatal:u",   // round 11 (Round11IPC.inc)
+        "audrec:u", "grc:c", "hidbus", "lp2p:app", "mnpp:app", "notif:a", "npns:u", "ntc"};   // round 12 (Round12IPC.inc)
     for (size_t k = 0; k < sizeof served / sizeof *served; k++) {
         if (!strncmp(name, served[k], 8)) {
             pthread_mutex_lock(&satchel_session_mu);
