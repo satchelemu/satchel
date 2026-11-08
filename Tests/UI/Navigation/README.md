@@ -134,6 +134,13 @@ the real picker must appear, dismiss and reopen, including after background/retu
   `startedByUser`, stopped by iOS or ended with the app) stays paused through background and
   return, and its card and game page offer Resume, which continues it
   (`testWarmupLegacy*WaitsForResume`).
+- Simulator only: the Prepare screen's "Test without reviewed settings" option is hidden
+  without developer controls (`testTestPackageOptionHiddenWithoutDeveloperControls`). With
+  them it starts off; a signed synthetic Prepare with it on ends as a test package beside the
+  title's package, which stays "Current" in Settings > Prepared games while the new one is
+  tagged "Test package", and the game page offers "Play test package"
+  (`testTestPackageBesideReviewedPackage`). The save copy is the native bridge's and needs the
+  phone.
 - Simulator only: Prepare is disabled beside a paused game, then enabled after Quit
   with a selected local base and synthetic keys. The game's warm-up also becomes available.
 - Simulator only: upcoming, absent and expired signature reminders with synthetic dates, plus

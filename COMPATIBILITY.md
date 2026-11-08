@@ -156,9 +156,11 @@ the app's feedback code (`App/NativeBootFeedback.swift`), with no title lookup.
 |---|---|---|
 | Super Mario Odyssey 1.4.1 | Cap Kingdom gameplay ("Throw Cap" tutorial) at frame 3,600; no missing service, no crash | The game uses conditional rendering, so the next launch evaluates it (`render_cond`); the same Cap Kingdom scene renders with no visible change through frame 3,666 |
 | Castlevania: Belmont's Curse 1.0.0 | Crash (signal 11) after 107 frames, with 4.25 of 4.38 GiB of alias space mapped | `app_pool` 1 GiB, the reviewed value; reaches the opening boat dialogue at frame 3,600 with no crash or missing service |
-| Zelda: Tears of the Kingdom 1.4.3 | `SetHeapSize OOM: req 0x84600000 > cap 0x8000000`, then a crash (signal 10) before the first frame | First: `mem_alias` 0x98000000 (a 2.125 GiB heap, the reviewed value): Great Sky Island gameplay with the HUD, but the 3D scene draws as black silhouettes. That launch shows conditional rendering, so the second adds `render_cond`: Great Sky Island renders (trees, grass, Link) through frame 3,631. Some small plants still draw dark and the grass differs from the reviewed profile, which also sets three texture switches (`tex_flush_upload`, `tex_dirty_upload`, `tex_bc_cpu`); the two upload switches without `render_cond` leave the scene black |
+| Zelda: Tears of the Kingdom 1.4.3 | `SetHeapSize OOM: req 0x84600000 > cap 0x8000000`, then a crash (signal 10) before the first frame | First: `mem_alias` 0x98000000 (a 2.125 GiB heap, the reviewed value): Great Sky Island gameplay with the HUD, but the 3D scene draws as black silhouettes. That launch shows conditional rendering and, with the host's texture-write watch (added later the same day), 14 to 16 textures whose GPU copy missed CPU writes, so the second launch adds `render_cond`, `tex_flush_upload` and `tex_dirty_upload` together: Great Sky Island with the reviewed profile's tall grass and plants through frame 3,631, as close to the reviewed run as two reviewed runs are to each other. (`tex_bc_cpu` matters only on GPUs without BC textures.) Before the watch, only `render_cond` was learned and small plants drew dark with most grass missing |
 
-None of the three games reported a missing service or SVC. The 2026-11-04 checks on the
+None of the three games reported a missing service or SVC. With the texture-write watch,
+Odyssey and Castlevania count 0 textures and learn no upload switch (details in
+[the diagnostic contract](docs/generic-profiles.md)). The 2026-11-04 checks on the
 previous engine reached the same memory values. Reviewed profiles remain overrides. See
 [the diagnostic contract](docs/generic-profiles.md).
 

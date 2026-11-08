@@ -601,3 +601,59 @@ no locks, allocations, timestamp accumulation or summary writes. Existing engine
 diagnostics are unchanged. `frame-timing-check.py` checks synthetic accounting and
 real Mac Metal/Metal 4 feedback with generated buffer fills, using the shared
 build wait. Its CPU values are synthetic and establish no gameplay performance.
+
+## Texture-write watch (boot feedback)
+
+`texture_writes.py` applies two patch files of their own, after every other overlay:
+`texture-writes.patch` to `hle_nvn.c` and `texture-writes-metal.patch` to `nvn_mtl.m`. They
+give the app's boot feedback (`App/NativeBootFeedback.swift`) a host signal for the pinned
+engine's texture upload switches (`tex_flush_upload`, `tex_dirty_upload`), which a game
+prepared without reviewed settings otherwise cannot learn. The watch only counts; it changes
+no upload, draw or pipeline.
+
+It runs with `DM_TEX_WRITE_WATCH=1`, which `SessionBridge.m` sets for a format 2 package with
+no reviewed version in its recipe, and only while the profile has both switches off. It watches
+the textures the engine's `ft_add` would register (sampled storage in a pool the CPU can write,
+no packaged layout, not linear, not a buffer texture) outside sparse virtual pools, and
+write-protects their pages from registration, as `ft_add` does for `tex_dirty_upload`. Beside
+`nvn_ft_poll`, on the submit thread, `tw_poll` asks the replay how it holds each one
+(`mtl_tex_gpu_copy`). Without the switches a texture is a GPU copy from its first use on, unless
+the host takes it from its storage (a packaged layout, or the engine's first-use rule for
+storage the CPU wrote). The watch counts each texture once when the copy misses CPU writes:
+
+- flushed before its first use over storage and a description an earlier texture already had a
+  GPU copy for: the replay's sharing table hands the new texture that copy with the earlier
+  content (a flushed texture otherwise gets a one-time fill from its storage and is not counted);
+- flushed after its first use;
+- written after its first use, on any page it covers (as the engine's dirty-page poll looks),
+  for a copy shaders only sample, or for one with render-target use that the CPU also published
+  with a flush before its first use.
+
+Unflushed writes before first use that the copy misses (an uncompressed texture in a pool the
+GPU also writes) are logged but not counted: Odyssey and Castlevania had 89 and 8 of them, mostly
+render targets beside CPU-written pages, need neither switch, and Odyssey crashed after 1,200
+frames with the switches learned from them.
+
+A texture the host takes from its storage stays listed: an uncompressed one becomes a GPU copy
+at its pool's first GPU write, and its later writes count as above (the log line reports how
+many did). One the GPU writes as an image is not counted. Polls look at no more than 2,048
+textures and 128 MiB each; the watch stops after 256 counted textures.
+
+Why before first use at all: in a diagnostic Mac build of TOTK 1.4.3 with its reviewed switches
+on, the engine's own paths turned 790 textures CPU-written through flushes and 2,185 through the
+dirty-page poll, all before the replay had a texture for them, none in a sparse virtual pool or
+with the compressible flag. A first watch that counted only writes into a texture's whole pages
+after its first use saw 1 or 2 textures in a run; following the engine's sharing table and its
+dirty-page granularity brings TOTK into double figures while the other two games stay at 0.
+
+The host log gets at most 64 summary lines, only when a count changed and at most one every
+two seconds: `[nvn] texture writes the GPU copy misses: N textures (flushed over shared storage S, flushed
+after F, written after U; written before first use B, not counted); K of W watched textures
+used, D taken from storage then GPU copies`. Counts only: no address, size, format or content. A
+managed session's reset (`SessionNVNReset.inc`) clears the watch for the next game. `check.py`
+builds `t_satchel_texture_writes` from `texture-writes-test.m`: on real Metal textures, an
+flush after first use and a write after it count once each; an unflushed write before first use
+the copy misses is logged outside the count; a flushed write before first use, a compressed texture the host takes from
+storage, a render-target texture's later write, a finalized texture, a second write, a profile
+with the switches on and a launch without the variable count nothing; the summary line has the
+format the app reads.

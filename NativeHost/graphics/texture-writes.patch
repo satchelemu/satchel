@@ -1,0 +1,184 @@
+--- a/hle_nvn.c
++++ b/hle_nvn.c
+@@ -262,12 +262,13 @@
+     if (((pool_t *)p)->flags & 0x200 && ((pool_t *)p)->vp) vpool_release((pool_t *)p);
+     if (((pool_t *)p)->mem && !(((pool_t *)p)->flags & 0x200)) {   // A virtual pool's storage is borrowed from a physical pool; do not unregister it
+  nvn_dirty_remove_range(((pool_t *)p)->mem); mtl_pool_del(((pool_t *)p)->mem); mtl_sp_phys_gone(((pool_t *)p)->mem, ((pool_t *)p)->size); fl_drop(((pool_t *)p)->mem, ((pool_t *)p)->size); } }
+-static void ft_flush(const uint8_t *a, uint64_t n);
++static void ft_flush(const uint8_t *a, uint64_t n); static void tw_flush(const uint8_t *a, uint64_t n);   // tw_flush: Satchel texture-write watch, below ft_flush
+ NVN(nvnMemoryPoolFlushMappedRange, void, const NVNmemoryPool *p, ptrdiff_t off, size_t n) {   // see ft_add and nvn_flushed
+     const pool_t *o = (const pool_t *)p;
+     if (!o->mem) return;
+     if (!(o->flags & 0x200)) fl_add(o->mem + off, n);
+     ft_flush(o->mem + off, n);
++    tw_flush(o->mem + off, n);
+ }
+ NVN(nvnMemoryPoolGetBufferAddress, NVNbufferAddress, const NVNmemoryPool *p) { return (NVNbufferAddress)((const pool_t *)p)->mem; }
+ 
+@@ -452,6 +453,146 @@
+         if (g_ft[i].mem < a + n && a < g_ft[i].mem + g_ft[i].size) { mtl_tex_cpu_written(&g_ft[i].t); g_ft[i] = g_ft[--g_nft]; } else i++;
+     pthread_mutex_unlock(&g_ft_mu);
+ }
++#include "nvn_hmap.h"
++// Satchel texture-write watch (NativeHost/graphics/texture-writes.patch): textures whose CPU-written content the GPU copy misses.
++// A count for the app's boot feedback (App/NativeBootFeedback.swift): a game prepared without reviewed settings learns the profile's texture
++// upload switches (tex_flush_upload, tex_dirty_upload above) from what it does, never from its title. Only with DM_TEX_WRITE_WATCH=1 and both
++// switches off; it changes no upload, it only counts. Watched are the textures ft_add would register (sampled storage in a pool the CPU can write,
++// no packaged layout, not linear, not a buffer texture), outside a sparse virtual pool, with their pages write-protected from registration as
++// ft_add does for tex_dirty_upload. tw_poll looks at them on the submit thread, beside nvn_ft_poll, and asks the replay how it holds each one
++// (mtl_tex_gpu_copy in nvn_mtl.m). Without the switches a texture is a GPU copy from its first use on, unless the host takes it from its storage
++// (packaged, or tex_cpu_content's first-use rule), so CPU writes the copy misses are counted, each texture once:
++// - flushed before its first use, when an earlier texture with the same storage and description already had a GPU copy: the replay's
++//   sharing table (g_alias in nvn_mtl.m) then hands the new texture that copy, with the earlier content, and fills nothing (a flushed texture
++//   otherwise gets a one-time fill from its storage, tex_init_fill);
++// - flushed after its first use (what ft_flush would upload);
++// - written after its first use, any page it covers (what nvn_ft_poll would upload), for a GPU copy shaders only sample, or for one with
++//   render-target use that the CPU also published with a flush before its first use (ft_flush would have made it CPU-written then).
++// Writes before first use that the copy misses (an uncompressed texture in a pool the GPU also writes, unflushed) are logged but not counted:
++// on the Mac, two tested games that need neither switch had 8 and 89 of them, and a switch learned from them crashed one.
++// A texture the host takes from its storage stays listed: if it becomes a GPU copy later (an uncompressed one, at its pool's first GPU write),
++// its later writes count as above. One the GPU writes as an image is not counted. The log has counts only: no
++// address, size, format or content.
++enum { TW_STOP = 256, TW_POLL_ENTRIES = 2048, TW_LOG_LINES = 64 };
++#define TW_POLL_BYTES (128ull << 20)
++// state: 0 not used yet, 1 GPU copy shaders sample, 2 GPU copy with render-target use (writes watched only after a flush before first use), 4 taken from storage
++typedef struct { const uint8_t *mem; uint64_t size, serial, stamp; const void *span; const uint8_t *lo, *hi; int state, flushed; nvn_texdesc d; } tw_tex;
++typedef struct { const uint8_t *mem; nvn_texdesc d; } tw_key;   // as the sharing table's key: storage and description, without the IMAGE flag
++static nvn_hmap g_stw_seen = {.klen = sizeof(tw_key)};   // storage keys that already had a GPU copy
++static tw_tex *g_stw; static size_t g_stw_n, g_stw_cap, g_stw_cur; static pthread_mutex_t g_stw_mu = PTHREAD_MUTEX_INITIALIZER;
++static _Atomic int g_stw_mode = -1;   // -1 undecided, 0 off, 1 watching, 2 stopped after TW_STOP textures
++static uint64_t g_stw_watched, g_stw_used, g_stw_demoted, g_stw_before, g_stw_reused, g_stw_flushed, g_stw_unflushed, g_stw_logged = ~0ull, g_stw_log_ns; static unsigned g_stw_lines;
++int mtl_tex_gpu_copy(uint64_t serial);
++static int tw_on(void) {
++    int m = atomic_load(&g_stw_mode);
++    if (m < 0) {
++        const char *e = getenv("DM_TEX_WRITE_WATCH");
++        int want = e && !strcmp(e, "1") && !dm_prof()->tex_flush_upload && !dm_prof()->tex_dirty_upload, undecided = -1;
++        if (atomic_compare_exchange_strong(&g_stw_mode, &undecided, want) && want) LOG("[nvn] texture write watch: on, counting CPU writes a texture's GPU copy misses");
++        m = atomic_load(&g_stw_mode);
++    }
++    return m == 1;
++}
++static void tw_add(const tex_t *t) {
++    if (!t->serial || !t->mem || !t->pool || t->has_layout || !t->L.size || t->d.target == NVN_TEXTURE_TARGET_BUFFER ||
++        (t->pool->flags & (NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS | 0x200)) || (t->d.flags & (NVN_TEXTURE_FLAGS_LINEAR | NVN_TEXTURE_FLAGS_LINEAR_RENDER_TARGET)) || !tw_on()) return;
++    const void *span = nvn_dirty_span(t->mem, t->L.size);
++    if (!span) return;
++    pthread_mutex_lock(&g_stw_mu);
++    if (atomic_load(&g_stw_mode) == 1) {
++        if (g_stw_n == g_stw_cap) { size_t c = g_stw_cap ? 2 * g_stw_cap : 1024; tw_tex *n = realloc(g_stw, c * sizeof *n); if (n) { g_stw = n; g_stw_cap = c; } }
++        if (g_stw_n < g_stw_cap) {
++            uint64_t st = nvn_dirty_now(); nvn_dirty_protect(t->mem, t->L.size);   // the stamp before the protection, as ft_add
++            tw_tex *e = &g_stw[g_stw_n++]; memset(e, 0, sizeof *e);
++            e->mem = t->mem; e->size = t->L.size; e->serial = t->serial; e->stamp = st; e->span = span; memcpy(&e->d, &t->d, sizeof e->d); e->d.flags &= ~NVN_TEXTURE_FLAGS_IMAGE;
++            g_stw_watched++;
++        }
++    }
++    pthread_mutex_unlock(&g_stw_mu);
++}
++static void tw_del(uint64_t serial) {
++    if (atomic_load(&g_stw_mode) != 1 || !serial) return;
++    pthread_mutex_lock(&g_stw_mu);
++    for (size_t i = 0; i < g_stw_n; i++) if (g_stw[i].serial == serial) { g_stw[i] = g_stw[--g_stw_n]; break; }
++    pthread_mutex_unlock(&g_stw_mu);
++}
++static void tw_flush(const uint8_t *a, uint64_t n) {
++    if (atomic_load(&g_stw_mode) != 1 || !a || !n) return;
++    pthread_mutex_lock(&g_stw_mu);
++    for (size_t i = 0; i < g_stw_n;) {
++        tw_tex *e = &g_stw[i];
++        if (!(e->mem < a + n && a < e->mem + e->size)) { i++; continue; }
++        if (!e->state) { e->flushed = 1; i++; continue; }   // before first use: the one-time fill takes it
++        if (e->state == 4) { i++; continue; }   // followed from its storage
++        g_stw_flushed++; g_stw[i] = g_stw[--g_stw_n];
++    }
++    pthread_mutex_unlock(&g_stw_mu);
++}
++static void tw_log(int last) {   // g_stw_mu held
++    uint64_t total = g_stw_reused + g_stw_flushed + g_stw_unflushed, t = now_ns();
++    if (total + (g_stw_before << 32) == g_stw_logged || g_stw_lines >= TW_LOG_LINES || (!last && g_stw_log_ns && t - g_stw_log_ns < 2000000000ull)) return;
++    g_stw_logged = total + (g_stw_before << 32); g_stw_log_ns = t; g_stw_lines++;
++    LOG("[nvn] texture writes the GPU copy misses: %llu textures (flushed over shared storage %llu, flushed after %llu, written after %llu; written before first use %llu, not counted); %llu of %llu watched textures used, %llu taken from storage then GPU copies%s",
++        (unsigned long long)total, (unsigned long long)g_stw_reused, (unsigned long long)g_stw_flushed, (unsigned long long)g_stw_unflushed, (unsigned long long)g_stw_before,
++        (unsigned long long)g_stw_used, (unsigned long long)g_stw_watched, (unsigned long long)g_stw_demoted, last ? "; watch stopped" : "");
++}
++static void tw_poll(void) {
++    if (atomic_load(&g_stw_mode) != 1) return;
++    pthread_mutex_lock(&g_stw_mu);
++    size_t looked = 0; uint64_t bytes = 0;
++    while (g_stw_n && looked < TW_POLL_ENTRIES && bytes < TW_POLL_BYTES) {
++        if (g_stw_cur >= g_stw_n) g_stw_cur = 0;
++        tw_tex *e = &g_stw[g_stw_cur]; int drop = 0; looked++;
++        if (!e->state) {
++            int k = mtl_tex_gpu_copy(e->serial);   // takes the replay's serial table lock, never held while calling into this file
++            if (k == 4) e->state = 4;   // followed from its storage, for now (see state 4 below)
++            else if (k) {
++                g_stw_used++; bytes += e->size;
++                tw_key key; memset(&key, 0, sizeof key); key.mem = e->mem; memcpy(&key.d, &e->d, sizeof key.d);
++                int shared = nvn_hm_get(&g_stw_seen, &key) != NULL;
++                if (!shared) nvn_hm_put(&g_stw_seen, &key, (void *)1);
++                if (k <= 2 && !e->flushed && nvn_dirty_since_span(e->span, e->mem, e->size, e->stamp)) { g_stw_before++; drop = 1; }
++                else if (k <= 2 && e->flushed && shared) { g_stw_reused++; drop = 1; }
++                else if (k == 3) drop = 1;   // the GPU writes it as an image
++                else {
++                    // The CPU published it with a flush before its first use (so the one-time fill took it): for a texture with render-target use
++                    // too, later CPU writes are what tex_flush_upload would follow, as ft_flush would have made it CPU-written then
++                    int filled = e->flushed;
++                    e->state = k;
++                    const uint8_t *lo = e->mem, *hi = e->mem + e->size;
++                    if ((k == 1 || filled) && lo < hi) { e->stamp = nvn_dirty_now(); nvn_dirty_protect(lo, (size_t)(hi - lo)); e->lo = lo; e->hi = hi; }
++                }
++            }
++        } else if (e->state == 4) {
++            // An uncompressed texture taken from its storage becomes a GPU copy at its pool's first GPU write (cpu_unc_drop in nvn_mtl.m), with the
++            // content of that moment; the switches keep it CPU-written. From then on its writes count as after first use.
++            int k = mtl_tex_gpu_copy(e->serial);
++            if (k == 3) drop = 1;
++            else if (k == 1 || k == 2) {
++                g_stw_demoted++; e->state = k;
++                const uint8_t *lo = e->mem, *hi = e->mem + e->size;
++                if (lo < hi) { e->stamp = nvn_dirty_now(); nvn_dirty_protect(lo, (size_t)(hi - lo)); e->lo = lo; e->hi = hi; }
++            }
++        } else if (e->lo < e->hi) {
++            bytes += (uint64_t)(e->hi - e->lo);
++            if (nvn_dirty_since_span(e->span, e->lo, (size_t)(e->hi - e->lo), e->stamp)) { g_stw_unflushed++; drop = 1; }
++        }
++        if (drop) g_stw[g_stw_cur] = g_stw[--g_stw_n]; else g_stw_cur++;
++    }
++    int stop = g_stw_reused + g_stw_flushed + g_stw_unflushed >= TW_STOP;
++    tw_log(stop);
++    if (stop) { atomic_store(&g_stw_mode, 2); free(g_stw); g_stw = NULL; g_stw_n = g_stw_cap = g_stw_cur = 0; free(g_stw_seen.keys); free(g_stw_seen.vals); nvn_hm_init(&g_stw_seen, sizeof(tw_key)); }
++    pthread_mutex_unlock(&g_stw_mu);
++}
++void satchel_tw_reset(void) {   // a managed session's reset (SessionNVNReset.inc): the next game decides and counts afresh
++    pthread_mutex_lock(&g_stw_mu);
++    free(g_stw); g_stw = NULL; g_stw_n = g_stw_cap = g_stw_cur = 0;
++    free(g_stw_seen.keys); free(g_stw_seen.vals); nvn_hm_init(&g_stw_seen, sizeof(tw_key));
++    g_stw_watched = g_stw_used = g_stw_demoted = g_stw_before = g_stw_reused = g_stw_flushed = g_stw_unflushed = 0; g_stw_logged = ~0ull; g_stw_log_ns = 0; g_stw_lines = 0;
++    atomic_store(&g_stw_mode, -1);
++    pthread_mutex_unlock(&g_stw_mu);
++}
++
+ // Flushed ranges (every game): what the CPU published with nvnMemoryPoolFlushMappedRange, as disjoint [lo, hi) spans sorted by start (touching spans merge), dropped with their pool.
+ // Until the GPU first uses a texture it has not written it, so storage the game flushed before that first use is the texture's content: tex_init_fill (nvn_mtl.m) fills the new GPU
+ // texture from it once, as it does for a pool the CPU cannot access. Breath of the Wild copies its precomputed sky scattering tables (System/KSys/sky.skybin: a 256x32x16 RGBA16F 3D
+@@ -527,9 +668,10 @@
+     OLOG("Texture %p %ux%ux%u lv%u fmt=%#x tgt=%d flags=%#x size=%#llx", (void *)t, o->d.width, o->d.height, o->d.depth,
+          o->d.levels, o->d.format, o->d.target, o->d.flags, o->L.size);
+     ft_add(o);
++    tw_add(o);
+     return 1;
+ }
+-NVN(nvnTextureFinalize, void, NVNtexture *t) { ft_del(TX(t)->serial); mtl_tex_release(TX(t)); TX(t)->magic = 0; }
++NVN(nvnTextureFinalize, void, NVNtexture *t) { ft_del(TX(t)->serial); tw_del(TX(t)->serial); mtl_tex_release(TX(t)); TX(t)->magic = 0; }
+ NVN(nvnTextureGetFlags, NVNtextureFlags, const NVNtexture *t) { return (NVNtextureFlags)CTX(t)->d.flags; }
+ NVN(nvnTextureGetWidth, int, const NVNtexture *t) { return (int)CTX(t)->d.width; }
+ NVN(nvnTextureGetHeight, int, const NVNtexture *t) { return (int)CTX(t)->d.height; }
+@@ -1342,6 +1484,7 @@
+     nvn_cap_submit(n, (const uint64_t *)h);   // DM_NVN_CAPTURE (nvn_capture.inc)
+     mtl_sub_begin();
+     nvn_ft_poll();
++    tw_poll();
+     mtl_sub_index((const uint64_t *)h, n);
+     for (int i = 0; i < n; i++) { mtl_exec_rest((const uint64_t *)h + i + 1, n - i - 1); mtl_exec((const uint8_t *)h[i]); }
+     mtl_exec_rest(NULL, 0);

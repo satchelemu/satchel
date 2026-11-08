@@ -338,6 +338,10 @@ enum PreparePipeline {
                 manifest["preparedProfile"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(preparedProfile))
                 manifest["shaderStatus"] = "runtime first-use translation required"
                 manifest["experimental"] = recipe.reviewedVersion == nil
+                // Prepared with reviewed settings set aside (the developer option, or the Mac harness's
+                // --generic-profile): a test package. The app keeps the title's other packages beside it,
+                // prefers them for Play, and plays this one with a copy of the save.
+                if !allowReviewedProfiles { manifest["testPackage"] = true }
             } else if !recipe.nros.isEmpty {
                 // A reviewed format 1 package retains its exact inventory binding.
                 guard let expected = profile.nroInventorySHA256, files["dm/nro.tsv"]?.sha256 == expected else {

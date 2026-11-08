@@ -377,7 +377,7 @@ struct HomebrewView: View {
                     let entry = artwork.shelf(library.items).first { $0.id == item.id }
                     GameDetailView(library: library, artwork: artwork, item: item, updates: entry?.updates ?? [],
                                    onPlay: playAction(for: item), onPrepare: prepareAction(for: item),
-                                   onOpenSettings: { open(.settings) })
+                                   onOpenSettings: { open(.settings) }, onPlayPackage: { open(.preparedPackage($0)) })
                 } else {
                     // The game was removed while its page was up.
                     SatchelTheme.shell.ignoresSafeArea().onAppear { close() }

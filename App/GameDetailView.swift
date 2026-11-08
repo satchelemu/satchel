@@ -9,6 +9,9 @@ struct GameDetailView: View {
     var onPlay: (() -> Void)?
     var onPrepare: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    /// Opens a prepared package by folder name: the test package's Play (developer controls).
+    var onPlayPackage: ((String) -> Void)?
+    @AppStorage("SatchelDeveloperControls") private var developerControls = false
 #if !SATCHEL_UI_PREVIEW_MINIMAL
     @ObservedObject private var addOnJob = AddOnJob.shared
 #endif
@@ -115,6 +118,7 @@ struct GameDetailView: View {
                     compatibility
                 } else {
                     journey
+                    testPackagePanel
                     shadersPanel
                     if info?.kind == .update || info?.kind == .addOnContent { updateTarget }
                     if !updates.isEmpty || !extras.isEmpty { updatesPanel }
@@ -136,6 +140,28 @@ struct GameDetailView: View {
     private var importedAddOns: [SwitchAddOnInfo] {
         guard let id = info?.applicationID ?? artwork.newestPackage(for: item)?.applicationID else { return [] }
         return GameInfo.addOns(for: id, in: library.items.filter(library.hasOriginal).compactMap { artwork.info($0) })
+    }
+
+    /// A test package (prepared with reviewed settings set aside, developer controls) beside the
+    /// package Play starts: its own Play, so the learned settings flow can run on a reviewed game.
+    @ViewBuilder private var testPackagePanel: some View {
+#if !SATCHEL_UI_PREVIEW_MINIMAL
+        if developerControls, info?.kind != .update, info?.kind != .addOnContent, let onPlayPackage,
+           let id = info?.applicationID ?? artwork.newestPackage(for: item)?.applicationID,
+           let test = artwork.prepared.filter({ $0.applicationID == id && $0.test && $0.current }).max(by: { $0.date < $1.date }),
+           artwork.preparedPackage(for: currentItem)?.folder != test.folder {
+            SatchelPanel(title: "Test package", tint: SatchelTheme.tide) {
+                Text("Prepared without reviewed settings: it starts on the starter profile and learns its settings from its own launches. It plays with a copy of your save; Play above starts your other package.")
+                    .font(.system(size: 13, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { Haptics.click(); onPlayPackage(test.folder) } label: {
+                    SatchelButtonLabel(title: "Play test package", systemImage: "flask.fill", kind: .secondary, height: 42)
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityIdentifier("detail-play-test-package")
+            }
+        }
+#endif
     }
 
     /// Shader warm-up for the package Play starts, so it stays reachable after the first play.

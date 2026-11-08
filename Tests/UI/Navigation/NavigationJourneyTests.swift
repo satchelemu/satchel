@@ -26,7 +26,7 @@ final class NavigationJourneyTests: XCTestCase {
         }
         // These journeys launch their own fixture and assert its entry screen.
         // Avoid launching and immediately terminating an unrelated default library.
-        let fixtureFamilies = ["testPosture", "testLayoutSweep", "testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
+        let fixtureFamilies = ["testPosture", "testLayoutSweep", "testControls", "testDeviceCheck", "testAddDLC", "testPrepareDiagnostics", "testTestPackage", "testWarmup", "testSplit", "testHomeImportCard", "testSave", "testGameSettings", "testCloudSave"]
         let fixtureJourneys = ["testSimulatorPanelControls", "testDeveloperControlsHiddenByDefault",
             "testPreparedOnlyLibraryWithoutImports", "testRemovedOriginalDetail", "testEmptyLibraryEntrypoints",
             "testNSZAndXCZImportAndDuplicate", "testImportCancelledThenRestarted", "testGamePageWithoutWarmupRecord",
@@ -3403,6 +3403,73 @@ final class NavigationJourneyTests: XCTestCase {
     func testPostureHalfFoldedToOpen() throws { try postureTransition(from: "book", to: "open") }
     func testPostureOpenToHalfFoldedAcross() throws { try postureTransition(from: "open", to: "tall") }
     func testPostureHalfFoldedAcrossToOpen() throws { try postureTransition(from: "tall", to: "open") }
+
+    /// The developer option to prepare without reviewed settings is hidden unless developer
+    /// controls are on.
+    func testTestPackageOptionHiddenWithoutDeveloperControls() throws {
+        app.launchArguments += ["-SatchelPreviewKeys", "YES", "-SatchelPreviewIdentity", "YES"]
+        app.launch()
+        try workshop("workshop-prepare")
+        _ = try button("prepare-base")
+        XCTAssertFalse(app.switches["prepare-test-package"].exists, "The test package option needs developer controls")
+        absent(app.descendants(matching: .any)["prepare-test-package-note"])
+    }
+
+    /// With developer controls, Prepare without reviewed settings (off by default) makes a separate
+    /// test package of the same title. The title's package stays and Play keeps starting it; the
+    /// game page offers the test package's own Play, and Settings tags it. Saves are not touched
+    /// here: the save copy is the native bridge's (SessionBridge.m), checked on the phone.
+    func testTestPackageBesideReviewedPackage() throws {
+        let developer = try XCTUnwrap(app.launchArguments.firstIndex(of: "-SatchelDeveloperControls"))
+        app.launchArguments[developer + 1] = "YES"
+        app.launchArguments += ["-SatchelPreviewPrepareTests", "YES", "-SatchelPreviewKeys", "YES", "-SatchelPreviewIdentity", "YES",
+                                "-SatchelPreviewPrepareEnd", "signed", "-SatchelPreviewPrepareSeconds", "2"]
+        app.launch()
+        try workshop("workshop-prepare")
+        try tap("prepare-base")
+        try tap("Lantern Drift [Base]")
+        let column = app.scrollViews.containing(.button, identifier: "prepare-base").firstMatch
+        let option = app.switches["prepare-test-package"]
+        revealControl(option, in: column)
+        XCTAssertEqual(option.value as? String, "0", "The test package option starts off")
+        absent(app.descendants(matching: .any)["prepare-test-package-note"])
+        // A tap that lands while the reveal scroll is still settling only stops the scroll.
+        for _ in 0..<3 where option.value as? String != "1" { option.tap(); Thread.sleep(forTimeInterval: 0.5) }
+        XCTAssertEqual(option.value as? String, "1")
+        let note = app.descendants(matching: .any)["prepare-test-package-note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.label.contains("Your current package, your saves and the original imports stay as they are"), note.label)
+        revealControl(app.buttons["prepare-start"], in: column)
+        try button("prepare-start").tap()
+        let status = app.staticTexts["prepare-status"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            status.exists && status.label.hasPrefix("Ready to play the test package") && !self.app.buttons["prepare-cancel"].exists
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 90), .completed,
+                       "Prepare must finish as a test package; actual: \(status.exists ? status.label : "missing")")
+        XCTAssertTrue(status.label.contains("Your other package and your saves are unchanged"), status.label)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Test package prepared"; shot.lifetime = .keepAlways; add(shot)
+        try tap("close-prepare")
+        // Both packages of the title, told apart in Settings.
+        try tap("open-settings")
+        try tap("settings-Prepared games")
+        let original = app.descendants(matching: .any)["prepared-tag-LanternDrift-1.2.0"].firstMatch
+        XCTAssertTrue(original.waitForExistence(timeout: 8))
+        XCTAssertEqual(original.label, "Current")
+        let tags = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label == %@", "prepared-tag-Prepared-", "Test package"))
+        XCTAssertEqual(tags.count, 1, "One test package beside the original")
+        try tap("close-settings")
+        // The game page: Play is the original package's; the test package has its own Play.
+        try findLanternShelf()
+        _ = try button("homebrew-Lantern Drift [Base]")
+        try tap("open-focused")
+        let detail = app.scrollViews["detail-scroll"]
+        let play = try button("detail-play-test-package", scroll: detail)
+        XCTAssertEqual(play.label, "Play test package")
+        let page = XCTAttachment(screenshot: app.screenshot())
+        page.name = "Game page with a test package"; page.lifetime = .keepAlways; add(page)
+    }
 #endif
 
 }

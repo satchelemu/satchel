@@ -532,8 +532,8 @@ struct SettingsView: View {
     }
 
     private func preparedTag(_ game: PreparedGame) -> some View {
-        SatchelChip(text: game.current ? "Current" : "Needs Prepare again",
-                   tint: game.current ? SatchelTheme.leaf : SatchelTheme.spark)
+        SatchelChip(text: !game.current ? "Needs Prepare again" : game.test ? "Test package" : "Current",
+                   tint: !game.current ? SatchelTheme.spark : game.test ? SatchelTheme.tide : SatchelTheme.leaf)
             .fixedSize()
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("prepared-tag-" + game.folder)

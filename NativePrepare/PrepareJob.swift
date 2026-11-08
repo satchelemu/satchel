@@ -19,6 +19,8 @@ import SwiftUI
         let updateID: String
         let finishedAt: Date
         var applicationID: UInt64?
+        /// Prepared with reviewed settings set aside (developer option): a test package.
+        var testPackage: Bool? = nil
     }
 
     @Published private(set) var running = false {
@@ -51,6 +53,9 @@ import SwiftUI
     @Published private(set) var finalizing = false
     /// Set when this job runs without the newest imported update of its game.
     @Published private(set) var updateWarning: String?
+    /// Developer option for this job: prepare without the game's reviewed settings, as a separate
+    /// test package (the learned settings flow on a game that has reviewed ones).
+    @Published private(set) var testPackage = false
     /// `-SatchelAutoPrepare` starts one job per launch, even if the screen opens again.
     var autoPrepareUsed = false
 
@@ -65,6 +70,7 @@ import SwiftUI
             package = outcome.package; title = outcome.title; message = outcome.message
             baseID = outcome.baseID; updateID = outcome.updateID
             selectedTitleID = outcome.applicationID
+            testPackage = outcome.testPackage == true
         }
     }
 
@@ -74,12 +80,12 @@ import SwiftUI
 
     /// Starts preparing `base` with `update`. Ignored while a job runs.
     func start(base: HomebrewItem, update: HomebrewItem?, title: String, library: HomebrewLibrary,
-               artwork: GameArtworkStore, applicationID: UInt64? = nil) {
+               artwork: GameArtworkStore, applicationID: UInt64? = nil, testPackage: Bool = false) {
         guard !running, !WarmupJob.shared.running, !AddOnJob.shared.running else { return }
         // A paused game holds gigabytes of memory and its package; Prepare is untested beside it.
         guard !Self.gameSessionOpen else { message = Self.sessionBlocked; return }
         baseID = base.id; updateID = update?.id ?? ""; self.title = title
-        selectedTitleID = applicationID; updateWarning = nil
+        selectedTitleID = applicationID; updateWarning = nil; self.testPackage = testPackage
         guard artwork.keysAvailable else { message = FirstRunHelp.noKeys; return }
         guard library.hasOriginal(base), update.map(library.hasOriginal) ?? true else {
             message = "Import the original game and matching update again before preparing a new package."
@@ -127,12 +133,13 @@ import SwiftUI
             return
         }
         start(base: base, update: library.items.first { $0.id == updateID }, title: title(base), library: library,
-              artwork: artwork, applicationID: selectedTitleID)
+              artwork: artwork, applicationID: selectedTitleID, testPackage: testPackage)
     }
 
     /// Prepare is refused while a game session exists, even paused in the background.
     static let sessionBlocked = "Quit the game before preparing another."
     static let verifiedMessage = "Ready to play. The complete package passed verification."
+    static let testMessage = "Ready to play the test package. It uses the starter profile and learns its settings from its own launches, with a copy of your save. Your other package and your saves are unchanged; Play in the library still starts the other package."
     static var gameSessionOpen: Bool { SatchelNativeSessionStarted() || PreparedLaunch.current != nil }
 
     /// A note on the Prepare screen when no job runs (for example why auto prepare did not start).
@@ -158,6 +165,7 @@ import SwiftUI
             let name = "Prepared-" + UUID().uuidString
             let destination = games.appendingPathComponent(name, isDirectory: true)
             let applicationID = selectedTitleID
+            let testPackage = self.testPackage
             let token = PrepareCancellation(); cancellation = token
             outcome = nil; package = name; cancelling = false; finalizing = false; running = true
             message = "Waiting for iOS to start preparation…"; fraction = 0; progressSnapshot = nil; startedAt = Date()
@@ -189,15 +197,18 @@ import SwiftUI
                 let outcome: Result<PrepareSigningState, Error> = Result {
                     let selection = try PrepareDiscovery.select(base: base, update: update, keys: keys, titleID: applicationID, token: token)
                     NativeGameReport.record(package: name, titleID: String(format: "%016llX", selection.titleID), stage: "extract", result: "running", message: "Preparing " + selection.name)
-                    let reviewed = NativeGameProfile.find(titleID: String(format: "%016llX", selection.titleID), version: selection.version)
+                    // A test package is prepared exactly as an unknown game: no reviewed settings, no shader pack.
+                    let reviewed = testPackage ? nil : NativeGameProfile.find(titleID: String(format: "%016llX", selection.titleID), version: selection.version)
                     let candidate = reviewed.map { documents.appendingPathComponent("ShaderPacks/" + $0.packageName) }
                     let pack = candidate.flatMap { FileManager.default.fileExists(atPath: $0.appendingPathComponent("shader-pack.json").path) ? $0 : nil }
                     let identity = try SatchelSigningIdentity.storedIdentity()
                     guard identity.expiry > Date() else { throw PrepareFailure(message: "Your signing certificate has expired. Import a renewed identity.") }
                     // Capture the inputs before Prepare reads them. Replacements made while
                     // it runs must not be deleted just because the older package verifies.
-                    do { cleanupPlan = try PreparedImportCleanup.plan(documents: documents, originals: originalFiles, shaderPack: pack, cancelled: { token.cancelled }) }
-                    catch { cleanupNote = "Originals kept: " + error.localizedDescription }
+                    if !testPackage {
+                        do { cleanupPlan = try PreparedImportCleanup.plan(documents: documents, originals: originalFiles, shaderPack: pack, cancelled: { token.cancelled }) }
+                        catch { cleanupNote = "Originals kept: " + error.localizedDescription }
+                    }
                     try token.check()
                     preparedTitleID = selection.titleID
                     DispatchQueue.main.async {
@@ -206,6 +217,7 @@ import SwiftUI
                     }
                     let state = try PreparePipeline.run(base: base, update: update, addOns: addOns, keys: keys, shaderPack: pack,
                         destination: destination, applicationID: selection.titleID, signer: PhonePreparedGameSigner(identity: identity), token: token,
+                        allowReviewedProfiles: !testPackage,
                         details: { value in
                             systemProgress?.completedUnitCount = Int64(value.overallFraction * 1_000_000)
                             retitle?(value)
@@ -235,6 +247,7 @@ import SwiftUI
                     // A signed package that passed the full verifier replaces the title's older
                     // packages (a package from an earlier engine, or an earlier Prepare). Failed
                     // and cancelled runs never reach this, and a removal failure keeps success.
+                    // A test package replaces only an earlier test package of its title.
                     @MainActor func complete(_ result: Result<PrepareSigningState, Error>, note: String? = nil) {
                         guard case .success(.signed) = result else { proceed(result, note: note); return }
                         var keeping = Set<String>()
@@ -243,7 +256,7 @@ import SwiftUI
                         DispatchQueue.global(qos: .utility).async {
                             let kept: String?
                             do {
-                                let failures = try PreparedPackage.removeReplaced(by: destination, keeping: keeping)
+                                let failures = try PreparedPackage.removeReplaced(by: destination, keeping: keeping, onlyTestPackages: testPackage)
                                 kept = failures.isEmpty ? nil : "Older prepared copies were kept: " + failures.joined(separator: "; ")
                             } catch { kept = "Older prepared copies were kept: " + error.localizedDescription }
                             DispatchQueue.main.async {
@@ -260,6 +273,8 @@ import SwiftUI
                     }
                     do { try token.check() } catch { complete(.failure(error)); return }
                     guard case .success(.signed) = outcome else { complete(outcome); return }
+                    // A test package never removes the originals: the player may want to prepare again.
+                    guard !testPackage else { complete(outcome, note: Self.testMessage); return }
                     guard PreparedImportCleanup.enabled() else {
                         complete(outcome, note: "Ready to play. Original imports were kept by your storage setting."); return
                     }
@@ -325,7 +340,8 @@ import SwiftUI
         }
         if let updateWarning, kind != .cancelled { message += " " + updateWarning }
         outcome = Outcome(kind: kind, package: package, title: title, message: message,
-                          baseID: baseID, updateID: updateID, finishedAt: Date(), applicationID: selectedTitleID)
+                          baseID: baseID, updateID: updateID, finishedAt: Date(), applicationID: selectedTitleID,
+                          testPackage: testPackage ? true : nil)
         let state: String
         switch kind {
         case .signed: state = "signed"

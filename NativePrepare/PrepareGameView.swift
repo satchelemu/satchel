@@ -16,6 +16,9 @@ struct PrepareGameView: View {
     /// The base the update choice belongs to: a new base gets its own newest update preselected.
     @State private var updateBaseID = ""
     @State private var applicationID = ""
+    /// Developer option, off each time the screen opens: prepare a separate test package without
+    /// the game's reviewed settings, so the learned settings flow runs on a game that has them.
+    @State private var testPackage = false
     /// The raw title ID field is for multi-title dumps and developers only.
     @AppStorage("SatchelDeveloperControls") private var developerControls = false
     @Environment(\.dismiss) private var dismiss
@@ -200,6 +203,18 @@ struct PrepareGameView: View {
             Text("Preparation keeps going when you close this screen or switch apps. Shader warm-up is optional and starts only from the game page. New titles use experimental settings, explained in the game report.")
                 .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(SatchelTheme.textDim)
                 .fixedSize(horizontal: false, vertical: true)
+            if developerControls {
+                Toggle(isOn: $testPackage) {
+                    Text("Test without reviewed settings").font(.system(size: 14, weight: .semibold, design: .rounded))
+                }
+                .tint(SatchelTheme.tide).disabled(job.running)
+                .accessibilityIdentifier("prepare-test-package")
+                if testPackage {
+                    SatchelDisabledReason(text: "Developer option: prepares a separate test package that starts on the starter profile and learns its settings from its own launches, as a game without reviewed settings does. Your current package, your saves and the original imports stay as they are. The test package plays with a copy of your save, needs as much free space as the game again, and replaces only an earlier test package of this game.",
+                                          systemImage: "flask.fill")
+                        .accessibilityIdentifier("prepare-test-package-note")
+                }
+            }
             Button { startPrepare() } label: {
                 SatchelButtonLabel(title: "Prepare game", systemImage: "hammer.fill", kind: .accent(SatchelTheme.ember), height: 48)
             }
@@ -215,7 +230,7 @@ struct PrepareGameView: View {
     private func startPrepare() {
         guard startBlocked == nil, let base = selectedBase else { return }
         job.start(base: base, update: updates.first { $0.id == updateID }, title: artwork.title(base), library: library,
-                  artwork: artwork, applicationID: target(for: base))
+                  artwork: artwork, applicationID: target(for: base), testPackage: developerControls && testPackage)
     }
 
     private var statusPanel: some View {

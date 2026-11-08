@@ -71,7 +71,8 @@ session = ROOT / 'NativeHost/session'
 inputs += list(session.glob('Session*.c')) + list(session.glob('Session*.h'))
 inputs += list(session.glob('*.inc')) + list(session.glob('*overlay.py')) + list(session.glob('*.patch'))
 inputs += [ROOT / 'NativeHost/graphics' / name for name in
-           ['PipelineSettings.m', 'PipelineSettings.h', 'overlay.py', 'pipeline.patch', 'prewarm.patch', 'stalls.patch', 'host-time.patch', 'HostPause.h', 'loading.patch', 'RomFSRead.h', 'gpu-cost.patch', 'upscale.patch', 'present_filter.py', 'PresentFilter.metal']]
+           ['PipelineSettings.m', 'PipelineSettings.h', 'overlay.py', 'pipeline.patch', 'prewarm.patch', 'stalls.patch', 'host-time.patch', 'HostPause.h', 'loading.patch', 'RomFSRead.h', 'gpu-cost.patch', 'upscale.patch', 'present_filter.py', 'PresentFilter.metal',
+            'texture_writes.py', 'texture-writes.patch', 'texture-writes-metal.patch']]
 inputs += [ROOT / 'NativeHost/memory' / name for name in ['overlay.py', 'SceneMemory.inc', 'GhostPool.inc']]
 # Reusable sessions are the canonical app path. An explicit zero is diagnostic only.
 os.environ.setdefault('SATCHEL_SESSION_BOUNDARY', '1')

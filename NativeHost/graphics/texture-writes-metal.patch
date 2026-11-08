@@ -1,0 +1,24 @@
+--- a/nvn_mtl.m
++++ b/nvn_mtl.m
+@@ -3162,6 +3162,21 @@
+     pthread_mutex_unlock(&g_cpu_tex_mu);
+     return r;
+ }
++// Satchel texture-write watch (NativeHost/graphics/texture-writes-metal.patch, read by tw_poll in hle_nvn.c): how the replay holds a texture's
++// content. 0: no host texture yet (not used), 1: a GPU copy made at first use that shaders only sample, 2: render-target use, 3: shader writes,
++// 4: taken from its storage (packaged, CPU-written or sparse), which the host already follows. The usage is read under the serial table lock
++int mtl_tex_gpu_copy(uint64_t serial) {
++    int r = 0;
++    pthread_mutex_lock(&g_smu);
++    __unsafe_unretained id o = hm_get_id(&g_by_serial, &serial); if (!o && g_ghost.n) o = hm_get_id(&g_ghost, &serial);
++    if (o) {
++        if (![o conformsToProtocol:@protocol(MTLTexture)]) r = 4;
++        else { MTLTextureUsage u = ((id<MTLTexture>)o).usage; r = (u & MTLTextureUsageShaderWrite) ? 3 : (u & MTLTextureUsageRenderTarget) ? 2 : 1; }
++    }
++    pthread_mutex_unlock(&g_smu);
++    if (r && r < 4 && tex_cpu_written(serial)) r = 4;
++    return r;
++}
+ // Whether the host takes a texture's content from its storage (tex_mtl_'s packaged path): a packaged layout, CPU-written, or a sampled texture in a sparse virtual pool, which holds what
+ // the CPU wrote into the physical pages mapped there (Monster Hunter Rise: the hunter's innerwear, ASTC 6x6 with no packaged layout, came out magenta, and the face black) and is read
+ // through the page table. Render targets, images, linear and buffer textures stay GPU textures (as ft_add). mtl_read_texels reads these from the storage too, on whatever thread asks

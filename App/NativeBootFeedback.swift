@@ -5,16 +5,18 @@ import CryptoKit
 ///
 /// After a launch with the package's own starter profile, the app reads the host log for the
 /// three bounded memory signals of `NativePreparationRecipe.MemoryObservation` (a failed heap
-/// request, whether a heap opened, the alias region high-water mark) and one graphics signal
-/// (the game used conditional rendering, which the host drew through). When the generic rules
-/// change the runtime profile, the next launch uses the regenerated profile. Nothing else from the
-/// log is kept: no guest text, no game code or data, no save data and no keys.
+/// request, whether a heap opened, the alias region high-water mark) and two graphics signals
+/// (the game used conditional rendering, which the host drew through, and the host's count of
+/// textures whose CPU-written content their GPU copy missed, which it never uploaded). When the
+/// generic rules change the runtime profile, the next launch uses the regenerated profile. Nothing
+/// else from the log is kept: no guest text, no game code or data, no save data and no keys.
 ///
 /// Retry policy: memory settings come only from a launch that used the package's original
 /// starter profile, bound to the package name, its profile digest and the rewriter revision, and
-/// are fixed once derived. The one-way render condition setting may also come from the first
-/// learned launch (a game that failed its heap request draws nothing before it). So at most two
-/// corrections are made and a failing one cannot repeat itself; "Forget learned settings" or
+/// are fixed once derived. The one-way graphics settings (render conditions, texture uploads) may
+/// also come from the first learned launch (a game that failed its heap request draws nothing
+/// before it), in one step. So at most two corrections are made and a failing one cannot repeat
+/// itself; "Forget learned settings" or
 /// Prepare again starts over. Reviewed profiles, packages prepared with an observation and
 /// packages from an earlier rewriter are left alone.
 struct NativeBootFeedback: Codable {
@@ -26,8 +28,10 @@ struct NativeBootFeedback: Codable {
     let starterProfileSHA256: String
     let rewriter: String
     let observation: NativePreparationRecipe.MemoryObservation
-    /// Set when a starter or the first learned launch showed conditional rendering.
+    /// Set when a starter or the first learned launch showed conditional rendering or texture writes.
     var graphics: NativePreparationRecipe.GraphicsObservation? = nil
+    /// The host's count of textures whose GPU copy missed CPU writes, when it taught the uploads.
+    var textureWrites: UInt64? = nil
     /// When the observed starter launch began.
     let observedAt: Date
     /// The profile the next launch uses, or nil when no rule changes the starter profile.
@@ -107,9 +111,16 @@ struct NativeBootFeedback: Codable {
         var heapOpened = false
         var aliasMappedHighWater: UInt64 = 0
         var renderConditions = false
+        /// The largest count of the host's texture-write watch (hle_nvn.c, texture-writes.patch).
+        var textureWritesMissed: UInt64 = 0
         mutating func ingest(_ line: Substring) {
             if line.contains("SetRenderEnableConditional: the host draws anyway") || line.contains("SetRenderEnable(false): the host draws anyway") {
                 renderConditions = true
+            } else if let range = line.range(of: "[nvn] texture writes the GPU copy misses: ") {
+                let digits = line[range.upperBound...].prefix { $0.isNumber }
+                if digits.count <= 9, line[range.upperBound...].dropFirst(digits.count).hasPrefix(" textures"), let value = UInt64(digits) {
+                    textureWritesMissed = max(textureWritesMissed, value)
+                }
             } else if line.contains("SetHeapSize OOM: req 0x"), let value = Self.hex(after: "SetHeapSize OOM: req 0x", in: line) {
                 largestFailedHeap = max(largestFailedHeap, value)
             } else if line.contains("[mem] heap "), line.contains(" GB (heap region ") {
@@ -182,6 +193,18 @@ struct NativeBootFeedback: Codable {
         }
     }
 
+    /// Textures counted before the uploads are learned. A write to a page a texture shares with
+    /// other data counts too (as the engine's own dirty-page poll), so one or two are not enough.
+    /// Measured on the Mac (docs/generic-profiles.md).
+    static let textureWriteThreshold: UInt64 = 8
+
+    /// The graphics settings these signals ask for, or nil when they ask for none.
+    static func graphics(_ signals: LogSignals) -> NativePreparationRecipe.GraphicsObservation? {
+        let textures = signals.textureWritesMissed >= textureWriteThreshold
+        guard signals.renderConditions || textures else { return nil }
+        return .init(renderConditions: signals.renderConditions, textureUploads: textures ? true : nil)
+    }
+
     static func make(binding: Binding, observation: NativePreparationRecipe.MemoryObservation,
                      graphics: NativePreparationRecipe.GraphicsObservation?, at date: Date, launches: Int = 0) -> NativeBootFeedback? {
         var observed = binding.recipe
@@ -200,15 +223,26 @@ struct NativeBootFeedback: Codable {
     /// Derives feedback from one starter boot's signals.
     static func learn(_ signals: LogSignals, binding: Binding, at date: Date = Date()) -> NativeBootFeedback? {
         guard let observation = observation(signals, recipe: binding.recipe) else { return nil }
-        return make(binding: binding, observation: observation,
-                    graphics: signals.renderConditions ? .init(renderConditions: true) : nil, at: date)
+        let graphics = graphics(signals)
+        var feedback = make(binding: binding, observation: observation, graphics: graphics, at: date)
+        if graphics?.textureUploads == true { feedback?.textureWrites = signals.textureWritesMissed }
+        return feedback
     }
 
-    /// The first learned launch may add the render condition setting, once; memory stays fixed.
+    /// Whether a graphics setting is still off that a later signal could turn on.
+    var graphicsOpen: Bool { graphics?.renderConditions != true || graphics?.textureUploads != true }
+
+    /// The first learned launch may add the graphics settings it shows that are still off, in one
+    /// step (collect reads only that launch); memory stays fixed and nothing is turned off again.
     func adding(_ signals: LogSignals, binding: Binding) -> NativeBootFeedback? {
-        guard matches(binding), graphics == nil, signals.renderConditions else { return nil }
-        return Self.make(binding: binding, observation: observation, graphics: .init(renderConditions: true),
-                         at: observedAt, launches: learnedLaunches)
+        guard matches(binding), let seen = Self.graphics(signals) else { return nil }
+        let render = graphics?.renderConditions == true || seen.renderConditions
+        let textures = graphics?.textureUploads == true || seen.textureUploads == true
+        let merged = NativePreparationRecipe.GraphicsObservation(renderConditions: render, textureUploads: textures ? true : nil)
+        guard merged != graphics else { return nil }
+        var feedback = Self.make(binding: binding, observation: observation, graphics: merged, at: observedAt, launches: learnedLaunches)
+        feedback?.textureWrites = graphics?.textureUploads == true ? textureWrites : (textures ? signals.textureWritesMissed : nil)
+        return feedback
     }
 
     /// The regenerated learned profile, checked against its recorded digest.
@@ -262,10 +296,10 @@ struct NativeBootFeedback: Codable {
         let runtime = runtimeURL(titleID: binding.titleID)
         guard let record = launchRecord(titleID: binding.titleID), record.package == binding.package else { return existing }
         // Memory settings are fixed once derived; only the first learned launch may still add the
-        // render condition setting. Without a change, the latest starter launch is read again: its
-        // log may have grown since, or a later launch may show what it did not.
+        // graphics settings that are off. Without a change, the latest starter launch is read again:
+        // its log may have grown since, or a later launch may show what it did not.
         if let existing, let learned = existing.learnedProfileSHA256 {
-            guard existing.graphics == nil, record.kind == .learned, record.profileSHA256 == learned, existing.learnedLaunches <= 1 else { return existing }
+            guard existing.graphicsOpen, record.kind == .learned, record.profileSHA256 == learned, existing.learnedLaunches <= 1 else { return existing }
         } else {
             guard record.kind == .starter, record.profileSHA256 == binding.starterProfileSHA256,
                   existing.map({ record.time >= $0.observedAt.timeIntervalSince1970 }) ?? true else { return existing }
@@ -329,6 +363,9 @@ struct NativeBootFeedback: Codable {
                      (observation.heapOpened ? "heap opened, " : "no heap opened, ") +
                      "alias region mapped up to \(gib(observation.aliasMappedHighWater))"]
         if graphics?.renderConditions == true { lines.append("The game uses conditional rendering; Satchel evaluates it as the console does.") }
+        if graphics?.textureUploads == true {
+            lines.append("The game wrote \(textureWrites.map(String.init) ?? "several") textures from the CPU that the GPU copy did not show; Satchel now uploads them from memory and again when it changes.")
+        }
         if learnedProfileSHA256 == nil {
             lines.append("No generic rule applies; launches keep the starter profile.")
         } else {

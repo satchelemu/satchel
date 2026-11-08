@@ -50,19 +50,23 @@ enum PreparedPackage {
     /// After a successful Prepare: checks `root` with the launch verifier again, then removes
     /// every other package folder of the same title with `delete(named:)`. Folders whose
     /// manifest cannot be read and those in `keeping` (in use by a running job) are left alone.
-    /// Throws, removing nothing, when `root` does not verify. Returns one line per folder that
-    /// could not be removed.
-    static func removeReplaced(by root: URL, keeping: Set<String> = [], profiles: [NativeGameProfile] = NativeGameProfile.all,
+    /// With `onlyTestPackages` (a test package was prepared) only earlier test packages of the
+    /// title go; the package the player uses stays. Throws, removing nothing, when `root` does not
+    /// verify. Returns one line per folder that could not be removed.
+    static func removeReplaced(by root: URL, keeping: Set<String> = [], onlyTestPackages: Bool = false,
+                               profiles: [NativeGameProfile] = NativeGameProfile.all,
                                cancelled: () -> Bool = { false }) throws -> [String] {
         _ = try verify(root: root, profiles: profiles, cancelled: cancelled)
         let fm = FileManager.default
         let parent = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("PreparedGames", isDirectory: true)
-        func titleID(_ folder: URL) -> String? {
+        func manifest(_ folder: URL) -> [String: Any]? {
             let url = folder.appendingPathComponent("manifest.json")
             guard let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? NSNumber, size.intValue <= 32 * 1024 * 1024,
-                  let data = try? Data(contentsOf: url),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let id = object["titleID"] as? String, !id.isEmpty else { return nil }
+                  let data = try? Data(contentsOf: url) else { return nil }
+            return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        }
+        func titleID(_ folder: URL) -> String? {
+            guard let id = manifest(folder)?["titleID"] as? String, !id.isEmpty else { return nil }
             return id.uppercased()
         }
         guard root.standardizedFileURL.deletingLastPathComponent().path == parent.standardizedFileURL.path,
@@ -73,7 +77,8 @@ enum PreparedPackage {
         let folders = try fm.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
         for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             let name = folder.lastPathComponent
-            guard name != root.lastPathComponent, !keeping.contains(name), titleID(folder) == title else { continue }
+            guard name != root.lastPathComponent, !keeping.contains(name), titleID(folder) == title,
+                  !onlyTestPackages || manifest(folder)?["testPackage"] as? Bool == true else { continue }
             do { try delete(named: name) } catch { failures.append(name + ": " + error.localizedDescription) }
         }
         return failures

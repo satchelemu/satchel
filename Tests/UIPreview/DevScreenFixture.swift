@@ -46,10 +46,12 @@ enum PreparePipeline {
     /// Walks the real steps with the real progress model and no work, so the progress screens
     /// can be captured. -SatchelPreviewPrepareEnd signed|unsigned|failed picks the ending
     /// (failed by default); -SatchelPreviewPrepareSeconds sets the length (40 by default). A
-    /// signed or unsigned ending writes a fictional manifest, with no game files.
+    /// signed or unsigned ending writes a fictional manifest, with no game files. Without reviewed
+    /// settings (the developer test package) it writes a current starter manifest for the chosen
+    /// title, marked as a test package as the real pipeline marks it.
     static func run(base: URL, update: URL?, addOns: [URL] = [], keys: [String: Data], shaderPack: URL? = nil,
                     destination: URL, applicationID: UInt64? = nil, signer: PreparedGameSigner, token: PrepareCancellation,
-                    details: ((PrepareProgressSnapshot) -> Void)? = nil,
+                    allowReviewedProfiles: Bool = true, details: ((PrepareProgressSnapshot) -> Void)? = nil,
                     progress: @escaping (String, Double?) -> Void) throws -> PrepareSigningState {
         let reporter = PrepareProgress { value in details?(value); progress(value.message, value.overallFraction) }
         let defaults = UserDefaults.standard
@@ -70,9 +72,15 @@ enum PreparePipeline {
         }
         let fm = FileManager.default
         try fm.createDirectory(at: destination, withIntermediateDirectories: true)
-        let manifest: [String: Any] = ["format": 1, "titleID": "0100F2C0115B6000", "version": "1.4.3",
+        var manifest: [String: Any] = ["format": 1, "titleID": "0100F2C0115B6000", "version": "1.4.3",
                                        "signingStatus": ending == "signed" ? "signed" : "needs signature",
                                        "contentVersion": 0, "buildIDs": [String: String]()]
+        if !allowReviewedProfiles {
+            guard shaderPack == nil else { throw PrepareFailure(message: "Preview: a test package takes no shader pack.") }
+            manifest = PreviewManifest.make(titleID: applicationID ?? 0x0100F2C0115B6000, version: "1.2.0", name: "Synthetic test package")
+            manifest["testPackage"] = true
+            if ending != "signed" { manifest["signingStatus"] = "needs signature" }
+        }
         try JSONSerialization.data(withJSONObject: manifest).write(to: destination.appendingPathComponent("manifest.json"))
         return ending == "signed" ? .signed : .needsSignature
     }

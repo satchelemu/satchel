@@ -196,9 +196,12 @@ struct PreparedGame: Equatable {
     /// Passes this build's engine identity check (`PreparedIdentity`). A package an older engine
     /// made is not current: launch refuses it, so it has to be prepared again.
     var current = false
+    /// Prepared with reviewed settings set aside (developer option). Play in the library prefers
+    /// the title's other packages; the test package starts from Prepare or Prepared games.
+    var test = false
 
     static func scan() -> [PreparedGame] {
-        struct Manifest: Decodable { let titleID: String; let version: String; let contentVersion: UInt32?; let buildIDs: [String: String]? }
+        struct Manifest: Decodable { let titleID: String; let version: String; let contentVersion: UInt32?; let buildIDs: [String: String]?; let testPackage: Bool? }
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let root = documents.appendingPathComponent("PreparedGames", isDirectory: true)
         guard let folders = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return [] }
@@ -211,7 +214,7 @@ struct PreparedGame: Equatable {
             let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
             return PreparedGame(folder: folder.lastPathComponent, applicationID: id, version: manifest.version, date: date,
                                 preparedOnPhone: manifest.contentVersion != nil || manifest.buildIDs != nil,
-                                current: PreparedIdentity.isCurrent(data))
+                                current: PreparedIdentity.isCurrent(data), test: manifest.testPackage == true)
         }
     }
 }
@@ -302,9 +305,11 @@ final class GameArtworkStore: ObservableObject {
     }
 
     /// The package that Play starts for an imported game: the newest current one prepared for
-    /// its title. A package made by an older engine is never started; it needs Prepare again.
+    /// its title, a test package only when the title has no other. A package made by an older
+    /// engine is never started; it needs Prepare again.
     func preparedPackage(for item: HomebrewItem) -> PreparedGame? {
-        packages(for: item).filter(\.current).max { $0.date < $1.date }
+        let current = packages(for: item).filter(\.current)
+        return (current.contains { !$0.test } ? current.filter { !$0.test } : current).max { $0.date < $1.date }
     }
 
     /// The newest package of the item's title, current or not: for its art, title ID and the
@@ -332,12 +337,13 @@ final class GameArtworkStore: ObservableObject {
             guard item.preparedSource?.isUpdate != true, info(item)?.kind != .update, info(item)?.kind != .addOnContent else { return nil }
             return item.preparedSource?.titleID ?? info(item)?.applicationID
         })
-        // One tile per title: its newest current package, else its newest one (which then
-        // shows as needing Prepare again).
+        // One tile per title: its newest current package (a test package only when there is no
+        // other), else its newest one (which then shows as needing Prepare again).
         var newest: [UInt64: PreparedGame] = [:]
         for game in prepared where !imported.contains(game.applicationID) {
             guard let kept = newest[game.applicationID] else { newest[game.applicationID] = game; continue }
-            if kept.current == game.current ? kept.date <= game.date : game.current { newest[game.applicationID] = game }
+            let later = kept.test == game.test ? kept.date <= game.date : kept.test
+            if kept.current == game.current ? later : game.current { newest[game.applicationID] = game }
         }
         return newest.values.map { game in
             HomebrewItem(id: Self.preparedPrefix + game.folder, name: name(game.applicationID) ?? game.folder, bytes: 0,

@@ -173,6 +173,12 @@ static BOOL prepare_native_session(NSString *package, NSString *learnedProfile, 
         if (![NSFileManager.defaultManager createDirectoryAtPath:[runtime stringByAppendingPathComponent:name] withIntermediateDirectories:YES attributes:nil error:error]) { dlclose(handle); return NO; }
     }
     if ([manifest[@"format"] isEqual:@2] && ![NSFileManager.defaultManager createDirectoryAtPath:[runtime stringByAppendingPathComponent:@"shader-capture"] withIntermediateDirectories:YES attributes:nil error:error]) { dlclose(handle); return NO; }
+    // A test package (prepared with reviewed settings set aside, a developer option) plays with its
+    // own copy of the title's save, made at its first launch, so the save the player uses never changes.
+    BOOL testPackage = [manifest[@"format"] isEqual:@2] && [manifest[@"testPackage"] isEqual:@YES];
+    NSString *savePath = [runtime stringByAppendingPathComponent:testPackage ? @"save-test" : @"save"];
+    if (testPackage && ![NSFileManager.defaultManager fileExistsAtPath:savePath] &&
+        ![NSFileManager.defaultManager copyItemAtPath:[runtime stringByAppendingPathComponent:@"save"] toPath:savePath error:error]) { dlclose(handle); return NO; }
     g_previousDirectory = NSFileManager.defaultManager.currentDirectoryPath;
     g_environment = session_environment();
     g_originalStderr = dup(STDERR_FILENO);
@@ -211,13 +217,23 @@ static BOOL prepare_native_session(NSString *package, NSString *learnedProfile, 
         @"DM_NVN_SHMAP": [package stringByAppendingPathComponent:@"dm/shader_map.tsv"],
         @"DM_MSL_DIR": [package stringByAppendingPathComponent:@"msl"],
         @"DM_FONT_DIR": [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"NativeAssets/font"],
-        @"DM_SAVE": [runtime stringByAppendingPathComponent:@"save"],
+        @"DM_SAVE": savePath,
         @"DM_TEMP": [runtime stringByAppendingPathComponent:@"temp"],
         @"DM_AOC_DIR": [package stringByAppendingPathComponent:@"aoc"]
     };
     for (NSString *key in paths) setenv(key.UTF8String, [paths[key] fileSystemRepresentation], 1);
     SatchelApplyPipelineSettings(runtime);
     dm_cloud_saves_env();
+    if (testPackage) {
+        setenv("DM_SAVE_SYNC", "0", 1);   // the copy never syncs over the player's save
+        fprintf(stderr, "Satchel test package: own save copy, cloud saves off\n");
+    }
+    // A starter profile package (no reviewed version in its recipe) has the host count textures whose
+    // GPU copy misses CPU writes, for the boot feedback (texture_writes.py in NativeHost/graphics).
+    // The host watches only while the profile's texture upload switches are off, and only counts.
+    NSDictionary *recipe = manifest[@"recipe"];
+    if ([manifest[@"format"] isEqual:@2] && [recipe isKindOfClass:NSDictionary.class] && ![recipe[@"reviewedVersion"] isKindOfClass:NSString.class])
+        setenv("DM_TEX_WRITE_WATCH", "1", 1);
     // Dev only: the host polls this file for key presses and "shot <path>" requests, so the Mac
     // can drive the game and see frames through devicectl (its own screen capture is black on this
     // phone). Each session starts with an empty file; the Mac replaces it with a longer copy.

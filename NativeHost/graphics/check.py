@@ -86,9 +86,17 @@ queue += r'''int main(void) { @autoreleasepool {
 '''
 (tests / 't_satchel_shader_queue.m').write_text(queue)
 (tests / 't_satchel_async_pixels.m').write_text('#define main original_main\n' + (a.engine / 'dm/gfx/tests/t_pso_warm.m').read_text() + '\n' + Path(__file__).with_name('async-pixels-test.inc').read_text())
+# The texture-write watch: the overlay's nvn_mtl.m and a copy of hle_nvn.c with texture-writes.patch in one unit, as t_cpu_tex.
+watch = a.output / 'texture-writes'; watch.mkdir(exist_ok=True)
+shutil.copyfile(a.engine / 'dm/gfx/nvn/hle_nvn.c', watch / 'hle_nvn.c')
+runpy.run_path(str(Path(__file__).with_name('texture_writes.py')))['host'](watch / 'hle_nvn.c')
+shutil.copyfile(watch / 'hle_nvn.c', nvn / 'hle_nvn_tw.c')
+(tests / 't_satchel_texture_writes.m').write_text('#define nvn_game_fps nvn_game_fps_mtl_default\n#include "../nvn/nvn_mtl.m"\n#undef nvn_game_fps\n'
+    '#define g_ft g_ft_hle\n#include "../nvn/hle_nvn_tw.c"\n#undef g_ft\n' + Path(__file__).with_name('texture-writes-test.m').read_text())
 (tests / 'satchel.mk').write_text('include Makefile\n' + ''.join(
     name + ': ' + name + '.m $(MTL_T_DEP)\n\tclang $(CFLAGS) -fobjc-arc -o $@ ' + name + '.m $(MTL_T_SRC) $(FW)\n'
-    for name in ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']))
+    for name in ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']) +
+    't_satchel_texture_writes: t_satchel_texture_writes.m ../nvn/hle_nvn_tw.c $(MTL_T_DEP)\n\tclang $(CFLAGS) -fobjc-arc -o $@ t_satchel_texture_writes.m $(filter-out ../nvn/hle_nvn.c,$(MTL_T_SRC)) $(FW)\n')
 tools = DEPENDENCY_PATHS['deps_root']() / 'tmp-snapshot-2026-11-01/tmp/satchel-switch-integration'
 env = runpy.run_path(str(root / 'scripts/switch_native.py'))['tool_environment'](tools)
 import json
@@ -121,7 +129,7 @@ for before, after in replacements.items():
     text = text.replace(before, after)
 pending.write_text(text)
 (tests / 't_satchel_async.m').write_text('#define main original_main\n' + pending.read_text() + '\n' + Path(__file__).with_name('async-test.inc').read_text())
-targets = ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_pso_pending', 't_pso_archive', 't_pso_warm', 't_pull', 't_pull_inv', 't_pso_stall', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']
+targets = ['t_satchel_seed', 't_satchel_seed_base', 't_satchel_archive_live', 't_satchel_archive_live_base', 't_pso_pending', 't_pso_archive', 't_pso_warm', 't_pull', 't_pull_inv', 't_pso_stall', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels', 't_satchel_texture_writes']
 # Both prerequisites resolve the same profile symlink, so prepare them serially.
 subprocess.run(['make', '-j1', 'game_profile', 'host_msl'], cwd=engine / 'dm/host', env=env, check=True)
 subprocess.run(['make', '-j2', '-f', 'satchel.mk', *targets], cwd=tests, env=env, check=True)
@@ -157,7 +165,7 @@ subprocess.run([executable('t_satchel_archive_live')], cwd=tests, env=dict(env, 
 for mode in ['0', '1']:
     for test in ['t_satchel_seed', 't_pso_warm']:
         subprocess.run([executable(test)], cwd=tests, env=dict(env, MTL_DEBUG_LAYER='1', DM_PSO_MTL4=mode), check=True)
-for test in ['t_pso_pending', 't_pull', 't_pull_inv', 't_pso_stall', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels']:
+for test in ['t_pso_pending', 't_pull', 't_pull_inv', 't_pso_stall', 't_satchel_shader_queue', 't_satchel_async', 't_satchel_async_pixels', 't_satchel_texture_writes']:
     subprocess.run([executable(test)], cwd=tests, env=dict(env, MTL_DEBUG_LAYER='1'), check=True)
 # Run both commands from check_t_pso_archive with the recognized executable name.
 archive = executable('t_pso_archive')

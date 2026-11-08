@@ -156,8 +156,11 @@ import Foundation
         guard let withGraphics = NativeBootFeedback.collect(packageRoot: root), withGraphics.graphics?.renderConditions == true else { fatalError("FAIL: first learned launch adds render conditions") }
         guard let next = NativeBootFeedback.prepareLaunch(packageRoot: root), String(decoding: try Data(contentsOf: next), as: UTF8.self).contains("render_cond\t1") else { fatalError("FAIL: render conditions applied") }
         check(NativeBootFeedback.load(package: "Synthetic-1")?.learnedLaunches == 2, "launch count kept")
+        // A later learned launch that shows texture writes changes nothing either: two corrections at most.
+        try Data("[dm] [RED] SetRenderEnableConditional: the host draws anyway for now\n[dm] [nvn] texture writes the GPU copy misses: 900 textures (flushed over shared storage 800, flushed after 50, written after 50; written before first use 3, not counted); 4000 of 9000 watched textures used\n".utf8).write(to: runtime.appendingPathComponent("host.log"))
         try session("Synthetic-1", Date().timeIntervalSince1970 + 30)
         check(NativeBootFeedback.collect(packageRoot: root)?.learnedProfileSHA256 == withGraphics.learnedProfileSHA256, "no further change")
+        check(NativeBootFeedback.load(package: "Synthetic-1")?.graphics?.textureUploads == nil, "texture uploads not added after the first learned launch")
         // Forget: the next launch is a starter launch and the learned file is gone.
         NativeBootFeedback.reset(package: "Synthetic-1")
         check(NativeBootFeedback.load(package: "Synthetic-1") == nil && !FileManager.default.fileExists(atPath: learned.path), "reset removes learned settings")
@@ -175,6 +178,37 @@ import Foundation
         try FileManager.default.createDirectory(at: packaged, withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: ["format": 1, "titleID": "010000000000CAFE", "version": "1.0.0"]).write(to: packaged.appendingPathComponent("manifest.json"))
         check(NativeBootFeedback.prepareLaunch(packageRoot: packaged) == nil && NativeBootFeedback.launchRecord(titleID: "010000000000CAFE")?.kind == .other, "reviewed package untouched")
+
+        // Texture writes: the host's bounded summary line (texture-writes.patch), the largest count kept,
+        // malformed lines ignored, and a threshold before the two upload switches are learned.
+        let watch = { (n: Int) in "[dm] [nvn] texture writes the GPU copy misses: \(n) textures (flushed over shared storage 0, flushed after \(n), written after 0; written before first use 0, not counted); \(n) of 9000 watched textures used, 0 taken from storage then GPU copies" }
+        let writes = signals([watch(3), watch(40), watch(12), "[dm] [nvn] texture writes the GPU copy misses: 1234567890 textures (flushed over shared storage 0, flushed after 0, written after 0; written before first use 0, not counted)",
+                              "[dm] [nvn] texture writes the GPU copy misses: 77 frames", "[guest] texture writes the GPU copy misses: 99 textures"].joined(separator: "\n"))
+        check(writes.textureWritesMissed == 40 && !writes.renderConditions, "largest texture count, malformed ignored: \(writes.textureWritesMissed)")
+        let textures = NativeBootFeedback.learn(writes, binding: heapBinding)
+        check(textures?.changes == ["tex_dirty_upload 0 -> 1", "tex_flush_upload 0 -> 1"] && textures?.textureWrites == 40 && textures?.learnedProfile(binding: heapBinding) != nil, "texture writes teach both upload switches: \(textures?.changes ?? [])")
+        let few = signals(watch(Int(NativeBootFeedback.textureWriteThreshold) - 1))
+        check(NativeBootFeedback.learn(few, binding: heapBinding)?.learnedProfileSHA256 == nil && NativeBootFeedback.graphics(few) == nil, "below the threshold, no change")
+        // With memory from the starter launch, the first learned launch adds render conditions and uploads in one step.
+        let shown = signals("[dm] [RED] SetRenderEnableConditional: the host draws anyway for now\n" + watch(40))
+        let oneStep = heap.adding(shown, binding: heapBinding)
+        check(oneStep?.changes == ["mem_alias 0x118000000 -> 0x98000000", "render_cond 0 -> 1", "tex_dirty_upload 0 -> 1", "tex_flush_upload 0 -> 1"] && oneStep?.textureWrites == 40, "one step adds both graphics settings: \(oneStep?.changes ?? [])")
+        check(oneStep?.adding(shown, binding: heapBinding) == nil, "nothing left to add")
+        // Render conditions from the starter launch, then texture writes from the first learned launch.
+        guard let conditions = NativeBootFeedback.learn(signals("[dm] [RED] SetRenderEnable(false): the host draws anyway for now"), binding: heapBinding),
+              let later = conditions.adding(writes, binding: heapBinding) else { fatalError("FAIL: texture uploads added after render conditions") }
+        check(conditions.graphicsOpen && !later.graphicsOpen && later.changes == ["render_cond 0 -> 1", "tex_dirty_upload 0 -> 1", "tex_flush_upload 0 -> 1"], "uploads added beside render conditions")
+        check(conditions.adding(few, binding: heapBinding) == nil, "a count below the threshold adds nothing")
+        // Earlier records and manifests: the new fields are optional and absent when unset.
+        let plain = String(decoding: try JSONEncoder().encode(NativePreparationRecipe.GraphicsObservation(renderConditions: true)), as: UTF8.self)
+        check(plain == #"{"renderConditions":true}"#, "an observation without uploads encodes as before: \(plain)")
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        var earlier = try JSONSerialization.jsonObject(with: encoder.encode(both2!)) as! [String: Any]
+        earlier["textureWrites"] = nil
+        let old = try decoder.decode(NativeBootFeedback.self, from: JSONSerialization.data(withJSONObject: earlier))
+        check(old.graphics?.renderConditions == true && old.graphics?.textureUploads == nil && old.textureWrites == nil && old.learnedProfile(binding: heapBinding) != nil, "an earlier record still applies")
+        check(oneStep!.summary.contains { $0.contains("wrote 40 textures from the CPU that the GPU copy did not show") }, "summary names the texture count")
 
         // Copied diagnostics: fixed fields, no shader keys, guest text or raw log lines.
         var report = NativeGameReport(package: "Synthetic-1", titleID: heapRecipe.titleID, stage: "boot", result: "returned 0", message: "Synthetic")

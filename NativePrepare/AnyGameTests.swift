@@ -24,6 +24,15 @@ import Foundation
         try check(runtime.contains("mem_alias\t0x118000000\n"), "documented virtual alias default")
         try check(runtime.contains("display_version\t" + recipe.buildIDs["main"]! + "\t1.0\n"), "display version keyed by main build")
         try check(runtime.contains("render_cond\t0\n") && runtime.contains("device_api\t0.0\n") && runtime.contains("game_env\t\n"), "no Zelda default leakage")
+        // A texture-write observation turns on both upload switches and nothing else; without one the
+        // starter text above is unchanged (an earlier observation decodes with uploads unset).
+        var uploads = recipe; uploads.graphicsObservation = .init(renderConditions: false, textureUploads: true)
+        let learned = String(decoding: try uploads.runtime(profiles: []), as: UTF8.self)
+        let differing = zip(runtime.split(separator: "\n"), learned.split(separator: "\n")).filter { $0 != $1 }.map { String($1) }
+        try check(differing == ["tex_dirty_upload\t1", "tex_flush_upload\t1"], "texture uploads change exactly the two switches")
+        let earlier = try JSONDecoder().decode(NativePreparationRecipe.GraphicsObservation.self, from: Data(#"{"renderConditions":true}"#.utf8))
+        var conditions = recipe; conditions.graphicsObservation = earlier
+        try check(earlier.textureUploads == nil && String(decoding: try conditions.runtime(profiles: []), as: UTF8.self).contains("tex_flush_upload\t0\n"), "an earlier observation keeps the uploads off")
         func memory(_ recipe: NativePreparationRecipe) throws -> [String: UInt64] {
             let text = String(decoding: try recipe.runtime(profiles: []), as: UTF8.self)
             return Dictionary(uniqueKeysWithValues: text.split(separator: "\n").compactMap { row in
